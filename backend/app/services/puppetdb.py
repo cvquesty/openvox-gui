@@ -109,20 +109,20 @@ class PuppetDBService:
         )
 
     async def get_report_logs(self, report_hash: str) -> List[Dict]:
-        """Get logs for a specific report from PuppetDB."""
-        # The report object itself contains the logs field;
-        # query the report and extract logs
-        report = await self.get_report(report_hash)
-        if report:
-            return report.get("logs", {}).get("data", [])
-        return []
+        """Get logs for a specific report from PuppetDB's sub-endpoint."""
+        try:
+            return await self._query(f"reports/{report_hash}/logs")
+        except Exception as e:
+            logger.warning(f"Failed to fetch logs for report {report_hash}: {e}")
+            return []
 
-    async def get_report_metrics(self, report_hash: str) -> Dict:
-        """Get metrics for a specific report from PuppetDB."""
-        report = await self.get_report(report_hash)
-        if report:
-            return report.get("metrics", {}).get("data", [])
-        return {}
+    async def get_report_metrics(self, report_hash: str) -> List[Dict]:
+        """Get metrics for a specific report from PuppetDB's sub-endpoint."""
+        try:
+            return await self._query(f"reports/{report_hash}/metrics")
+        except Exception as e:
+            logger.warning(f"Failed to fetch metrics for report {report_hash}: {e}")
+            return []
 
     # ─── Facts ──────────────────────────────────────────────
 

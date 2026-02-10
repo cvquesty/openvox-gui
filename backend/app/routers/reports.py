@@ -66,13 +66,30 @@ async def get_report_detail(report_hash: str):
 
         events = await puppetdb_service.get_report_events(report_hash)
 
-        # Extract logs and metrics from the report object
-        logs = report.get("logs", {})
-        if isinstance(logs, dict):
-            logs = logs.get("data", [])
-        metrics = report.get("metrics", {})
-        if isinstance(metrics, dict):
-            metrics = metrics.get("data", [])
+        # Get logs: PuppetDB returns logs as a lazy reference {"href": "...", "data": [...]}
+        # The "data" key may be an empty list if log_level is set too high in puppet.conf.
+        # We also query the logs sub-endpoint as a fallback.
+        logs = []
+        logs_field = report.get("logs", {})
+        if isinstance(logs_field, dict):
+            logs = logs_field.get("data", [])
+        elif isinstance(logs_field, list):
+            logs = logs_field
+
+        # If inline data is empty, try querying the sub-endpoint directly
+        if not logs:
+            logs = await puppetdb_service.get_report_logs(report_hash)
+
+        # Get metrics: same lazy reference pattern
+        metrics = []
+        metrics_field = report.get("metrics", {})
+        if isinstance(metrics_field, dict):
+            metrics = metrics_field.get("data", [])
+        elif isinstance(metrics_field, list):
+            metrics = metrics_field
+
+        if not metrics:
+            metrics = await puppetdb_service.get_report_metrics(report_hash)
 
         return {
             "hash": report.get("hash", ""),

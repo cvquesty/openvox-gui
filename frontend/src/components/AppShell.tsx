@@ -5,7 +5,6 @@ import {
   NavLink,
   Title,
   Group,
-  ThemeIcon,
   Text,
   Burger,
   ScrollArea,
@@ -19,8 +18,6 @@ import {
   IconDashboard,
   IconServer,
   IconFileReport,
-  IconCategory,
-  IconSettings,
   IconNetwork,
   IconDatabase,
   IconAppWindow,
@@ -71,13 +68,8 @@ export function AppShellLayout() {
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
-            <Group gap="xs">
-              <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 36 }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-              <ThemeIcon size="lg" variant="gradient" gradient={{ from: 'violet', to: 'cyan' }}>
-                <IconCategory size={20} />
-              </ThemeIcon>
+            <Group gap="sm">
+              <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 36 }} />
               <Title order={3} style={{ fontWeight: 700 }}>
                 OpenVox GUI
               </Title>
@@ -85,15 +77,12 @@ export function AppShellLayout() {
           </Group>
           {user && (
             <Group gap="sm">
-              <Badge
-                variant="light"
-                color="violet"
-                size="lg"
-                leftSection={<IconUser size={14} />}
-              >
-                {user.username}
+              <Badge variant="outline" color="gray" size="sm">
+                <Group gap={4}>
+                  <IconUser size={12} />
+                  {user.username} ({user.role})
+                </Group>
               </Badge>
-              <Badge variant="outline" color="gray" size="sm">{user.role}</Badge>
               <Tooltip label="Sign out">
                 <ActionIcon variant="subtle" color="gray" onClick={logout}>
                   <IconLogout size={18} />
@@ -183,4 +172,3 @@ export function AppShellLayout() {
     </MantineAppShell>
   );
 }
-

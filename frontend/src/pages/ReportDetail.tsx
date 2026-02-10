@@ -252,7 +252,7 @@ export function ReportDetailPage() {
                 </Table>
               </ScrollArea>
             ) : (
-              <Text c="dimmed" ta="center" p="lg">No logs in this report</Text>
+              <Stack align="center" p="lg" gap="xs"><Text c="dimmed">No logs available for this report.</Text><Text size="xs" c="dimmed">Puppet agent log_level may be set to "err" which only captures error messages.</Text><Text size="xs" c="dimmed">Set log_level = info in puppet.conf [agent] to capture all run logs.</Text></Stack>
             )}
           </Card>
         </Tabs.Panel>
