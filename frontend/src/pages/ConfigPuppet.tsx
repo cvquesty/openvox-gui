@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Code, Table,
-  Badge, Tabs, Button, Textarea, TextInput, NavLink, ScrollArea, Box,
+  Badge, Tabs, Button, Textarea, TextInput, Select, NavLink, ScrollArea, Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
