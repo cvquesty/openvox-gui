@@ -257,6 +257,162 @@ async def restart_service(request: ServiceActionRequest):
     return result
 
 
+
+
+# ─── Config File Browser / Editor ─────────────────────────
+
+class ConfigFileReadRequest(BaseModel):
+    path: str
+
+
+class ConfigFileSaveRequest(BaseModel):
+    path: str
+    content: str
+
+
+def _detect_os_family() -> str:
+    """Detect whether the host is RedHat or Debian family."""
+    from pathlib import Path
+    if Path("/etc/redhat-release").exists() or Path("/etc/centos-release").exists():
+        return "redhat"
+    if Path("/etc/os-release").exists():
+        try:
+            with open("/etc/os-release") as f:
+                text = f.read().lower()
+            if any(d in text for d in ("rhel", "centos", "fedora", "rocky", "alma", "oracle")):
+                return "redhat"
+        except Exception:
+            pass
+    return "debian"
+
+
+def _build_config_file_tree() -> List[Dict[str, Any]]:
+    """Return the tree of known Puppet configuration files, grouped by category."""
+    from pathlib import Path
+    os_family = _detect_os_family()
+    sysconfig_dir = "/etc/sysconfig" if os_family == "redhat" else "/etc/default"
+
+    groups: List[Dict[str, Any]] = []
+
+    # --- Puppet Agent ---
+    puppet_files = []
+    for name in ["puppet.conf", "autosign.conf"]:
+        p = Path(f"/etc/puppetlabs/puppet/{name}")
+        puppet_files.append({"name": name, "path": str(p), "exists": p.exists()})
+    groups.append({"group": "Puppet Agent", "base": "/etc/puppetlabs/puppet", "files": puppet_files})
+
+    # --- PuppetServer ---
+    ps_files = []
+    conf_d = Path("/etc/puppetlabs/puppetserver/conf.d")
+    if conf_d.is_dir():
+        for f in sorted(conf_d.iterdir()):
+            if f.is_file():
+                ps_files.append({"name": f.name, "path": str(f), "exists": True})
+    services_d = Path("/etc/puppetlabs/puppetserver/services.d")
+    if services_d.is_dir():
+        for f in sorted(services_d.iterdir()):
+            if f.is_file():
+                ps_files.append({"name": f"services.d/{f.name}", "path": str(f), "exists": True})
+    groups.append({"group": "PuppetServer", "base": "/etc/puppetlabs/puppetserver", "files": ps_files})
+
+    # --- PuppetDB ---
+    pdb_files = []
+    pdb_d = Path("/etc/puppetlabs/puppetdb/conf.d")
+    if pdb_d.is_dir():
+        for f in sorted(pdb_d.iterdir()):
+            if f.is_file() and not f.name.endswith(".bak") and ".bak." not in f.name:
+                pdb_files.append({"name": f.name, "path": str(f), "exists": True})
+    groups.append({"group": "PuppetDB", "base": "/etc/puppetlabs/puppetdb/conf.d", "files": pdb_files})
+
+    # --- Sysconfig / Default ---
+    sys_files = []
+    for svc in ["puppet", "puppetserver", "puppetdb"]:
+        p = Path(f"{sysconfig_dir}/{svc}")
+        sys_files.append({"name": svc, "path": str(p), "exists": p.exists()})
+    label = "Sysconfig" if os_family == "redhat" else "Defaults"
+    groups.append({"group": label, "base": sysconfig_dir, "files": sys_files})
+
+    return groups
+
+
+@router.get("/files")
+async def list_config_files():
+    """List all known Puppet configuration files grouped by category."""
+    try:
+        tree = _build_config_file_tree()
+        return {"groups": tree, "os_family": _detect_os_family()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/files/read")
+async def read_config_file(request: ConfigFileReadRequest):
+    """Read contents of a configuration file."""
+    from pathlib import Path
+    path = Path(request.path).resolve()
+
+    # Security: only allow known Puppet config paths
+    allowed_prefixes = [
+        "/etc/puppetlabs/",
+        "/etc/sysconfig/puppet",
+        "/etc/sysconfig/puppetserver",
+        "/etc/sysconfig/puppetdb",
+        "/etc/default/puppet",
+        "/etc/default/puppetserver",
+        "/etc/default/puppetdb",
+    ]
+    if not any(str(path).startswith(p) for p in allowed_prefixes):
+        raise HTTPException(status_code=403, detail="Access denied: path not in allowed config directories")
+
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {request.path}")
+    if not path.is_file():
+        raise HTTPException(status_code=400, detail="Path is not a file")
+
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+        return {"path": str(path), "content": content}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Permission denied reading file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/files/save")
+async def save_config_file(request: ConfigFileSaveRequest):
+    """Save contents to a configuration file (creates backup first)."""
+    from pathlib import Path
+    import shutil, time
+    path = Path(request.path).resolve()
+
+    # Security: only allow known Puppet config paths
+    allowed_prefixes = [
+        "/etc/puppetlabs/",
+        "/etc/sysconfig/puppet",
+        "/etc/sysconfig/puppetserver",
+        "/etc/sysconfig/puppetdb",
+        "/etc/default/puppet",
+        "/etc/default/puppetserver",
+        "/etc/default/puppetdb",
+    ]
+    if not any(str(path).startswith(p) for p in allowed_prefixes):
+        raise HTTPException(status_code=403, detail="Access denied: path not in allowed config directories")
+
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {request.path}")
+
+    try:
+        # Create timestamped backup
+        backup = str(path) + f".bak.{int(time.time())}"
+        shutil.copy2(str(path), backup)
+        path.write_text(request.content, encoding="utf-8")
+        return {"status": "success", "message": f"Saved {request.path}", "backup": backup}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Permission denied writing file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Application Config ───────────────────────────────────
 
 @router.get("/app")

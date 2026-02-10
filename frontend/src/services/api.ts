@@ -157,4 +157,16 @@ export const config = {
       body: JSON.stringify({ service, action: 'restart' }),
     }),
   getApp: () => fetchJSON<any>('/config/app'),
+  // Config file browser
+  listFiles: () => fetchJSON<any>('/config/files'),
+  readFile: (path: string) =>
+    fetchJSON<any>('/config/files/read', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+  saveFile: (path: string, content: string) =>
+    fetchJSON<any>('/config/files/save', {
+      method: 'POST',
+      body: JSON.stringify({ path, content }),
+    }),
 };
