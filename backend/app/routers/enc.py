@@ -1,201 +1,265 @@
 """
-ENC API - External Node Classifier management.
+ENC API — Hierarchical External Node Classifier.
+
+Hierarchy: Common → Environment → Group → Node
 """
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
-from typing import List
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
 import yaml
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..services.enc import enc_service
-from ..services.puppetdb import puppetdb_service
-from ..models.schemas import (
-    ClassificationResponse, NodeGroupCreate, NodeGroupResponse,
-    NodeClassificationCreate, NodeClassificationResponse,
-    ClassificationRuleCreate, ClassificationRuleResponse,
-)
 
 router = APIRouter(prefix="/api/enc", tags=["enc"])
 
 
-# ─── ENC Endpoint (called by Puppet) ───────────────────────
+# ─── Pydantic models ───────────────────────────────────────
 
-@router.get("/classify/{certname}", response_model=ClassificationResponse)
+class CommonData(BaseModel):
+    classes: Dict[str, Any] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+
+class CommonResponse(CommonData):
+    updated_at: Optional[str] = None
+
+class EnvironmentData(BaseModel):
+    name: str
+    description: str = ""
+    classes: Dict[str, Any] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+
+class EnvironmentResponse(EnvironmentData):
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class GroupData(BaseModel):
+    name: str
+    environment: str
+    description: str = ""
+    classes: Dict[str, Any] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+
+class GroupResponse(GroupData):
+    id: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class NodeData(BaseModel):
+    certname: str
+    environment: str
+    classes: Dict[str, Any] = Field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    group_ids: List[int] = Field(default_factory=list)
+
+class NodeResponse(BaseModel):
+    certname: str
+    environment: str
+    classes: Dict[str, Any]
+    parameters: Dict[str, Any]
+    groups: List[str] = []
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class ClassifyResponse(BaseModel):
+    environment: str
+    classes: Dict[str, Any]
+    parameters: Dict[str, Any]
+
+class HierarchyOverview(BaseModel):
+    common: Optional[CommonResponse] = None
+    environments: List[EnvironmentResponse] = []
+    groups: List[GroupResponse] = []
+    nodes: List[NodeResponse] = []
+
+
+# ─── ENC Classify Endpoint (called by Puppet) ──────────────
+
+@router.get("/classify/{certname}", response_model=ClassifyResponse)
 async def classify_node(certname: str, db: AsyncSession = Depends(get_db)):
-    """
-    Classify a node - primary ENC endpoint.
-    Returns JSON classification data.
-    """
-    try:
-        # Fetch facts from PuppetDB for rule matching
-        facts_raw = await puppetdb_service.get_node_facts(certname)
-        facts = {f["name"]: f["value"] for f in facts_raw}
-    except Exception:
-        facts = None
-
-    result = await enc_service.classify_node(certname, db, node_facts=facts)
-    return ClassificationResponse(**result)
-
+    """Classify a node — primary ENC endpoint. Returns merged classification."""
+    result = await enc_service.classify_node(certname, db)
+    return ClassifyResponse(**result)
 
 @router.get("/classify/{certname}/yaml", response_class=PlainTextResponse)
 async def classify_node_yaml(certname: str, db: AsyncSession = Depends(get_db)):
-    """
-    Classify a node - returns YAML format for Puppet ENC script.
-    """
-    try:
-        facts_raw = await puppetdb_service.get_node_facts(certname)
-        facts = {f["name"]: f["value"] for f in facts_raw}
-    except Exception:
-        facts = None
-
-    result = await enc_service.classify_node(certname, db, node_facts=facts)
+    """Classify a node — returns YAML for Puppet ENC script."""
+    result = await enc_service.classify_node(certname, db)
     return yaml.dump(result, default_flow_style=False)
 
 
-# ─── Node Groups ───────────────────────────────────────────
+# ─── Hierarchy Overview ────────────────────────────────────
 
-@router.get("/groups", response_model=List[NodeGroupResponse])
+@router.get("/hierarchy")
+async def get_hierarchy(db: AsyncSession = Depends(get_db)):
+    """Get the full hierarchy overview for the UI."""
+    common = await enc_service.get_common(db)
+    envs = await enc_service.list_environments(db)
+    groups = await enc_service.list_groups(db)
+    nodes = await enc_service.list_nodes(db)
+
+    return {
+        "common": {
+            "classes": common.classes if common else {},
+            "parameters": common.parameters if common else {},
+            "updated_at": str(common.updated_at) if common and common.updated_at else None,
+        },
+        "environments": [
+            {"name": e.name, "description": e.description,
+             "classes": e.classes or {}, "parameters": e.parameters or {},
+             "created_at": str(e.created_at) if e.created_at else None,
+             "updated_at": str(e.updated_at) if e.updated_at else None}
+            for e in envs
+        ],
+        "groups": [
+            {"id": g.id, "name": g.name, "environment": g.environment,
+             "description": g.description,
+             "classes": g.classes or {}, "parameters": g.parameters or {},
+             "created_at": str(g.created_at) if g.created_at else None,
+             "updated_at": str(g.updated_at) if g.updated_at else None}
+            for g in groups
+        ],
+        "nodes": [
+            {"certname": n.certname, "environment": n.environment,
+             "classes": n.classes or {}, "parameters": n.parameters or {},
+             "groups": [g.name for g in n.groups],
+             "created_at": str(n.created_at) if n.created_at else None,
+             "updated_at": str(n.updated_at) if n.updated_at else None}
+            for n in nodes
+        ],
+    }
+
+
+# ─── Common (Layer 1) ─────────────────────────────────────
+
+@router.get("/common")
+async def get_common(db: AsyncSession = Depends(get_db)):
+    common = await enc_service.get_common(db)
+    return {
+        "classes": common.classes if common else {},
+        "parameters": common.parameters if common else {},
+    }
+
+@router.put("/common")
+async def save_common(data: CommonData, db: AsyncSession = Depends(get_db)):
+    common = await enc_service.save_common(db, classes=data.classes, parameters=data.parameters)
+    return {"classes": common.classes, "parameters": common.parameters}
+
+
+# ─── Environments (Layer 2) ────────────────────────────────
+
+@router.get("/environments")
+async def list_environments(db: AsyncSession = Depends(get_db)):
+    envs = await enc_service.list_environments(db)
+    return [{"name": e.name, "description": e.description,
+             "classes": e.classes or {}, "parameters": e.parameters or {}}
+            for e in envs]
+
+@router.post("/environments", status_code=201)
+async def create_environment(data: EnvironmentData, db: AsyncSession = Depends(get_db)):
+    env = await enc_service.save_environment(db, name=data.name, description=data.description,
+                                              classes=data.classes, parameters=data.parameters)
+    return {"name": env.name, "description": env.description,
+            "classes": env.classes, "parameters": env.parameters}
+
+@router.put("/environments/{name}")
+async def update_environment(name: str, data: EnvironmentData, db: AsyncSession = Depends(get_db)):
+    env = await enc_service.save_environment(db, name=name, description=data.description,
+                                              classes=data.classes, parameters=data.parameters)
+    return {"name": env.name, "description": env.description,
+            "classes": env.classes, "parameters": env.parameters}
+
+@router.delete("/environments/{name}", status_code=204)
+async def delete_environment(name: str, db: AsyncSession = Depends(get_db)):
+    if not await enc_service.delete_environment(db, name):
+        raise HTTPException(status_code=404, detail="Environment not found")
+
+
+# ─── Groups (Layer 3) ─────────────────────────────────────
+
+@router.get("/groups")
 async def list_groups(db: AsyncSession = Depends(get_db)):
-    """List all node groups."""
-    groups = await enc_service.get_groups(db)
-    return [NodeGroupResponse.model_validate(g) for g in groups]
+    groups = await enc_service.list_groups(db)
+    return [{"id": g.id, "name": g.name, "environment": g.environment,
+             "description": g.description,
+             "classes": g.classes or {}, "parameters": g.parameters or {}}
+            for g in groups]
 
-
-@router.post("/groups", response_model=NodeGroupResponse, status_code=201)
-async def create_group(data: NodeGroupCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new node group."""
+@router.post("/groups", status_code=201)
+async def create_group(data: GroupData, db: AsyncSession = Depends(get_db)):
     try:
-        group = await enc_service.create_group(
-            db, name=data.name, description=data.description,
-            environment=data.environment, classes=data.classes,
-            parameters=data.parameters, parent_group_id=data.parent_group_id,
-            rule=data.rule
-        )
-        return NodeGroupResponse.model_validate(group)
+        group = await enc_service.save_group(db, name=data.name,
+                                              environment=data.environment,
+                                              description=data.description,
+                                              classes=data.classes,
+                                              parameters=data.parameters)
+        return {"id": group.id, "name": group.name, "environment": group.environment,
+                "description": group.description,
+                "classes": group.classes, "parameters": group.parameters}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.get("/groups/{group_id}", response_model=NodeGroupResponse)
-async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a specific node group."""
-    group = await enc_service.get_group(db, group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    return NodeGroupResponse.model_validate(group)
-
-
-@router.put("/groups/{group_id}", response_model=NodeGroupResponse)
-async def update_group(group_id: int, data: NodeGroupCreate,
-                       db: AsyncSession = Depends(get_db)):
-    """Update a node group."""
-    group = await enc_service.update_group(
-        db, group_id, name=data.name, description=data.description,
-        environment=data.environment, classes=data.classes,
-        parameters=data.parameters, rule=data.rule
-    )
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    return NodeGroupResponse.model_validate(group)
-
+@router.put("/groups/{group_id}")
+async def update_group(group_id: int, data: GroupData, db: AsyncSession = Depends(get_db)):
+    try:
+        group = await enc_service.save_group(db, name=data.name,
+                                              environment=data.environment,
+                                              description=data.description,
+                                              classes=data.classes,
+                                              parameters=data.parameters,
+                                              group_id=group_id)
+        return {"id": group.id, "name": group.name, "environment": group.environment,
+                "description": group.description,
+                "classes": group.classes, "parameters": group.parameters}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/groups/{group_id}", status_code=204)
 async def delete_group(group_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a node group."""
-    deleted = await enc_service.delete_group(db, group_id)
-    if not deleted:
+    if not await enc_service.delete_group(db, group_id):
         raise HTTPException(status_code=404, detail="Group not found")
 
 
-# ─── Node Classifications ──────────────────────────────────
+# ─── Nodes (Layer 4) ──────────────────────────────────────
 
-@router.get("/classifications", response_model=List[NodeClassificationResponse])
-async def list_classifications(db: AsyncSession = Depends(get_db)):
-    """List all node classifications."""
-    classifications = await enc_service.get_classifications(db)
-    result = []
-    for c in classifications:
-        resp = NodeClassificationResponse(
-            certname=c.certname, environment=c.environment,
-            classes=c.classes or {}, parameters=c.parameters or {},
-            is_pinned=c.is_pinned,
-            groups=[g.name for g in c.groups],
-            created_at=c.created_at, updated_at=c.updated_at,
-        )
-        result.append(resp)
-    return result
+@router.get("/nodes")
+async def list_nodes(db: AsyncSession = Depends(get_db)):
+    nodes = await enc_service.list_nodes(db)
+    return [{"certname": n.certname, "environment": n.environment,
+             "classes": n.classes or {}, "parameters": n.parameters or {},
+             "groups": [g.name for g in n.groups]}
+            for n in nodes]
 
-
-@router.post("/classifications", response_model=NodeClassificationResponse, status_code=201)
-async def create_classification(data: NodeClassificationCreate,
-                                 db: AsyncSession = Depends(get_db)):
-    """Create a node classification."""
+@router.post("/nodes", status_code=201)
+async def create_node(data: NodeData, db: AsyncSession = Depends(get_db)):
     try:
-        node_class = await enc_service.create_classification(
-            db, certname=data.certname, environment=data.environment,
-            classes=data.classes, parameters=data.parameters,
-            group_ids=data.group_ids
-        )
-        return NodeClassificationResponse(
-            certname=node_class.certname, environment=node_class.environment,
-            classes=node_class.classes or {}, parameters=node_class.parameters or {},
-            is_pinned=node_class.is_pinned,
-            groups=[g.name for g in node_class.groups],
-            created_at=node_class.created_at, updated_at=node_class.updated_at,
-        )
+        node = await enc_service.save_node(db, certname=data.certname,
+                                            environment=data.environment,
+                                            classes=data.classes,
+                                            parameters=data.parameters,
+                                            group_ids=data.group_ids)
+        return {"certname": node.certname, "environment": node.environment,
+                "classes": node.classes, "parameters": node.parameters,
+                "groups": [g.name for g in node.groups]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.get("/classifications/{certname}", response_model=NodeClassificationResponse)
-async def get_classification(certname: str, db: AsyncSession = Depends(get_db)):
-    """Get classification for a specific node."""
-    node_class = await enc_service.get_classification(db, certname)
-    if not node_class:
-        raise HTTPException(status_code=404, detail="Classification not found")
-    return NodeClassificationResponse(
-        certname=node_class.certname, environment=node_class.environment,
-        classes=node_class.classes or {}, parameters=node_class.parameters or {},
-        is_pinned=node_class.is_pinned,
-        groups=[g.name for g in node_class.groups],
-        created_at=node_class.created_at, updated_at=node_class.updated_at,
-    )
-
-
-@router.delete("/classifications/{certname}", status_code=204)
-async def delete_classification(certname: str, db: AsyncSession = Depends(get_db)):
-    """Delete a node classification."""
-    deleted = await enc_service.delete_classification(db, certname)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Classification not found")
-
-
-# ─── Classification Rules ──────────────────────────────────
-
-@router.get("/rules", response_model=List[ClassificationRuleResponse])
-async def list_rules(db: AsyncSession = Depends(get_db)):
-    """List all classification rules."""
-    rules = await enc_service.get_rules(db)
-    return [ClassificationRuleResponse.model_validate(r) for r in rules]
-
-
-@router.post("/rules", response_model=ClassificationRuleResponse, status_code=201)
-async def create_rule(data: ClassificationRuleCreate, db: AsyncSession = Depends(get_db)):
-    """Create a classification rule."""
+@router.put("/nodes/{certname}")
+async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(get_db)):
     try:
-        rule = await enc_service.create_rule(
-            db, name=data.name, fact_match=data.fact_match,
-            group_id=data.group_id, description=data.description,
-            priority=data.priority, enabled=data.enabled
-        )
-        return ClassificationRuleResponse.model_validate(rule)
+        node = await enc_service.save_node(db, certname=certname,
+                                            environment=data.environment,
+                                            classes=data.classes,
+                                            parameters=data.parameters,
+                                            group_ids=data.group_ids)
+        return {"certname": node.certname, "environment": node.environment,
+                "classes": node.classes, "parameters": node.parameters,
+                "groups": [g.name for g in node.groups]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.delete("/rules/{rule_id}", status_code=204)
-async def delete_rule(rule_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a classification rule."""
-    deleted = await enc_service.delete_rule(db, rule_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Rule not found")
+@router.delete("/nodes/{certname}", status_code=204)
+async def delete_node(certname: str, db: AsyncSession = Depends(get_db)):
+    if not await enc_service.delete_node(db, certname):
+        raise HTTPException(status_code=404, detail="Node not found")

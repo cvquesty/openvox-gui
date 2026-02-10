@@ -88,33 +88,42 @@ export const deploy = {
 // ─── ENC ────────────────────────────────────────────────────
 
 export const enc = {
-  // Groups
+  // Hierarchy overview
+  getHierarchy: () => fetchJSON<any>('/enc/hierarchy'),
+
+  // Common (Layer 1)
+  getCommon: () => fetchJSON<any>('/enc/common'),
+  saveCommon: (data: { classes: any; parameters: any }) =>
+    fetchJSON<any>('/enc/common', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Environments (Layer 2)
+  listEnvironments: () => fetchJSON<any[]>('/enc/environments'),
+  createEnvironment: (data: any) =>
+    fetchJSON<any>('/enc/environments', { method: 'POST', body: JSON.stringify(data) }),
+  updateEnvironment: (name: string, data: any) =>
+    fetchJSON<any>(`/enc/environments/${name}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteEnvironment: (name: string) =>
+    fetchJSON<void>(`/enc/environments/${name}`, { method: 'DELETE' }),
+
+  // Groups (Layer 3)
   listGroups: () => fetchJSON<any[]>('/enc/groups'),
   createGroup: (data: any) =>
     fetchJSON<any>('/enc/groups', { method: 'POST', body: JSON.stringify(data) }),
-  getGroup: (id: number) => fetchJSON<any>(`/enc/groups/${id}`),
   updateGroup: (id: number, data: any) =>
     fetchJSON<any>(`/enc/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteGroup: (id: number) =>
     fetchJSON<void>(`/enc/groups/${id}`, { method: 'DELETE' }),
 
-  // Classifications
-  listClassifications: () => fetchJSON<any[]>('/enc/classifications'),
-  createClassification: (data: any) =>
-    fetchJSON<any>('/enc/classifications', { method: 'POST', body: JSON.stringify(data) }),
-  getClassification: (certname: string) =>
-    fetchJSON<any>(`/enc/classifications/${certname}`),
-  deleteClassification: (certname: string) =>
-    fetchJSON<void>(`/enc/classifications/${certname}`, { method: 'DELETE' }),
+  // Nodes (Layer 4)
+  listNodes: () => fetchJSON<any[]>('/enc/nodes'),
+  createNode: (data: any) =>
+    fetchJSON<any>('/enc/nodes', { method: 'POST', body: JSON.stringify(data) }),
+  updateNode: (certname: string, data: any) =>
+    fetchJSON<any>(`/enc/nodes/${certname}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNode: (certname: string) =>
+    fetchJSON<void>(`/enc/nodes/${certname}`, { method: 'DELETE' }),
 
-  // Rules
-  listRules: () => fetchJSON<any[]>('/enc/rules'),
-  createRule: (data: any) =>
-    fetchJSON<any>('/enc/rules', { method: 'POST', body: JSON.stringify(data) }),
-  deleteRule: (id: number) =>
-    fetchJSON<void>(`/enc/rules/${id}`, { method: 'DELETE' }),
-
-  // Classify
+  // Classify (lookup)
   classify: (certname: string) => fetchJSON<any>(`/enc/classify/${certname}`),
 };
 
