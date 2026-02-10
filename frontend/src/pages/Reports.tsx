@@ -13,7 +13,7 @@ import { StatusBadge } from '../components/StatusBadge';
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
 function ReportOScope() {
   return (
-    <svg viewBox="0 0 500 300" width="100%" preserveAspectRatio="xMidYMid slice" style={{ display: 'block' }}>
+    <svg viewBox="0 0 500 300" width="100%" style={{ maxHeight: 340, display: 'block' }}>
       <defs>
         <linearGradient id="rpt-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#1a1b2e" />
