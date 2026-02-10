@@ -343,10 +343,9 @@ function LookupTrace() {
 
   // Load environments and nodes for dropdowns
   useEffect(() => {
-    config.getHieraFiles()
+    config.getEnvironments()
       .then((data: any) => {
-        const envs = (data.files || []).map((f: any) => f.name.replace('/hiera.yaml', '')).filter((n: string) => n);
-        setEnvironments(envs);
+        setEnvironments(data.environments || []);
       })
       .catch(() => {});
     // Fetch node list
@@ -433,16 +432,25 @@ function LookupTrace() {
         </Group>
         <ScrollArea style={{ height: 450 }}>
           {output ? (
-            <Code block style={{ whiteSpace: 'pre', fontSize: 13 }}>
+            <Box
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 13,
+                whiteSpace: 'pre',
+                backgroundColor: 'var(--mantine-color-dark-8)',
+                color: 'var(--mantine-color-dark-0)',
+                padding: 12,
+                borderRadius: 8,
+              }}
+            >
               {output.split('\n').map((line, i) => (
-                <span key={i}>
+                <div key={i}>
                   {/Found key:/.test(line) ? (
                     <span style={{ color: '#ff4444', fontWeight: 700 }}>{line}</span>
                   ) : line}
-                  {'\n'}
-                </span>
+                </div>
               ))}
-            </Code>
+            </Box>
           ) : (
             <Center h={400}>
               <Text c="dimmed" size="sm">
