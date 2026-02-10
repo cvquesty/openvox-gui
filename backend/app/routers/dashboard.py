@@ -1,9 +1,13 @@
 """
 Dashboard API - Node status overview, metrics, and monitoring data.
 """
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select, func
 from ..services.puppetdb import puppetdb_service
 from ..models.schemas import DashboardStats, NodeStatusCount
+from ..database import async_session
+from ..models.session import ActiveSession
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -53,6 +57,40 @@ async def get_service_status():
         status = puppetserver_service.get_service_status(svc)
         result.append(status)
     return result
+
+
+@router.get("/active-sessions")
+async def get_active_sessions():
+    """Get count and list of active user sessions (active in last 15 min)."""
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        async with async_session() as session:
+            result = await session.execute(
+                select(ActiveSession).where(ActiveSession.last_seen >= cutoff)
+            )
+            sessions = result.scalars().all()
+
+            # Deduplicate by username, keep latest
+            users = {}
+            for s in sessions:
+                if s.username not in users or s.last_seen > users[s.username]["last_seen_dt"]:
+                    users[s.username] = {
+                        "username": s.username,
+                        "last_seen": s.last_seen.isoformat() if s.last_seen else None,
+                        "last_seen_dt": s.last_seen,
+                        "ip_address": s.ip_address,
+                    }
+            user_list = [
+                {"username": v["username"], "last_seen": v["last_seen"], "ip_address": v["ip_address"]}
+                for v in users.values()
+            ]
+            return {
+                "active_count": len(user_list),
+                "total_sessions": len(sessions),
+                "users": user_list,
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/node-status-trends")

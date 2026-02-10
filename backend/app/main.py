@@ -6,6 +6,7 @@ Provides:
 1. Fleet status dashboard with monitoring visualizations
 2. External Node Classifier (ENC) for Puppet agents
 3. Configuration management for PuppetServer, PuppetDB, and this application
+4. Code deployment via r10k integration
 """
 import logging
 from contextlib import asynccontextmanager
@@ -21,6 +22,7 @@ from .database import init_db
 from .middleware.auth import AuthMiddleware
 from .routers import dashboard, nodes, reports, enc, config as config_router, performance
 from .routers import auth as auth_router
+from .routers import deploy as deploy_router
 from .services.puppetdb import puppetdb_service
 
 # Configure logging
@@ -35,7 +37,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     # Startup
-    logger.info(f"Starting {settings.app_name} v0.1.0")
+    logger.info(f"Starting {settings.app_name} v0.2.0")
     logger.info(f"PuppetDB: {settings.puppetdb_host}:{settings.puppetdb_port}")
     logger.info(f"PuppetServer: {settings.puppet_server_host}:{settings.puppet_server_port}")
 
@@ -43,7 +45,7 @@ async def lifespan(app: FastAPI):
     Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
     Path(settings.log_dir).mkdir(parents=True, exist_ok=True)
 
-    # Initialize database
+    # Initialize database (creates all tables including active_sessions)
     await init_db()
     logger.info("Database initialized")
 
@@ -63,7 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Web-based management GUI for OpenVox/Puppet infrastructure",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -89,6 +91,7 @@ app.include_router(reports.router)
 app.include_router(enc.router)
 app.include_router(config_router.router)
 app.include_router(performance.router)
+app.include_router(deploy_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
@@ -99,7 +102,7 @@ if frontend_dist.exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 @app.get("/{full_path:path}")

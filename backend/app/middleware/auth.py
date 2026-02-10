@@ -13,12 +13,15 @@ To add a new auth backend:
 2. Implement the AuthBackend interface
 3. Register it in AUTH_BACKENDS dict below
 """
+import hashlib
+from datetime import datetime, timezone, timedelta
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from typing import Optional, Dict, Any
 import logging
 
+from sqlalchemy import select, delete
 from .auth_base import AuthBackend
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,55 @@ AUTH_BACKENDS = {
     # "saml": SAMLAuthBackend,     # Future
     # "oidc": OIDCAuthBackend,     # Future
 }
+
+
+async def _track_session(request: Request, user: Dict[str, Any]):
+    """Track user session activity in the database."""
+    try:
+        from ..database import async_session
+        from ..models.session import ActiveSession
+
+        # Get the token to create a hash for the session key
+        token = None
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+        if not token:
+            token = request.cookies.get("openvox_token")
+        if not token:
+            return
+
+        token_hash = hashlib.sha256(token.encode()).hexdigest()[:32]
+        username = user.get("user_id") or user.get("username", "unknown")
+        ip = request.client.host if request.client else None
+        now = datetime.now(timezone.utc)
+
+        async with async_session() as session:
+            # Upsert the session record
+            result = await session.execute(
+                select(ActiveSession).where(ActiveSession.token_hash == token_hash)
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.last_seen = now
+                existing.ip_address = ip
+            else:
+                session.add(ActiveSession(
+                    token_hash=token_hash,
+                    username=username,
+                    last_seen=now,
+                    created_at=now,
+                    ip_address=ip,
+                ))
+
+            # Purge stale sessions (not seen in 15 minutes)
+            cutoff = now - timedelta(minutes=15)
+            await session.execute(
+                delete(ActiveSession).where(ActiveSession.last_seen < cutoff)
+            )
+            await session.commit()
+    except Exception as e:
+        logger.debug(f"Session tracking error (non-fatal): {e}")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -85,5 +137,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Attach user to request state
         request.state.user = user
-        return await call_next(request)
 
+        # Track active session (fire-and-forget)
+        await _track_session(request, user)
+
+        return await call_next(request)

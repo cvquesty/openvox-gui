@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Badge,
   Table, Tabs, Grid, Code, Paper,
@@ -10,6 +10,7 @@ import { StatusBadge } from '../components/StatusBadge';
 
 export function NodeDetailPage() {
   const { certname } = useParams<{ certname: string }>();
+  const navigate = useNavigate();
   const { data: node, loading, error } = useApi(() => nodes.get(certname!), [certname]);
   const { data: reportList } = useApi(() => nodes.getReports(certname!, 10), [certname]);
 
@@ -112,7 +113,7 @@ export function NodeDetailPage() {
 
         <Tabs.Panel value="reports" pt="md">
           <Card withBorder>
-            <Table striped>
+            <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Status</Table.Th>
@@ -123,7 +124,11 @@ export function NodeDetailPage() {
               </Table.Thead>
               <Table.Tbody>
                 {reportList?.map((r: any) => (
-                  <Table.Tr key={r.hash}>
+                  <Table.Tr
+                    key={r.hash}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => navigate(`/reports/${r.hash}`)}
+                  >
                     <Table.Td><StatusBadge status={r.status} /></Table.Td>
                     <Table.Td>{new Date(r.start_time).toLocaleString()}</Table.Td>
                     <Table.Td>{r.environment}</Table.Td>

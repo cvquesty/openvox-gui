@@ -4,6 +4,8 @@ import { DashboardPage } from './pages/Dashboard';
 import { NodesPage } from './pages/Nodes';
 import { NodeDetailPage } from './pages/NodeDetail';
 import { ReportsPage } from './pages/Reports';
+import { ReportDetailPage } from './pages/ReportDetail';
+import { CodeDeploymentPage } from './pages/CodeDeployment';
 import { ENCGroupsPage } from './pages/ENCGroups';
 import { ENCClassificationsPage } from './pages/ENCClassifications';
 import { ENCRulesPage } from './pages/ENCRules';
@@ -20,6 +22,10 @@ export function App() {
         <Route path="/nodes" element={<NodesPage />} />
         <Route path="/nodes/:certname" element={<NodeDetailPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/reports/:hash" element={<ReportDetailPage />} />
+
+        {/* Code Deployment */}
+        <Route path="/deployment" element={<CodeDeploymentPage />} />
 
         {/* ENC */}
         <Route path="/enc/groups" element={<ENCGroupsPage />} />

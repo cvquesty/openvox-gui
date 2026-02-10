@@ -58,7 +58,7 @@ async def list_reports(
 
 @router.get("/{report_hash}")
 async def get_report_detail(report_hash: str):
-    """Get detailed report data including events and logs."""
+    """Get detailed report data including events, logs, and metrics."""
     try:
         report = await puppetdb_service.get_report(report_hash)
         if not report:
@@ -66,9 +66,32 @@ async def get_report_detail(report_hash: str):
 
         events = await puppetdb_service.get_report_events(report_hash)
 
+        # Extract logs and metrics from the report object
+        logs = report.get("logs", {})
+        if isinstance(logs, dict):
+            logs = logs.get("data", [])
+        metrics = report.get("metrics", {})
+        if isinstance(metrics, dict):
+            metrics = metrics.get("data", [])
+
         return {
-            **report,
+            "hash": report.get("hash", ""),
+            "certname": report.get("certname", ""),
+            "status": report.get("status"),
+            "environment": report.get("environment"),
+            "start_time": report.get("start_time"),
+            "end_time": report.get("end_time"),
+            "noop": report.get("noop"),
+            "noop_pending": report.get("noop_pending"),
+            "puppet_version": report.get("puppet_version"),
+            "configuration_version": report.get("configuration_version"),
+            "corrective_change": report.get("corrective_change"),
+            "catalog_uuid": report.get("catalog_uuid"),
+            "cached_catalog_status": report.get("cached_catalog_status"),
+            "producer": report.get("producer"),
             "resource_events": events,
+            "logs": logs,
+            "metrics": metrics,
         }
     except HTTPException:
         raise

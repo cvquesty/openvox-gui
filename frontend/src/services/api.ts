@@ -23,6 +23,7 @@ export const dashboard = {
   getNodeStatus: () => fetchJSON<any>('/dashboard/node-status'),
   getReportTrends: () => fetchJSON<any[]>('/dashboard/report-trends'),
   getServices: () => fetchJSON<any[]>('/dashboard/services'),
+  getActiveSessions: () => fetchJSON<any>('/dashboard/active-sessions'),
 };
 
 // ─── Nodes ──────────────────────────────────────────────────
@@ -54,6 +55,19 @@ export const reports = {
     return fetchJSON<any[]>(`/reports/${query ? '?' + query : ''}`);
   },
   get: (hash: string) => fetchJSON<any>(`/reports/${hash}`),
+};
+
+// ─── Deployment ─────────────────────────────────────────────
+
+export const deploy = {
+  getEnvironments: () => fetchJSON<any>('/deploy/environments'),
+  getRepos: () => fetchJSON<any>('/deploy/repos'),
+  getStatus: () => fetchJSON<any>('/deploy/status'),
+  run: (environment?: string) =>
+    fetchJSON<any>('/deploy/run', {
+      method: 'POST',
+      body: JSON.stringify({ environment: environment || null }),
+    }),
 };
 
 // ─── ENC ────────────────────────────────────────────────────

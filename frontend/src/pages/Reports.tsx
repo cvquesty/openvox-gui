@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text,
   Select,
@@ -9,6 +10,7 @@ import { reports } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 
 export function ReportsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const { data: reportList, loading, error } = useApi(
@@ -65,7 +67,11 @@ export function ReportsPage() {
           </Table.Thead>
           <Table.Tbody>
             {filtered.map((report) => (
-              <Table.Tr key={report.hash}>
+              <Table.Tr
+                key={report.hash}
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate(`/reports/${report.hash}`)}
+              >
                 <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
                 <Table.Td><StatusBadge status={report.status} /></Table.Td>
                 <Table.Td>{report.environment || '—'}</Table.Td>

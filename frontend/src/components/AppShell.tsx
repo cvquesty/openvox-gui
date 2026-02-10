@@ -24,12 +24,17 @@ import {
   IconHierarchy2,
   IconRuler,
   IconTags,
+  IconRocket,
 } from '@tabler/icons-react';
 
 const mainNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
   { label: 'Nodes', icon: IconServer, path: '/nodes' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
+];
+
+const deployNav = [
+  { label: 'Code Deployment', icon: IconRocket, path: '/deployment' },
 ];
 
 const encNav = [
@@ -88,6 +93,22 @@ export function AppShellLayout() {
 
           <Divider my="sm" />
           <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+            Code Deployment
+          </Text>
+          {deployNav.map((item) => (
+            <NavLink
+              key={item.path}
+              label={item.label}
+              leftSection={<item.icon size={18} />}
+              active={location.pathname === item.path}
+              onClick={() => { navigate(item.path); setOpened(false); }}
+              variant="filled"
+              mb={2}
+            />
+          ))}
+
+          <Divider my="sm" />
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
             Node Classifier
           </Text>
           {encNav.map((item) => (
@@ -121,7 +142,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.1.0</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.0</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>

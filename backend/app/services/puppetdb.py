@@ -109,11 +109,20 @@ class PuppetDBService:
         )
 
     async def get_report_logs(self, report_hash: str) -> List[Dict]:
-        """Get logs for a specific report."""
-        return await self._query(
-            "reports",
-            query=f'["=", "hash", "{report_hash}"]'
-        )
+        """Get logs for a specific report from PuppetDB."""
+        # The report object itself contains the logs field;
+        # query the report and extract logs
+        report = await self.get_report(report_hash)
+        if report:
+            return report.get("logs", {}).get("data", [])
+        return []
+
+    async def get_report_metrics(self, report_hash: str) -> Dict:
+        """Get metrics for a specific report from PuppetDB."""
+        report = await self.get_report(report_hash)
+        if report:
+            return report.get("metrics", {}).get("data", [])
+        return {}
 
     # ─── Facts ──────────────────────────────────────────────
 

@@ -1,12 +1,13 @@
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  SimpleGrid, Paper, ThemeIcon, Badge,
+  SimpleGrid, Paper, ThemeIcon, Badge, Tooltip,
 } from '@mantine/core';
 import {
   IconServer, IconCheck, IconAlertTriangle, IconX, IconPlayerPause, IconEye,
+  IconUsers,
 } from '@tabler/icons-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { dashboard } from '../services/api';
@@ -31,9 +32,19 @@ function StatsCard({ title, value, icon: Icon, color }: {
   );
 }
 
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m ago`;
+}
+
 export function DashboardPage() {
   const { data: stats, loading, error } = useApi<DashboardStats>(dashboard.getStats);
   const { data: services } = useApi<ServiceStatus[]>(dashboard.getServices);
+  const { data: sessions } = useApi<any>(dashboard.getActiveSessions);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
@@ -47,6 +58,9 @@ export function DashboardPage() {
     { value: ns.total ? (ns.noop / ns.total) * 100 : 0, color: 'blue', tooltip: `Noop: ${ns.noop}` },
     { value: ns.total ? (ns.unreported / ns.total) * 100 : 0, color: 'gray', tooltip: `Unreported: ${ns.unreported}` },
   ].filter(d => d.value > 0);
+
+  const activeCount = sessions?.active_count || 0;
+  const activeUsers = sessions?.users || [];
 
   return (
     <Stack>
@@ -93,7 +107,7 @@ export function DashboardPage() {
                 <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
                   tickFormatter={(v) => v.slice(11) || v} />
                 <YAxis allowDecimals={false} />
-                <Tooltip />
+                <ReTooltip />
                 <Legend />
                 <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
@@ -105,7 +119,7 @@ export function DashboardPage() {
       </Grid>
 
       <Grid>
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid.Col span={{ base: 12, md: 4 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Services</Title>
             <Stack gap="sm">
@@ -119,7 +133,51 @@ export function DashboardPage() {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <Card withBorder shadow="sm" padding="lg">
+            <Group mb="md" justify="space-between">
+              <Title order={4}>Active Users</Title>
+              <Badge
+                size="xl"
+                variant="gradient"
+                gradient={{ from: 'teal', to: 'cyan' }}
+                leftSection={<IconUsers size={14} />}
+              >
+                {activeCount}
+              </Badge>
+            </Group>
+            <Stack gap="xs">
+              {activeUsers.map((u: any) => (
+                <Group key={u.username} justify="space-between">
+                  <Group gap="xs">
+                    <ThemeIcon color="teal" variant="light" size="sm" radius="xl">
+                      <IconUsers size={12} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500}>{u.username}</Text>
+                  </Group>
+                  <Group gap="xs">
+                    {u.ip_address && (
+                      <Text size="xs" c="dimmed">{u.ip_address}</Text>
+                    )}
+                    <Tooltip label={u.last_seen ? new Date(u.last_seen).toLocaleString() : ''}>
+                      <Badge size="xs" variant="light" color="gray">
+                        {u.last_seen ? timeAgo(u.last_seen) : '—'}
+                      </Badge>
+                    </Tooltip>
+                  </Group>
+                </Group>
+              ))}
+              {activeUsers.length === 0 && (
+                <Text c="dimmed" size="sm" ta="center">No active users</Text>
+              )}
+            </Stack>
+            <Text size="xs" c="dimmed" mt="sm" ta="center">
+              Active = seen within last 15 minutes
+            </Text>
+          </Card>
+        </Grid.Col>
+
+        <Grid.Col span={{ base: 12, md: 4 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Environments</Title>
             <Group>
