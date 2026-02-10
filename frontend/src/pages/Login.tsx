@@ -77,7 +77,7 @@ export function LoginPage() {
         </form>
 
         <Text size="xs" c="dimmed" ta="center" mt="lg">
-          OpenVox GUI v0.2.15
+          OpenVox GUI v0.2.16
         </Text>
       </Card>
     </Center>

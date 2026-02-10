@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.16] - 2026-02-10
+
+### Changed
+- **Code Deployment page**: Completely redesigned layout
+  - "Deploy with r10k" panel moved to top-left half with environment selector and deploy button
+  - Output window permanently visible below, spanning full width, with placeholder text when empty
+  - Added animated SVG comic on the right half: a giant killer robot attacking a small city at night, complete with laser beam, explosions, animated eyes and reactor core, falling debris, and humorous captions
+
+### Removed
+- **Control Repository panel**: Removed from Code Deployment page
+- **Module Repository panel**: Removed from Code Deployment page
+- **Available Environments panel**: Removed from Code Deployment page (environments still selectable in the deploy dropdown)
+
+---
+
 ## [0.2.15] - 2026-02-10
 
 ### Removed
