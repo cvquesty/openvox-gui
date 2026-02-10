@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Code, Table,
-  Badge, Tabs, Button, Textarea, TextInput, Select, NavLink, ScrollArea, Box,
+  Badge, Tabs, Button, Textarea, TextInput, Select, NavLink, ScrollArea, Box, Grid,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -331,7 +331,152 @@ function HieraViewer() {
 }
 
 
-/* ── Lookup Trace (puppet lookup --explain) ──────────────── */
+
+/* ── HIERA-TRON — data lookup machine illustration ──────── */
+function HieraTron() {
+  return (
+    <svg viewBox="0 0 300 360" width="100%" style={{ maxHeight: 380, display: 'block' }}>
+      <defs>
+        <linearGradient id="ht-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1a1b2e" />
+          <stop offset="100%" stopColor="#252540" />
+        </linearGradient>
+      </defs>
+
+      <rect width="300" height="360" fill="url(#ht-sky)" rx="8" />
+
+      {/* Stars */}
+      <circle cx="20" cy="12" r="1" fill="#fff" opacity="0.6" />
+      <circle cx="65" cy="25" r="1.5" fill="#fff" opacity="0.4" />
+      <circle cx="120" cy="8" r="1" fill="#fff" opacity="0.7" />
+      <circle cx="180" cy="20" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="230" cy="10" r="1.5" fill="#fff" opacity="0.6" />
+      <circle cx="275" cy="30" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="45" cy="40" r="1" fill="#fff" opacity="0.3" />
+      <circle cx="260" cy="45" r="1" fill="#fff" opacity="0.5" />
+
+      {/* Ground */}
+      <rect x="0" y="300" width="300" height="60" fill="#1a1a2e" />
+      <rect x="0" y="300" width="300" height="2" fill="#333355" />
+
+      {/* ── Data hierarchy tower ── */}
+      {/* Base platform */}
+      <rect x="80" y="270" width="140" height="28" fill="#3d4d5d" rx="4" stroke="#7788aa" strokeWidth="1" />
+      <rect x="95" y="276" width="110" height="16" fill="#334455" rx="3" />
+      <text x="150" y="288" textAnchor="middle" fill="#44aaff" fontSize="7" fontFamily="monospace" fontWeight="bold">
+        HIERA-TRON 5000
+      </text>
+
+      {/* Data layers — stacked like a pyramid */}
+      {/* Layer 1: Common (bottom, widest) */}
+      <rect x="90" y="230" width="120" height="35" fill="#445566" rx="4" stroke="#667788" strokeWidth="1" />
+      <text x="150" y="245" textAnchor="middle" fill="#88aacc" fontSize="8" fontFamily="monospace">common.yaml</text>
+      <rect x="98" y="252" width="50" height="4" fill="#556677" rx="1" />
+      <rect x="98" y="258" width="35" height="4" fill="#556677" rx="1" />
+
+      {/* Layer 2: OS family */}
+      <rect x="105" y="192" width="90" height="33" fill="#4a5a6a" rx="4" stroke="#667788" strokeWidth="1" />
+      <text x="150" y="206" textAnchor="middle" fill="#88aacc" fontSize="7" fontFamily="monospace">os_family.yaml</text>
+      <rect x="112" y="213" width="40" height="4" fill="#556677" rx="1" />
+
+      {/* Layer 3: Node-specific (top, narrowest) */}
+      <rect x="115" y="155" width="70" height="32" fill="#506070" rx="4" stroke="#778899" strokeWidth="1" />
+      <text x="150" y="168" textAnchor="middle" fill="#aaccee" fontSize="7" fontFamily="monospace">node.yaml</text>
+      <rect x="122" y="175" width="30" height="3" fill="#667788" rx="1" />
+
+      {/* Search beam from top */}
+      <line x1="150" y1="60" x2="150" y2="155" stroke="#44aaff" strokeWidth="2" opacity="0.4" strokeDasharray="4 4">
+        <animate attributeName="strokeDashoffset" values="0;-16" dur="1s" repeatCount="indefinite" />
+      </line>
+
+      {/* Magnifying glass at top */}
+      <circle cx="150" cy="52" r="18" fill="none" stroke="#88aacc" strokeWidth="3" />
+      <circle cx="150" cy="52" r="14" fill="#112233" opacity="0.5" />
+      <line x1="163" y1="65" x2="175" y2="77" stroke="#88aacc" strokeWidth="3" strokeLinecap="round" />
+      {/* Question mark in lens */}
+      <text x="150" y="58" textAnchor="middle" fill="#44aaff" fontSize="16" fontFamily="serif" fontWeight="bold" opacity="0.8">
+        ?
+      </text>
+      {/* Lens pulse */}
+      <circle cx="150" cy="52" r="18" fill="none" stroke="#44aaff" strokeWidth="1" opacity="0.3">
+        <animate attributeName="r" values="16;20;16" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.3;0.1;0.3" dur="2s" repeatCount="indefinite" />
+      </circle>
+
+      {/* Arrows showing lookup flow */}
+      <path d="M150,80 L150,155" fill="none" stroke="#44aaff" strokeWidth="0" />
+
+      {/* Found indicator — key popping out */}
+      <g>
+        <rect x="215" y="160" width="60" height="22" fill="#223344" rx="4" stroke="#44ff44" strokeWidth="1">
+          <animate attributeName="opacity" values="0;1;1;0" dur="4s" repeatCount="indefinite" />
+        </rect>
+        <text x="245" y="175" textAnchor="middle" fill="#44ff44" fontSize="8" fontFamily="monospace" fontWeight="bold">
+          <animate attributeName="opacity" values="0;1;1;0" dur="4s" repeatCount="indefinite" />
+          FOUND ✓
+        </text>
+        {/* Arrow from node layer to found */}
+        <line x1="185" y1="171" x2="215" y2="171" stroke="#44ff44" strokeWidth="1" opacity="0.6">
+          <animate attributeName="opacity" values="0;0.6;0.6;0" dur="4s" repeatCount="indefinite" />
+        </line>
+      </g>
+
+      {/* Data particles floating up from layers */}
+      <circle r="2" fill="#44aaff" opacity="0.5">
+        <animateMotion dur="3s" repeatCount="indefinite" path="M130,250 L130,100" />
+        <animate attributeName="opacity" values="0.5;0.1;0" dur="3s" repeatCount="indefinite" />
+      </circle>
+      <circle r="1.5" fill="#44aaff" opacity="0.4">
+        <animateMotion dur="3.5s" repeatCount="indefinite" path="M170,240 L170,90" begin="1s" />
+        <animate attributeName="opacity" values="0.4;0.1;0" dur="3.5s" repeatCount="indefinite" />
+      </circle>
+      <circle r="2" fill="#88ccff" opacity="0.3">
+        <animateMotion dur="4s" repeatCount="indefinite" path="M145,260 L145,80" begin="2s" />
+        <animate attributeName="opacity" values="0.3;0.1;0" dur="4s" repeatCount="indefinite" />
+      </circle>
+
+      {/* Status lights on base */}
+      <circle cx="100" cy="284" r="3" fill="#44ff44">
+        <animate attributeName="fill" values="#44ff44;#22aa22;#44ff44" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="110" cy="284" r="3" fill="#ffaa22">
+        <animate attributeName="fill" values="#ffaa22;#cc8811;#ffaa22" dur="2s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="120" cy="284" r="3" fill="#44aaff">
+        <animate attributeName="fill" values="#44aaff;#2288cc;#44aaff" dur="1.8s" repeatCount="indefinite" />
+      </circle>
+
+      {/* Little robot searching */}
+      <rect x="30" y="252" width="16" height="22" fill="#667788" rx="3" />
+      <rect x="33" y="242" width="10" height="12" fill="#778899" rx="2" />
+      <rect x="35" y="246" width="2.5" height="2.5" fill="#44aaff" rx="0.5">
+        <animate attributeName="fill" values="#44aaff;#88ccff;#44aaff" dur="2s" repeatCount="indefinite" />
+      </rect>
+      <rect x="39" y="246" width="2.5" height="2.5" fill="#44aaff" rx="0.5">
+        <animate attributeName="fill" values="#44aaff;#88ccff;#44aaff" dur="2s" repeatCount="indefinite" />
+      </rect>
+      <line x1="38" y1="242" x2="38" y2="235" stroke="#8899bb" strokeWidth="1" />
+      <circle cx="38" cy="233" r="2" fill="#44aaff">
+        <animate attributeName="fill" values="#44aaff;#88ccff;#44aaff" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+      {/* Robot arm pointing at tower */}
+      <line x1="46" y1="258" x2="88" y2="250" stroke="#667788" strokeWidth="2" />
+      <line x1="30" y1="260" x2="22" y2="268" stroke="#667788" strokeWidth="2" />
+      <line x1="35" y1="274" x2="32" y2="282" stroke="#667788" strokeWidth="2" />
+      <line x1="41" y1="274" x2="44" y2="282" stroke="#667788" strokeWidth="2" />
+
+      {/* Caption */}
+      <text x="150" y="322" textAnchor="middle" fill="#8899aa" fontSize="10" fontFamily="monospace">
+        traversing the hierarchy
+      </text>
+      <text x="150" y="336" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">
+        one yaml file at a time
+      </text>
+    </svg>
+  );
+}
+
+/* ── Hiera Lookup (puppet lookup --explain) ──────────────── */
 function LookupTrace() {
   const [key, setKey] = useState('');
   const [node, setNode] = useState('');
@@ -380,8 +525,10 @@ function LookupTrace() {
 
   return (
     <Stack>
-      <Card withBorder shadow="sm" padding="md">
-        <Title order={4} mb="md">Puppet Lookup</Title>
+      <Grid>
+        <Grid.Col span={{ base: 12, md: 7 }}>
+      <Card withBorder shadow="sm" padding="md" h="100%">
+        <Title order={4} mb="md">Hiera Lookup</Title>
         <Group align="end" grow>
           <TextInput
             label="Hiera Key"
@@ -420,6 +567,13 @@ function LookupTrace() {
           </Button>
         </Group>
       </Card>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 5 }}>
+          <Card withBorder shadow="sm" padding={0} h="100%" style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
+            <HieraTron />
+          </Card>
+        </Grid.Col>
+      </Grid>
 
       <Card withBorder shadow="sm" padding="md">
         <Group mb="sm" justify="space-between">
@@ -475,7 +629,7 @@ export function ConfigPuppetPage() {
         <Tabs.List>
           <Tabs.Tab value="files" leftSection={<IconNetwork size={16} />}>Configuration Files</Tabs.Tab>
           <Tabs.Tab value="hiera" leftSection={<IconPackage size={16} />}>Hiera</Tabs.Tab>
-          <Tabs.Tab value="lookup" leftSection={<IconSearch size={16} />}>Lookup Trace</Tabs.Tab>
+          <Tabs.Tab value="lookup" leftSection={<IconSearch size={16} />}>Hiera Lookup</Tabs.Tab>
         </Tabs.List>
 
         {/* Configuration Files tab */}
@@ -488,7 +642,7 @@ export function ConfigPuppetPage() {
           <HieraViewer />
         </Tabs.Panel>
 
-        {/* Lookup Trace tab */}
+        {/* Hiera Lookup tab */}
         <Tabs.Panel value="lookup" pt="md">
           <LookupTrace />
         </Tabs.Panel>
