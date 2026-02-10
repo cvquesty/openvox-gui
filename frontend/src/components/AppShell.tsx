@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppShell as MantineAppShell,
@@ -13,6 +13,9 @@ import {
   Badge,
   ActionIcon,
   Tooltip,
+  HoverCard,
+  ThemeIcon,
+  Stack,
 } from '@mantine/core';
 import {
   IconDashboard,
@@ -30,6 +33,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
+import { dashboard } from '../services/api';
 
 const mainNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
@@ -62,6 +66,21 @@ export function AppShellLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [activeSessions, setActiveSessions] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSessions = () => {
+      dashboard.getActiveSessions()
+        .then(setActiveSessions)
+        .catch(() => {});
+    };
+    fetchSessions();
+    const interval = setInterval(fetchSessions, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const activeCount = activeSessions?.active_count || 0;
+  const activeUsersList = activeSessions?.users || [];
 
   return (
     <MantineAppShell
@@ -182,7 +201,27 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.13</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.14</Text>
+            <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
+              <HoverCard.Target>
+                <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>
+                  <IconUsers size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                  {activeCount} active {activeCount === 1 ? 'user' : 'users'}
+                </Text>
+              </HoverCard.Target>
+              <HoverCard.Dropdown>
+                <Text fw={600} size="xs" mb={4}>Active (last 15 min)</Text>
+                {activeUsersList.length === 0 ? (
+                  <Text c="dimmed" size="xs">None</Text>
+                ) : (
+                  <Stack gap={2}>
+                    {activeUsersList.map((u: any) => (
+                      <Text key={u.username} size="xs">{u.username}{u.ip_address ? ` (${u.ip_address})` : ''}</Text>
+                    ))}
+                  </Stack>
+                )}
+              </HoverCard.Dropdown>
+            </HoverCard>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>

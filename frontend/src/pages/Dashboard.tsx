@@ -1,11 +1,8 @@
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  SimpleGrid, Paper, ThemeIcon, Badge, Tooltip, HoverCard, Table, ActionIcon,
+  Badge, Tooltip, Table, ActionIcon,
 } from '@mantine/core';
-import {
-  IconServer, IconCheck, IconAlertTriangle, IconX, IconPlayerPause, IconEye,
-  IconUsers,
-} from '@tabler/icons-react';
+import { IconEye } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
@@ -15,32 +12,7 @@ import { dashboard, nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import type { DashboardStats, NodeSummary } from '../types';
 
-function StatsCard({ title, value, icon: Icon, color }: {
-  title: string; value: number; icon: any; color: string;
-}) {
-  return (
-    <Paper withBorder p="md" radius="md">
-      <Group justify="space-between">
-        <div>
-          <Text c="dimmed" tt="uppercase" fw={700} fz="xs">{title}</Text>
-          <Text fw={700} fz="xl">{value}</Text>
-        </div>
-        <ThemeIcon color={color} variant="light" size={48} radius="md">
-          <Icon size={28} />
-        </ThemeIcon>
-      </Group>
-    </Paper>
-  );
-}
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  return `${hrs}h ${mins % 60}m ago`;
-}
 
 function nodeTimeAgo(timestamp: string | null): string {
   if (!timestamp) return 'Never';
@@ -57,7 +29,6 @@ function nodeTimeAgo(timestamp: string | null): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { data: stats, loading, error } = useApi<DashboardStats>(dashboard.getStats);
-  const { data: sessions } = useApi<any>(dashboard.getActiveSessions);
   const { data: nodeList } = useApi<NodeSummary[]>(nodes.list);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
@@ -73,60 +44,12 @@ export function DashboardPage() {
     { value: ns.total ? (ns.unreported / ns.total) * 100 : 0, color: 'gray', tooltip: `Unreported: ${ns.unreported}` },
   ].filter(d => d.value > 0);
 
-  const activeCount = sessions?.active_count || 0;
-  const activeUsers = sessions?.users || [];
 
   return (
     <Stack>
       <Title order={2}>Dashboard</Title>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 6 }}>
-        <StatsCard title="Total Nodes" value={ns.total} icon={IconServer} color="#0D6EFD" />
-        <StatsCard title="Unchanged" value={ns.unchanged} icon={IconCheck} color="green" />
-        <StatsCard title="Changed" value={ns.changed} icon={IconAlertTriangle} color="yellow" />
-        <StatsCard title="Failed" value={ns.failed} icon={IconX} color="red" />
-        <StatsCard title="Noop" value={ns.noop} icon={IconEye} color="blue" />
-        <HoverCard width={280} shadow="md" position="bottom" withArrow openDelay={200}>
-          <HoverCard.Target>
-            <Paper withBorder p="md" radius="md" style={{ cursor: 'pointer' }}>
-              <Group justify="space-between">
-                <div>
-                  <Text c="dimmed" tt="uppercase" fw={700} fz="xs">Active Users</Text>
-                  <Text fw={700} fz="xl">{activeCount}</Text>
-                </div>
-                <ThemeIcon color="teal" variant="light" size={48} radius="md">
-                  <IconUsers size={28} />
-                </ThemeIcon>
-              </Group>
-            </Paper>
-          </HoverCard.Target>
-          <HoverCard.Dropdown>
-            <Text fw={600} size="sm" mb="xs">Active in last 15 minutes</Text>
-            {activeUsers.length === 0 ? (
-              <Text c="dimmed" size="sm">No active users</Text>
-            ) : (
-              <Stack gap={6}>
-                {activeUsers.map((u: any) => (
-                  <Group key={u.username} justify="space-between" gap="xs">
-                    <Group gap={6}>
-                      <ThemeIcon color="teal" variant="light" size="xs" radius="xl">
-                        <IconUsers size={10} />
-                      </ThemeIcon>
-                      <Text size="sm" fw={500}>{u.username}</Text>
-                    </Group>
-                    <Group gap={6}>
-                      {u.ip_address && <Text size="xs" c="dimmed">{u.ip_address}</Text>}
-                      <Badge size="xs" variant="light" color="gray">
-                        {u.last_seen ? timeAgo(u.last_seen) : '\u2014'}
-                      </Badge>
-                    </Group>
-                  </Group>
-                ))}
-              </Stack>
-            )}
-          </HoverCard.Dropdown>
-        </HoverCard>
-      </SimpleGrid>
+
 
       <Grid>
         <Grid.Col span={{ base: 12, md: 4 }}>
