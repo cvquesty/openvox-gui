@@ -451,6 +451,40 @@ async def save_config_file(request: ConfigFileSaveRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# ─── Hiera YAML Files (read-only) ─────────────────────────
+
+@router.get("/hiera/files")
+async def list_hiera_files():
+    """List all hiera.yaml files: main + per-environment."""
+    from pathlib import Path
+    files = []
+
+    # Main hiera.yaml
+    main = Path("/etc/puppetlabs/puppet/hiera.yaml")
+    if main.exists():
+        try:
+            content = main.read_text(encoding="utf-8", errors="replace")
+            files.append({"name": "hiera.yaml (global)", "path": str(main), "content": content})
+        except PermissionError:
+            files.append({"name": "hiera.yaml (global)", "path": str(main), "content": "(permission denied)"})
+
+    # Per-environment hiera.yaml
+    envs_dir = Path("/etc/puppetlabs/code/environments")
+    if envs_dir.is_dir():
+        for env_dir in sorted(envs_dir.iterdir()):
+            if env_dir.is_dir():
+                h = env_dir / "hiera.yaml"
+                if h.exists():
+                    try:
+                        content = h.read_text(encoding="utf-8", errors="replace")
+                        files.append({"name": f"{env_dir.name}/hiera.yaml", "path": str(h), "content": content})
+                    except PermissionError:
+                        files.append({"name": f"{env_dir.name}/hiera.yaml", "path": str(h), "content": "(permission denied)"})
+
+    return {"files": files}
+
+
 # ─── Application Config ───────────────────────────────────
 
 @router.get("/app")

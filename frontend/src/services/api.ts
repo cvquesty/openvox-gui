@@ -157,6 +157,8 @@ export const config = {
       body: JSON.stringify({ service, action: 'restart' }),
     }),
   getApp: () => fetchJSON<any>('/config/app'),
+  // Hiera files (read-only)
+  getHieraFiles: () => fetchJSON<any>('/config/hiera/files'),
   // Config file browser
   listFiles: () => fetchJSON<any>('/config/files'),
   readFile: (path: string) =>

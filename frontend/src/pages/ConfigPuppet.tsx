@@ -220,9 +220,76 @@ function ConfigFileEditor() {
   );
 }
 
+
+/* ── Hiera Viewer (read-only) ────────────────────────────── */
+function HieraViewer() {
+  const [files, setFiles] = useState<{ name: string; path: string; content: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<number>(0);
+
+  useEffect(() => {
+    config.getHieraFiles()
+      .then((data: any) => {
+        setFiles(data.files || []);
+        setSelected(0);
+      })
+      .catch(() => notifications.show({ title: 'Error', message: 'Failed to load hiera files', color: 'red' }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Center h={200}><Loader /></Center>;
+  if (files.length === 0) return <Alert color="yellow">No hiera.yaml files found</Alert>;
+
+  const current = files[selected];
+
+  return (
+    <Group align="flex-start" gap="md" wrap="nowrap" style={{ minHeight: 400 }}>
+      {/* Left: file list */}
+      <Card withBorder shadow="sm" padding={0} style={{ width: 280, flexShrink: 0 }}>
+        <ScrollArea style={{ height: 500 }}>
+          <Box p="xs">
+            <Box mb={4}>
+              <Group gap={6} mb={4} ml={4}>
+                <IconFolder size={14} color="#888" />
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase">Hiera Configuration</Text>
+              </Group>
+              {files.map((f, i) => (
+                <NavLink
+                  key={f.path}
+                  label={f.name}
+                  leftSection={<IconFile size={14} />}
+                  active={selected === i}
+                  onClick={() => setSelected(i)}
+                  variant="filled"
+                  py={4}
+                  styles={{ label: { fontSize: 13 } }}
+                />
+              ))}
+            </Box>
+          </Box>
+        </ScrollArea>
+      </Card>
+
+      {/* Right: read-only file viewer */}
+      <Card withBorder shadow="sm" padding="md" style={{ flex: 1, minWidth: 0 }}>
+        <Stack gap="sm" h={480}>
+          <div>
+            <Text fw={700} size="sm">{current.name}</Text>
+            <Text size="xs" c="dimmed">{current.path}</Text>
+          </div>
+          <ScrollArea style={{ flex: 1 }}>
+            <Code block style={{ whiteSpace: 'pre', fontSize: 13, minHeight: 430 }}>
+              {current.content || '(empty file)'}
+            </Code>
+          </ScrollArea>
+        </Stack>
+      </Card>
+    </Group>
+  );
+}
+
 /* ── Main Page ───────────────────────────────────────────── */
 export function ConfigPuppetPage() {
-  const { data: hiera, loading: hieraLoading } = useApi(config.getHiera);
 
   return (
     <Stack>
@@ -241,16 +308,7 @@ export function ConfigPuppetPage() {
 
         {/* Hiera tab */}
         <Tabs.Panel value="hiera" pt="md">
-          {hieraLoading ? (
-            <Center h={200}><Loader /></Center>
-          ) : (
-            <Card withBorder shadow="sm">
-              <Text fw={700} mb="sm">hiera.yaml</Text>
-              <Code block style={{ maxHeight: 500, overflow: 'auto' }}>
-                {JSON.stringify(hiera, null, 2)}
-              </Code>
-            </Card>
-          )}
+          <HieraViewer />
         </Tabs.Panel>
       </Tabs>
     </Stack>
