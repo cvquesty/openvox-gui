@@ -37,7 +37,6 @@ import { dashboard } from '../services/api';
 
 const mainNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
-  { label: 'Nodes', icon: IconServer, path: '/nodes' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
 ];
 
@@ -201,7 +200,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.14</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.15</Text>
             <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
               <HoverCard.Target>
                 <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>
