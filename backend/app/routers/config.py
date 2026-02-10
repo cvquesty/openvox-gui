@@ -286,6 +286,38 @@ def _detect_os_family() -> str:
     return "debian"
 
 
+def _safe_is_dir(p) -> bool:
+    """Check if path is a directory, returning False on permission errors."""
+    try:
+        return p.is_dir()
+    except (PermissionError, OSError):
+        return False
+
+
+def _safe_iterdir(p):
+    """Iterate directory contents, returning empty list on permission errors."""
+    try:
+        return sorted(p.iterdir())
+    except (PermissionError, OSError):
+        return []
+
+
+def _safe_is_file(p) -> bool:
+    """Check if path is a file, returning False on permission errors."""
+    try:
+        return p.is_file()
+    except (PermissionError, OSError):
+        return False
+
+
+def _safe_exists(p) -> bool:
+    """Check if path exists, returning False on permission errors."""
+    try:
+        return p.exists()
+    except (PermissionError, OSError):
+        return False
+
+
 def _build_config_file_tree() -> List[Dict[str, Any]]:
     """Return the tree of known Puppet configuration files, grouped by category."""
     from pathlib import Path
@@ -298,37 +330,43 @@ def _build_config_file_tree() -> List[Dict[str, Any]]:
     puppet_files = []
     for name in ["puppet.conf", "autosign.conf"]:
         p = Path(f"/etc/puppetlabs/puppet/{name}")
-        puppet_files.append({"name": name, "path": str(p), "exists": p.exists()})
+        puppet_files.append({"name": name, "path": str(p), "exists": _safe_exists(p)})
     groups.append({"group": "Puppet Agent", "base": "/etc/puppetlabs/puppet", "files": puppet_files})
 
     # --- PuppetServer ---
     ps_files = []
     conf_d = Path("/etc/puppetlabs/puppetserver/conf.d")
-    if conf_d.is_dir():
-        for f in sorted(conf_d.iterdir()):
-            if f.is_file():
+    if _safe_is_dir(conf_d):
+        for f in _safe_iterdir(conf_d):
+            if _safe_is_file(f):
                 ps_files.append({"name": f.name, "path": str(f), "exists": True})
     services_d = Path("/etc/puppetlabs/puppetserver/services.d")
-    if services_d.is_dir():
-        for f in sorted(services_d.iterdir()):
-            if f.is_file():
+    if _safe_is_dir(services_d):
+        for f in _safe_iterdir(services_d):
+            if _safe_is_file(f):
                 ps_files.append({"name": f"services.d/{f.name}", "path": str(f), "exists": True})
     groups.append({"group": "PuppetServer", "base": "/etc/puppetlabs/puppetserver", "files": ps_files})
 
     # --- PuppetDB ---
     pdb_files = []
     pdb_d = Path("/etc/puppetlabs/puppetdb/conf.d")
-    if pdb_d.is_dir():
-        for f in sorted(pdb_d.iterdir()):
-            if f.is_file() and not f.name.endswith(".bak") and ".bak." not in f.name:
+    if _safe_is_dir(pdb_d):
+        for f in _safe_iterdir(pdb_d):
+            if _safe_is_file(f) and not f.name.endswith(".bak") and ".bak." not in f.name:
                 pdb_files.append({"name": f.name, "path": str(f), "exists": True})
+    # If directory exists but we can't read it, list known files as potentially accessible
+    elif Path("/etc/puppetlabs/puppetdb").exists():
+        for name in ["auth.conf", "config.ini", "database.ini", "jetty.ini",
+                      "puppetdb.ini", "read_database.ini", "repl.ini"]:
+            p = Path(f"/etc/puppetlabs/puppetdb/conf.d/{name}")
+            pdb_files.append({"name": name, "path": str(p), "exists": _safe_exists(p)})
     groups.append({"group": "PuppetDB", "base": "/etc/puppetlabs/puppetdb/conf.d", "files": pdb_files})
 
     # --- Sysconfig / Default ---
     sys_files = []
     for svc in ["puppet", "puppetserver", "puppetdb"]:
         p = Path(f"{sysconfig_dir}/{svc}")
-        sys_files.append({"name": svc, "path": str(p), "exists": p.exists()})
+        sys_files.append({"name": svc, "path": str(p), "exists": _safe_exists(p)})
     label = "Sysconfig" if os_family == "redhat" else "Defaults"
     groups.append({"group": label, "base": sysconfig_dir, "files": sys_files})
 
