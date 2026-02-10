@@ -460,15 +460,6 @@ async def list_hiera_files():
     from pathlib import Path
     files = []
 
-    # Main hiera.yaml
-    main = Path("/etc/puppetlabs/puppet/hiera.yaml")
-    if main.exists():
-        try:
-            content = main.read_text(encoding="utf-8", errors="replace")
-            files.append({"name": "hiera.yaml (global)", "path": str(main), "content": content})
-        except PermissionError:
-            files.append({"name": "hiera.yaml (global)", "path": str(main), "content": "(permission denied)"})
-
     # Per-environment hiera.yaml
     envs_dir = Path("/etc/puppetlabs/code/environments")
     if envs_dir.is_dir():
