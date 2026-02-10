@@ -157,6 +157,12 @@ export const config = {
       body: JSON.stringify({ service, action: 'restart' }),
     }),
   getApp: () => fetchJSON<any>('/config/app'),
+  // Puppet lookup
+  lookup: (key: string, node?: string, environment?: string) =>
+    fetchJSON<any>('/config/lookup', {
+      method: 'POST',
+      body: JSON.stringify({ key, node: node || null, environment: environment || null }),
+    }),
   // Hiera files (read-only)
   getHieraFiles: () => fetchJSON<any>('/config/hiera/files'),
   // Config file browser

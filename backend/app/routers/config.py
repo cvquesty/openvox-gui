@@ -476,6 +476,51 @@ async def list_hiera_files():
     return {"files": files}
 
 
+
+
+# ─── Puppet Lookup Trace ──────────────────────────────────
+
+class PuppetLookupRequest(BaseModel):
+    key: str
+    node: Optional[str] = None
+    environment: Optional[str] = None
+
+
+@router.post("/lookup")
+async def puppet_lookup(request: PuppetLookupRequest):
+    """Run puppet lookup --explain and return the trace output."""
+    import subprocess, shlex
+    puppet_bin = "/opt/puppetlabs/bin/puppet"
+
+    cmd = [puppet_bin, "lookup", "--explain", request.key]
+    if request.node:
+        cmd.extend(["--node", request.node])
+    if request.environment:
+        cmd.extend(["--environment", request.environment])
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return {
+            "key": request.key,
+            "node": request.node,
+            "environment": request.environment,
+            "output": result.stdout,
+            "stderr": result.stderr,
+            "exit_code": result.returncode,
+        }
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="puppet lookup timed out after 30 seconds")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail=f"puppet binary not found at {puppet_bin}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Application Config ───────────────────────────────────
 
 @router.get("/app")

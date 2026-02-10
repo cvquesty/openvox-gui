@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Code, Table,
-  Badge, Tabs, Button, Textarea, NavLink, ScrollArea, Box,
+  Badge, Tabs, Button, Textarea, TextInput, NavLink, ScrollArea, Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconNetwork, IconDatabase, IconPackage, IconFile, IconFolder,
-  IconEdit, IconDeviceFloppy, IconX, IconChevronRight,
+  IconEdit, IconDeviceFloppy, IconX, IconChevronRight, IconSearch,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
-import { config } from '../services/api';
+import { config, nodes as nodesApi } from '../services/api';
 
 /* ── Types ─────────────────────────────────────────────── */
 interface ConfigFile {
@@ -288,6 +288,125 @@ function HieraViewer() {
   );
 }
 
+
+/* ── Lookup Trace (puppet lookup --explain) ──────────────── */
+function LookupTrace() {
+  const [key, setKey] = useState('');
+  const [node, setNode] = useState('');
+  const [environment, setEnvironment] = useState<string | null>(null);
+  const [output, setOutput] = useState('');
+  const [running, setRunning] = useState(false);
+  const [environments, setEnvironments] = useState<string[]>([]);
+  const [nodes, setNodes] = useState<string[]>([]);
+
+  // Load environments and nodes for dropdowns
+  useEffect(() => {
+    config.getHieraFiles()
+      .then((data: any) => {
+        const envs = (data.files || []).map((f: any) => f.name.replace('/hiera.yaml', '')).filter((n: string) => n);
+        setEnvironments(envs);
+      })
+      .catch(() => {});
+    // Fetch node list
+    nodesApi.list()
+      .then((data: any) => {
+        const names = (Array.isArray(data) ? data : []).map((n: any) => n.certname || n).filter(Boolean);
+        setNodes(names);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLookup = async () => {
+    if (!key.trim()) return;
+    setRunning(true);
+    setOutput('');
+    try {
+      const result = await config.lookup(key.trim(), node.trim() || undefined, environment || undefined);
+      let text = result.output || '';
+      if (result.stderr) {
+        text += (text ? '\n' : '') + result.stderr;
+      }
+      if (!text.trim()) {
+        text = `(no output — exit code ${result.exit_code})`;
+      }
+      setOutput(text);
+    } catch (err: any) {
+      setOutput(`Error: ${err.message}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Stack>
+      <Card withBorder shadow="sm" padding="md">
+        <Title order={4} mb="md">Puppet Lookup</Title>
+        <Group align="end" grow>
+          <TextInput
+            label="Hiera Key"
+            placeholder="e.g. classes, profile::base::ntp_servers"
+            value={key}
+            onChange={(e) => setKey(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleLookup(); }}
+            style={{ flex: 2 }}
+          />
+          <Select
+            label="Node"
+            placeholder="(optional)"
+            data={nodes.map((n) => ({ value: n, label: n }))}
+            value={node || null}
+            onChange={(v) => setNode(v || '')}
+            clearable
+            searchable
+            style={{ flex: 1 }}
+          />
+          <Select
+            label="Environment"
+            placeholder="(default: production)"
+            data={environments.map((e) => ({ value: e, label: e }))}
+            value={environment}
+            onChange={setEnvironment}
+            clearable
+            style={{ flex: 1 }}
+          />
+          <Button
+            leftSection={running ? <Loader size={14} color="white" /> : <IconSearch size={16} />}
+            onClick={handleLookup}
+            loading={running}
+            disabled={!key.trim() || running}
+          >
+            Trace
+          </Button>
+        </Group>
+      </Card>
+
+      <Card withBorder shadow="sm" padding="md">
+        <Group mb="sm" justify="space-between">
+          <Title order={4}>Explain Output</Title>
+          {output && (
+            <Button variant="subtle" size="xs" color="gray" onClick={() => setOutput('')}>
+              Clear
+            </Button>
+          )}
+        </Group>
+        <ScrollArea style={{ height: 450 }}>
+          {output ? (
+            <Code block style={{ whiteSpace: 'pre', fontSize: 13 }}>
+              {output}
+            </Code>
+          ) : (
+            <Center h={400}>
+              <Text c="dimmed" size="sm">
+                Enter a Hiera key and click Trace to see the full lookup path
+              </Text>
+            </Center>
+          )}
+        </ScrollArea>
+      </Card>
+    </Stack>
+  );
+}
+
 /* ── Main Page ───────────────────────────────────────────── */
 export function ConfigPuppetPage() {
 
@@ -299,6 +418,7 @@ export function ConfigPuppetPage() {
         <Tabs.List>
           <Tabs.Tab value="files" leftSection={<IconNetwork size={16} />}>Configuration Files</Tabs.Tab>
           <Tabs.Tab value="hiera" leftSection={<IconPackage size={16} />}>Hiera</Tabs.Tab>
+          <Tabs.Tab value="lookup" leftSection={<IconSearch size={16} />}>Lookup Trace</Tabs.Tab>
         </Tabs.List>
 
         {/* Configuration Files tab */}
@@ -309,6 +429,11 @@ export function ConfigPuppetPage() {
         {/* Hiera tab */}
         <Tabs.Panel value="hiera" pt="md">
           <HieraViewer />
+        </Tabs.Panel>
+
+        {/* Lookup Trace tab */}
+        <Tabs.Panel value="lookup" pt="md">
+          <LookupTrace />
         </Tabs.Panel>
       </Tabs>
     </Stack>
