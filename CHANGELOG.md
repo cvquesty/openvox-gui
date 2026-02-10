@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.18] - 2026-02-10
+
+### Changed
+- **Reports page**: Limited display to 50 reports (was 100)
+
+---
+
 ## [0.2.17] - 2026-02-10
 
 ### Changed

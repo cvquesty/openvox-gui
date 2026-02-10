@@ -14,7 +14,7 @@ export function ReportsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const { data: reportList, loading, error } = useApi(
-    () => reports.list({ status: statusFilter || undefined, limit: 100 }),
+    () => reports.list({ status: statusFilter || undefined, limit: 50 }),
     [statusFilter]
   );
 
