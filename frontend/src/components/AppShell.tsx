@@ -69,7 +69,7 @@ export function AppShellLayout() {
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
             <Group gap="sm">
-              <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 36 }} />
+              <img src="/openvox-logo-white.svg" alt="OpenVox" style={{ height: 36 }} />
               <Title order={3} style={{ fontWeight: 700 }}>
                 OpenVox GUI
               </Title>
@@ -161,7 +161,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.2</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.4</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>

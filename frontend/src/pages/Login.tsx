@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
   Center, Card, Title, TextInput, PasswordInput, Button, Alert, Stack,
-  ThemeIcon, Group, Text,
+  Group, Text,
 } from '@mantine/core';
-import { IconCategory, IconLock } from '@tabler/icons-react';
+import { IconLock } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 
 export function LoginPage() {
@@ -30,9 +30,7 @@ export function LoginPage() {
     <Center style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
       <Card shadow="xl" padding="xl" radius="lg" style={{ width: 400 }}>
         <Stack align="center" mb="lg">
-          <ThemeIcon size={64} variant="gradient" gradient={{ from: 'violet', to: 'cyan' }} radius="xl">
-            <IconCategory size={36} />
-          </ThemeIcon>
+          <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 72 }} />
           <Title order={2}>OpenVox GUI</Title>
           <Text size="sm" c="dimmed">Sign in to manage your Puppet infrastructure</Text>
         </Stack>
@@ -80,7 +78,7 @@ export function LoginPage() {
         </form>
 
         <Text size="xs" c="dimmed" ta="center" mt="lg">
-          OpenVox GUI v0.2.2
+          OpenVox GUI v0.2.4
         </Text>
       </Card>
     </Center>
