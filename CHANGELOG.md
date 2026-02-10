@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.9] - 2026-02-10
+
+### Fixed
+- **Header logo/title overlap**: Set explicit `width: 36` and `display: block` on logo image, used numeric gap `16`, and `wrap="nowrap"` on the Group to prevent the title text from bleeding over the logo
+
+### Changed
+- **Dashboard layout**: Moved Active Users panel from the bottom row to the top row (spanning 8 columns next to Node Status), displaying users in a compact horizontal layout
+- **Report Trends**: Moved from the top row to the bottom row (spanning 8 columns next to Services)
+
+### Removed
+- **Environments panel**: Removed from the dashboard
+
+---
+
 ## [0.2.8] - 2026-02-10
 
 ### Changed

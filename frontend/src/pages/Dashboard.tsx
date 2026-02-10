@@ -100,20 +100,41 @@ export function DashboardPage() {
 
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Report Trends</Title>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={stats.report_trends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                  tickFormatter={(v) => v.slice(11) || v} />
-                <YAxis allowDecimals={false} />
-                <ReTooltip />
-                <Legend />
-                <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            <Group mb="md" justify="space-between">
+              <Title order={4}>Active Users</Title>
+              <Badge
+                size="lg"
+                variant="gradient"
+                gradient={{ from: 'teal', to: 'cyan' }}
+                leftSection={<IconUsers size={14} />}
+              >
+                {activeCount}
+              </Badge>
+            </Group>
+            <Group gap="xl" wrap="wrap">
+              {activeUsers.map((u: any) => (
+                <Group key={u.username} gap="xs">
+                  <ThemeIcon color="teal" variant="light" size="sm" radius="xl">
+                    <IconUsers size={12} />
+                  </ThemeIcon>
+                  <Text size="sm" fw={500}>{u.username}</Text>
+                  {u.ip_address && (
+                    <Text size="xs" c="dimmed">({u.ip_address})</Text>
+                  )}
+                  <Tooltip label={u.last_seen ? new Date(u.last_seen).toLocaleString() : ''}>
+                    <Badge size="xs" variant="light" color="gray">
+                      {u.last_seen ? timeAgo(u.last_seen) : '\u2014'}
+                    </Badge>
+                  </Tooltip>
+                </Group>
+              ))}
+              {activeUsers.length === 0 && (
+                <Text c="dimmed" size="sm">No active users</Text>
+              )}
+            </Group>
+            <Text size="xs" c="dimmed" mt="xs">
+              Active = seen within last 15 minutes
+            </Text>
           </Card>
         </Grid.Col>
       </Grid>
@@ -133,61 +154,22 @@ export function DashboardPage() {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 4 }}>
+        <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder shadow="sm" padding="lg">
-            <Group mb="md" justify="space-between">
-              <Title order={4}>Active Users</Title>
-              <Badge
-                size="xl"
-                variant="gradient"
-                gradient={{ from: 'teal', to: 'cyan' }}
-                leftSection={<IconUsers size={14} />}
-              >
-                {activeCount}
-              </Badge>
-            </Group>
-            <Stack gap="xs">
-              {activeUsers.map((u: any) => (
-                <Group key={u.username} justify="space-between">
-                  <Group gap="xs">
-                    <ThemeIcon color="teal" variant="light" size="sm" radius="xl">
-                      <IconUsers size={12} />
-                    </ThemeIcon>
-                    <Text size="sm" fw={500}>{u.username}</Text>
-                  </Group>
-                  <Group gap="xs">
-                    {u.ip_address && (
-                      <Text size="xs" c="dimmed">{u.ip_address}</Text>
-                    )}
-                    <Tooltip label={u.last_seen ? new Date(u.last_seen).toLocaleString() : ''}>
-                      <Badge size="xs" variant="light" color="gray">
-                        {u.last_seen ? timeAgo(u.last_seen) : '—'}
-                      </Badge>
-                    </Tooltip>
-                  </Group>
-                </Group>
-              ))}
-              {activeUsers.length === 0 && (
-                <Text c="dimmed" size="sm" ta="center">No active users</Text>
-              )}
-            </Stack>
-            <Text size="xs" c="dimmed" mt="sm" ta="center">
-              Active = seen within last 15 minutes
-            </Text>
-          </Card>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Environments</Title>
-            <Group>
-              {stats.environments.map((env) => (
-                <Badge key={env} variant="outline" size="lg">{env}</Badge>
-              ))}
-              {stats.environments.length === 0 && (
-                <Text c="dimmed">No environments found</Text>
-              )}
-            </Group>
+            <Title order={4} mb="md">Report Trends</Title>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={stats.report_trends}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => v.slice(11) || v} />
+                <YAxis allowDecimals={false} />
+                <ReTooltip />
+                <Legend />
+                <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </Card>
         </Grid.Col>
       </Grid>
