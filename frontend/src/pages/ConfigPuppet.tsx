@@ -434,7 +434,14 @@ function LookupTrace() {
         <ScrollArea style={{ height: 450 }}>
           {output ? (
             <Code block style={{ whiteSpace: 'pre', fontSize: 13 }}>
-              {output}
+              {output.split('\n').map((line, i) => (
+                <span key={i}>
+                  {/Found key:/.test(line) ? (
+                    <span style={{ color: '#ff4444', fontWeight: 700 }}>{line}</span>
+                  ) : line}
+                  {'\n'}
+                </span>
+              ))}
             </Code>
           ) : (
             <Center h={400}>
