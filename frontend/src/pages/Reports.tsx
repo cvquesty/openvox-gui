@@ -29,7 +29,7 @@ function ReportOScope() {
         </linearGradient>
       </defs>
 
-      <rect width="500" height="300" fill="url(#rpt-sky)" rx="8" />
+      <rect width="500" height="300" fill="url(#rpt-sky)" />
 
       {/* Stars */}
       <circle cx="40" cy="20" r="1" fill="#fff" opacity="0.6" />
@@ -271,7 +271,7 @@ export function ReportsPage() {
       </Group>
 
       {/* Report-O-Scope illustration */}
-      <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
+      <Card withBorder shadow="sm" padding={0} style={{ overflow: 'hidden', backgroundColor: '#1a1b2e' }}>
         <ReportOScope />
       </Card>
 
