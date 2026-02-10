@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Puppet infrastructure. Provides fleet monitoring, an External Node Classifier (ENC), configuration management, and performance analytics — all from a single pane of glass.
+A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Puppet infrastructure. Provides fleet monitoring, detailed report drill-downs, code deployment via r10k, an External Node Classifier (ENC), configuration management, performance analytics, and a branded login page — all from a single pane of glass.
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
@@ -45,11 +45,13 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
   - [Directory Layout](#directory-layout)
 - [Feature Details](#feature-details)
   - [Fleet Dashboard](#fleet-dashboard)
+  - [Report Details](#report-details)
   - [Performance Dashboard](#performance-dashboard)
+  - [Code Deployment](#code-deployment)
   - [External Node Classifier (ENC)](#external-node-classifier-enc)
   - [Hiera Data Management](#hiera-data-management)
   - [Configuration Management](#configuration-management)
-  - [Authentication & Authorization](#authentication--authorization)
+  - [Authentication & Login](#authentication--login)
 - [User Management](#user-management)
   - [CLI User Management](#cli-user-management)
   - [API User Management](#api-user-management)
@@ -61,6 +63,7 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
   - [Performance](#performance-api)
   - [Nodes](#nodes-api)
   - [Reports](#reports-api)
+  - [Deploy](#deploy-api)
   - [ENC (External Node Classifier)](#enc-api)
   - [Configuration & Hiera](#configuration-api)
 - [Service Management](#service-management)
@@ -69,14 +72,21 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - [License](#license)
 
 ---
-
 ## Features
 
 ### 📊 Fleet Dashboard
 - Real-time node status overview (unchanged, changed, failed, noop)
 - Report trend charts with hourly breakdowns
 - Service health monitoring (PuppetServer, PuppetDB, Puppet agent)
+- Active user session tracking with 15-minute activity threshold
 - Environment overview with node counts
+
+### 📋 Report Details
+- Clickable reports with full drill-down into individual Puppet runs
+- **Resource Events**: Every resource change with file, line, old/new values, and status
+- **Logs**: Full Puppet agent log output for each run with severity levels
+- **Metrics**: Timing breakdowns (catalog application, config retrieval, fact generation, etc.) and resource counts
+- Filterable report listing by node, status, and environment
 
 ### ⚡ Performance Dashboard
 - Puppet run timing analysis across 7 metrics: total, catalog application, config retrieval, fact generation, plugin sync, transaction evaluation, and convert catalog
@@ -86,6 +96,13 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - Resource count area chart (total, changed, failed, skipped over time)
 - Detailed recent runs data table with per-metric columns
 - Per-node drill-down with individual run history
+
+### 🚀 Code Deployment
+- **r10k Integration**: Trigger Puppet code deployments directly from the GUI
+- **Environment Deployment**: Deploy all environments or target a specific one
+- **Repository Discovery**: Automatically discovers control repos from r10k.yaml configuration
+- **Deployment Status**: Real-time output and exit codes from deployment runs
+- **Environment Listing**: View all available Puppet environments with their sources
 
 ### 🏷️ External Node Classifier (ENC)
 - **Unified Classification Page**: Node Groups and Classifications together on a single page with tabbed navigation
@@ -112,13 +129,21 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - **Service Controls**: Restart PuppetServer, PuppetDB, or the Puppet agent from the UI
 - **Application Settings**: View current runtime configuration and authentication status
 
-### 🔐 Authentication & Authorization
+### 🔐 Authentication & Login
+- **Login Page**: Branded sign-in page with OpenVox logo, gradient background, and error handling
+- **Auth Context**: React-based authentication state management with JWT token persistence
+- **Session Validation**: Automatic token validation on app load via `/api/auth/me`
+- **Logout**: One-click sign-out from the header with token and cookie cleanup
 - Pluggable authentication backends (`none`, `local`, with LDAP/SAML/OIDC planned)
 - Local auth using htpasswd-compatible bcrypt password hashing via `passlib`
-- JWT session tokens (24-hour expiry) stored as HTTP-only cookies
+- JWT session tokens (24-hour expiry) stored as HTTP-only cookies and localStorage
 - Role-based access control: `admin`, `operator`, `viewer`
+- User info and role displayed in the app header
 - User management via CLI tool and REST API
-- Secure credential storage with auto-generated admin password on install
+- Active session tracking with per-user activity monitoring
+
+---
+
 
 ---
 
@@ -156,7 +181,7 @@ sudo ./install.sh
 ```
   ╔═══════════════════════════════════════════════════╗
   ║                                                   ║
-  ║            OpenVox GUI Installer v0.1.0           ║
+  ║            OpenVox GUI Installer v0.2.1           ║
   ║       Puppet Infrastructure Management GUI        ║
   ║                                                   ║
   ╚═══════════════════════════════════════════════════╝
@@ -820,6 +845,7 @@ sudo systemctl restart openvox-gui
 │  │    /api/performance/*   Run timing & metrics       │  │
 │  │    /api/nodes/*         Node inventory & facts     │  │
 │  │    /api/reports/*       Puppet run reports         │  │
+  │  │    /api/deploy/*        r10k code deployment       │  │
 │  │    /api/enc/*           ENC groups & rules         │  │
 │  │    /api/config/*        Puppet/PuppetDB config     │  │
 │  ├────────────────────────────────────────────────────┤  │
@@ -871,16 +897,20 @@ After installation, the directory structure is:
 │   │   │   └── auth_local.py       # htpasswd + JWT implementation
 │   │   ├── models/
 │   │   │   ├── enc.py              # SQLAlchemy models (NodeGroup, etc.)
+│   │   │   ├── session.py          # ActiveSession model (user tracking)
+│   │   │   ├── user.py             # User model
 │   │   │   └── schemas.py          # Pydantic request/response schemas
 │   │   ├── routers/
 │   │   │   ├── auth.py             # POST /api/auth/login, user CRUD
-│   │   │   ├── dashboard.py        # GET /api/dashboard/stats
+│   │   │   ├── dashboard.py        # GET /api/dashboard/stats, active sessions
+│   │   │   ├── deploy.py           # POST /api/deploy/run (r10k integration)
 │   │   │   ├── performance.py      # GET /api/performance/overview
 │   │   │   ├── nodes.py            # GET /api/nodes/, /{certname}
-│   │   │   ├── reports.py          # GET /api/reports/
+│   │   │   ├── reports.py          # GET /api/reports/, /{hash} (events/logs/metrics)
 │   │   │   ├── enc.py              # ENC groups, classifications, rules
 │   │   │   └── config.py           # Puppet/PuppetDB/Hiera config
 │   │   └── services/
+│   │       ├── auth_local.py       # Async auth with bcrypt + session tracking
 │   │       ├── puppetdb.py         # PuppetDB REST client (SSL, async)
 │   │       ├── puppetserver.py     # Puppet config files, systemctl
 │   │       └── enc.py              # Classification engine
@@ -888,14 +918,33 @@ After installation, the directory structure is:
 ├── frontend/
 │   ├── dist/                       # Built React app (served by FastAPI)
 │   │   ├── index.html
+│   │   ├── openvox-logo.svg        # OpenVox branding logo
 │   │   └── assets/                 # JS and CSS bundles
+│   ├── public/                     # Static assets (copied to dist/ on build)
+│   │   └── openvox-logo.svg        # OpenVox logo source
 │   ├── src/                        # React TypeScript source code
-│   │   ├── App.tsx                 # Routes
+│   │   ├── App.tsx                 # Routes + AuthProvider wrapper
 │   │   ├── main.tsx                # Entry point
-│   │   ├── components/             # AppShell, StatusBadge
-│   │   ├── hooks/                  # useApi, useAuth
-│   │   ├── pages/                  # Dashboard, Performance, Nodes, etc.
-│   │   ├── services/api.ts         # API client with auth headers
+│   │   ├── components/
+│   │   │   └── AppShell.tsx        # Navigation shell with user/logout display
+│   │   ├── hooks/
+│   │   │   ├── AuthContext.tsx     # React auth context (login, logout, token)
+│   │   │   └── useApi.ts          # Data fetching hooks
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx       # Fleet overview dashboard
+│   │   │   ├── Login.tsx           # Login page with branded UI
+│   │   │   ├── Nodes.tsx           # Node listing
+│   │   │   ├── NodeDetail.tsx      # Individual node facts/resources
+│   │   │   ├── Reports.tsx         # Report listing (clickable rows)
+│   │   │   ├── ReportDetail.tsx    # Report drill-down (events/logs/metrics)
+│   │   │   ├── CodeDeployment.tsx  # r10k deployment interface
+│   │   │   ├── ENCGroups.tsx       # Node group management
+│   │   │   ├── ENCClassifications.tsx # Per-node classifications
+│   │   │   ├── ENCRules.tsx        # Fact-based classification rules
+│   │   │   ├── ConfigPuppet.tsx    # PuppetServer configuration
+│   │   │   ├── ConfigPuppetDB.tsx  # PuppetDB configuration
+│   │   │   └── ConfigApp.tsx       # Application settings
+│   │   ├── services/api.ts         # API client with JWT auth headers
 │   │   └── types/index.ts          # TypeScript interfaces
 │   ├── package.json                # Node.js dependencies
 │   ├── vite.config.ts              # Vite build configuration
@@ -905,7 +954,7 @@ After installation, the directory structure is:
 │   ├── .credentials                # Initial admin password (delete after use!)
 │   └── openvox-gui.service         # Reference systemd unit file
 ├── data/                           # Runtime data directory
-│   ├── openvox_gui.db              # SQLite database (ENC data)
+│   ├── openvox_gui.db              # SQLite database (ENC data, sessions)
 │   ├── htpasswd                    # User password hashes
 │   └── htpasswd.roles              # User role assignments
 ├── logs/                           # Application log directory
@@ -929,7 +978,16 @@ The Fleet Dashboard (`/`) provides a real-time overview of your Puppet infrastru
 - **Node Status Ring**: Donut chart showing the count and percentage of nodes in each status (unchanged, changed, failed, noop)
 - **Report Trends**: Line chart showing report counts grouped by hour over the past 24-48 hours
 - **Service Health**: Live status cards for PuppetServer, PuppetDB, and Puppet agent (running/stopped/unknown)
+- **Active Users**: Shows currently active sessions with a 15-minute activity threshold
 - **Environment List**: All Puppet environments (production, development, staging, etc.)
+
+### Report Details
+
+The Reports page (`/reports`) lists all Puppet run reports with filtering by node, status, and environment. Each report row is clickable, opening a detailed drill-down page (`/reports/:hash`) with three tabs:
+
+1. **Events Tab**: Every resource event from the Puppet run — shows resource type, title, property changed, old value, new value, file path, and line number. Color-coded by status (success, failure, noop, skipped).
+2. **Logs Tab**: Full Puppet agent log output for the run, with severity levels (debug, info, notice, warning, err). Filterable by severity.
+3. **Metrics Tab**: Complete timing breakdown including catalog application time, config retrieval time, fact generation time, plugin sync, transaction evaluation, and total time. Also shows resource counts (total, changed, failed, skipped, out-of-sync).
 
 ### Performance Dashboard
 
@@ -945,6 +1003,18 @@ The Performance Dashboard (`/performance`) provides deep visibility into Puppet 
 The API supports query parameters for customizing the data window:
 - `hours` — How many hours of history to include (default: 48)
 - `limit` — Maximum number of reports to analyze (default: 500, max: 2000)
+
+### Code Deployment
+
+The Code Deployment page (`/deployment`) provides a GUI interface for triggering r10k Puppet code deployments:
+
+- **Deploy All Environments**: One-click button to run `r10k deploy environment --puppetfile` across all environments
+- **Deploy Specific Environment**: Select a target environment from a dropdown and deploy only that environment
+- **Repository Information**: Automatically discovers and displays control repository information from the r10k configuration (`/etc/puppetlabs/r10k/r10k.yaml`)
+- **Deployment Output**: Shows real-time stdout/stderr output and exit codes from r10k runs
+- **Environment Status**: Lists all available Puppet environments with their current state
+
+The deployment runs as a subprocess on the server using the puppet user's permissions.
 
 ### External Node Classifier (ENC)
 
@@ -981,7 +1051,27 @@ Hiera data management (`/hiera`) is a dedicated top-level section with two subpa
 - **Environments** (`/config/environments`): Browse available environments and list installed modules per environment.
 - **Service Management**: Start/stop/restart PuppetServer, PuppetDB, or the Puppet agent service directly from the UI.
 
-### Authentication & Authorization
+### Authentication & Login
+
+OpenVox GUI features a full login flow with a branded sign-in page:
+
+**Login Page** (`/login`):
+- Gradient background with centered card layout
+- OpenVox icon branding with application title
+- Username and password form fields with validation
+- Error display for invalid credentials
+- Automatic redirect to the dashboard on successful login
+
+**Session Management**:
+- On app load, the `AuthContext` checks for a stored JWT token in `localStorage`
+- If a token exists, it validates it by calling `GET /api/auth/me`
+- Invalid or expired tokens are automatically cleared, showing the login page
+- If `AUTH_BACKEND=none`, the app auto-authenticates as an anonymous admin user
+
+**User Interface**:
+- The header shows the logged-in username with a role badge
+- A sign-out button in the header clears the token and returns to the login page
+- Active sessions are tracked and displayed on the dashboard
 
 | Role | Permissions |
 |---|---|
@@ -990,11 +1080,13 @@ Hiera data management (`/hiera`) is a dedicated top-level section with two subpa
 | `viewer` | Read-only access to dashboards, nodes, and reports |
 
 Authentication flow:
-1. User submits `POST /api/auth/login` with username and password
-2. Backend verifies password against the htpasswd file using bcrypt
-3. On success, a JWT token is returned and set as an HTTP-only cookie
-4. All subsequent requests include the token in the `Authorization: Bearer <token>` header or the `openvox_token` cookie
-5. Tokens expire after 24 hours
+1. User visits the app — if no valid token exists, the Login page is shown
+2. User submits username and password via `POST /api/auth/login`
+3. Backend verifies password against the htpasswd file using bcrypt
+4. On success, a JWT token is returned and set as an HTTP-only cookie
+5. The React app stores the token in `localStorage` and sets the user context
+6. All subsequent API requests include the token in the `Authorization: Bearer <token>` header
+7. Tokens expire after 24 hours; expired tokens redirect back to the login page
 
 ---
 
@@ -1108,7 +1200,7 @@ When the service is running, interactive API documentation is available at:
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
-| `GET` | `/health` | No | Health check — returns `{"status": "ok", "version": "0.1.0"}` |
+| `GET` | `/health` | No | Health check — returns `{"status": "ok", "version": "0.2.1"}` |
 
 ### Authentication API
 
@@ -1154,7 +1246,22 @@ When the service is running, interactive API documentation is available at:
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
 | `GET` | `/api/reports/?certname=…&status=…&environment=…&limit=50&offset=0` | Yes | List reports with filters and pagination |
-| `GET` | `/api/reports/{report_hash}` | Yes | Full report detail including resource events |
+| `GET` | `/api/reports/{report_hash}` | Yes | Full report detail including resource events, logs, and metrics |
+
+### Deploy API
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/deploy/environments` | Yes | List available Puppet environments |
+| `GET` | `/api/deploy/repos` | Yes | Discover control repositories from r10k configuration |
+| `GET` | `/api/deploy/status` | Yes | Get current deployment status |
+| `POST` | `/api/deploy/run` | Yes | Trigger r10k deployment: `{"environment": "production"}` or `{"environment": null}` for all |
+
+### Dashboard API (Active Sessions)
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/dashboard/active-sessions` | Yes | Get count of active user sessions (15-min threshold) |
 
 ### ENC API
 
@@ -1221,7 +1328,7 @@ sudo journalctl -u openvox-gui -n 100
 
 # Check if the service is running
 curl http://localhost:4567/health
-# → {"status":"ok","version":"0.1.0"}
+# → {"status":"ok","version":"0.2.1"}
 ```
 
 ---

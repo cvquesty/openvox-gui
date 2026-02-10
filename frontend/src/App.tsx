@@ -1,4 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
+import { Loader, Center } from '@mantine/core';
+import { AuthProvider, useAuth } from './hooks/AuthContext';
+import { LoginPage } from './pages/Login';
 import { AppShellLayout } from './components/AppShell';
 import { DashboardPage } from './pages/Dashboard';
 import { NodesPage } from './pages/Nodes';
@@ -13,7 +16,17 @@ import { ConfigPuppetPage } from './pages/ConfigPuppet';
 import { ConfigPuppetDBPage } from './pages/ConfigPuppetDB';
 import { ConfigAppPage } from './pages/ConfigApp';
 
-export function App() {
+function AppRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <Center h="100vh"><Loader size="xl" /></Center>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <Routes>
       <Route element={<AppShellLayout />}>
@@ -40,3 +53,12 @@ export function App() {
     </Routes>
   );
 }
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  );
+}
+

@@ -11,6 +11,9 @@ import {
   ScrollArea,
   Divider,
   Box,
+  Badge,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconDashboard,
@@ -25,7 +28,10 @@ import {
   IconRuler,
   IconTags,
   IconRocket,
+  IconLogout,
+  IconUser,
 } from '@tabler/icons-react';
+import { useAuth } from '../hooks/AuthContext';
 
 const mainNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
@@ -53,6 +59,7 @@ export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <MantineAppShell
@@ -61,16 +68,39 @@ export function AppShellLayout() {
       padding="md"
     >
       <MantineAppShell.Header>
-        <Group h="100%" px="md">
-          <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
+        <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
-            <ThemeIcon size="lg" variant="gradient" gradient={{ from: 'violet', to: 'cyan' }}>
-              <IconCategory size={20} />
-            </ThemeIcon>
-            <Title order={3} style={{ fontWeight: 700 }}>
-              OpenVox GUI
-            </Title>
+            <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
+            <Group gap="xs">
+              <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 36 }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <ThemeIcon size="lg" variant="gradient" gradient={{ from: 'violet', to: 'cyan' }}>
+                <IconCategory size={20} />
+              </ThemeIcon>
+              <Title order={3} style={{ fontWeight: 700 }}>
+                OpenVox GUI
+              </Title>
+            </Group>
           </Group>
+          {user && (
+            <Group gap="sm">
+              <Badge
+                variant="light"
+                color="violet"
+                size="lg"
+                leftSection={<IconUser size={14} />}
+              >
+                {user.username}
+              </Badge>
+              <Badge variant="outline" color="gray" size="sm">{user.role}</Badge>
+              <Tooltip label="Sign out">
+                <ActionIcon variant="subtle" color="gray" onClick={logout}>
+                  <IconLogout size={18} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          )}
         </Group>
       </MantineAppShell.Header>
 
@@ -142,7 +172,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.0</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.1</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>
@@ -153,3 +183,4 @@ export function AppShellLayout() {
     </MantineAppShell>
   );
 }
+

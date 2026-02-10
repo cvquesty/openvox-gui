@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Hexagonal shape -->
+  <polygon points="60,5 110,30 110,80 60,115 10,80 10,30" fill="url(#grad)" rx="8"/>
+  <!-- Eye/Vox symbol -->
+  <ellipse cx="60" cy="55" rx="28" ry="18" fill="none" stroke="white" stroke-width="3"/>
+  <circle cx="60" cy="55" r="9" fill="white"/>
+  <circle cx="60" cy="55" r="4" fill="#7c3aed"/>
+  <!-- Antenna / Open symbol -->
+  <line x1="60" y1="25" x2="60" y2="35" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="60" cy="22" r="3" fill="white"/>
+  <!-- Base lines -->
+  <line x1="38" y1="80" x2="82" y2="80" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="44" y1="87" x2="76" y2="87" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+</svg>

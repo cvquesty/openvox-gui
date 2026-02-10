@@ -3,11 +3,26 @@
  */
 const API_BASE = '/api';
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = localStorage.getItem('openvox_token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     ...options,
   });
+  if (response.status === 401) {
+    // Token expired or invalid — clear it and reload to show login
+    localStorage.removeItem('openvox_token');
+    window.location.reload();
+    throw new Error('Session expired. Please log in again.');
+  }
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`API Error ${response.status}: ${error}`);
