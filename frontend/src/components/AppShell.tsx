@@ -64,7 +64,7 @@ export function AppShellLayout() {
       navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
     >
-      <MantineAppShell.Header style={{ backgroundColor: '#EC8622' }}>
+      <MantineAppShell.Header style={{ backgroundColor: '#0D6EFD' }}>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
@@ -161,7 +161,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.6</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.7</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>
