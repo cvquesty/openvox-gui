@@ -1,0 +1,51 @@
+# OpenVox GUI Installer Configuration
+# Copy this file to install.conf and edit as needed.
+# All variables are optional — defaults are used for any not specified.
+#
+# Usage: ./install.sh -c install.conf
+
+# ─── General Settings ─────────────────────────────────────────
+INSTALL_DIR="/opt/openvox-gui"
+APP_PORT="4567"
+APP_HOST="0.0.0.0"
+UVICORN_WORKERS="2"
+APP_DEBUG="false"
+
+# ─── PuppetServer Settings ────────────────────────────────────
+# FQDN of the PuppetServer (defaults to hostname -f)
+#PUPPET_SERVER_HOST="puppet.example.com"
+PUPPET_SERVER_PORT="8140"
+
+# ─── PuppetDB Settings ───────────────────────────────────────
+# FQDN of PuppetDB (defaults to hostname -f, often same as PuppetServer)
+#PUPPETDB_HOST="puppetdb.example.com"
+PUPPETDB_PORT="8081"
+
+# ─── SSL Certificate Settings ────────────────────────────────
+# Paths to PuppetServer SSL certs (used for PuppetDB API communication)
+# Defaults assume standard Puppet SSL directory layout
+#PUPPET_SSL_CERT="/etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem"
+#PUPPET_SSL_KEY="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
+#PUPPET_SSL_CA="/etc/puppetlabs/puppet/ssl/certs/ca.pem"
+
+# ─── Puppet Directory Settings ───────────────────────────────
+PUPPET_CONFDIR="/etc/puppetlabs/puppet"
+PUPPET_CODEDIR="/etc/puppetlabs/code"
+
+# ─── Authentication Settings ─────────────────────────────────
+# Auth backend: "local" (username/password) or "none" (no auth)
+AUTH_BACKEND="local"
+ADMIN_USERNAME="admin"
+# Leave empty for auto-generated password (saved to config/.credentials)
+ADMIN_PASSWORD=""
+
+# ─── Service Settings ────────────────────────────────────────
+SERVICE_USER="puppet"
+SERVICE_GROUP="puppet"
+
+# ─── System Integration ──────────────────────────────────────
+CONFIGURE_FIREWALL="true"
+CONFIGURE_SELINUX="false"
+
+# Set to "true" if Node.js 18+ is installed and you want to build from source
+BUILD_FRONTEND="false"

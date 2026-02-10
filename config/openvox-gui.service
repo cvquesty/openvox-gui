@@ -7,18 +7,18 @@ Wants=puppetdb.service
 Type=simple
 User=puppet
 Group=puppet
-WorkingDirectory=/opt/openvox-gui/backend
-ExecStart=/opt/openvox-gui/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 4567 --workers 2
+WorkingDirectory=INSTALL_DIR/backend
+EnvironmentFile=INSTALL_DIR/config/.env
+ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 4567
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
-Environment=OPENVOX_GUI_AUTH_BACKEND=none
 
 # Security hardening
-NoNewPrivileges=true
+NoNewPrivileges=false
 ProtectSystem=strict
-ReadWritePaths=/opt/openvox-gui/data /opt/openvox-gui/logs
-ReadOnlyPaths=/etc/puppetlabs
+PrivateTmp=false
+ReadWritePaths=INSTALL_DIR/data INSTALL_DIR/logs /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp
 
 [Install]
 WantedBy=multi-user.target

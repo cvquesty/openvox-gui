@@ -1,65 +1,80 @@
 #!/bin/bash
-# OpenVox GUI Deployment Script
-# Run this on the OpenVox server to set up the application
+###############################################################################
+# OpenVox GUI Quick Deploy Script
+#
+# This is a convenience wrapper around install.sh for re-deploying updates
+# to an existing installation. It pulls the latest code, rebuilds the
+# frontend, and restarts the service.
+#
+# For fresh installations, use install.sh instead.
+###############################################################################
 
 set -euo pipefail
 
-APP_DIR="/opt/openvox-gui"
-VENV_DIR="${APP_DIR}/venv"
+APP_DIR="${1:-/opt/openvox-gui}"
 
-echo "=== OpenVox GUI Deployment ==="
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: Run as root or with sudo."
+    exit 1
+fi
 
-# 1. Create directories
-echo "[1/7] Creating directories..."
-sudo mkdir -p ${APP_DIR}/{data,logs,config}
+if [ ! -d "${APP_DIR}" ]; then
+    echo "Error: ${APP_DIR} does not exist. Run install.sh for first-time setup."
+    exit 1
+fi
 
-# 2. Create Python virtual environment
-echo "[2/7] Setting up Python virtual environment..."
-cd ${APP_DIR}
-python3 -m venv ${VENV_DIR}
-source ${VENV_DIR}/bin/activate
+echo "=== OpenVox GUI Re-deploy ==="
 
-# 3. Install Python dependencies
-echo "[3/7] Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r ${APP_DIR}/backend/requirements.txt
+# 1. Pull latest code (if this is a git repo)
+if [ -d "${APP_DIR}/.git" ]; then
+    echo "[1/5] Pulling latest code..."
+    cd "${APP_DIR}"
+    git pull origin main
+else
+    echo "[1/5] Not a git repo — skipping pull"
+fi
 
-# 4. Build React frontend
-echo "[4/7] Building React frontend..."
-cd ${APP_DIR}/frontend
-npm install
-npm run build
+# 2. Update Python dependencies
+echo "[2/5] Updating Python dependencies..."
+"${APP_DIR}/venv/bin/pip" install --quiet --upgrade pip
+"${APP_DIR}/venv/bin/pip" install --quiet -r "${APP_DIR}/backend/requirements.txt"
 
-# 5. Set permissions
-echo "[5/7] Setting permissions..."
-sudo chown -R puppet:puppet ${APP_DIR}/data ${APP_DIR}/logs
-sudo chmod +x ${APP_DIR}/scripts/enc.py
+# 3. Rebuild frontend (if Node.js is available)
+echo "[3/5] Building frontend..."
+if command -v node &>/dev/null; then
+    cd "${APP_DIR}/frontend"
+    npm install --silent
+    npm run build
+    # Ensure logo is in dist
+    if [ -f "${APP_DIR}/frontend/public/openvox-logo.svg" ]; then
+        cp "${APP_DIR}/frontend/public/openvox-logo.svg" "${APP_DIR}/frontend/dist/" 2>/dev/null || true
+    fi
+else
+    echo "  Node.js not found — skipping frontend build"
+fi
 
-# 6. Install systemd service
-echo "[6/7] Installing systemd service..."
-sudo cp ${APP_DIR}/config/openvox-gui.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable openvox-gui
+# 4. Fix permissions
+echo "[4/5] Fixing permissions..."
+chown -R puppet:puppet "${APP_DIR}"
+chmod 600 "${APP_DIR}/config/.env"
+chmod 755 "${APP_DIR}/frontend/dist/" 2>/dev/null || true
+find "${APP_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null || true
+find "${APP_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
 
-# 7. Open firewall port
-echo "[7/7] Configuring firewall..."
-sudo firewall-cmd --permanent --add-port=8080/tcp 2>/dev/null || true
-sudo firewall-cmd --reload 2>/dev/null || true
+# 5. Restart service
+echo "[5/5] Restarting service..."
+systemctl restart openvox-gui
+sleep 2
 
-echo ""
-echo "=== Deployment Complete ==="
-echo ""
-echo "To start the application:"
-echo "  sudo systemctl start openvox-gui"
-echo ""
-echo "To check status:"
-echo "  sudo systemctl status openvox-gui"
-echo ""
-echo "Access the GUI at: http://openvox.questy.org:8080"
-echo "API documentation: http://openvox.questy.org:8080/api/docs"
-echo ""
-echo "To enable ENC in puppet.conf, add:"
-echo "  [server]"
-echo "  node_terminus = exec"
-echo "  external_nodes = ${APP_DIR}/scripts/enc.py"
-echo ""
+if systemctl is-active --quiet openvox-gui; then
+    HEALTH=$(curl -sf http://127.0.0.1:4567/health 2>/dev/null || echo "unreachable")
+    echo ""
+    echo "=== Re-deploy Complete ==="
+    echo "Service status: active"
+    echo "Health: ${HEALTH}"
+else
+    echo ""
+    echo "=== Re-deploy FAILED ==="
+    echo "Service did not start. Check: journalctl -u openvox-gui -n 50"
+    exit 1
+fi

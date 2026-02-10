@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.2] - 2025-02-10
+
+### Added
+- **`install.sh`**: Full installer script with 9-step process — service user creation, directory setup, file copying, Python venv, frontend build, configuration generation, systemd service, permissions/firewall/SELinux, and initial admin user setup
+  - Supports interactive mode, answer-file (`-c install.conf`), and silent mode (`-y`)
+  - Auto-generates secure JWT secret keys and admin passwords
+  - Validates sudoers rules with `visudo -cf`
+  - Includes `--uninstall` for clean removal
+- **`install.conf.example`**: Answer file template with all configurable variables documented
+- **`config/.env.example`**: Template environment file (secrets never committed to git)
+- **Consolidated sudoers rules** (`/etc/sudoers.d/openvox-gui`): Single file covering r10k deploy, PuppetDB config reading, and Puppet service management (start/stop/restart/status for puppetserver, puppetdb, puppet)
+
+### Changed
+- **`config/openvox-gui.service`**: Updated systemd unit file with correct security settings:
+  - `NoNewPrivileges=false` — required for `sudo r10k` to work from child processes
+  - `PrivateTmp=false` — r10k needs real `/tmp` for module extraction during deployment
+  - `ReadWritePaths` expanded to include `/opt/puppetlabs/puppet/cache` (r10k git cache), `/etc/puppetlabs/code/environments` (code deployment target), and `/tmp`
+  - Removed `ReadOnlyPaths=/etc/puppetlabs` which blocked r10k code deployment
+  - Added `EnvironmentFile` directive pointing to `config/.env`
+  - Uses `INSTALL_DIR` placeholder for portability
+- **`scripts/deploy.sh`**: Rewritten as a quick re-deploy helper (git pull, pip install, npm build, fix permissions, restart) — for fresh installs use `install.sh` instead
+- **`.gitignore`**: Added `config/.env`, `config/.credentials`, and `install.conf` to prevent committing site-specific secrets
+
+### Fixed
+- **r10k deployment failure**: `ProtectSystem=strict` with `ReadOnlyPaths=/opt/puppetlabs` made the entire Puppet directory tree read-only in the systemd mount namespace — even `sudo` couldn't write. r10k failed with "Read-only file system" when trying to update `FETCH_HEAD` in its git cache or extract modules to `/tmp`
+- **Missing sudoers rule for r10k**: No sudoers entry existed for the puppet user to run `r10k deploy` via sudo
+- **Frontend dist/ permissions**: Directory was `750` (puppet:puppet) preventing proper file serving; installer now ensures `755` for dirs and `644` for files in dist/
+
+---
+
+
 ## [0.2.1] - 2025-02-09
 
 ### Added
