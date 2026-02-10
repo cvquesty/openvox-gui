@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.8] - 2026-02-10
+
+### Changed
+- **Header bar**: Removed blue (`#0D6EFD`) background — reverted to default dark theme header; title and badge styling returned to defaults
+
+### Added
+- **User Manager page** (`frontend/src/pages/UserManager.tsx`): Full user administration UI with:
+  - User listing table with username, role badges (admin/operator/viewer)
+  - Add User modal (username, password, role selector)
+  - Change Password modal per user
+  - Change Role modal per user
+  - Delete user with confirmation (cannot delete yourself)
+  - Toast notifications for all operations
+- **User management API client** (`frontend/src/services/api.ts`): `users.list()`, `users.create()`, `users.remove()`, `users.changePassword()`, `users.changeRole()`
+- **Administration nav section** in sidebar with User Manager link (`/users`)
+- Route `/users` registered in `App.tsx`
+
+---
+
 ## [0.2.7] - 2026-02-10
 
 ### Changed

@@ -27,6 +27,7 @@ import {
   IconRocket,
   IconLogout,
   IconUser,
+  IconUsers,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 
@@ -52,6 +53,10 @@ const configNav = [
   { label: 'Application', icon: IconAppWindow, path: '/config/app' },
 ];
 
+
+const adminNav = [
+  { label: 'User Manager', icon: IconUsers, path: '/users' },
+];
 export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
@@ -64,27 +69,27 @@ export function AppShellLayout() {
       navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
     >
-      <MantineAppShell.Header style={{ backgroundColor: '#0D6EFD' }}>
+      <MantineAppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
             <Group gap="md">
               <img src="/openvox-logo-white.svg" alt="OpenVox" style={{ height: 36, flexShrink: 0 }} />
-              <Title order={3} style={{ fontWeight: 700, color: 'white', whiteSpace: 'nowrap' }}>
+              <Title order={3} style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
                 OpenVox GUI
               </Title>
             </Group>
           </Group>
           {user && (
             <Group gap="sm">
-              <Badge variant="outline" color="white" size="sm" styles={{ root: { borderColor: 'rgba(255,255,255,0.6)', color: 'white' } }}>
+              <Badge variant="outline" color="gray" size="sm">
                 <Group gap={4}>
                   <IconUser size={12} />
                   {user.username} ({user.role})
                 </Group>
               </Badge>
               <Tooltip label="Sign out">
-                <ActionIcon variant="subtle" color="white" onClick={logout}>
+                <ActionIcon variant="subtle" color="gray" onClick={logout}>
                   <IconLogout size={18} />
                 </ActionIcon>
               </Tooltip>
@@ -144,6 +149,22 @@ export function AppShellLayout() {
 
           <Divider my="sm" />
           <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+            Administration
+          </Text>
+          {adminNav.map((item) => (
+            <NavLink
+              key={item.path}
+              label={item.label}
+              leftSection={<item.icon size={18} />}
+              active={location.pathname === item.path}
+              onClick={() => { navigate(item.path); setOpened(false); }}
+              variant="filled"
+              mb={2}
+            />
+          ))}
+
+          <Divider my="sm" />
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
             Configuration
           </Text>
           {configNav.map((item) => (
@@ -161,7 +182,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.7</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.8</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>

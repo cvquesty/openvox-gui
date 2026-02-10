@@ -118,6 +118,27 @@ export const enc = {
   classify: (certname: string) => fetchJSON<any>(`/enc/classify/${certname}`),
 };
 
+
+
+// ─── Users ──────────────────────────────────────────────────
+
+export const users = {
+  list: () => fetchJSON<any[]>('/auth/users'),
+  create: (data: { username: string; password: string; role: string }) =>
+    fetchJSON<any>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
+  remove: (username: string) =>
+    fetchJSON<any>(`/auth/users/${username}`, { method: 'DELETE' }),
+  changePassword: (username: string, newPassword: string) =>
+    fetchJSON<any>(`/auth/users/${username}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ username, new_password: newPassword }),
+    }),
+  changeRole: (username: string, role: string) =>
+    fetchJSON<any>(`/auth/users/${username}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    }),
+};
 // ─── Configuration ──────────────────────────────────────────
 
 export const config = {
