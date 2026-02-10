@@ -88,6 +88,10 @@ export const deploy = {
 // ─── ENC ────────────────────────────────────────────────────
 
 export const enc = {
+  // Available classes from Puppet modules
+  getAvailableClasses: (env?: string) =>
+    fetchJSON<any>(`/enc/available-classes${env ? '?environment=' + env : ''}`),
+
   // Hierarchy overview
   getHierarchy: () => fetchJSON<any>('/enc/hierarchy'),
 
