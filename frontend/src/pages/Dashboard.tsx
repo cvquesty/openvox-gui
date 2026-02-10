@@ -1,6 +1,6 @@
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  SimpleGrid, Paper, ThemeIcon, Badge, Tooltip,
+  SimpleGrid, Paper, ThemeIcon, Badge, Tooltip, HoverCard,
 } from '@mantine/core';
 import {
   IconServer, IconCheck, IconAlertTriangle, IconX, IconPlayerPause, IconEye,
@@ -72,7 +72,46 @@ export function DashboardPage() {
         <StatsCard title="Changed" value={ns.changed} icon={IconAlertTriangle} color="yellow" />
         <StatsCard title="Failed" value={ns.failed} icon={IconX} color="red" />
         <StatsCard title="Noop" value={ns.noop} icon={IconEye} color="blue" />
-        <StatsCard title="Active Users" value={activeCount} icon={IconUsers} color="teal" />
+        <HoverCard width={280} shadow="md" position="bottom" withArrow openDelay={200}>
+          <HoverCard.Target>
+            <Paper withBorder p="md" radius="md" style={{ cursor: 'pointer' }}>
+              <Group justify="space-between">
+                <div>
+                  <Text c="dimmed" tt="uppercase" fw={700} fz="xs">Active Users</Text>
+                  <Text fw={700} fz="xl">{activeCount}</Text>
+                </div>
+                <ThemeIcon color="teal" variant="light" size={48} radius="md">
+                  <IconUsers size={28} />
+                </ThemeIcon>
+              </Group>
+            </Paper>
+          </HoverCard.Target>
+          <HoverCard.Dropdown>
+            <Text fw={600} size="sm" mb="xs">Active in last 15 minutes</Text>
+            {activeUsers.length === 0 ? (
+              <Text c="dimmed" size="sm">No active users</Text>
+            ) : (
+              <Stack gap={6}>
+                {activeUsers.map((u: any) => (
+                  <Group key={u.username} justify="space-between" gap="xs">
+                    <Group gap={6}>
+                      <ThemeIcon color="teal" variant="light" size="xs" radius="xl">
+                        <IconUsers size={10} />
+                      </ThemeIcon>
+                      <Text size="sm" fw={500}>{u.username}</Text>
+                    </Group>
+                    <Group gap={6}>
+                      {u.ip_address && <Text size="xs" c="dimmed">{u.ip_address}</Text>}
+                      <Badge size="xs" variant="light" color="gray">
+                        {u.last_seen ? timeAgo(u.last_seen) : '\u2014'}
+                      </Badge>
+                    </Group>
+                  </Group>
+                ))}
+              </Stack>
+            )}
+          </HoverCard.Dropdown>
+        </HoverCard>
       </SimpleGrid>
 
       <Grid>
