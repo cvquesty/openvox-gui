@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.13] - 2026-02-10
+
+### Changed
+- **Dashboard**: Added a full-width Nodes table below the Node Status donut and Report Trends chart — shows certname, status badge, environment, and last report time with clickable rows linking to node details
+- **Application Configuration page**: Services panel (puppetserver, puppetdb, puppet agent status) moved here from the Dashboard
+
+### Removed
+- **Services panel from Dashboard**: Relocated to the Application Configuration page under Configuration menu
+
+---
+
 ## [0.2.12] - 2026-02-10
 
 ### Fixed

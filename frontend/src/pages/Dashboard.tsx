@@ -1,18 +1,19 @@
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  SimpleGrid, Paper, ThemeIcon, Badge, Tooltip, HoverCard,
+  SimpleGrid, Paper, ThemeIcon, Badge, Tooltip, HoverCard, Table, ActionIcon,
 } from '@mantine/core';
 import {
   IconServer, IconCheck, IconAlertTriangle, IconX, IconPlayerPause, IconEye,
   IconUsers,
 } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
-import { dashboard } from '../services/api';
+import { dashboard, nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
-import type { DashboardStats, ServiceStatus } from '../types';
+import type { DashboardStats, NodeSummary } from '../types';
 
 function StatsCard({ title, value, icon: Icon, color }: {
   title: string; value: number; icon: any; color: string;
@@ -41,10 +42,23 @@ function timeAgo(iso: string): string {
   return `${hrs}h ${mins % 60}m ago`;
 }
 
+function nodeTimeAgo(timestamp: string | null): string {
+  if (!timestamp) return 'Never';
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { data: stats, loading, error } = useApi<DashboardStats>(dashboard.getStats);
-  const { data: services } = useApi<ServiceStatus[]>(dashboard.getServices);
   const { data: sessions } = useApi<any>(dashboard.getActiveSessions);
+  const { data: nodeList } = useApi<NodeSummary[]>(nodes.list);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
@@ -158,21 +172,52 @@ export function DashboardPage() {
         </Grid.Col>
       </Grid>
 
-      <Grid>
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Services</Title>
-            <Stack gap="sm">
-              {services?.map((svc) => (
-                <Group key={svc.service} justify="space-between">
-                  <Text fw={500}>{svc.service}</Text>
-                  <StatusBadge status={svc.status} />
-                </Group>
-              )) || <Text c="dimmed">Loading...</Text>}
-            </Stack>
-          </Card>
-        </Grid.Col>
-      </Grid>
+    
+      <Card withBorder shadow="sm" padding="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>Nodes</Title>
+          <Badge variant="light" size="lg">{nodeList?.length || 0} total</Badge>
+        </Group>
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Certname</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Environment</Table.Th>
+              <Table.Th>Last Report</Table.Th>
+              <Table.Th style={{ width: 60 }}>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {(nodeList || []).map((node) => (
+              <Table.Tr key={node.certname} style={{ cursor: 'pointer' }}
+                onClick={() => navigate(`/nodes/${node.certname}`)}>
+                <Table.Td><Text fw={500} size="sm">{node.certname}</Text></Table.Td>
+                <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
+                <Table.Td><Text size="sm">{node.report_environment || '\u2014'}</Text></Table.Td>
+                <Table.Td><Text size="sm">{nodeTimeAgo(node.report_timestamp)}</Text></Table.Td>
+                <Table.Td>
+                  <Tooltip label="View details">
+                    <ActionIcon variant="subtle" onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      navigate(`/nodes/${node.certname}`);
+                    }}>
+                      <IconEye size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+            {(!nodeList || nodeList.length === 0) && (
+              <Table.Tr>
+                <Table.Td colSpan={5}>
+                  <Text c="dimmed" ta="center" py="md">No nodes found</Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
+      </Card>
     </Stack>
   );
 }

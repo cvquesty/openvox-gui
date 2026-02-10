@@ -182,7 +182,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.12</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.13</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>
