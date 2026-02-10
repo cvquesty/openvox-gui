@@ -9,7 +9,7 @@ import {
   IconPlus, IconTrash, IconPencil, IconHierarchy2, IconTags,
   IconServer, IconWorld, IconSearch, IconLayersLinked, IconArrowDown,
 } from '@tabler/icons-react';
-import { enc, nodes as nodesApi } from '../services/api';
+import { enc, nodes as nodesApi, config } from '../services/api';
 
 /* ═══════════════════════════════════════════════════════════════
    UTILITY: Format JSON for display
@@ -202,7 +202,35 @@ function EnvironmentsTab() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setEnvs(await enc.listEnvironments()); } catch {}
+    try {
+      // Fetch ENC environments and Puppet filesystem environments in parallel
+      const [encEnvs, puppetEnvsResp] = await Promise.all([
+        enc.listEnvironments(),
+        config.getEnvironments().catch(() => ({ environments: [] })),
+      ]);
+      const puppetEnvNames: string[] = puppetEnvsResp.environments || [];
+      const encNames = new Set(encEnvs.map((e: any) => e.name));
+
+      // Auto-create any Puppet environments not yet in the ENC
+      const missing = puppetEnvNames.filter((name: string) => !encNames.has(name));
+      for (const name of missing) {
+        await enc.createEnvironment({ name, description: `Puppet environment (auto-discovered)`, classes: {}, parameters: {} });
+      }
+
+      // Re-fetch if we created any
+      if (missing.length > 0) {
+        setEnvs(await enc.listEnvironments());
+        if (missing.length > 0) {
+          notifications.show({
+            title: 'Environments Synced',
+            message: `Added ${missing.length} environment${missing.length > 1 ? 's' : ''} from Puppet: ${missing.join(', ')}`,
+            color: 'blue',
+          });
+        }
+      } else {
+        setEnvs(encEnvs);
+      }
+    } catch {}
     setLoading(false);
   }, []);
 
@@ -267,8 +295,9 @@ function EnvironmentsTab() {
       </Group>
 
       <Alert variant="light" color="blue" mb="xs">
-        Environments define the second layer of the hierarchy. Classes and parameters set
-        here apply to every node assigned to this environment.
+        Environments are auto-discovered from <Code>/etc/puppetlabs/code/environments/</Code> on
+        the Puppet server. Classes and parameters set here apply to every node assigned
+        to this environment.
       </Alert>
 
       <Card withBorder shadow="sm">
