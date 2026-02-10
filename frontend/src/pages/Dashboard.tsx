@@ -1,5 +1,5 @@
 import {
-  Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
+  Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center, Box,
   Badge, Tooltip, Table, ActionIcon,
 } from '@mantine/core';
 import { IconEye } from '@tabler/icons-react';
@@ -46,7 +46,24 @@ export function DashboardPage() {
 
 
   return (
-    <Stack>
+    <Box style={{ position: 'relative', overflow: 'hidden', minHeight: '100%' }}>
+      {/* Watermark */}
+      <Box
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '55%',
+          transform: 'translate(-50%, -50%) rotate(-45deg)',
+          opacity: 0.15,
+          pointerEvents: 'none',
+          zIndex: 0,
+          width: 500,
+          height: 500,
+        }}
+      >
+        <img src="/openvox-logo.svg" alt="" style={{ width: '100%', height: '100%' }} />
+      </Box>
+    <Stack style={{ position: 'relative', zIndex: 1 }}>
       <Title order={2}>Dashboard</Title>
 
 
@@ -142,5 +159,6 @@ export function DashboardPage() {
         </Table>
       </Card>
     </Stack>
+    </Box>
   );
 }
