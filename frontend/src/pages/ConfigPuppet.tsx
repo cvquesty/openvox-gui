@@ -222,67 +222,109 @@ function ConfigFileEditor() {
 
 
 /* ── Hiera Viewer (read-only) ────────────────────────────── */
+interface HieraFile {
+  name: string;
+  path: string;
+  content: string;
+}
+interface HieraEnv {
+  environment: string;
+  files: HieraFile[];
+}
+
 function HieraViewer() {
-  const [files, setFiles] = useState<{ name: string; path: string; content: string }[]>([]);
+  const [envs, setEnvs] = useState<HieraEnv[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<number>(0);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [selectedFile, setSelectedFile] = useState<HieraFile | null>(null);
 
   useEffect(() => {
     config.getHieraFiles()
       .then((data: any) => {
-        setFiles(data.files || []);
-        setSelected(0);
+        const environments: HieraEnv[] = data.environments || [];
+        setEnvs(environments);
+        // Auto-select first file of first environment
+        if (environments.length > 0 && environments[0].files.length > 0) {
+          setExpanded({ [environments[0].environment]: true });
+          setSelectedFile(environments[0].files[0]);
+        }
       })
       .catch(() => notifications.show({ title: 'Error', message: 'Failed to load hiera files', color: 'red' }))
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Center h={200}><Loader /></Center>;
-  if (files.length === 0) return <Alert color="yellow">No hiera.yaml files found</Alert>;
-
-  const current = files[selected];
+  if (envs.length === 0) return <Alert color="yellow">No Hiera data found</Alert>;
 
   return (
     <Group align="flex-start" gap="md" wrap="nowrap" style={{ minHeight: 400 }}>
-      {/* Left: file list */}
-      <Card withBorder shadow="sm" padding={0} style={{ width: 280, flexShrink: 0 }}>
+      {/* Left: file tree grouped by environment */}
+      <Card withBorder shadow="sm" padding={0} style={{ width: 320, flexShrink: 0 }}>
         <ScrollArea style={{ height: 500 }}>
           <Box p="xs">
-            <Box mb={4}>
-              <Group gap={6} mb={4} ml={4}>
-                <IconFolder size={14} color="#888" />
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">Hiera Configuration</Text>
-              </Group>
-              {files.map((f, i) => (
-                <NavLink
-                  key={f.path}
-                  label={f.name}
-                  leftSection={<IconFile size={14} />}
-                  active={selected === i}
-                  onClick={() => setSelected(i)}
-                  variant="filled"
-                  py={4}
-                  styles={{ label: { fontSize: 13 } }}
-                />
-              ))}
-            </Box>
+            {envs.map((env) => {
+              const isOpen = !!expanded[env.environment];
+              return (
+                <Box key={env.environment} mb={4}>
+                  <NavLink
+                    label={env.environment}
+                    leftSection={<IconFolder size={16} />}
+                    rightSection={
+                      <IconChevronRight
+                        size={14}
+                        style={{
+                          transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                          transition: 'transform 150ms ease',
+                        }}
+                      />
+                    }
+                    onClick={() => setExpanded((prev) => ({ ...prev, [env.environment]: !prev[env.environment] }))}
+                    variant="subtle"
+                    py={6}
+                    styles={{ label: { fontSize: 13, fontWeight: 700, textTransform: 'uppercase' } }}
+                  />
+                  {isOpen && env.files.map((f) => (
+                    <NavLink
+                      key={f.path}
+                      label={f.name}
+                      leftSection={<IconFile size={14} />}
+                      active={selectedFile?.path === f.path}
+                      onClick={() => setSelectedFile(f)}
+                      variant="filled"
+                      py={4}
+                      pl={28}
+                      styles={{ label: { fontSize: 13 } }}
+                    />
+                  ))}
+                </Box>
+              );
+            })}
           </Box>
         </ScrollArea>
       </Card>
 
       {/* Right: read-only file viewer */}
       <Card withBorder shadow="sm" padding="md" style={{ flex: 1, minWidth: 0 }}>
-        <Stack gap="sm" h={480}>
-          <div>
-            <Text fw={700} size="sm">{current.name}</Text>
-            <Text size="xs" c="dimmed">{current.path}</Text>
-          </div>
-          <ScrollArea style={{ flex: 1 }}>
-            <Code block style={{ whiteSpace: 'pre', fontSize: 13, minHeight: 430 }}>
-              {current.content || '(empty file)'}
-            </Code>
-          </ScrollArea>
-        </Stack>
+        {!selectedFile ? (
+          <Center h={460}>
+            <Stack align="center" gap="xs">
+              <IconFile size={48} color="#666" />
+              <Text c="dimmed" size="sm">Select a Hiera file to view</Text>
+            </Stack>
+          </Center>
+        ) : (
+          <Stack gap="sm" h={480}>
+            <div>
+              <Text fw={700} size="sm">{selectedFile.name}</Text>
+              <Text size="xs" c="dimmed">{selectedFile.path}</Text>
+            </div>
+            <ScrollArea style={{ flex: 1 }}>
+              <Code block style={{ whiteSpace: 'pre', fontSize: 13, minHeight: 430 }}>
+                {selectedFile.content || '(empty file)'}
+              </Code>
+            </ScrollArea>
+          </Stack>
+        )}
       </Card>
     </Group>
   );

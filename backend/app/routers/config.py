@@ -456,24 +456,53 @@ async def save_config_file(request: ConfigFileSaveRequest):
 
 @router.get("/hiera/files")
 async def list_hiera_files():
-    """List all hiera.yaml files: main + per-environment."""
+    """List all hiera.yaml, common.yaml, and node data files per environment."""
     from pathlib import Path
-    files = []
+    environments = []
 
-    # Per-environment hiera.yaml
     envs_dir = Path("/etc/puppetlabs/code/environments")
     if envs_dir.is_dir():
         for env_dir in sorted(envs_dir.iterdir()):
-            if env_dir.is_dir():
-                h = env_dir / "hiera.yaml"
-                if h.exists():
-                    try:
-                        content = h.read_text(encoding="utf-8", errors="replace")
-                        files.append({"name": f"{env_dir.name}/hiera.yaml", "path": str(h), "content": content})
-                    except PermissionError:
-                        files.append({"name": f"{env_dir.name}/hiera.yaml", "path": str(h), "content": "(permission denied)"})
+            if not env_dir.is_dir():
+                continue
+            env_name = env_dir.name
+            env_files = []
 
-    return {"files": files}
+            # hiera.yaml
+            h = env_dir / "hiera.yaml"
+            if h.exists():
+                try:
+                    content = h.read_text(encoding="utf-8", errors="replace")
+                    env_files.append({"name": "hiera.yaml", "path": str(h), "content": content})
+                except PermissionError:
+                    env_files.append({"name": "hiera.yaml", "path": str(h), "content": "(permission denied)"})
+
+            # data/common.yaml
+            common = env_dir / "data" / "common.yaml"
+            if common.exists():
+                try:
+                    content = common.read_text(encoding="utf-8", errors="replace")
+                    env_files.append({"name": "data/common.yaml", "path": str(common), "content": content})
+                except PermissionError:
+                    env_files.append({"name": "data/common.yaml", "path": str(common), "content": "(permission denied)"})
+
+            # data/nodes/*.yaml
+            nodes_dir = env_dir / "data" / "nodes"
+            if nodes_dir.is_dir():
+                try:
+                    for nf in sorted(nodes_dir.iterdir()):
+                        if nf.is_file() and nf.suffix == ".yaml":
+                            try:
+                                content = nf.read_text(encoding="utf-8", errors="replace")
+                                env_files.append({"name": f"data/nodes/{nf.name}", "path": str(nf), "content": content})
+                            except PermissionError:
+                                env_files.append({"name": f"data/nodes/{nf.name}", "path": str(nf), "content": "(permission denied)"})
+                except PermissionError:
+                    pass
+
+            environments.append({"environment": env_name, "files": env_files})
+
+    return {"environments": environments}
 
 
 
