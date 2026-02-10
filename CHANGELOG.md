@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.19] - 2026-02-10
+
+### Added
+- **User Manager illustration**: Animated SVG "People Processing Machine" (USER-O-MATIC 3000) showing confused stick figures entering a conveyor belt machine with spinning gears, status lights, and a smokestack, then emerging as properly badged and sorted users (Admin with crown, Operator with wrench, Viewer with glasses). Caption: "unsorted humans in → properly badged users out (no humans were harmed in the making of this feature)"
+
+---
+
 ## [0.2.18] - 2026-02-10
 
 ### Changed

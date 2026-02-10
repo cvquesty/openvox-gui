@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     # Startup
-    logger.info(f"Starting {settings.app_name} v0.2.18")
+    logger.info(f"Starting {settings.app_name} v0.2.19")
     logger.info(f"PuppetDB: {settings.puppetdb_host}:{settings.puppetdb_port}")
     logger.info(f"PuppetServer: {settings.puppet_server_host}:{settings.puppet_server_port}")
 
