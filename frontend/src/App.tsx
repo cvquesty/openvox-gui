@@ -12,6 +12,7 @@ import { CodeDeploymentPage } from './pages/CodeDeployment';
 import { NodeClassifierPage } from './pages/NodeClassifier';
 import { ConfigPuppetPage } from './pages/ConfigPuppet';
 import { ConfigAppPage } from './pages/ConfigApp';
+import { OrchestrationPage } from './pages/Orchestration';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -39,6 +40,9 @@ function AppRoutes() {
 
         {/* Node Classifier */}
         <Route path="/enc" element={<NodeClassifierPage />} />
+
+        {/* Orchestration */}
+        <Route path="/orchestration" element={<OrchestrationPage />} />
 
         {/* Configuration */}
         <Route path="/config/puppet" element={<ConfigPuppetPage />} />

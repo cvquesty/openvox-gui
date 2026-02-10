@@ -26,6 +26,7 @@ import {
   IconAppWindow,
   IconHierarchy2,
   IconRocket,
+  IconBolt,
   IconLogout,
   IconUser,
   IconUsers,
@@ -44,6 +45,10 @@ const deployNav = [
 
 const encNav = [
   { label: 'Node Classifier', icon: IconHierarchy2, path: '/enc' },
+];
+
+const orchNav = [
+  { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
 ];
 
 const configNav = [
@@ -157,6 +162,21 @@ export function AppShellLayout() {
             />
           ))}
 
+          <Divider my="sm" />
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+            Orchestration
+          </Text>
+          {orchNav.map((item) => (
+            <NavLink
+              key={item.path}
+              label={item.label}
+              leftSection={<item.icon size={18} />}
+              active={location.pathname.startsWith(item.path)}
+              onClick={() => { navigate(item.path); setOpened(false); }}
+              variant="filled"
+              mb={2}
+            />
+          ))}
 
           <Divider my="sm" />
           <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">

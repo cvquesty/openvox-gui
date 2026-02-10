@@ -167,6 +167,136 @@ function classDictToList(d: Record<string, any>): string[] {
   return Object.keys(d || {});
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   NODE-O-SCOPE 2000 — classification machine cartoon
+   ═══════════════════════════════════════════════════════════════ */
+function NodeOScope() {
+  return (
+    <svg viewBox="0 0 520 280" width="100%" style={{ maxHeight: 300 }}>
+      <defs>
+        <linearGradient id="ns-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1a1b2e" />
+          <stop offset="100%" stopColor="#252540" />
+        </linearGradient>
+        <linearGradient id="ns-lens" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#334466" />
+          <stop offset="100%" stopColor="#223344" />
+        </linearGradient>
+      </defs>
+
+      <rect width="520" height="280" fill="url(#ns-sky)" rx="8" />
+
+      {/* Stars */}
+      <circle cx="40" cy="20" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="120" cy="35" r="0.8" fill="#fff" opacity="0.3" />
+      <circle cx="200" cy="15" r="1.2" fill="#fff" opacity="0.4" />
+      <circle cx="320" cy="25" r="0.7" fill="#fff" opacity="0.5" />
+      <circle cx="440" cy="18" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="490" cy="40" r="0.9" fill="#fff" opacity="0.3" />
+
+      {/* Ground */}
+      <rect x="0" y="235" width="520" height="45" fill="#1a1a2e" />
+      <rect x="0" y="235" width="520" height="2" fill="#333355" />
+
+      {/* ── The Microscope/Scanner Device ── */}
+      {/* Base */}
+      <rect x="200" y="200" width="120" height="30" fill="#445566" rx="5" stroke="#667788" strokeWidth="1" />
+
+      {/* Arm */}
+      <rect x="250" y="100" width="20" height="100" fill="#556677" rx="3" />
+
+      {/* Eyepiece */}
+      <ellipse cx="260" cy="90" rx="30" ry="18" fill="url(#ns-lens)" stroke="#667788" strokeWidth="1.5" />
+      <ellipse cx="260" cy="90" rx="20" ry="12" fill="#0a1628" stroke="#334466" strokeWidth="1" />
+      {/* Scanning beam */}
+      <ellipse cx="260" cy="90" rx="14" ry="8" fill="#44aaff" opacity="0.15">
+        <animate attributeName="opacity" values="0.15;0.4;0.15" dur="2s" repeatCount="indefinite" />
+      </ellipse>
+      {/* Scan rings */}
+      <ellipse cx="260" cy="90" rx="8" ry="5" fill="none" stroke="#44aaff" strokeWidth="0.5" opacity="0.6">
+        <animate attributeName="rx" values="8;22;8" dur="3s" repeatCount="indefinite" />
+        <animate attributeName="ry" values="5;14;5" dur="3s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite" />
+      </ellipse>
+
+      {/* Label plate */}
+      <rect x="210" y="205" width="100" height="16" fill="#334455" rx="2" />
+      <text x="260" y="216" textAnchor="middle" fill="#EC8622" fontSize="7" fontFamily="monospace" fontWeight="bold">
+        NODE-O-SCOPE 2000
+      </text>
+
+      {/* Status lights on base */}
+      <circle cx="215" cy="225" r="3" fill="#44ff44">
+        <animate attributeName="fill" values="#44ff44;#22aa22;#44ff44" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="225" cy="225" r="3" fill="#ffaa22">
+        <animate attributeName="fill" values="#ffaa22;#cc8811;#ffaa22" dur="2s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="235" cy="225" r="3" fill="#44aaff">
+        <animate attributeName="fill" values="#44aaff;#2288cc;#44aaff" dur="1.8s" repeatCount="indefinite" />
+      </circle>
+
+      {/* ── Unclassified nodes entering (left) ── */}
+      <rect x="30" y="170" width="40" height="30" fill="#445566" rx="3" stroke="#556677" strokeWidth="1" opacity="0.7">
+        <animate attributeName="x" values="30;80;30" dur="5s" repeatCount="indefinite" />
+      </rect>
+      <text x="50" y="188" textAnchor="middle" fill="#aabbcc" fontSize="6" fontFamily="monospace">
+        <animate attributeName="x" values="50;100;50" dur="5s" repeatCount="indefinite" />
+        ???
+      </text>
+
+      <rect x="60" y="140" width="40" height="30" fill="#445566" rx="3" stroke="#556677" strokeWidth="1" opacity="0.7">
+        <animate attributeName="x" values="60;110;60" dur="5s" repeatCount="indefinite" begin="1.5s" />
+      </rect>
+      <text x="80" y="158" textAnchor="middle" fill="#aabbcc" fontSize="6" fontFamily="monospace">
+        <animate attributeName="x" values="80;130;80" dur="5s" repeatCount="indefinite" begin="1.5s" />
+        ???
+      </text>
+
+      {/* Arrows left */}
+      <text x="140" y="180" fill="#556677" fontSize="14">→</text>
+      <text x="140" y="155" fill="#556677" fontSize="14">→</text>
+
+      {/* ── Classified nodes exiting (right) ── */}
+      {/* Production web server */}
+      <g>
+        <rect x="380" y="110" width="55" height="35" fill="#445566" rx="3" stroke="#44ff44" strokeWidth="1.5" />
+        <rect x="385" y="115" width="45" height="8" fill="#0a1628" rx="1" />
+        <text x="407" y="122" textAnchor="middle" fill="#44ff88" fontSize="5" fontFamily="monospace">web01</text>
+        <Badge><rect x="385" y="128" width="20" height="7" fill="#4488ff" rx="2" /></Badge>
+        <text x="395" y="134" textAnchor="middle" fill="white" fontSize="4" fontFamily="monospace">prod</text>
+        <rect x="408" y="128" width="25" height="7" fill="#ff8844" rx="2" />
+        <text x="420" y="134" textAnchor="middle" fill="white" fontSize="4" fontFamily="monospace">web</text>
+        <text x="437" y="135" fill="#44ff44" fontSize="10">✓</text>
+      </g>
+
+      {/* Staging db server */}
+      <g>
+        <rect x="400" y="160" width="55" height="35" fill="#445566" rx="3" stroke="#44aaff" strokeWidth="1.5" />
+        <rect x="405" y="165" width="45" height="8" fill="#0a1628" rx="1" />
+        <text x="427" y="172" textAnchor="middle" fill="#44ff88" fontSize="5" fontFamily="monospace">db01</text>
+        <rect x="405" y="178" width="20" height="7" fill="#22aacc" rx="2" />
+        <text x="415" y="184" textAnchor="middle" fill="white" fontSize="4" fontFamily="monospace">stg</text>
+        <rect x="428" y="178" width="18" height="7" fill="#aa44ff" rx="2" />
+        <text x="437" y="184" textAnchor="middle" fill="white" fontSize="4" fontFamily="monospace">db</text>
+        <text x="457" y="185" fill="#44ff44" fontSize="10">✓</text>
+      </g>
+
+      {/* Arrows right */}
+      <text x="340" y="140" fill="#556677" fontSize="14">→</text>
+      <text x="340" y="180" fill="#556677" fontSize="14">→</text>
+
+      {/* Caption */}
+      <text x="260" y="252" textAnchor="middle" fill="#8899aa" fontSize="10" fontFamily="monospace">
+        The Classification Engine
+      </text>
+      <text x="260" y="266" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">
+        unknown nodes in → classified nodes out
+      </text>
+    </svg>
+  );
+}
 /* ═══════════════════════════════════════════════════════════════
    TAB 1: HIERARCHY OVERVIEW
    ═══════════════════════════════════════════════════════════════ */
@@ -199,6 +329,10 @@ function HierarchyTab() {
 
   return (
     <Stack>
+      <Card withBorder shadow="sm" padding="sm" mb="md" style={{ overflow: 'hidden' }}>
+        <NodeOScope />
+      </Card>
+
       <Alert variant="light" color="blue" mb="xs">
         Classification is resolved by deep-merging four layers. Higher layers override
         lower ones. Classes and parameters accumulate upward — a node inherits from

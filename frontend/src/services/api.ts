@@ -133,6 +133,23 @@ export const enc = {
 
 
 
+
+
+// ─── Bolt Orchestration ─────────────────────────────────────
+
+export const bolt = {
+  getStatus: () => fetchJSON<any>('/bolt/status'),
+  getTasks: () => fetchJSON<any>('/bolt/tasks'),
+  getPlans: () => fetchJSON<any>('/bolt/plans'),
+  getInventory: () => fetchJSON<any>('/bolt/inventory'),
+  getConfig: () => fetchJSON<any>('/bolt/config'),
+  runCommand: (data: { command: string; targets: string; run_as?: string }) =>
+    fetchJSON<any>('/bolt/run/command', { method: 'POST', body: JSON.stringify(data) }),
+  runTask: (data: { task: string; targets: string; params?: any; run_as?: string }) =>
+    fetchJSON<any>('/bolt/run/task', { method: 'POST', body: JSON.stringify(data) }),
+  runPlan: (data: { plan: string; params?: any }) =>
+    fetchJSON<any>('/bolt/run/plan', { method: 'POST', body: JSON.stringify(data) }),
+};
 // ─── Users ──────────────────────────────────────────────────
 
 export const users = {

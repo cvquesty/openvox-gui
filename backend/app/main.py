@@ -21,6 +21,7 @@ from .config import settings
 from .database import init_db
 from .middleware.auth import AuthMiddleware
 from .routers import dashboard, nodes, reports, enc, config as config_router, performance
+from .routers import bolt as bolt_router
 from .routers import auth as auth_router
 from .routers import deploy as deploy_router
 from .services.puppetdb import puppetdb_service
@@ -92,6 +93,7 @@ app.include_router(enc.router)
 app.include_router(config_router.router)
 app.include_router(performance.router)
 app.include_router(deploy_router.router)
+app.include_router(bolt_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
