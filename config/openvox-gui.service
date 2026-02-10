@@ -1,0 +1,24 @@
+[Unit]
+Description=OpenVox GUI - Puppet Management Web Interface
+After=network.target puppetserver.service puppetdb.service
+Wants=puppetdb.service
+
+[Service]
+Type=simple
+User=puppet
+Group=puppet
+WorkingDirectory=/opt/openvox-gui/backend
+ExecStart=/opt/openvox-gui/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 4567 --workers 2
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+Environment=OPENVOX_GUI_AUTH_BACKEND=none
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/openvox-gui/data /opt/openvox-gui/logs
+ReadOnlyPaths=/etc/puppetlabs
+
+[Install]
+WantedBy=multi-user.target
