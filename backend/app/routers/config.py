@@ -492,7 +492,7 @@ async def puppet_lookup(request: PuppetLookupRequest):
     import subprocess, shlex
     puppet_bin = "/opt/puppetlabs/bin/puppet"
 
-    cmd = [puppet_bin, "lookup", "--explain", request.key]
+    cmd = ["sudo", puppet_bin, "lookup", "--explain", request.key]
     if request.node:
         cmd.extend(["--node", request.node])
     if request.environment:
