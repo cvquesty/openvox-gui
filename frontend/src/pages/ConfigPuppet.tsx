@@ -1,50 +1,48 @@
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Code, Table,
-  Badge, Tabs, Button,
+  Badge, Tabs,
 } from '@mantine/core';
-import { IconNetwork, IconFolder, IconPackage, IconRefresh } from '@tabler/icons-react';
+import { IconNetwork, IconDatabase, IconPackage } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { config } from '../services/api';
-import { StatusBadge } from '../components/StatusBadge';
-import { useState } from 'react';
 
 export function ConfigPuppetPage() {
-  const { data, loading, error, refetch } = useApi(config.getPuppet);
-  const { data: services, refetch: refetchServices } = useApi(config.getServices);
-  const { data: hiera } = useApi(config.getHiera);
-  const [restarting, setRestarting] = useState(false);
-
-  const handleRestart = async (service: string) => {
-    setRestarting(true);
-    try {
-      await config.restartService(service);
-      setTimeout(() => { refetchServices(); setRestarting(false); }, 3000);
-    } catch (e: any) {
-      alert(e.message);
-      setRestarting(false);
-    }
-  };
+  const { data, loading, error } = useApi(config.getPuppet);
+  const { data: puppetdb, loading: pdbLoading } = useApi(config.getPuppetDB);
+  const { data: hiera, loading: hieraLoading } = useApi(config.getHiera);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
   return (
     <Stack>
-      <Title order={2}>PuppetServer Configuration</Title>
+      <Title order={2}>Puppet Configuration</Title>
 
-      <Tabs defaultValue="config">
+      <Tabs defaultValue="puppetserver">
         <Tabs.List>
-          <Tabs.Tab value="config" leftSection={<IconNetwork size={16} />}>puppet.conf</Tabs.Tab>
-          <Tabs.Tab value="environments" leftSection={<IconFolder size={16} />}>Environments</Tabs.Tab>
+          <Tabs.Tab value="puppetserver" leftSection={<IconNetwork size={16} />}>PuppetServer</Tabs.Tab>
+          <Tabs.Tab value="puppetdb" leftSection={<IconDatabase size={16} />}>PuppetDB</Tabs.Tab>
           <Tabs.Tab value="hiera" leftSection={<IconPackage size={16} />}>Hiera</Tabs.Tab>
-          <Tabs.Tab value="services" leftSection={<IconRefresh size={16} />}>Services</Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="config" pt="md">
+        {/* PuppetServer tab — puppet.conf + environments */}
+        <Tabs.Panel value="puppetserver" pt="md">
           <Stack>
             {data?.server_version && (
               <Text c="dimmed">Server Version: <Code>{data.server_version}</Code></Text>
             )}
+
+            {data?.environments && data.environments.length > 0 && (
+              <Card withBorder shadow="sm">
+                <Text fw={700} mb="sm">Environments</Text>
+                <Group>
+                  {data.environments.map((env: string) => (
+                    <Badge key={env} variant="outline" size="lg">{env}</Badge>
+                  ))}
+                </Group>
+              </Card>
+            )}
+
             {data?.puppet_conf && Object.entries(data.puppet_conf).map(([section, values]: [string, any]) => (
               <Card key={section} withBorder shadow="sm">
                 <Text fw={700} mb="sm">[{section}]</Text>
@@ -63,48 +61,47 @@ export function ConfigPuppetPage() {
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="environments" pt="md">
-          <Card withBorder shadow="sm">
-            <Text fw={700} mb="sm">Available Environments</Text>
-            <Group>
-              {data?.environments?.map((env: string) => (
-                <Badge key={env} variant="outline" size="lg">{env}</Badge>
+        {/* PuppetDB tab */}
+        <Tabs.Panel value="puppetdb" pt="md">
+          {pdbLoading ? (
+            <Center h={200}><Loader /></Center>
+          ) : puppetdb && Object.keys(puppetdb).length > 0 ? (
+            <Stack>
+              {Object.entries(puppetdb).map(([section, values]: [string, any]) => (
+                <Card key={section} withBorder shadow="sm">
+                  <Text fw={700} mb="sm">{section}</Text>
+                  <Table striped>
+                    <Table.Tbody>
+                      {Object.entries(values).map(([key, value]: [string, any]) => (
+                        <Table.Tr key={key}>
+                          <Table.Td style={{ width: 300 }}><Text size="sm" fw={500}>{key}</Text></Table.Td>
+                          <Table.Td><Code>{String(value)}</Code></Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Card>
               ))}
-            </Group>
-          </Card>
+            </Stack>
+          ) : (
+            <Alert color="yellow">
+              No PuppetDB configuration files found. PuppetDB may be using default settings.
+            </Alert>
+          )}
         </Tabs.Panel>
 
+        {/* Hiera tab */}
         <Tabs.Panel value="hiera" pt="md">
-          <Card withBorder shadow="sm">
-            <Text fw={700} mb="sm">hiera.yaml</Text>
-            <Code block style={{ maxHeight: 500, overflow: 'auto' }}>
-              {JSON.stringify(hiera, null, 2)}
-            </Code>
-          </Card>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="services" pt="md">
-          <Stack>
-            {services?.map((svc: any) => (
-              <Card key={svc.service} withBorder shadow="sm" padding="md">
-                <Group justify="space-between">
-                  <div>
-                    <Text fw={700}>{svc.service}</Text>
-                    <Group gap="xs" mt={4}>
-                      <StatusBadge status={svc.status} />
-                      {svc.pid && <Text size="xs" c="dimmed">PID: {svc.pid}</Text>}
-                      {svc.since && <Text size="xs" c="dimmed">Since: {svc.since}</Text>}
-                    </Group>
-                  </div>
-                  <Button variant="outline" color="orange" size="xs"
-                    loading={restarting}
-                    onClick={() => handleRestart(svc.service)}>
-                    Restart
-                  </Button>
-                </Group>
-              </Card>
-            ))}
-          </Stack>
+          {hieraLoading ? (
+            <Center h={200}><Loader /></Center>
+          ) : (
+            <Card withBorder shadow="sm">
+              <Text fw={700} mb="sm">hiera.yaml</Text>
+              <Code block style={{ maxHeight: 500, overflow: 'auto' }}>
+                {JSON.stringify(hiera, null, 2)}
+              </Code>
+            </Card>
+          )}
         </Tabs.Panel>
       </Tabs>
     </Stack>

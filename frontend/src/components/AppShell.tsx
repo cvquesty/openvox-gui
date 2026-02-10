@@ -51,8 +51,7 @@ const encNav = [
 ];
 
 const configNav = [
-  { label: 'PuppetServer', icon: IconNetwork, path: '/config/puppet' },
-  { label: 'PuppetDB', icon: IconDatabase, path: '/config/puppetdb' },
+  { label: 'Puppet Configuration', icon: IconNetwork, path: '/config/puppet' },
   { label: 'Application', icon: IconAppWindow, path: '/config/app' },
 ];
 
@@ -183,7 +182,7 @@ export function AppShellLayout() {
 
           <Divider my="sm" />
           <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
-            Configuration
+            Settings
           </Text>
           {configNav.map((item) => (
             <NavLink

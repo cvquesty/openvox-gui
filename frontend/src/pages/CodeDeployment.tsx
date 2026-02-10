@@ -5,10 +5,11 @@ import {
   ScrollArea,
 } from '@mantine/core';
 import {
-  IconRocket, IconCheck, IconX, IconPlayerPlay,
+  IconRocket, IconCheck, IconX, IconPlayerPlay, IconRefresh,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
-import { deploy } from '../services/api';
+import { deploy, config } from '../services/api';
+import { StatusBadge } from '../components/StatusBadge';
 
 /* ── Giant Robot vs City – inline SVG comic ──────────────── */
 function RobotComic({ attacking }: { attacking: boolean }) {
@@ -246,6 +247,21 @@ export function CodeDeploymentPage() {
   const [lastSuccess, setLastSuccess] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Services
+  const { data: services, refetch: refetchServices } = useApi(config.getServices);
+  const [restarting, setRestarting] = useState<string | null>(null);
+
+  const handleRestart = async (service: string) => {
+    setRestarting(service);
+    try {
+      await config.restartService(service);
+      setTimeout(() => { refetchServices(); setRestarting(null); }, 3000);
+    } catch (e: any) {
+      alert(e.message);
+      setRestarting(null);
+    }
+  };
+
   const environments = envsData?.environments || [];
 
   const handleDeploy = async () => {
@@ -312,8 +328,8 @@ export function CodeDeploymentPage() {
       <Grid>
         {/* Left half: Deploy controls */}
         <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="lg" h="100%">
-            <Title order={4} mb="md">Deploy with r10k</Title>
+          <Card withBorder shadow="sm" padding="md">
+            <Title order={4} mb="sm">Deploy with r10k</Title>
             <Group align="end">
               <Select
                 label="Environment"
@@ -348,11 +364,37 @@ export function CodeDeploymentPage() {
 
         {/* Right half: Robot comic */}
         <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="sm" h="100%" style={{ overflow: 'hidden' }}>
+          <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
             <RobotComic attacking={deploying} />
           </Card>
         </Grid.Col>
       </Grid>
+
+      {/* Services */}
+      <Card withBorder shadow="sm" padding="md">
+        <Title order={4} mb="sm">Services</Title>
+        <Group>
+          {services?.map((svc: any) => (
+            <Card key={svc.service} withBorder shadow="sm" padding="sm" style={{ flex: '1 1 200px' }}>
+              <Group justify="space-between" wrap="nowrap">
+                <div>
+                  <Text fw={600} size="sm">{svc.service}</Text>
+                  <Group gap="xs" mt={4}>
+                    <StatusBadge status={svc.status} />
+                    {svc.pid && <Text size="xs" c="dimmed">PID {svc.pid}</Text>}
+                  </Group>
+                </div>
+                <Button variant="outline" color="orange" size="xs"
+                  leftSection={<IconRefresh size={14} />}
+                  loading={restarting === svc.service}
+                  onClick={() => handleRestart(svc.service)}>
+                  Restart
+                </Button>
+              </Group>
+            </Card>
+          ))}
+        </Group>
+      </Card>
 
       {/* Deploy error */}
       {deployError && (

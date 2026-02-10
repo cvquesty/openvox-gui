@@ -1,14 +1,12 @@
 import {
-  Title, Card, Loader, Center, Alert, Stack, Text, Code, Table, Badge, Group, ThemeIcon,
+  Title, Card, Loader, Center, Alert, Stack, Text, Code, Table, Badge, Group,
 } from '@mantine/core';
 import { useApi } from '../hooks/useApi';
-import { config, dashboard } from '../services/api';
-import { StatusBadge } from '../components/StatusBadge';
-import type { ServiceStatus } from '../types';
+import { config } from '../services/api';
+
 
 export function ConfigAppPage() {
   const { data, loading, error } = useApi(config.getApp);
-  const { data: services } = useApi<ServiceStatus[]>(dashboard.getServices);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
@@ -52,33 +50,7 @@ export function ConfigAppPage() {
           Supported backends: none, local (future), ldap (future), saml (future), oidc (future).
         </Text>
       </Card>
-    
-      <Card withBorder shadow="sm">
-        <Text fw={700} mb="sm">Services</Text>
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Service</Table.Th>
-              <Table.Th>Status</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {services?.map((svc) => (
-              <Table.Tr key={svc.service}>
-                <Table.Td><Text fw={500}>{svc.service}</Text></Table.Td>
-                <Table.Td><StatusBadge status={svc.status} /></Table.Td>
-              </Table.Tr>
-            ))}
-            {(!services || services.length === 0) && (
-              <Table.Tr>
-                <Table.Td colSpan={2}>
-                  <Text c="dimmed" ta="center">Loading services...</Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </Card>
+
     </Stack>
   );
 }

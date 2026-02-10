@@ -13,7 +13,6 @@ import { ENCGroupsPage } from './pages/ENCGroups';
 import { ENCClassificationsPage } from './pages/ENCClassifications';
 import { ENCRulesPage } from './pages/ENCRules';
 import { ConfigPuppetPage } from './pages/ConfigPuppet';
-import { ConfigPuppetDBPage } from './pages/ConfigPuppetDB';
 import { ConfigAppPage } from './pages/ConfigApp';
 import { UserManagerPage } from './pages/UserManager';
 
@@ -51,7 +50,6 @@ function AppRoutes() {
 
         {/* Configuration */}
         <Route path="/config/puppet" element={<ConfigPuppetPage />} />
-        <Route path="/config/puppetdb" element={<ConfigPuppetDBPage />} />
         <Route path="/config/app" element={<ConfigAppPage />} />
       </Route>
     </Routes>
