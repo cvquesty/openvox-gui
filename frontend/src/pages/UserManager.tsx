@@ -255,7 +255,7 @@ function PeopleProcessingMachine() {
         The People Processing Machine
       </text>
       <text x="250" y="298" textAnchor="middle" fill="#556677" fontSize="9" fontFamily="monospace">
-        unsorted humans in &#8594; properly badged users out
+        unsorted humans in &#8594; authorized users out
       </text>
       <text x="250" y="310" textAnchor="middle" fill="#445566" fontSize="7" fontFamily="monospace">
         (no humans were harmed in the making of this feature)
@@ -271,7 +271,6 @@ export function UserManagerPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Add user modal
-  const [addOpen, setAddOpen] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<string>('viewer');
@@ -311,7 +310,6 @@ export function UserManagerPage() {
     try {
       await users.create({ username: newUsername, password: newPassword, role: newRole });
       notifications.show({ title: 'User Created', message: `User '${newUsername}' created with role '${newRole}'`, color: 'green' });
-      setAddOpen(false);
       setNewUsername('');
       setNewPassword('');
       setNewRole('viewer');
@@ -368,20 +366,62 @@ export function UserManagerPage() {
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <Group gap="sm">
-          <IconUsers size={28} />
-          <Title order={2}>User Manager</Title>
-        </Group>
-        <Button leftSection={<IconPlus size={16} />} onClick={() => setAddOpen(true)}>
-          Add User
-        </Button>
+      <Group gap="sm">
+        <IconUsers size={28} />
+        <Title order={2}>User Manager</Title>
       </Group>
 
-      {/* People Processing Machine illustration */}
-      <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
-        <PeopleProcessingMachine />
-      </Card>
+      <Grid align="flex-start">
+        {/* Left: People Processing Machine */}
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
+            <PeopleProcessingMachine />
+          </Card>
+        </Grid.Col>
+
+        {/* Right: Management controls */}
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Stack>
+            {/* Add User */}
+            <Card withBorder shadow="sm" padding="lg">
+              <Title order={4} mb="md">Add User</Title>
+              <Stack gap="sm">
+                <TextInput
+                  label="Username"
+                  placeholder="Enter username"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.currentTarget.value)}
+                />
+                <PasswordInput
+                  label="Password"
+                  placeholder="Enter password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.currentTarget.value)}
+                />
+                <Select
+                  label="Role"
+                  data={[
+                    { value: 'admin', label: 'Admin \u2014 Full access' },
+                    { value: 'operator', label: 'Operator \u2014 Deploy & manage' },
+                    { value: 'viewer', label: 'Viewer \u2014 Read only' },
+                  ]}
+                  value={newRole}
+                  onChange={(v) => setNewRole(v || 'viewer')}
+                />
+                <Button
+                  leftSection={<IconPlus size={16} />}
+                  onClick={handleAddUser}
+                  loading={addLoading}
+                  disabled={!newUsername || !newPassword}
+                >
+                  Create User
+                </Button>
+              </Stack>
+            </Card>
+
+          </Stack>
+        </Grid.Col>
+      </Grid>
 
       <Card withBorder shadow="sm">
         <Table striped highlightOnHover>
@@ -448,22 +488,6 @@ export function UserManagerPage() {
           </Table.Tbody>
         </Table>
       </Card>
-
-      {/* Add User Modal */}
-      <Modal opened={addOpen} onClose={() => setAddOpen(false)} title="Add User" centered>
-        <Stack>
-          <TextInput label="Username" placeholder="Enter username" value={newUsername}
-            onChange={(e) => setNewUsername(e.currentTarget.value)} required />
-          <PasswordInput label="Password" placeholder="Enter password" value={newPassword}
-            onChange={(e) => setNewPassword(e.currentTarget.value)} required />
-          <Select label="Role" data={[
-            { value: 'admin', label: 'Admin \u2014 Full access' },
-            { value: 'operator', label: 'Operator \u2014 Deploy & manage' },
-            { value: 'viewer', label: 'Viewer \u2014 Read only' },
-          ]} value={newRole} onChange={(v) => setNewRole(v || 'viewer')} />
-          <Button onClick={handleAddUser} loading={addLoading} fullWidth>Create User</Button>
-        </Stack>
-      </Modal>
 
       {/* Change Password Modal */}
       <Modal opened={pwOpen} onClose={() => setPwOpen(false)} title={`Change Password \u2014 ${pwUser}`} centered>
