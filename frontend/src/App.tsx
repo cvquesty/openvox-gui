@@ -14,7 +14,6 @@ import { ENCClassificationsPage } from './pages/ENCClassifications';
 import { ENCRulesPage } from './pages/ENCRules';
 import { ConfigPuppetPage } from './pages/ConfigPuppet';
 import { ConfigAppPage } from './pages/ConfigApp';
-import { UserManagerPage } from './pages/UserManager';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -44,9 +43,6 @@ function AppRoutes() {
         <Route path="/enc/groups" element={<ENCGroupsPage />} />
         <Route path="/enc/classifications" element={<ENCClassificationsPage />} />
         <Route path="/enc/rules" element={<ENCRulesPage />} />
-
-        {/* Administration */}
-        <Route path="/users" element={<UserManagerPage />} />
 
         {/* Configuration */}
         <Route path="/config/puppet" element={<ConfigPuppetPage />} />

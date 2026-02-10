@@ -319,7 +319,7 @@ export function CodeDeploymentPage() {
   return (
     <Stack>
       <Group>
-        <ThemeIcon size="xl" color="#0D6EFD">
+        <ThemeIcon size="xl" color="#EC8622">
           <IconRocket size={24} />
         </ThemeIcon>
         <Title order={2}>Code Deployment</Title>
@@ -346,7 +346,7 @@ export function CodeDeploymentPage() {
                 />
                 <Button
                   leftSection={deploying ? <Loader size={16} color="white" /> : <IconPlayerPlay size={16} />}
-                  color="#0D6EFD"
+                  color="#EC8622"
                   onClick={handleDeploy}
                   disabled={deploying}
                   loading={deploying}

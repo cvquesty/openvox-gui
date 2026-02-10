@@ -56,9 +56,6 @@ const configNav = [
 ];
 
 
-const adminNav = [
-  { label: 'User Manager', icon: IconUsers, path: '/users' },
-];
 export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
@@ -91,7 +88,7 @@ export function AppShellLayout() {
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
             <Group gap={16} wrap="nowrap">
-              <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 36, width: 36, flexShrink: 0, display: 'block' }} />
+              <img src="/openvox-logo-orange.svg" alt="OpenVox" style={{ height: 36, width: 36, flexShrink: 0, display: 'block' }} />
               <Title order={3} style={{ fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>
                 OpenVox GUI
               </Title>
@@ -164,21 +161,6 @@ export function AppShellLayout() {
             />
           ))}
 
-          <Divider my="sm" />
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
-            Administration
-          </Text>
-          {adminNav.map((item) => (
-            <NavLink
-              key={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              active={location.pathname === item.path}
-              onClick={() => { navigate(item.path); setOpened(false); }}
-              variant="filled"
-              mb={2}
-            />
-          ))}
 
           <Divider my="sm" />
           <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
