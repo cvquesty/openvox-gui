@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.17] - 2026-02-10
+
+### Changed
+- **Robot comic**: Now reactive to deployment state
+  - **Idle**: Robot stands with arms lowered, amber eyes pulsing slowly, caption reads "impending doom / awaiting deployment orders..."
+  - **Deploying**: Robot raises arm and fires laser at city, red eyes flash rapidly, sky turns red, explosion with smoke and debris, caption reads "r10k deployment in progress... / destroying legacy environments since 2014"
+- **Output window**: Doubled in height (400px scrollable area); full scrollback preserved across multiple deployments with timestamped headers; auto-scrolls to bottom on new output; "Clear" button to reset
+- **Output accumulation**: Each deploy appends to the log with a separator banner showing timestamp and environment, rather than replacing previous output
+
+---
+
 ## [0.2.16] - 2026-02-10
 
 ### Changed
