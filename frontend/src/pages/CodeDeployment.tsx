@@ -326,75 +326,77 @@ export function CodeDeploymentPage() {
       </Group>
 
       <Grid>
-        {/* Left half: Deploy controls */}
+        {/* Left half: Deploy controls + Services */}
         <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="md">
-            <Title order={4} mb="sm">Deploy with r10k</Title>
-            <Group align="end">
-              <Select
-                label="Environment"
-                placeholder="All environments"
-                data={[
-                  { value: '', label: '\u2014 All Environments \u2014' },
-                  ...environments.map((e: string) => ({ value: e, label: e })),
-                ]}
-                value={selectedEnv}
-                onChange={setSelectedEnv}
-                clearable
-                style={{ flex: 1 }}
-              />
-              <Button
-                leftSection={deploying ? <Loader size={16} color="white" /> : <IconPlayerPlay size={16} />}
-                color="#0D6EFD"
-                onClick={handleDeploy}
-                disabled={deploying}
-                loading={deploying}
-              >
-                {deploying ? 'Deploying...' : 'Deploy Now'}
-              </Button>
-            </Group>
+          <Stack>
+            <Card withBorder shadow="sm" padding="md">
+              <Title order={4} mb="sm">Deploy with r10k</Title>
+              <Group align="end">
+                <Select
+                  label="Environment"
+                  placeholder="All environments"
+                  data={[
+                    { value: '', label: '\u2014 All Environments \u2014' },
+                    ...environments.map((e: string) => ({ value: e, label: e })),
+                  ]}
+                  value={selectedEnv}
+                  onChange={setSelectedEnv}
+                  clearable
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  leftSection={deploying ? <Loader size={16} color="white" /> : <IconPlayerPlay size={16} />}
+                  color="#0D6EFD"
+                  onClick={handleDeploy}
+                  disabled={deploying}
+                  loading={deploying}
+                >
+                  {deploying ? 'Deploying...' : 'Deploy Now'}
+                </Button>
+              </Group>
 
-            {!statusLoading && statusData?.last_commit && statusData.last_commit !== 'unknown' && (
-              <Text size="xs" c="dimmed" mt="sm">
-                Last production commit: {statusData.last_commit}
-              </Text>
-            )}
-          </Card>
+              {!statusLoading && statusData?.last_commit && statusData.last_commit !== 'unknown' && (
+                <Text size="xs" c="dimmed" mt="sm">
+                  Last production commit: {statusData.last_commit}
+                </Text>
+              )}
+            </Card>
+
+            {/* Services */}
+            <Card withBorder shadow="sm" padding="md">
+              <Title order={4} mb="sm">Services</Title>
+              <Stack gap="xs">
+                {services?.map((svc: any) => (
+                  <Card key={svc.service} withBorder shadow="sm" padding="sm">
+                    <Group justify="space-between" wrap="nowrap">
+                      <div>
+                        <Text fw={600} size="sm">{svc.service}</Text>
+                        <Group gap="xs" mt={4}>
+                          <StatusBadge status={svc.status} />
+                          {svc.pid && <Text size="xs" c="dimmed">PID {svc.pid}</Text>}
+                        </Group>
+                      </div>
+                      <Button variant="outline" color="orange" size="xs"
+                        leftSection={<IconRefresh size={14} />}
+                        loading={restarting === svc.service}
+                        onClick={() => handleRestart(svc.service)}>
+                        Restart
+                      </Button>
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            </Card>
+          </Stack>
         </Grid.Col>
 
         {/* Right half: Robot comic */}
         <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
+          <Card withBorder shadow="sm" padding="sm" h="100%" style={{ overflow: 'hidden' }}>
             <RobotComic attacking={deploying} />
           </Card>
         </Grid.Col>
       </Grid>
-
-      {/* Services */}
-      <Card withBorder shadow="sm" padding="md">
-        <Title order={4} mb="sm">Services</Title>
-        <Group>
-          {services?.map((svc: any) => (
-            <Card key={svc.service} withBorder shadow="sm" padding="sm" style={{ flex: '1 1 200px' }}>
-              <Group justify="space-between" wrap="nowrap">
-                <div>
-                  <Text fw={600} size="sm">{svc.service}</Text>
-                  <Group gap="xs" mt={4}>
-                    <StatusBadge status={svc.status} />
-                    {svc.pid && <Text size="xs" c="dimmed">PID {svc.pid}</Text>}
-                  </Group>
-                </div>
-                <Button variant="outline" color="orange" size="xs"
-                  leftSection={<IconRefresh size={14} />}
-                  loading={restarting === svc.service}
-                  onClick={() => handleRestart(svc.service)}>
-                  Restart
-                </Button>
-              </Group>
-            </Card>
-          ))}
-        </Group>
-      </Card>
 
       {/* Deploy error */}
       {deployError && (
