@@ -13,7 +13,7 @@ import { StatusBadge } from '../components/StatusBadge';
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
 function ReportOScope() {
   return (
-    <svg viewBox="0 0 500 300" width="100%" style={{ maxHeight: 340 }}>
+    <svg viewBox="0 0 500 300" width="100%" preserveAspectRatio="xMidYMid slice" style={{ display: 'block' }}>
       <defs>
         <linearGradient id="rpt-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#1a1b2e" />
@@ -32,13 +32,34 @@ function ReportOScope() {
       <rect width="500" height="300" fill="url(#rpt-sky)" />
 
       {/* Stars */}
-      <circle cx="40" cy="20" r="1" fill="#fff" opacity="0.6" />
-      <circle cx="120" cy="12" r="1.5" fill="#fff" opacity="0.5" />
+      <circle cx="12" cy="8" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="40" cy="20" r="1.2" fill="#fff" opacity="0.6" />
+      <circle cx="70" cy="5" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="95" cy="35" r="1.5" fill="#fff" opacity="0.5" />
+      <circle cx="120" cy="12" r="1" fill="#fff" opacity="0.7" />
+      <circle cx="155" cy="42" r="1" fill="#fff" opacity="0.3" />
+      <circle cx="175" cy="8" r="1.5" fill="#fff" opacity="0.5" />
       <circle cx="200" cy="28" r="1" fill="#fff" opacity="0.7" />
-      <circle cx="350" cy="15" r="1.5" fill="#fff" opacity="0.4" />
-      <circle cx="460" cy="22" r="1" fill="#fff" opacity="0.6" />
-      <circle cx="80" cy="40" r="1" fill="#fff" opacity="0.3" />
-      <circle cx="420" cy="8" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="230" cy="5" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="260" cy="38" r="1.5" fill="#fff" opacity="0.6" />
+      <circle cx="285" cy="14" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="310" cy="32" r="1" fill="#fff" opacity="0.3" />
+      <circle cx="335" cy="8" r="1.5" fill="#fff" opacity="0.6" />
+      <circle cx="350" cy="45" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="380" cy="18" r="1" fill="#fff" opacity="0.7" />
+      <circle cx="405" cy="40" r="1.5" fill="#fff" opacity="0.5" />
+      <circle cx="420" cy="8" r="1" fill="#fff" opacity="0.6" />
+      <circle cx="445" cy="30" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="460" cy="12" r="1.5" fill="#fff" opacity="0.5" />
+      <circle cx="485" cy="25" r="1" fill="#fff" opacity="0.7" />
+      <circle cx="15" cy="55" r="1" fill="#fff" opacity="0.3" />
+      <circle cx="55" cy="60" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="130" cy="52" r="1.5" fill="#fff" opacity="0.4" />
+      <circle cx="300" cy="50" r="1" fill="#fff" opacity="0.6" />
+      <circle cx="470" cy="48" r="1" fill="#fff" opacity="0.4" />
+      <circle cx="490" cy="5" r="1" fill="#fff" opacity="0.5" />
+      <circle cx="5" cy="30" r="1" fill="#fff" opacity="0.6" />
+      <circle cx="245" cy="18" r="1" fill="#fff" opacity="0.3" />
 
       {/* Ground */}
       <rect x="0" y="245" width="500" height="55" fill="#1a1a2e" />
