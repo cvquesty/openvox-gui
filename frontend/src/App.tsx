@@ -9,9 +9,7 @@ import { NodeDetailPage } from './pages/NodeDetail';
 import { ReportsPage } from './pages/Reports';
 import { ReportDetailPage } from './pages/ReportDetail';
 import { CodeDeploymentPage } from './pages/CodeDeployment';
-import { ENCGroupsPage } from './pages/ENCGroups';
-import { ENCClassificationsPage } from './pages/ENCClassifications';
-import { ENCRulesPage } from './pages/ENCRules';
+import { NodeClassifierPage } from './pages/NodeClassifier';
 import { ConfigPuppetPage } from './pages/ConfigPuppet';
 import { ConfigAppPage } from './pages/ConfigApp';
 
@@ -39,10 +37,8 @@ function AppRoutes() {
         {/* Code Deployment */}
         <Route path="/deployment" element={<CodeDeploymentPage />} />
 
-        {/* ENC */}
-        <Route path="/enc/groups" element={<ENCGroupsPage />} />
-        <Route path="/enc/classifications" element={<ENCClassificationsPage />} />
-        <Route path="/enc/rules" element={<ENCRulesPage />} />
+        {/* Node Classifier */}
+        <Route path="/enc" element={<NodeClassifierPage />} />
 
         {/* Configuration */}
         <Route path="/config/puppet" element={<ConfigPuppetPage />} />

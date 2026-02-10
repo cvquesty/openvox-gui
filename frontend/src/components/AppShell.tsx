@@ -25,8 +25,6 @@ import {
   IconDatabase,
   IconAppWindow,
   IconHierarchy2,
-  IconRuler,
-  IconTags,
   IconRocket,
   IconLogout,
   IconUser,
@@ -45,9 +43,7 @@ const deployNav = [
 ];
 
 const encNav = [
-  { label: 'Node Groups', icon: IconHierarchy2, path: '/enc/groups' },
-  { label: 'Classifications', icon: IconTags, path: '/enc/classifications' },
-  { label: 'Rules', icon: IconRuler, path: '/enc/rules' },
+  { label: 'Node Classifier', icon: IconHierarchy2, path: '/enc' },
 ];
 
 const configNav = [
@@ -154,7 +150,7 @@ export function AppShellLayout() {
               key={item.path}
               label={item.label}
               leftSection={<item.icon size={18} />}
-              active={location.pathname === item.path}
+              active={location.pathname.startsWith(item.path)}
               onClick={() => { navigate(item.path); setOpened(false); }}
               variant="filled"
               mb={2}
