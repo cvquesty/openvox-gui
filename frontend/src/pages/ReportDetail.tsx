@@ -104,7 +104,7 @@ export function ReportDetailPage() {
         </Paper>
         <Paper withBorder p="md" radius="md">
           <Group gap="xs">
-            <ThemeIcon variant="light" color="#0D6EFD" size="lg"><IconFileReport size={20} /></ThemeIcon>
+            <ThemeIcon variant="light" color="#EC8622" size="lg"><IconFileReport size={20} /></ThemeIcon>
             <div>
               <Text size="xs" c="dimmed">Environment</Text>
               <Badge variant="outline">{report.environment || 'N/A'}</Badge>

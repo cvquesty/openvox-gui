@@ -27,7 +27,7 @@ export function LoginPage() {
   };
 
   return (
-    <Center style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0D6EFD 0%, #0a58ca 100%)' }}>
+    <Center style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #EC8622 0%, #d4781f 100%)' }}>
       <Card shadow="xl" padding="xl" radius="lg" style={{ width: 400 }}>
         <Stack align="center" mb="lg">
           <img src="/openvox-logo.svg" alt="OpenVox" style={{ height: 72 }} />
@@ -69,7 +69,7 @@ export function LoginPage() {
               size="md"
               mt="sm"
               leftSection={<IconLock size={18} />}
-              color='#0D6EFD'
+              color='#EC8622'
             >
               Sign In
             </Button>
@@ -77,7 +77,7 @@ export function LoginPage() {
         </form>
 
         <Text size="xs" c="dimmed" ta="center" mt="lg">
-          OpenVox GUI v0.2.5
+          OpenVox GUI v0.2.6
         </Text>
       </Card>
     </Center>
