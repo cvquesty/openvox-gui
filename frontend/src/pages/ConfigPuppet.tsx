@@ -6,7 +6,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconNetwork, IconDatabase, IconPackage, IconFile, IconFolder,
-  IconEdit, IconDeviceFloppy, IconX,
+  IconEdit, IconDeviceFloppy, IconX, IconChevronRight,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { config } from '../services/api';
@@ -35,6 +35,7 @@ function ConfigFileEditor() {
   const [fileLoading, setFileLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   // Load file tree on mount
   useEffect(() => {
@@ -93,30 +94,47 @@ function ConfigFileEditor() {
       <Card withBorder shadow="sm" padding={0} style={{ width: 280, flexShrink: 0 }}>
         <ScrollArea style={{ height: 500 }}>
           <Box p="xs">
-            {groups.map((g) => (
-              <Box key={g.group} mb="xs">
-                <Group gap={6} mb={4} ml={4}>
-                  <IconFolder size={14} color="#888" />
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">{g.group}</Text>
-                </Group>
-                {g.files.map((f) => (
+            {groups.map((g) => {
+              const isOpen = !collapsed[g.group];
+              return (
+                <Box key={g.group} mb={4}>
                   <NavLink
-                    key={f.path}
-                    label={f.name}
-                    leftSection={<IconFile size={14} />}
-                    active={selectedPath === f.path}
-                    onClick={() => f.exists && loadFile(f.path, f.name)}
-                    disabled={!f.exists}
-                    variant="filled"
-                    py={4}
-                    styles={{ label: { fontSize: 13 } }}
+                    label={g.group}
+                    leftSection={<IconFolder size={16} />}
                     rightSection={
-                      !f.exists ? <Badge size="xs" color="gray">missing</Badge> : null
+                      <IconChevronRight
+                        size={14}
+                        style={{
+                          transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                          transition: 'transform 150ms ease',
+                        }}
+                      />
                     }
+                    onClick={() => setCollapsed((prev) => ({ ...prev, [g.group]: !prev[g.group] }))}
+                    variant="subtle"
+                    py={6}
+                    styles={{ label: { fontSize: 13, fontWeight: 700, textTransform: 'uppercase' } }}
                   />
-                ))}
-              </Box>
-            ))}
+                  {isOpen && g.files.map((f) => (
+                    <NavLink
+                      key={f.path}
+                      label={f.name}
+                      leftSection={<IconFile size={14} />}
+                      active={selectedPath === f.path}
+                      onClick={() => f.exists && loadFile(f.path, f.name)}
+                      disabled={!f.exists}
+                      variant="filled"
+                      py={4}
+                      pl={28}
+                      styles={{ label: { fontSize: 13 } }}
+                      rightSection={
+                        !f.exists ? <Badge size="xs" color="gray">missing</Badge> : null
+                      }
+                    />
+                  ))}
+                </Box>
+              );
+            })}
           </Box>
         </ScrollArea>
       </Card>
