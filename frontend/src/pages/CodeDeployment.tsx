@@ -49,7 +49,7 @@ export function CodeDeploymentPage() {
     <Stack>
       <Group justify="space-between">
         <Group>
-          <ThemeIcon size="xl" variant="gradient" gradient={{ from: 'violet', to: 'cyan' }}>
+          <ThemeIcon size="xl" color='#0D6EFD'>
             <IconRocket size={24} />
           </ThemeIcon>
           <Title order={2}>Code Deployment</Title>
@@ -75,7 +75,7 @@ export function CodeDeploymentPage() {
                         {repo.url}
                       </Anchor>
                     </div>
-                    <Badge variant="outline" color="violet" leftSection={<IconGitBranch size={12} />}>
+                    <Badge variant="outline" color="#0D6EFD" leftSection={<IconGitBranch size={12} />}>
                       {repo.basedir || 'default'}
                     </Badge>
                   </Group>
@@ -140,7 +140,7 @@ export function CodeDeploymentPage() {
           />
           <Button
             leftSection={deploying ? <Loader size={16} color="white" /> : <IconPlayerPlay size={16} />}
-            color="violet"
+            color="#0D6EFD"
             onClick={handleDeploy}
             disabled={deploying}
             loading={deploying}
@@ -208,7 +208,7 @@ export function CodeDeploymentPage() {
             <Badge
               key={env}
               variant={selectedEnv === env ? 'filled' : 'outline'}
-              color="violet"
+              color="#0D6EFD"
               size="lg"
               style={{ cursor: 'pointer' }}
               onClick={() => setSelectedEnv(env === selectedEnv ? null : env)}

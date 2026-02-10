@@ -64,27 +64,27 @@ export function AppShellLayout() {
       navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
     >
-      <MantineAppShell.Header>
+      <MantineAppShell.Header style={{ backgroundColor: '#EC8622' }}>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
-            <Group gap="sm">
-              <img src="/openvox-logo-white.svg" alt="OpenVox" style={{ height: 36 }} />
-              <Title order={3} style={{ fontWeight: 700 }}>
+            <Group gap="md">
+              <img src="/openvox-logo-white.svg" alt="OpenVox" style={{ height: 36, flexShrink: 0 }} />
+              <Title order={3} style={{ fontWeight: 700, color: 'white', whiteSpace: 'nowrap' }}>
                 OpenVox GUI
               </Title>
             </Group>
           </Group>
           {user && (
             <Group gap="sm">
-              <Badge variant="outline" color="gray" size="sm">
+              <Badge variant="outline" color="white" size="sm" styles={{ root: { borderColor: 'rgba(255,255,255,0.6)', color: 'white' } }}>
                 <Group gap={4}>
                   <IconUser size={12} />
                   {user.username} ({user.role})
                 </Group>
               </Badge>
               <Tooltip label="Sign out">
-                <ActionIcon variant="subtle" color="gray" onClick={logout}>
+                <ActionIcon variant="subtle" color="white" onClick={logout}>
                   <IconLogout size={18} />
                 </ActionIcon>
               </Tooltip>
@@ -161,7 +161,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.4</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.5</Text>
           </Box>
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>

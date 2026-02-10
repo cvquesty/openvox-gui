@@ -8,7 +8,21 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 
 const theme = createTheme({
-  primaryColor: 'violet',
+  primaryColor: 'vpblue',
+  colors: {
+    vpblue: [
+      '#e7f1ff',
+      '#cfe2ff',
+      '#9ec5fe',
+      '#6ea8fe',
+      '#3d8bfd',
+      '#0D6EFD',
+      '#0b5ed7',
+      '#0a58ca',
+      '#084298',
+      '#052c65',
+    ],
+  },
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   defaultRadius: 'md',
 });

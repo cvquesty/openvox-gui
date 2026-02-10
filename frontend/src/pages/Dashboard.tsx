@@ -67,7 +67,7 @@ export function DashboardPage() {
       <Title order={2}>Dashboard</Title>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
-        <StatsCard title="Total Nodes" value={ns.total} icon={IconServer} color="violet" />
+        <StatsCard title="Total Nodes" value={ns.total} icon={IconServer} color="#0D6EFD" />
         <StatsCard title="Unchanged" value={ns.unchanged} icon={IconCheck} color="green" />
         <StatsCard title="Changed" value={ns.changed} icon={IconAlertTriangle} color="yellow" />
         <StatsCard title="Failed" value={ns.failed} icon={IconX} color="red" />

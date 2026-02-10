@@ -31,7 +31,7 @@ function LogLevelBadge({ level }: { level: string }) {
 
 function EventStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    success: 'green', failure: 'red', noop: 'blue', skipped: 'gray', audit: 'violet',
+    success: 'green', failure: 'red', noop: 'blue', skipped: 'gray', audit: 'blue',
   };
   return <Badge color={colors[status] || 'gray'} variant="filled" size="sm">{status}</Badge>;
 }
@@ -104,7 +104,7 @@ export function ReportDetailPage() {
         </Paper>
         <Paper withBorder p="md" radius="md">
           <Group gap="xs">
-            <ThemeIcon variant="light" color="violet" size="lg"><IconFileReport size={20} /></ThemeIcon>
+            <ThemeIcon variant="light" color="#0D6EFD" size="lg"><IconFileReport size={20} /></ThemeIcon>
             <div>
               <Text size="xs" c="dimmed">Environment</Text>
               <Badge variant="outline">{report.environment || 'N/A'}</Badge>
