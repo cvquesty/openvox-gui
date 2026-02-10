@@ -68,9 +68,9 @@ function ClassPicker({
   }, [environment]);
 
   const selectData = [
-    ...available.roles.map((c: string) => ({ value: c, label: c, group: 'Roles' })),
-    ...available.profiles.map((c: string) => ({ value: c, label: c, group: 'Profiles' })),
-    ...available.modules.map((c: string) => ({ value: c, label: c, group: 'Modules' })),
+    ...(available.roles.length > 0 ? [{ group: 'Roles', items: available.roles.map((c: string) => ({ value: c, label: c })) }] : []),
+    ...(available.profiles.length > 0 ? [{ group: 'Profiles', items: available.profiles.map((c: string) => ({ value: c, label: c })) }] : []),
+    ...(available.modules.length > 0 ? [{ group: 'Modules', items: available.modules.map((c: string) => ({ value: c, label: c })) }] : []),
   ];
 
   return (
