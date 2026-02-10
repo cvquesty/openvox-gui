@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.10] - 2026-02-10
+
+### Changed
+- **Active Users**: Converted from a large panel to a compact StatsCard matching the other summary cards (Total Nodes, Unchanged, Changed, Failed, Noop), placed immediately to the right of the Noop card
+- **Stats row**: Expanded from 5 to 6 columns to accommodate the Active Users card
+- **Report Trends**: Moved back to the first grid row (8 columns, next to Node Status donut)
+- **Services**: Now the only card in the bottom grid row
+
+### Removed
+- Large Active Users panel with user list detail (replaced by compact StatsCard showing count)
+
+---
+
 ## [0.2.9] - 2026-02-10
 
 ### Fixed

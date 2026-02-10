@@ -66,12 +66,13 @@ export function DashboardPage() {
     <Stack>
       <Title order={2}>Dashboard</Title>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 6 }}>
         <StatsCard title="Total Nodes" value={ns.total} icon={IconServer} color="#0D6EFD" />
         <StatsCard title="Unchanged" value={ns.unchanged} icon={IconCheck} color="green" />
         <StatsCard title="Changed" value={ns.changed} icon={IconAlertTriangle} color="yellow" />
         <StatsCard title="Failed" value={ns.failed} icon={IconX} color="red" />
         <StatsCard title="Noop" value={ns.noop} icon={IconEye} color="blue" />
+        <StatsCard title="Active Users" value={activeCount} icon={IconUsers} color="teal" />
       </SimpleGrid>
 
       <Grid>
@@ -100,41 +101,20 @@ export function DashboardPage() {
 
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder shadow="sm" padding="lg">
-            <Group mb="md" justify="space-between">
-              <Title order={4}>Active Users</Title>
-              <Badge
-                size="lg"
-                variant="gradient"
-                gradient={{ from: 'teal', to: 'cyan' }}
-                leftSection={<IconUsers size={14} />}
-              >
-                {activeCount}
-              </Badge>
-            </Group>
-            <Group gap="xl" wrap="wrap">
-              {activeUsers.map((u: any) => (
-                <Group key={u.username} gap="xs">
-                  <ThemeIcon color="teal" variant="light" size="sm" radius="xl">
-                    <IconUsers size={12} />
-                  </ThemeIcon>
-                  <Text size="sm" fw={500}>{u.username}</Text>
-                  {u.ip_address && (
-                    <Text size="xs" c="dimmed">({u.ip_address})</Text>
-                  )}
-                  <Tooltip label={u.last_seen ? new Date(u.last_seen).toLocaleString() : ''}>
-                    <Badge size="xs" variant="light" color="gray">
-                      {u.last_seen ? timeAgo(u.last_seen) : '\u2014'}
-                    </Badge>
-                  </Tooltip>
-                </Group>
-              ))}
-              {activeUsers.length === 0 && (
-                <Text c="dimmed" size="sm">No active users</Text>
-              )}
-            </Group>
-            <Text size="xs" c="dimmed" mt="xs">
-              Active = seen within last 15 minutes
-            </Text>
+            <Title order={4} mb="md">Report Trends</Title>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={stats.report_trends}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => v.slice(11) || v} />
+                <YAxis allowDecimals={false} />
+                <ReTooltip />
+                <Legend />
+                <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </Card>
         </Grid.Col>
       </Grid>
@@ -151,25 +131,6 @@ export function DashboardPage() {
                 </Group>
               )) || <Text c="dimmed">Loading...</Text>}
             </Stack>
-          </Card>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Report Trends</Title>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={stats.report_trends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                  tickFormatter={(v) => v.slice(11) || v} />
-                <YAxis allowDecimals={false} />
-                <ReTooltip />
-                <Legend />
-                <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
           </Card>
         </Grid.Col>
       </Grid>
