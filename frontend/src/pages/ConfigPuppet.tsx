@@ -35,7 +35,7 @@ function ConfigFileEditor() {
   const [fileLoading, setFileLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // Load file tree on mount
   useEffect(() => {
@@ -95,7 +95,7 @@ function ConfigFileEditor() {
         <ScrollArea style={{ height: 500 }}>
           <Box p="xs">
             {groups.map((g) => {
-              const isOpen = !collapsed[g.group];
+              const isOpen = !!expanded[g.group];
               return (
                 <Box key={g.group} mb={4}>
                   <NavLink
@@ -110,7 +110,7 @@ function ConfigFileEditor() {
                         }}
                       />
                     }
-                    onClick={() => setCollapsed((prev) => ({ ...prev, [g.group]: !prev[g.group] }))}
+                    onClick={() => setExpanded((prev) => ({ ...prev, [g.group]: !prev[g.group] }))}
                     variant="subtle"
                     py={6}
                     styles={{ label: { fontSize: 13, fontWeight: 700, textTransform: 'uppercase' } }}
