@@ -10,12 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 - **Fact Explorer**: Rewrote page to use dedicated REST endpoints (`/api/facts/names`, `/api/facts/values/{name}`) instead of broken PQL queries; dropdown now loads all 125+ fact names and displays certname + value table for the fleet
 - **Code Deployment**: Fixed crash ("Table is not defined") caused by missing `Table` import from Mantine
+- **Application Settings 500 Error**: Fixed "Read-only file system" crash when updating settings; added `/opt/openvox-gui/config` to systemd `ReadWritePaths`
 
 ### Improvements
 - **Orchestration Output Format Selector**: Run Command, Run Task, and Run Plan tabs now include a segmented control to choose output format: Human (clean text), JSON (structured data), or Rainbow (full ANSI color). Rainbow output renders with proper terminal colors in the browser via `ansi-to-html`
 - **Orchestration PTY Support**: Rainbow format uses `script(1)` to allocate a pseudo-TTY so Bolt emits full RGB ANSI color sequences; `--color` flag is appended automatically
 - **Bolt Inventory Flag**: All Bolt commands now include `-i /etc/puppetlabs/bolt/inventory.yaml` automatically so the inventory file is always found
 - **PQL Console Certname Dropdown**: Added a searchable node selector that auto-substitutes `NODENAME` placeholders in example queries with the selected certname
+- **Settings Nav Rename**: Renamed "Application" sidebar link to "Settings" with a gear icon for clarity
 - **PQL Console Unlimited Results**: Default query limit raised from 100 to 10,000; results pane uses viewport-height scrolling (`calc(100vh - 200px)`) instead of a fixed 500px cap
 
 ### API Endpoints Added

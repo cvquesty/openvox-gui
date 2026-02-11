@@ -22,6 +22,7 @@ import {
   IconFileReport,
   IconNetwork,
   IconAppWindow,
+  IconSettings,
   IconHierarchy2,
   IconRocket,
   IconBolt,
@@ -67,7 +68,7 @@ const infraNav = [
 
 const configNav = [
   { label: 'Puppet Configuration', icon: IconNetwork, path: '/config/puppet' },
-  { label: 'Application', icon: IconAppWindow, path: '/config/app' },
+  { label: 'Settings', icon: IconSettings, path: '/config/app' },
 ];
 
 export function AppShellLayout() {

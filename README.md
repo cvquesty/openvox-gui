@@ -142,9 +142,9 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - **PuppetDB**: View configuration files (jetty, database, global settings)
 - **Environments**: Browse environments and their installed modules
 - **Service Controls**: Restart PuppetServer, PuppetDB, or the Puppet agent from the UI
-- **Application Settings**: View and edit runtime configuration inline — theme selector, connection settings, debug toggle — all changes written to the `.env` file
-- **User Manager**: Full user administration (add, delete, change password/role) consolidated into the Application page as a tab — no separate Administration section
-- **Theme Switching**: Toggle between Casual (dark, illustrated) and Formal (light, business) themes from the Application page
+- **Settings**: View and edit runtime configuration inline — theme selector, connection settings, debug toggle — all changes written to the `.env` file
+- **User Manager**: Full user administration (add, delete, change password/role) consolidated into the Settings page as a tab — no separate Administration section
+- **Theme Switching**: Toggle between Casual (dark, illustrated) and Formal (light, business) themes from the Settings page
 
 ### 🔐 Authentication & Login
 - **Login Page**: Branded sign-in page with OpenVox logo, gradient background, and error handling
@@ -162,7 +162,7 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 ### 🎨 Application Themes
 - **Casual** (default): Dark mode with orange accents (`#EC8622`) and animated SVG illustrations throughout the interface
 - **Formal**: Light mode with white backgrounds, black foreground, VoxPupuli Blue (`#0D6EFD`) accents, original black OpenVox logo — all cartoons and animations removed for a clean, business-oriented look
-- **Theme selector**: SegmentedControl in Application → Application Settings to toggle between themes
+- **Theme selector**: SegmentedControl in Settings → Application Settings tab to toggle between themes
 - **Persistence**: Theme choice saved to `localStorage` and backend (`/api/config/preferences`) — survives browser refreshes
 - **Editable Settings**: All application settings (name, Puppet/PuppetDB connection, debug mode) editable inline with Save/Cancel
 
@@ -1103,7 +1103,7 @@ Hiera data management (`/hiera`) is a dedicated top-level section with two subpa
 
 - **PuppetServer Config** (`/config/puppet`): Read and edit `puppet.conf` sections (main, server, agent). Displays PuppetServer version.
 - **PuppetDB Config** (`/config/puppetdb`): Read-only view of PuppetDB configuration files (jetty.ini, database.ini, global settings). Access is via `sudo cat` to handle file permissions.
-- **Application Config** (`/config/app`): Application settings and User Manager in a tabbed layout. User Manager provides full user administration (add, delete, change password/role) with the authentication panel at the top.
+- **Settings** (`/config/app`): Application settings and User Manager in a tabbed layout. User Manager provides full user administration (add, delete, change password/role) with the authentication panel at the top.
 - **Environments** (`/config/environments`): Browse available environments and list installed modules per environment.
 - **Service Management**: Start/stop/restart PuppetServer, PuppetDB, or the Puppet agent service directly from the UI.
 
