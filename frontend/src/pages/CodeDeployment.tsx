@@ -4,13 +4,13 @@ import {
   Loader, Center, Code, Paper, ThemeIcon, Grid,
   ScrollArea, Divider,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   IconRocket, IconCheck, IconX, IconPlayerPlay, IconRefresh,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { deploy, config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
-import { StatusBadge } from '../components/StatusBadge';
 
 /* ── Giant Robot vs City – inline SVG comic ──────────────── */
 function RobotComic({ attacking }: { attacking: boolean }) {
@@ -249,18 +249,17 @@ export function CodeDeploymentPage() {
   const [lastSuccess, setLastSuccess] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Services
-  const { data: services, refetch: refetchServices } = useApi(config.getServices);
-  const [restarting, setRestarting] = useState<string | null>(null);
+  const [restartingStack, setRestartingStack] = useState(false);
 
-  const handleRestart = async (service: string) => {
-    setRestarting(service);
+  const handleRestartPuppetStack = async () => {
+    setRestartingStack(true);
     try {
-      await config.restartService(service);
-      setTimeout(() => { refetchServices(); setRestarting(null); }, 3000);
+      await config.restartPuppetStack();
+      notifications.show({ title: 'Puppet Services Restarted', message: 'PuppetDB, PuppetServer, and Puppet agent restarted successfully', color: 'green' });
     } catch (e: any) {
-      alert(e.message);
-      setRestarting(null);
+      notifications.show({ title: 'Restart Failed', message: e.message, color: 'red' });
+    } finally {
+      setRestartingStack(false);
     }
   };
 
@@ -364,30 +363,21 @@ export function CodeDeploymentPage() {
               )}
             </Card>
 
-            {/* Services */}
+            {/* Restart Puppet Services */}
             <Card withBorder shadow="sm" padding="md">
-              <Title order={4} mb="sm">Services</Title>
-              <Stack gap="xs">
-                {services?.map((svc: any) => (
-                  <Card key={svc.service} withBorder shadow="sm" padding="sm">
-                    <Group justify="space-between" wrap="nowrap">
-                      <div>
-                        <Text fw={600} size="sm">{svc.service}</Text>
-                        <Group gap="xs" mt={4}>
-                          <StatusBadge status={svc.status} />
-                          {svc.pid && <Text size="xs" c="dimmed">PID {svc.pid}</Text>}
-                        </Group>
-                      </div>
-                      <Button variant="outline" color="orange" size="xs"
-                        leftSection={<IconRefresh size={14} />}
-                        loading={restarting === svc.service}
-                        onClick={() => handleRestart(svc.service)}>
-                        Restart
-                      </Button>
-                    </Group>
-                  </Card>
-                ))}
-              </Stack>
+              <Title order={4} mb="sm">Restart Puppet Services</Title>
+              <Text size="sm" c="dimmed" mb="md">
+                Restart PuppetDB, PuppetServer, and Puppet agent in the correct dependency order.
+              </Text>
+              <Button
+                leftSection={<IconRefresh size={16} />}
+                color="orange"
+                loading={restartingStack}
+                onClick={handleRestartPuppetStack}
+                fullWidth
+              >
+                Restart All Puppet Services
+              </Button>
             </Card>
           </Stack>
         </Grid.Col>

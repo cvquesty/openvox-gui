@@ -93,8 +93,16 @@ async def bolt_status():
     bolt = find_bolt()
     if not bolt:
         return {"installed": False, "path": None, "version": None}
-    result = await run_bolt_command(["--version"])
-    version = result["stdout"].strip() if result["returncode"] == 0 else None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "sudo", bolt, "--version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        version = stdout.decode().strip() if proc.returncode == 0 else None
+    except Exception:
+        version = None
     return {"installed": True, "path": bolt, "version": version}
 
 

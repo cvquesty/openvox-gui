@@ -5,6 +5,40 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-02-12
+
+### Highlights
+First stable release of OpenVox GUI. All core features are complete, tested, and production-ready.
+
+### New Features
+- **Settings > Services Tab**: New dedicated Services tab in the Settings page with full ecosystem service management -- shows live status, PID, uptime, and individual restart buttons for PuppetServer, PuppetDB, Puppet agent, and the OpenVox GUI application itself
+- **Dynamic Application Name**: The configured "Application Name" setting now dynamically updates the browser tab title, the login page title, and the app header -- changes take effect immediately on next page load
+- **Clickable Logo and Title**: Clicking the OpenVox logo or application title in the header navigates back to the Dashboard
+- **Service Restart Link**: The "service restart" text in the Application Settings instructions is now an active link that switches directly to the Services tab
+- **Public App Name Endpoint**: New unauthenticated `GET /api/config/app/name` endpoint so the login page can display the configured app name before authentication
+
+### Improvements
+- **Code Deployment Restart Button**: Replaced the full services panel (individual service cards) with a single "Restart All Puppet Services" button that restarts PuppetDB, PuppetServer, and Puppet agent in the correct dependency order via `POST /api/config/services/restart-puppet-stack`
+- **Node Classifier Tab Order**: Nodes tab is now the default/first tab; Hierarchy tab renamed to "Help" and moved to last position
+- **Node Classifier Groups Dropdown**: The groups MultiSelect when classifying a node now shows ALL configured groups organized by environment as option groups, instead of filtering to only the selected environment (which hid groups in other environments)
+- **Orchestration Format Isolation**: Switching output format (Human/JSON/Rainbow) in Run Command, Run Task, or Run Plan now clears the previous result to prevent stale output from a different format being displayed
+- **Bolt Version Display**: Fixed the Orchestration Overview tab showing "unknown" for the Bolt version; the status endpoint now calls `bolt --version` directly without appending inventory flags
+- **Save Notification**: Updated setting save notification to say "Go to the Services tab to restart" with clear guidance
+
+### Bug Fixes
+- **ENC Greenlet Error**: Fixed `greenlet_spawn has not been called` SQLAlchemy async error when classifying nodes -- root cause was lazy-loaded relationships on the `EncNode.groups` many-to-many; fixed by adding `lazy="selectin"` to both sides of the relationship and replacing `db.refresh(node)` with a proper re-fetch using `selectinload`
+- **Bolt Version Endpoint**: `bolt --version` was routed through `run_bolt_command()` which appends `-i inventory.yaml`, causing the command to fail silently
+
+### API Endpoints Added
+- `GET /api/config/app/name` -- Public (no auth) endpoint returning the configured application name
+- `POST /api/config/services/restart-puppet-stack` -- Ordered restart of PuppetDB, PuppetServer, Puppet agent
+
+### Installer
+- Version bumped to v1.0.0
+- Added `openvox-gui` service restart permission to sudoers
+- Added `puppetserver ca` and `openssl x509` sudoers rules
+- Added `/opt/openvox-gui/config` to systemd `ReadWritePaths` for settings persistence
+
 ## [0.3.1] - 2026-02-11
 
 ### Bug Fixes

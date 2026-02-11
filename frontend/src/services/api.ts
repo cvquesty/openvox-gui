@@ -182,11 +182,14 @@ export const config = {
   getModules: (environment: string) =>
     fetchJSON<any>(`/config/environments/${environment}/modules`),
   getServices: () => fetchJSON<any[]>('/config/services'),
+  restartPuppetStack: () =>
+    fetchJSON<any>('/config/services/restart-puppet-stack', { method: 'POST' }),
   restartService: (service: string) =>
     fetchJSON<any>('/config/services/restart', {
       method: 'POST',
       body: JSON.stringify({ service, action: 'restart' }),
     }),
+  getAppName: () => fetchJSON<any>('/config/app/name'),
   getApp: () => fetchJSON<any>('/config/app'),
   updateApp: (key: string, value: string) =>
     fetchJSON<any>('/config/app', {

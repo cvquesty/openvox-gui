@@ -74,7 +74,7 @@ class EncGroup(Base):
 
     environment_obj = relationship("EncEnvironment", back_populates="groups")
     nodes = relationship("EncNode", secondary=node_group_membership,
-                         back_populates="groups")
+                         back_populates="groups", lazy="selectin")
 
 
 # ─── Layer 4: Node ─────────────────────────────────────────
@@ -93,7 +93,7 @@ class EncNode(Base):
 
     environment_obj = relationship("EncEnvironment", back_populates="nodes")
     groups = relationship("EncGroup", secondary=node_group_membership,
-                          back_populates="nodes")
+                          back_populates="nodes", lazy="selectin")
 
 
 # ─── Legacy tables (kept for migration compatibility) ──────

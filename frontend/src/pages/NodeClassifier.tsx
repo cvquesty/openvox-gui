@@ -7,7 +7,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconPlus, IconTrash, IconPencil, IconHierarchy2, IconTags,
-  IconServer, IconWorld, IconSearch, IconLayersLinked, IconArrowDown, IconX,
+  IconServer, IconWorld, IconSearch, IconLayersLinked, IconArrowDown, IconX, IconHelp,
 } from '@tabler/icons-react';
 import { enc, nodes as nodesApi, config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -735,7 +735,7 @@ function NodesTab() {
 
   const classifiedNames = new Set(classified.map((n) => n.certname));
   const unclassified = puppetNodes.filter((cn) => !classifiedNames.has(cn));
-  const envGroups = groups.filter((g) => g.environment === formEnv);
+  
 
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
 
@@ -805,12 +805,19 @@ function NodesTab() {
           )}
           <Select label="Environment" required
             data={envs.map((e) => ({ value: e.name, label: e.name }))}
-            value={formEnv} onChange={(v) => { setFormEnv(v || ''); setFormGroupIds([]); }} />
+            value={formEnv} onChange={(v) => setFormEnv(v || '')} />
           <MultiSelect label="Groups" clearable searchable
-            data={envGroups.map((g) => ({ value: String(g.id), label: g.name }))}
+            data={(() => {
+              const byEnv: Record<string, Array<{ value: string; label: string }>> = {};
+              for (const g of groups) {
+                if (!byEnv[g.environment]) byEnv[g.environment] = [];
+                byEnv[g.environment].push({ value: String(g.id), label: g.name });
+              }
+              return Object.entries(byEnv).map(([env, items]) => ({ group: env, items }));
+            })()}
             value={formGroupIds} onChange={setFormGroupIds}
-            description="Groups in the selected environment. Node inherits classes/params from all groups."
-            placeholder={envGroups.length === 0 ? 'No groups in this environment' : 'Select groups'} />
+            description="Assign this node to one or more groups. Node inherits classes/params from all selected groups."
+            placeholder={groups.length === 0 ? 'No groups defined' : 'Select groups'} />
           <ClassPicker value={formClasses} onChange={setFormClasses} environment={formEnv}
             label="Node-specific Classes" description="Override or add classes (highest priority)" />
           <ParamEditor value={formParams} onChange={setFormParams}
@@ -999,21 +1006,21 @@ export function NodeClassifierPage() {
   return (
     <Stack>
       <Title order={2}>Node Classifier</Title>
-      <Tabs defaultValue="hierarchy" variant="outline">
+      <Tabs defaultValue="nodes" variant="outline">
         <Tabs.List>
-          <Tabs.Tab value="hierarchy" leftSection={<IconLayersLinked size={16} />}>Hierarchy</Tabs.Tab>
+          <Tabs.Tab value="nodes" leftSection={<IconServer size={16} />}>Nodes</Tabs.Tab>
           <Tabs.Tab value="common" leftSection={<IconWorld size={16} />}>Common</Tabs.Tab>
           <Tabs.Tab value="environments" leftSection={<IconWorld size={16} />}>Environments</Tabs.Tab>
           <Tabs.Tab value="groups" leftSection={<IconTags size={16} />}>Node Groups</Tabs.Tab>
-          <Tabs.Tab value="nodes" leftSection={<IconServer size={16} />}>Nodes</Tabs.Tab>
           <Tabs.Tab value="lookup" leftSection={<IconSearch size={16} />}>Classification Lookup</Tabs.Tab>
+          <Tabs.Tab value="help" leftSection={<IconHelp size={16} />}>Help</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="hierarchy" pt="md"><HierarchyTab /></Tabs.Panel>
+        <Tabs.Panel value="nodes" pt="md"><NodesTab /></Tabs.Panel>
         <Tabs.Panel value="common" pt="md"><CommonTab /></Tabs.Panel>
         <Tabs.Panel value="environments" pt="md"><EnvironmentsTab /></Tabs.Panel>
         <Tabs.Panel value="groups" pt="md"><GroupsTab /></Tabs.Panel>
-        <Tabs.Panel value="nodes" pt="md"><NodesTab /></Tabs.Panel>
         <Tabs.Panel value="lookup" pt="md"><LookupTab /></Tabs.Panel>
+        <Tabs.Panel value="help" pt="md"><HierarchyTab /></Tabs.Panel>
       </Tabs>
     </Stack>
   );

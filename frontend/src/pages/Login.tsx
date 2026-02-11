@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Center, Card, Title, TextInput, PasswordInput, Button, Alert, Stack,
   Group, Text,
 } from '@mantine/core';
 import { IconLock } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
+import { config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 
 export function LoginPage() {
@@ -14,6 +15,13 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [appName, setAppName] = useState('OpenVox GUI');
+
+  useEffect(() => {
+    config.getAppName().then((data: any) => {
+      if (data?.app_name) { setAppName(data.app_name); document.title = data.app_name; }
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +41,7 @@ export function LoginPage() {
       <Card shadow="xl" padding="xl" radius="lg" style={{ width: 400 }}>
         <Stack align="center" mb="lg">
           <img src={isFormal ? "/openvox-logo.svg" : "/openvox-logo-orange.svg"} alt="OpenVox" style={{ height: 72 }} />
-          <Title order={2}>OpenVox GUI</Title>
+          <Title order={2}>{appName}</Title>
           <Text size="sm" c="dimmed">Sign in to manage your Puppet infrastructure</Text>
         </Stack>
 
@@ -79,7 +87,7 @@ export function LoginPage() {
         </form>
 
         <Text size="xs" c="dimmed" ta="center" mt="lg">
-          OpenVox GUI v0.2.42
+          OpenVox GUI v1.0.0
         </Text>
       </Card>
     </Center>

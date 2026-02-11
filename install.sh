@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# OpenVox GUI Installer v0.2.1
+# OpenVox GUI Installer v1.0.0
 #
 # Installs the OpenVox GUI web application for managing Puppet infrastructure.
 # Supports interactive prompts, answer-file (install.conf), and silent mode.
@@ -22,7 +22,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="0.3.1"
+VERSION="1.0.0"
 TOTAL_STEPS=10
 
 # ─── Terminal Colors ─────────────────────────────────────────
@@ -480,7 +480,7 @@ RestartSec=5
 NoNewPrivileges=false
 ProtectSystem=strict
 PrivateTmp=false
-ReadWritePaths=${INSTALL_DIR}/data ${INSTALL_DIR}/logs /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp
+ReadWritePaths=${INSTALL_DIR}/data ${INSTALL_DIR}/logs ${INSTALL_DIR}/config /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp
 
 [Install]
 WantedBy=multi-user.target
@@ -505,6 +505,7 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppet
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart openvox-gui
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
@@ -522,6 +523,13 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
+
+# OpenVox GUI -- allow certificate management
+${SERVICE_USER} ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca *
+${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
+
+# OpenVox GUI -- allow puppet lookup
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1

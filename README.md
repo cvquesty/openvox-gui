@@ -982,7 +982,7 @@ After installation, the directory structure is:
 │   │   │   ├── NodeClassifier.tsx  # Hierarchical ENC (6 tabs)
 │   │   │   ├── Orchestration.tsx   # Puppet Bolt interface (5 tabs)
 │   │   │   ├── ConfigPuppet.tsx    # PuppetServer configuration
-│   │   │   └── ConfigApp.tsx       # Application + User Manager (tabs)
+│   │   │   └── ConfigApp.tsx       # Settings, Services, User Manager (tabs)
 │   │   ├── services/api.ts         # API client with JWT auth headers
 │   │   └── types/index.ts          # TypeScript interfaces
 │   ├── package.json                # Node.js dependencies
@@ -1059,12 +1059,12 @@ The deployment runs as a subprocess on the server using the puppet user's permis
 
 The Node Classifier (`/enc`) provides a hierarchical 4-layer deep merge classification system on a single page with 6 tabs:
 
-1. **Hierarchy** (overview): Visualization of the 4-layer merge model with the NODE-O-SCOPE 2000 animated illustration. Shows how Common → Environment → Group → Node layers merge together.
+1. **Nodes** (default): Per-node overrides with the highest priority. Pin specific classes and parameters to individual nodes. Groups dropdown shows all configured groups organized by environment.
 2. **Common**: Global defaults applied to every node. Set classes and parameters that form the baseline for all nodes in the fleet.
 3. **Environments**: Per-environment classes and parameters. Environments are auto-discovered from `/etc/puppetlabs/code/environments/` — missing ones are automatically created in the database.
 4. **Node Groups**: Reusable groups of Puppet classes and parameters. Nodes can belong to multiple groups.
-5. **Nodes**: Per-node overrides with the highest priority. Pin specific classes and parameters to individual nodes.
-6. **Classification Lookup**: Enter any certname to see the deep-merged YAML output showing exactly what that node receives from all 4 layers combined.
+5. **Classification Lookup**: Enter any certname to see the deep-merged YAML output showing exactly what that node receives from all 4 layers combined.
+6. **Help**: Visualization of the 4-layer merge model with the NODE-O-SCOPE 2000 animated illustration. Shows how Common → Environment → Group → Node layers merge together.
 
 All tabs use the **ClassPicker** component (grouped MultiSelect discovering classes from PuppetServer modules, organized into Roles/Profiles/Modules) and the **ParamEditor** component (key-value rows with Add/Remove buttons) instead of raw JSON textareas.
 
@@ -1103,9 +1103,9 @@ Hiera data management (`/hiera`) is a dedicated top-level section with two subpa
 
 - **PuppetServer Config** (`/config/puppet`): Read and edit `puppet.conf` sections (main, server, agent). Displays PuppetServer version.
 - **PuppetDB Config** (`/config/puppetdb`): Read-only view of PuppetDB configuration files (jetty.ini, database.ini, global settings). Access is via `sudo cat` to handle file permissions.
-- **Settings** (`/config/app`): Application settings and User Manager in a tabbed layout. User Manager provides full user administration (add, delete, change password/role) with the authentication panel at the top.
+- **Settings** (`/config/app`): Three-tab layout with Application Settings, Services, and User Manager. Application Settings supports inline editing of all configuration values with a clickable link to the Services tab for restarts. The Services tab provides full ecosystem management with live status and restart controls for PuppetServer, PuppetDB, Puppet agent, and the OpenVox GUI service. User Manager provides full user administration (add, delete, change password/role) with the authentication panel at the top.
 - **Environments** (`/config/environments`): Browse available environments and list installed modules per environment.
-- **Service Management**: Start/stop/restart PuppetServer, PuppetDB, or the Puppet agent service directly from the UI.
+- **Service Management**: Start/stop/restart PuppetServer, PuppetDB, Puppet agent, or the OpenVox GUI service from the Settings > Services tab. The Code Deployment page also has a single-button restart for the entire Puppet stack in the correct dependency order.
 
 ### Authentication & Login
 
@@ -1256,7 +1256,7 @@ When the service is running, interactive API documentation is available at:
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
-| `GET` | `/health` | No | Health check — returns `{"status": "ok", "version": "0.2.41"}` |
+| `GET` | `/health` | No | Health check — returns `{"status": "ok", "version": "1.0.0"}` |
 
 ### Authentication API
 
@@ -1380,6 +1380,8 @@ When the service is running, interactive API documentation is available at:
 | `GET` | `/api/config/environments/{env}/modules` | Yes | List modules in an environment |
 | `GET` | `/api/config/services` | Yes | Status of all Puppet services |
 | `POST` | `/api/config/services/restart` | Yes | Restart a service: `{"service": "puppetserver", "action": "restart"}` |
+| `POST` | `/api/config/services/restart-puppet-stack` | Yes | Ordered restart of PuppetDB, PuppetServer, Puppet agent |
+| `GET` | `/api/config/app/name` | No | Application name (public, for login page) |
 | `GET` | `/api/config/app` | Yes | Application config (non-sensitive settings) |
 | `PUT` | `/api/config/app` | Yes | Update a setting: `{"key": "app_name", "value": "My GUI"}` — writes to `.env` |
 | `GET` | `/api/config/preferences` | Yes | Get user preferences (theme, etc.) |

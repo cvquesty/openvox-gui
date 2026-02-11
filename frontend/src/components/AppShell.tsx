@@ -36,7 +36,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
-import { dashboard } from '../services/api';
+import { dashboard, config } from '../services/api';
 
 const monitoringNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
@@ -78,6 +78,13 @@ export function AppShellLayout() {
   const { user, logout } = useAuth();
   const { isFormal } = useAppTheme();
   const [activeSessions, setActiveSessions] = useState<any>(null);
+  const [appName, setAppName] = useState('OpenVox GUI');
+
+  useEffect(() => {
+    config.getAppName().then((data: any) => {
+      if (data?.app_name) { setAppName(data.app_name); document.title = data.app_name; }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchSessions = () => {
@@ -132,10 +139,10 @@ export function AppShellLayout() {
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
-            <Group gap={16} wrap="nowrap">
+            <Group gap={16} wrap="nowrap" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
               <img src={logoSrc} alt="OpenVox" style={{ height: 36, width: 36, flexShrink: 0, display: 'block' }} />
               <Title order={3} c={titleColor} style={{ fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>
-                OpenVox GUI
+                {appName}
               </Title>
             </Group>
           </Group>
@@ -184,7 +191,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.3.0</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v1.0.0</Text>
             <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
               <HoverCard.Target>
                 <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>

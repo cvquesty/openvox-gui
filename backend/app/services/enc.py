@@ -206,6 +206,8 @@ class HierarchicalENCService:
                            classes=classes or {}, parameters=parameters or {})
             db.add(node)
             await db.flush()
+            # Re-fetch so the groups relationship is loaded for manipulation
+            node = await self.get_node(db, certname)
 
         # Update group memberships
         if group_ids is not None:
@@ -215,8 +217,8 @@ class HierarchicalENCService:
                 if group:
                     node.groups.append(group)
         await db.flush()
-        await db.refresh(node)
-        return node
+        # Re-fetch with eagerly-loaded relationships for the response
+        return await self.get_node(db, certname)
 
     async def delete_node(self, db: AsyncSession, certname: str) -> bool:
         node = await self.get_node(db, certname)

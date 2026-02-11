@@ -116,6 +116,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/static", "/assets", "/health",
             "/api/enc/classify",
             "/api/auth/login", "/api/auth/status",
+            "/api/config/app/name",
             "/api/docs", "/api/redoc", "/openapi.json",
             "/vite.svg",
         ]

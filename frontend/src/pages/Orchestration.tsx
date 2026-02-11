@@ -296,6 +296,8 @@ function RunCommandTab() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
 
+  const changeFormat = (v: string) => { setFormat(v); setResult(null); };
+
   useEffect(() => {
     nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
   }, []);
@@ -330,7 +332,7 @@ function RunCommandTab() {
             <Text size="sm" fw={500} mb={4}>Output Format</Text>
             <SegmentedControl
               value={format}
-              onChange={setFormat}
+              onChange={changeFormat}
               data={[
                 { label: '📄 Human', value: 'human' },
                 { label: '🔣 JSON', value: 'json' },
@@ -363,6 +365,8 @@ function RunTaskTab() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const changeFormat = (v: string) => { setFormat(v); setResult(null); };
 
   useEffect(() => {
     Promise.all([
@@ -426,7 +430,7 @@ function RunTaskTab() {
             <Text size="sm" fw={500} mb={4}>Output Format</Text>
             <SegmentedControl
               value={format}
-              onChange={setFormat}
+              onChange={changeFormat}
               data={[
                 { label: '📄 Human', value: 'human' },
                 { label: '🔣 JSON', value: 'json' },
@@ -455,6 +459,8 @@ function RunPlanTab() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const changeFormat = (v: string) => { setFormat(v); setResult(null); };
 
   useEffect(() => {
     bolt.getPlans().then((p) => setPlans(p.plans || [])).catch(() => {}).finally(() => setLoading(false));
@@ -507,7 +513,7 @@ function RunPlanTab() {
             <Text size="sm" fw={500} mb={4}>Output Format</Text>
             <SegmentedControl
               value={format}
-              onChange={setFormat}
+              onChange={changeFormat}
               data={[
                 { label: '📄 Human', value: 'human' },
                 { label: '🔣 JSON', value: 'json' },

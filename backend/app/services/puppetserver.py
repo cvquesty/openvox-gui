@@ -177,7 +177,7 @@ class PuppetServerService:
 
     def restart_service(self, service: str) -> Dict[str, str]:
         """Restart a systemd service."""
-        allowed = {"puppetserver", "puppetdb", "puppet"}
+        allowed = {"puppetserver", "puppetdb", "puppet", "openvox-gui"}
         if service not in allowed:
             return {"status": "error", "message": f"Service {service} not allowed"}
         try:

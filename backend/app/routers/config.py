@@ -244,7 +244,7 @@ async def list_environment_modules(environment: str):
 @router.get("/services")
 async def get_services_status():
     """Get status of all Puppet services."""
-    services = ["puppetserver", "puppetdb", "puppet"]
+    services = ["puppetserver", "puppetdb", "puppet", "openvox-gui"]
     return [puppetserver_service.get_service_status(s) for s in services]
 
 
@@ -259,6 +259,19 @@ async def restart_service(request: ServiceActionRequest):
     return result
 
 
+@router.post("/services/restart-puppet-stack")
+async def restart_puppet_stack():
+    """Restart PuppetServer, PuppetDB, and Puppet agent in the correct order."""
+    results = []
+    for svc in ["puppetdb", "puppetserver", "puppet"]:
+        result = puppetserver_service.restart_service(svc)
+        results.append({"service": svc, **result})
+        if result["status"] == "error":
+            return {"status": "partial", "message": f"Failed to restart {svc}", "results": results}
+        # Brief pause between restarts to allow services to initialize
+        import asyncio
+        await asyncio.sleep(2)
+    return {"status": "success", "message": "All Puppet services restarted", "results": results}
 
 
 # ─── Config File Browser / Editor ─────────────────────────
@@ -553,6 +566,12 @@ async def puppet_lookup(request: PuppetLookupRequest):
 
 
 # ─── Application Config ───────────────────────────────────
+
+@router.get("/app/name")
+async def get_app_name():
+    """Get application name (public, no auth required)."""
+    return {"app_name": settings.app_name}
+
 
 @router.get("/app")
 async def get_app_config():
