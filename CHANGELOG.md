@@ -4,6 +4,120 @@ All notable changes to OpenVox GUI are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [0.2.41] - 2026-02-09
+
+### Changed
+- **Documentation**: Updated README.md with all features from v0.2.34–v0.2.40 including Hierarchical Node Classifier, Orchestration (Puppet Bolt), consolidated Application/User Manager settings
+- **Installer**: Added Puppet Bolt sudoers rules for running commands, tasks, and plans as the service user; bumped installer version to v0.2.41
+- **Version strings**: Bumped all version references to v0.2.41
+
+---
+
+## [0.2.40] - 2026-02-09
+
+### Added
+- **Orchestration page** (`/orchestration`): Full Puppet Bolt integration with 5 tabs:
+  - **Overview**: Animated SVG illustration (BOLT-O-MATIC 4000) — a giant industrial machine with conveyor belt feeding servers into a processing chamber with lightning bolts, gears, and a smokestack
+  - **Run Command**: Execute ad-hoc shell commands on remote nodes via `bolt command run`
+  - **Run Task**: Run Puppet tasks on selected nodes via `bolt task run` — discovers tasks from installed modules
+  - **Run Plan**: Execute Puppet plans via `bolt plan run` — discovers plans from installed modules
+  - **Configuration**: View and manage `bolt-project.yaml` and `inventory.yaml` configuration
+- **Bolt API endpoints** (`/api/bolt/`):
+  - `GET /api/bolt/status` — check Bolt installation and version
+  - `GET /api/bolt/tasks` — discover available Bolt tasks from modules
+  - `GET /api/bolt/plans` — discover available Bolt plans from modules
+  - `GET /api/bolt/inventory` — read Bolt inventory configuration
+  - `GET /api/bolt/config` — read bolt-project.yaml
+  - `POST /api/bolt/run/command` — execute a shell command on targets
+  - `POST /api/bolt/run/task` — run a Puppet task on targets
+  - `POST /api/bolt/run/plan` — run a Puppet plan on targets
+- **NODE-O-SCOPE 2000**: Animated SVG illustration added to the Node Classifier Hierarchy tab — shows a complex scanning machine with rotating dishes and oscilloscopes processing server racks
+
+### Changed
+- **Navigation**: Added "Orchestration" section with Bolt icon in the sidebar
+
+---
+
+## [0.2.39] - 2026-02-09
+
+### Fixed
+- **Create Group blank screen crash**: Mantine v7 grouped MultiSelect requires data in `[{group, items: [{value, label}]}]` format — was incorrectly using Mantine v6 format `[{value, label, group}]` which caused the component to crash silently on render
+
+---
+
+## [0.2.38] - 2026-02-09
+
+### Added
+- **Available Classes API** (`GET /api/enc/available-classes`): Scans Puppet module manifests from `modules/`, `site-modules/`, and `site/` directories and returns all discovered class names organized by module
+- **ClassPicker component**: Grouped MultiSelect dropdown for selecting Puppet classes — groups classes into Roles, Profiles, and Modules categories for easy browsing
+- **ParamEditor component**: Key-value editor rows with Add/Remove buttons for managing Puppet class parameters — replaces raw JSON textarea
+
+### Changed
+- **Node Classifier**: All JSON textareas for classes and parameters replaced with ClassPicker dropdowns and ParamEditor key-value rows across Common, Environments, Node Groups, and Nodes tabs
+
+---
+
+## [0.2.37] - 2026-02-09
+
+### Changed
+- **Environments tab**: Auto-discovers environments from `/etc/puppetlabs/code/environments/` on the filesystem and creates any missing ones in the database automatically with a notification banner
+
+---
+
+## [0.2.36] - 2026-02-09
+
+### Changed
+- **Node Classifier**: Complete architectural redesign from flat ENC to hierarchical 4-layer deep merge model
+  - **Common layer**: Global defaults applied to all nodes (lowest priority)
+  - **Environment layer**: Per-environment classes and parameters
+  - **Group layer**: Reusable groups of classifications
+  - **Node layer**: Per-node overrides (highest priority)
+  - Classification resolution uses deep merge: Common → Environment → Group → Node
+- **Node Classifier page**: Redesigned from 3 separate pages into a single page with 6 tabs:
+  - Hierarchy (overview with merge order visualization)
+  - Common (global defaults)
+  - Environments (per-environment classification)
+  - Node Groups (reusable groups)
+  - Nodes (per-node overrides)
+  - Classification Lookup (deep-merged YAML output for any node)
+- **ENC API endpoints**: New hierarchical endpoints replacing flat classification model:
+  - `GET/POST /api/enc/common` — global common layer
+  - `GET/POST /api/enc/environments`, `PUT/DELETE /api/enc/environments/{name}` — environment CRUD
+  - `GET/POST /api/enc/groups`, `PUT/DELETE /api/enc/groups/{id}` — group CRUD
+  - `GET/POST /api/enc/nodes`, `PUT/DELETE /api/enc/nodes/{certname}` — node CRUD
+  - `GET /api/enc/resolve/{certname}` — deep-merged classification lookup
+  - `GET /api/enc/{certname}` — Puppet ENC endpoint with deep merge
+- **ENC database models**: New SQLAlchemy models: `EncCommon`, `EncEnvironment`, `EncGroup`, `EncNode`
+
+### Removed
+- Old flat ENC model (NodeGroup, Classification, ClassificationRule tables)
+- Separate Node Groups, Classifications, and Rules pages
+
+---
+
+## [0.2.35] - 2026-02-09
+
+### Changed
+- **Node Classifier**: Consolidated three separate pages (Node Groups, Classifications, Rules) into a single tabbed page at `/enc`
+- **Navigation**: Collapsed "Node Groups", "Classifications", and "Rules" sidebar links into a single "Node Classifier" link
+
+### Removed
+- Separate routes for `/enc/groups`, `/enc/classifications`, `/enc/rules` — all consolidated into `/enc`
+
+---
+
+## [0.2.34] - 2026-02-09
+
+### Changed
+- **Application page**: Converted to tabbed layout with "Application Settings" and "User Manager" tabs
+- **User Manager**: Moved from standalone page under "Administration" nav group into the Application page as a tab — authentication panel moved to top of User Manager tab
+- **Navigation**: Removed "Administration" group and "User Manager" sidebar link — user management accessible via Application → User Manager tab
+
+### Removed
+- Standalone User Manager page (`/users` route)
+- "Administration" navigation group
+
+---
 
 ---
 

@@ -22,7 +22,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="0.2.2"
+VERSION="0.2.41"
 TOTAL_STEPS=9
 
 # ─── Terminal Colors ─────────────────────────────────────────
@@ -506,10 +506,24 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppet
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
+
+# OpenVox GUI — allow running Puppet Bolt commands
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1
-log_ok "Installed sudoers rules (r10k, PuppetDB config, service management)"
+log_ok "Installed sudoers rules (r10k, PuppetDB config, service management, Puppet Bolt)"
 
 # Remove old split sudoers files if they exist
 rm -f /etc/sudoers.d/openvox-gui-r10k /etc/sudoers.d/openvox-gui-puppetdb 2>/dev/null

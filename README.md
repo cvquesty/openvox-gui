@@ -64,7 +64,8 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
   - [Nodes](#nodes-api)
   - [Reports](#reports-api)
   - [Deploy](#deploy-api)
-  - [ENC (External Node Classifier)](#enc-api)
+  - [ENC (Hierarchical Node Classifier)](#enc-api-hierarchical)
+  - [Bolt (Orchestration)](#bolt-api-orchestration)
   - [Configuration & Hiera](#configuration-api)
 - [Service Management](#service-management)
 - [Troubleshooting](#troubleshooting)
@@ -104,14 +105,28 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - **Deployment Status**: Real-time output and exit codes from deployment runs
 - **Environment Listing**: View all available Puppet environments with their sources
 
-### 🏷️ External Node Classifier (ENC)
-- **Unified Classification Page**: Node Groups and Classifications together on a single page with tabbed navigation
-- **Class Browser**: Discover available Puppet classes directly from PuppetServer module manifests — searchable and filterable
-- **Class Picker**: Select classes from the server using a multi-select dropdown when creating groups or classifications
-- **Node Groups**: Define groups with shared Puppet classes and parameters
-- **Per-Node Classifications**: Pin specific nodes to classes, parameters, and groups
-- **Classification Rules**: Auto-classify nodes based on facts (e.g., OS family, datacenter, virtual/physical) with priority ordering
-- **YAML ENC Script**: Drop-in ENC script for PuppetServer integration
+### ⚡ Orchestration (Puppet Bolt)
+- **Run Command**: Execute ad-hoc shell commands across remote nodes via `bolt command run`
+- **Run Task**: Discover and run Puppet tasks from installed modules on selected target nodes
+- **Run Plan**: Discover and execute Puppet plans for multi-step orchestrated workflows
+- **Node Targeting**: Select targets from PuppetDB-discovered nodes via searchable MultiSelect
+- **Configuration**: View and manage `bolt-project.yaml` and `inventory.yaml` directly from the GUI
+- **Bolt Status**: Automatic detection of Bolt installation — shows install instructions if Bolt is not available
+- **BOLT-O-MATIC 4000**: Animated SVG illustration on the Overview tab
+- **5-Tab Interface**: Overview, Run Command, Run Task, Run Plan, Configuration
+
+### 🏷️ Hierarchical Node Classifier (ENC)
+- **4-Layer Deep Merge Model**: Classification resolved through Common → Environment → Group → Node layers (lowest to highest priority)
+- **Common Layer**: Global defaults applied to every node in the fleet
+- **Environment Layer**: Per-environment classes and parameters — auto-discovered from `/etc/puppetlabs/code/environments/`
+- **Node Groups**: Reusable groups of Puppet classes and parameters, assignable to any number of nodes
+- **Per-Node Overrides**: Highest-priority layer — pin specific classes and parameters to individual nodes
+- **Classification Lookup**: Deep-merged YAML output showing exactly what any node will receive from all 4 layers combined
+- **Class Picker**: Grouped MultiSelect dropdown discovering classes from PuppetServer modules — organized into Roles, Profiles, and Modules
+- **Parameter Editor**: Key-value row editor for Puppet class parameters — replaces raw JSON textareas
+- **6-Tab Interface**: Hierarchy overview, Common, Environments, Node Groups, Nodes, Classification Lookup — all on a single page
+- **YAML ENC Script**: Drop-in ENC script for PuppetServer integration with deep merge resolution
+- **NODE-O-SCOPE 2000**: Animated SVG illustration on the Hierarchy tab
 - Fail-open design: if the API is unavailable, nodes get empty classification rather than failing the catalog
 
 ### 📁 Hiera Data Management
@@ -128,6 +143,7 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - **Environments**: Browse environments and their installed modules
 - **Service Controls**: Restart PuppetServer, PuppetDB, or the Puppet agent from the UI
 - **Application Settings**: View current runtime configuration and authentication status
+- **User Manager**: Full user administration (add, delete, change password/role) consolidated into the Application page as a tab — no separate Administration section
 
 ### 🔐 Authentication & Login
 - **Login Page**: Branded sign-in page with OpenVox logo, gradient background, and error handling
@@ -831,7 +847,7 @@ sudo systemctl restart openvox-gui
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Browser (React SPA)                    │
-│  Dashboard │ Nodes │ ENC/Classification │ Hiera │ Config │
+│  Dashboard │ ENC │ Orchestration │ Deploy │ Hiera │ Config │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTP/HTTPS :4567
 ┌────────────────────────┴────────────────────────────────┐
@@ -846,13 +862,14 @@ sudo systemctl restart openvox-gui
 │  │    /api/nodes/*         Node inventory & facts     │  │
 │  │    /api/reports/*       Puppet run reports         │  │
   │  │    /api/deploy/*        r10k code deployment       │  │
-│  │    /api/enc/*           ENC groups & rules         │  │
+│  │    /api/enc/*           Hierarchical ENC            │  │
+│  │    /api/bolt/*          Puppet Bolt orchestration   │  │
 │  │    /api/config/*        Puppet/PuppetDB config     │  │
 │  ├────────────────────────────────────────────────────┤  │
 │  │  Services:                                         │  │
 │  │    PuppetDB Client    (httpx, SSL, async)          │  │
 │  │    PuppetServer Svc   (config files, systemctl)    │  │
-│  │    ENC Service        (SQLAlchemy, rule engine)    │  │
+│  │    ENC Service        (SQLAlchemy, deep merge)    │  │
 │  ├────────────────────────────────────────────────────┤  │
 │  │  Database: SQLite via SQLAlchemy (async aiosqlite) │  │
 │  └────────────────────────────────────────────────────┘  │
@@ -896,7 +913,7 @@ After installation, the directory structure is:
 │   │   │   ├── auth_base.py        # AuthBackend abstract base class
 │   │   │   └── auth_local.py       # htpasswd + JWT implementation
 │   │   ├── models/
-│   │   │   ├── enc.py              # SQLAlchemy models (NodeGroup, etc.)
+│   │   │   ├── enc.py              # SQLAlchemy models (EncCommon, EncGroup, EncNode)
 │   │   │   ├── session.py          # ActiveSession model (user tracking)
 │   │   │   ├── user.py             # User model
 │   │   │   └── schemas.py          # Pydantic request/response schemas
@@ -907,7 +924,7 @@ After installation, the directory structure is:
 │   │   │   ├── performance.py      # GET /api/performance/overview
 │   │   │   ├── nodes.py            # GET /api/nodes/, /{certname}
 │   │   │   ├── reports.py          # GET /api/reports/, /{hash} (events/logs/metrics)
-│   │   │   ├── enc.py              # ENC groups, classifications, rules
+│   │   │   ├── enc.py              # Hierarchical ENC (common/env/group/node)
 │   │   │   └── config.py           # Puppet/PuppetDB/Hiera config
 │   │   └── services/
 │   │       ├── auth_local.py       # Async auth with bcrypt + session tracking
@@ -933,17 +950,13 @@ After installation, the directory structure is:
 │   │   ├── pages/
 │   │   │   ├── Dashboard.tsx       # Fleet overview dashboard
 │   │   │   ├── Login.tsx           # Login page with branded UI
-│   │   │   ├── Nodes.tsx           # Node listing
-│   │   │   ├── NodeDetail.tsx      # Individual node facts/resources
 │   │   │   ├── Reports.tsx         # Report listing (clickable rows)
 │   │   │   ├── ReportDetail.tsx    # Report drill-down (events/logs/metrics)
 │   │   │   ├── CodeDeployment.tsx  # r10k deployment interface
-│   │   │   ├── ENCGroups.tsx       # Node group management
-│   │   │   ├── ENCClassifications.tsx # Per-node classifications
-│   │   │   ├── ENCRules.tsx        # Fact-based classification rules
+│   │   │   ├── NodeClassifier.tsx  # Hierarchical ENC (6 tabs)
+│   │   │   ├── Orchestration.tsx   # Puppet Bolt interface (5 tabs)
 │   │   │   ├── ConfigPuppet.tsx    # PuppetServer configuration
-│   │   │   ├── ConfigPuppetDB.tsx  # PuppetDB configuration
-│   │   │   └── ConfigApp.tsx       # Application settings
+│   │   │   └── ConfigApp.tsx       # Application + User Manager (tabs)
 │   │   ├── services/api.ts         # API client with JWT auth headers
 │   │   └── types/index.ts          # TypeScript interfaces
 │   ├── package.json                # Node.js dependencies
@@ -1016,19 +1029,36 @@ The Code Deployment page (`/deployment`) provides a GUI interface for triggering
 
 The deployment runs as a subprocess on the server using the puppet user's permissions.
 
-### External Node Classifier (ENC)
+### Hierarchical Node Classifier (ENC)
 
-The ENC provides a unified classification interface with three levels of node classification, plus a class browser:
+The Node Classifier (`/enc`) provides a hierarchical 4-layer deep merge classification system on a single page with 6 tabs:
 
-1. **Node Groups** (`/enc/classification` → Groups tab): Define reusable groups that contain sets of Puppet classes and parameters. Groups can inherit from parent groups. When creating a group, you can select classes from a multi-select dropdown that shows all classes discovered from PuppetServer modules.
-2. **Classifications** (`/enc/classification` → Classifications tab): Pin specific nodes directly to classes, parameters, or groups. Pinned classifications take highest precedence. The class picker shows available classes for easy selection.
-3. **Available Classes** (`/enc/classification` → Available Classes tab): Browse all Puppet classes discovered from module manifests on the PuppetServer. Classes are scanned from `manifests/**/*.pp` files in all modules and site modules. Search and filter by class name or module.
-4. **Classification Rules** (`/enc/rules`): Auto-classify nodes based on facts. Rules match `fact_name=fact_value` patterns and assign nodes to groups. Rules have a priority field for conflict resolution (lower number = higher priority).
+1. **Hierarchy** (overview): Visualization of the 4-layer merge model with the NODE-O-SCOPE 2000 animated illustration. Shows how Common → Environment → Group → Node layers merge together.
+2. **Common**: Global defaults applied to every node. Set classes and parameters that form the baseline for all nodes in the fleet.
+3. **Environments**: Per-environment classes and parameters. Environments are auto-discovered from `/etc/puppetlabs/code/environments/` — missing ones are automatically created in the database.
+4. **Node Groups**: Reusable groups of Puppet classes and parameters. Nodes can belong to multiple groups.
+5. **Nodes**: Per-node overrides with the highest priority. Pin specific classes and parameters to individual nodes.
+6. **Classification Lookup**: Enter any certname to see the deep-merged YAML output showing exactly what that node receives from all 4 layers combined.
 
-**Classification Precedence** (highest to lowest):
-1. Pinned per-node classifications
-2. Classification rules (ordered by priority)
+All tabs use the **ClassPicker** component (grouped MultiSelect discovering classes from PuppetServer modules, organized into Roles/Profiles/Modules) and the **ParamEditor** component (key-value rows with Add/Remove buttons) instead of raw JSON textareas.
+
+**Deep Merge Precedence** (lowest to highest priority):
+1. Common (global defaults)
+2. Environment layer
 3. Node group memberships
+4. Per-node overrides
+
+### Orchestration (Puppet Bolt)
+
+The Orchestration page (`/orchestration`) provides a full GUI interface for Puppet Bolt with 5 tabs:
+
+1. **Overview**: Landing page with the BOLT-O-MATIC 4000 animated SVG illustration and Bolt installation status. If Bolt is not installed, shows installation instructions.
+2. **Run Command**: Execute ad-hoc shell commands on remote nodes. Select targets from PuppetDB-discovered nodes via a searchable MultiSelect, enter a command, and view stdout/stderr output.
+3. **Run Task**: Discover and run Puppet tasks from installed modules. Tasks are populated from `bolt task show` and include parameter inputs.
+4. **Run Plan**: Discover and execute Puppet plans for multi-step orchestrated workflows. Plans are populated from `bolt plan show`.
+5. **Configuration**: View and manage `bolt-project.yaml` and `inventory.yaml` configuration files.
+
+The backend executes Bolt commands via subprocess as the service user, with sudoers rules allowing `bolt command run`, `bolt task run`, and `bolt plan run`.
 
 ### Hiera Data Management
 
@@ -1047,7 +1077,7 @@ Hiera data management (`/hiera`) is a dedicated top-level section with two subpa
 
 - **PuppetServer Config** (`/config/puppet`): Read and edit `puppet.conf` sections (main, server, agent). Displays PuppetServer version.
 - **PuppetDB Config** (`/config/puppetdb`): Read-only view of PuppetDB configuration files (jetty.ini, database.ini, global settings). Access is via `sudo cat` to handle file permissions.
-- **Application Config** (`/config/app`): View current runtime application configuration and authentication backend status.
+- **Application Config** (`/config/app`): Application settings and User Manager in a tabbed layout. User Manager provides full user administration (add, delete, change password/role) with the authentication panel at the top.
 - **Environments** (`/config/environments`): Browse available environments and list installed modules per environment.
 - **Service Management**: Start/stop/restart PuppetServer, PuppetDB, or the Puppet agent service directly from the UI.
 
@@ -1200,7 +1230,7 @@ When the service is running, interactive API documentation is available at:
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
-| `GET` | `/health` | No | Health check — returns `{"status": "ok", "version": "0.2.1"}` |
+| `GET` | `/health` | No | Health check — returns `{"status": "ok", "version": "0.2.41"}` |
 
 ### Authentication API
 
@@ -1263,24 +1293,40 @@ When the service is running, interactive API documentation is available at:
 |---|---|---|---|
 | `GET` | `/api/dashboard/active-sessions` | Yes | Get count of active user sessions (15-min threshold) |
 
-### ENC API
+### ENC API (Hierarchical)
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|---|---|
-| `GET` | `/api/enc/classify/{certname}` | Yes | Classify a node (JSON response) |
-| `GET` | `/api/enc/classify/{certname}/yaml` | Yes | Classify a node (YAML response — used by ENC script) |
+| `GET` | `/api/enc/common` | Yes | Get common (global) layer |
+| `POST` | `/api/enc/common` | Yes | Update common layer classes and parameters |
+| `GET` | `/api/enc/environments` | Yes | List all ENC environments |
+| `POST` | `/api/enc/environments` | Yes | Create an environment classification |
+| `PUT` | `/api/enc/environments/{name}` | Yes | Update an environment classification |
+| `DELETE` | `/api/enc/environments/{name}` | Yes | Delete an environment classification |
 | `GET` | `/api/enc/groups` | Yes | List all node groups |
 | `POST` | `/api/enc/groups` | Yes | Create a node group |
-| `GET` | `/api/enc/groups/{id}` | Yes | Get a specific group |
 | `PUT` | `/api/enc/groups/{id}` | Yes | Update a group |
 | `DELETE` | `/api/enc/groups/{id}` | Yes | Delete a group |
-| `GET` | `/api/enc/classifications` | Yes | List all node classifications |
-| `POST` | `/api/enc/classifications` | Yes | Create a classification |
-| `GET` | `/api/enc/classifications/{certname}` | Yes | Get classification for a node |
-| `DELETE` | `/api/enc/classifications/{certname}` | Yes | Delete a classification |
-| `GET` | `/api/enc/rules` | Yes | List all classification rules |
-| `POST` | `/api/enc/rules` | Yes | Create a classification rule |
-| `DELETE` | `/api/enc/rules/{id}` | Yes | Delete a rule |
+| `GET` | `/api/enc/nodes` | Yes | List all per-node classifications |
+| `POST` | `/api/enc/nodes` | Yes | Create a per-node classification |
+| `PUT` | `/api/enc/nodes/{certname}` | Yes | Update a per-node classification |
+| `DELETE` | `/api/enc/nodes/{certname}` | Yes | Delete a per-node classification |
+| `GET` | `/api/enc/resolve/{certname}` | Yes | Deep-merged classification lookup (all 4 layers) |
+| `GET` | `/api/enc/available-classes` | Yes | Scan Puppet manifests for available class names |
+| `GET` | `/api/enc/{certname}` | Yes | ENC endpoint for PuppetServer (YAML response) |
+
+### Bolt API (Orchestration)
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/bolt/status` | Yes | Check Bolt installation and version |
+| `GET` | `/api/bolt/tasks` | Yes | Discover available Bolt tasks from modules |
+| `GET` | `/api/bolt/plans` | Yes | Discover available Bolt plans from modules |
+| `GET` | `/api/bolt/inventory` | Yes | Read Bolt inventory configuration |
+| `GET` | `/api/bolt/config` | Yes | Read bolt-project.yaml configuration |
+| `POST` | `/api/bolt/run/command` | Yes | Execute a shell command on target nodes |
+| `POST` | `/api/bolt/run/task` | Yes | Run a Puppet task on target nodes |
+| `POST` | `/api/bolt/run/plan` | Yes | Run a Puppet plan on target nodes |
 
 ### Configuration API
 
