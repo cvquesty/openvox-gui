@@ -178,13 +178,54 @@ async def run_deployment(deploy: DeployRequest, request: Request):
         if result["stderr"]:
             log_lines.extend(result["stderr"].strip().splitlines())
 
-        return {
+        response = {
             "success": result["success"],
             "exit_code": result["exit_code"],
             "environment": deploy.environment or "all",
             "triggered_by": username,
             "output": log_lines,
         }
+        # Persist to history
+        _add_history_entry({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "environment": deploy.environment or "all",
+            "triggered_by": username,
+            "success": result["success"],
+            "exit_code": result["exit_code"],
+            "output_lines": len(log_lines),
+        })
+        return response
     except Exception as e:
         logger.error(f"Deployment error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Deploy History ────────────────────────────────────────
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+HISTORY_FILE = Path("/opt/openvox-gui/data/deploy_history.json")
+
+def _load_history() -> list:
+    if HISTORY_FILE.exists():
+        try:
+            return json.loads(HISTORY_FILE.read_text())
+        except Exception:
+            return []
+    return []
+
+def _save_history(history: list):
+    HISTORY_FILE.write_text(json.dumps(history, indent=2, default=str))
+
+def _add_history_entry(entry: dict):
+    history = _load_history()
+    history.insert(0, entry)
+    history = history[:100]  # Keep last 100
+    _save_history(history)
+
+
+@router.get("/history")
+async def get_deploy_history():
+    """Get deployment history."""
+    return {"history": _load_history()}

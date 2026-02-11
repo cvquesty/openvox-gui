@@ -78,6 +78,7 @@ export const deploy = {
   getEnvironments: () => fetchJSON<any>('/deploy/environments'),
   getRepos: () => fetchJSON<any>('/deploy/repos'),
   getStatus: () => fetchJSON<any>('/deploy/status'),
+  getHistory: () => fetchJSON<any>('/deploy/history'),
   run: (environment?: string) =>
     fetchJSON<any>('/deploy/run', {
       method: 'POST',
@@ -213,3 +214,69 @@ export const config = {
       body: JSON.stringify({ path, content }),
     }),
 };
+
+// ─── PQL Console ────────────────────────────────────────────
+
+export const pql = {
+  query: (query: string, limit: number = 100) =>
+    fetchJSON<any>('/pql/query', {
+      method: 'POST',
+      body: JSON.stringify({ query, limit }),
+    }),
+  getExamples: () => fetchJSON<any>('/pql/examples'),
+};
+
+// ─── Certificates ───────────────────────────────────────────
+
+export const certificates = {
+  list: () => fetchJSON<any>('/certificates/list'),
+  sign: (certname: string) =>
+    fetchJSON<any>('/certificates/sign', {
+      method: 'POST',
+      body: JSON.stringify({ certname }),
+    }),
+  revoke: (certname: string) =>
+    fetchJSON<any>('/certificates/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ certname }),
+    }),
+  clean: (certname: string) =>
+    fetchJSON<any>('/certificates/clean', {
+      method: 'POST',
+      body: JSON.stringify({ certname }),
+    }),
+  info: (certname: string) => fetchJSON<any>('/certificates/info/' + certname),
+};
+
+// ─── Facts Explorer ─────────────────────────────────────────
+
+export const facts = {
+  getNames: () => fetchJSON<string[]>('/nodes/').then(() =>
+    pql.query('fact-names {}').then((r: any) => r.results || [])
+  ),
+  getByName: (name: string) =>
+    pql.query('facts { name =  + name +  }'),
+  getForNode: (certname: string) =>
+    fetchJSON<any[]>('/nodes/' + certname + '/facts'),
+};
+
+// ─── Resource Explorer ──────────────────────────────────────
+
+export const resources = {
+  search: (type: string, title?: string) => {
+    let q = 'resources { type =  + type + ';
+    if (title) q += ' and title =  + title + ';
+    q += ' order by certname limit 200 }';
+    return pql.query(q, 200);
+  },
+};
+
+// ─── Performance ────────────────────────────────────────────
+
+export const performance = {
+  getOverview: (hours?: number) =>
+    fetchJSON<any>('/performance/overview' + (hours ? '?hours=' + hours : '')),
+  getNode: (certname: string) =>
+    fetchJSON<any>('/performance/node/' + certname),
+};
+

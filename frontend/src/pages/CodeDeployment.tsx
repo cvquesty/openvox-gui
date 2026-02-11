@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Button, Select, Alert,
   Loader, Center, Code, Paper, ThemeIcon, Grid,
-  ScrollArea,
+  ScrollArea, Divider,
 } from '@mantine/core';
 import {
   IconRocket, IconCheck, IconX, IconPlayerPlay, IconRefresh,
@@ -442,6 +442,50 @@ export function CodeDeploymentPage() {
           </ScrollArea>
         </Paper>
       </Card>
+      {/* Deploy History */}
+      <Divider my="md" />
+      <DeployHistory />
     </Stack>
+  );
+}
+
+function DeployHistory() {
+  const { data: historyData } = useApi(() => deploy.getHistory());
+  const history = historyData?.history || [];
+  
+  if (history.length === 0) return null;
+
+  return (
+    <Card withBorder shadow="sm" padding="md">
+      <Title order={4} mb="sm">Deployment History</Title>
+      <ScrollArea style={{ maxHeight: 300 }}>
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Time</Table.Th>
+              <Table.Th>Environment</Table.Th>
+              <Table.Th>User</Table.Th>
+              <Table.Th>Result</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {history.map((h: any, i: number) => (
+              <Table.Tr key={i}>
+                <Table.Td>
+                  <Text size="sm">{h.timestamp ? new Date(h.timestamp).toLocaleString() : '—'}</Text>
+                </Table.Td>
+                <Table.Td><Badge variant="outline" size="sm">{h.environment || 'all'}</Badge></Table.Td>
+                <Table.Td><Text size="sm">{h.triggered_by || '—'}</Text></Table.Td>
+                <Table.Td>
+                  <Badge color={h.success ? 'green' : 'red'} size="sm">
+                    {h.success ? 'Success' : 'Failed'} (exit {h.exit_code})
+                  </Badge>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
+    </Card>
   );
 }

@@ -18,6 +18,7 @@ import {
 } from '@mantine/core';
 import {
   IconDashboard,
+  IconServer,
   IconFileReport,
   IconNetwork,
   IconAppWindow,
@@ -27,13 +28,18 @@ import {
   IconLogout,
   IconUser,
   IconUsers,
+  IconTerminal,
+  IconCertificate,
+  IconSearch,
+  IconPackage,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { dashboard } from '../services/api';
 
-const mainNav = [
+const monitoringNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
+  { label: 'Nodes', icon: IconServer, path: '/nodes' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
 ];
 
@@ -47,6 +53,16 @@ const encNav = [
 
 const orchNav = [
   { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
+];
+
+const explorerNav = [
+  { label: 'PQL Console', icon: IconTerminal, path: '/pql' },
+  { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
+  { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
+];
+
+const infraNav = [
+  { label: 'Certificates', icon: IconCertificate, path: '/certificates' },
 ];
 
 const configNav = [
@@ -84,6 +100,26 @@ export function AppShellLayout() {
   const titleColor = isFormal ? '#212529' : undefined;
   const logoSrc = isFormal ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
   const sectionLabelColor = isFormal ? '#868e96' : 'dimmed';
+
+  const renderNavGroup = (label: string, items: typeof monitoringNav) => (
+    <>
+      <Divider my="sm" />
+      <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
+        {label}
+      </Text>
+      {items.map((item) => (
+        <NavLink
+          key={item.path}
+          label={item.label}
+          leftSection={<item.icon size={18} />}
+          active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
+          onClick={() => { navigate(item.path); setOpened(false); }}
+          variant="filled"
+          mb={2}
+        />
+      ))}
+    </>
+  );
 
   return (
     <MantineAppShell
@@ -125,86 +161,29 @@ export function AppShellLayout() {
           <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" mt="xs" ml="sm">
             Monitoring
           </Text>
-          {mainNav.map((item) => (
+          {monitoringNav.map((item) => (
             <NavLink
               key={item.path}
               label={item.label}
               leftSection={<item.icon size={18} />}
-              active={location.pathname === item.path}
+              active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
               onClick={() => { navigate(item.path); setOpened(false); }}
               variant="filled"
               mb={2}
             />
           ))}
 
-          <Divider my="sm" />
-          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
-            Code Deployment
-          </Text>
-          {deployNav.map((item) => (
-            <NavLink
-              key={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              active={location.pathname === item.path}
-              onClick={() => { navigate(item.path); setOpened(false); }}
-              variant="filled"
-              mb={2}
-            />
-          ))}
-
-          <Divider my="sm" />
-          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
-            Node Classifier
-          </Text>
-          {encNav.map((item) => (
-            <NavLink
-              key={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              active={location.pathname.startsWith(item.path)}
-              onClick={() => { navigate(item.path); setOpened(false); }}
-              variant="filled"
-              mb={2}
-            />
-          ))}
-
-          <Divider my="sm" />
-          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
-            Orchestration
-          </Text>
-          {orchNav.map((item) => (
-            <NavLink
-              key={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              active={location.pathname.startsWith(item.path)}
-              onClick={() => { navigate(item.path); setOpened(false); }}
-              variant="filled"
-              mb={2}
-            />
-          ))}
-
-          <Divider my="sm" />
-          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
-            Settings
-          </Text>
-          {configNav.map((item) => (
-            <NavLink
-              key={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              active={location.pathname === item.path}
-              onClick={() => { navigate(item.path); setOpened(false); }}
-              variant="filled"
-              mb={2}
-            />
-          ))}
+          {renderNavGroup('Code Deployment', deployNav)}
+          {renderNavGroup('Node Classifier', encNav)}
+          {renderNavGroup('Orchestration', orchNav)}
+          {renderNavGroup('PuppetDB Explorer', explorerNav)}
+          {renderNavGroup('Infrastructure', infraNav)}
+          {renderNavGroup('Settings', configNav)}
         </MantineAppShell.Section>
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.42</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.3.0</Text>
             <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
               <HoverCard.Target>
                 <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>

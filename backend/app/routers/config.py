@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 """
 Configuration API - Manage PuppetServer, PuppetDB, Hiera, and application settings.
 """

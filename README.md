@@ -855,6 +855,19 @@ sudo systemctl restart openvox-gui
 
 ---
 
+
+### v0.3.0 Feature Additions
+
+- **PQL Query Console** — Ad-hoc PQL queries against PuppetDB with tabular results, example library, and query history
+- **Certificate Authority** — Sign, revoke, and clean Puppet CA certificates; view OpenSSL certificate details
+- **Fact Explorer** — Search any fact across the fleet with value distribution breakdown
+- **Resource Explorer** — Search Puppet resources (Package, Service, File, Class) across all nodes
+- **Deploy History** — Persistent log of all r10k deployments with user, environment, and result
+- **Dashboard Auto-Refresh** — Configurable live polling (10s/30s/1m/5m) with "Live" badge
+- **React Error Boundary** — Component crashes show friendly recovery UI instead of blank page
+- **Code Splitting** — All pages lazy-loaded for faster initial page load
+- **Run Puppet Button** — Trigger Puppet agent run from node detail page via Bolt
+
 ## Architecture
 
 ```

@@ -1,18 +1,46 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Badge,
-  Table, Tabs, Grid, Code, Paper,
+  Table, Tabs, Grid, Code, Paper, Button, Loader,
 } from '@mantine/core';
-import { IconServer, IconFileReport, IconList, IconCode } from '@tabler/icons-react';
+import { IconServer, IconFileReport, IconList, IconCode, IconPlayerPlay } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { bolt } from '../services/api';
+import { notifications } from '@mantine/notifications';
 
 export function NodeDetailPage() {
   const { certname } = useParams<{ certname: string }>();
   const navigate = useNavigate();
   const { data: node, loading, error } = useApi(() => nodes.get(certname!), [certname]);
   const { data: reportList } = useApi(() => nodes.getReports(certname!, 10), [certname]);
+
+  const [runningPuppet, setRunningPuppet] = useState(false);
+  const [puppetResult, setPuppetResult] = useState<any>(null);
+
+  const handleRunPuppet = async () => {
+    if (!certname) return;
+    setRunningPuppet(true);
+    setPuppetResult(null);
+    try {
+      const r = await bolt.runTask({
+        task: 'puppet_agent::run',
+        targets: certname,
+        params: {},
+      });
+      setPuppetResult(r);
+      if (r.returncode === 0) {
+        notifications.show({ title: 'Puppet Run Complete', message: `Agent run completed on ${certname}`, color: 'green' });
+      } else {
+        notifications.show({ title: 'Puppet Run', message: `Agent run finished with exit code ${r.returncode}`, color: 'yellow' });
+      }
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+    }
+    setRunningPuppet(false);
+  };
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
@@ -27,6 +55,12 @@ export function NodeDetailPage() {
       <Group>
         <Title order={2}>{node.certname}</Title>
         <StatusBadge status={node.latest_report_status} size="lg" />
+        <Button
+          leftSection={runningPuppet ? <Loader size={14} color="white" /> : <IconPlayerPlay size={14} />}
+          color="green" size="sm" variant="outline"
+          onClick={handleRunPuppet} loading={runningPuppet}>
+          Run Puppet
+        </Button>
       </Group>
 
       <Grid>

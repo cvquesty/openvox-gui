@@ -1,6 +1,7 @@
+import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  Badge, Tooltip, Table, ActionIcon,
+  Badge, Tooltip, Table, ActionIcon, Select, Switch,
 } from '@mantine/core';
 import { IconEye } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -28,8 +29,21 @@ function nodeTimeAgo(timestamp: string | null): string {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { data: stats, loading, error } = useApi<DashboardStats>(dashboard.getStats);
-  const { data: nodeList } = useApi<NodeSummary[]>(nodes.list);
+  const { data: stats, loading, error, refetch: refetchStats } = useApi<DashboardStats>(dashboard.getStats);
+  const { data: nodeList, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState('30');
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const iv = setInterval(() => {
+      refetchStats();
+      refetchNodes();
+      setLastRefresh(new Date());
+    }, parseInt(refreshInterval) * 1000);
+    return () => clearInterval(iv);
+  }, [autoRefresh, refreshInterval]);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
@@ -47,7 +61,23 @@ export function DashboardPage() {
 
   return (
     <Stack>
-      <Title order={2}>Dashboard</Title>
+      <Group justify="space-between">
+        <Group gap="sm">
+          <Title order={2}>Dashboard</Title>
+          {autoRefresh && (
+            <Badge variant="dot" color="green" size="sm">Live</Badge>
+          )}
+        </Group>
+        <Group gap="sm">
+          <Text size="xs" c="dimmed">Updated {lastRefresh.toLocaleTimeString()}</Text>
+          <Select size="xs"
+            data={[{value:'10',label:'10s'},{value:'30',label:'30s'},{value:'60',label:'1m'},{value:'300',label:'5m'}]}
+            value={refreshInterval} onChange={(v) => setRefreshInterval(v || '30')}
+            style={{ width: 70 }} />
+          <Switch size="sm" label="Auto" checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.currentTarget.checked)} />
+        </Group>
+      </Group>
 
 
 

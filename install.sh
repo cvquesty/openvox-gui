@@ -22,7 +22,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="0.2.42"
+VERSION="0.3.0"
 TOTAL_STEPS=10
 
 # ─── Terminal Colors ─────────────────────────────────────────

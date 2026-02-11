@@ -5,6 +5,39 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-11
+
+### Major Features
+- **PQL Query Console** — Execute ad-hoc Puppet Query Language queries directly against PuppetDB with example library, auto-detected column rendering, and query history
+- **Certificate Authority Management** — Sign, revoke, and clean Puppet CA certificates with detailed certificate inspection via `puppetserver ca`
+- **Fact Explorer** — Search and compare any fact across the entire fleet with value distribution analysis and filtering
+- **Resource Explorer** — Search Puppet resources (Package, Service, File, Class, etc.) across all nodes with regex title filtering
+- **Deploy History** — Persistent deployment log tracking who deployed, when, what environment, and success/failure status
+
+### Improvements
+- **React Error Boundary** — Component crashes now show a friendly error message with stack trace and recovery options instead of a blank white page
+- **Dashboard Auto-Refresh** — Configurable live polling (10s/30s/1m/5m) with "Live" indicator badge and last-updated timestamp
+- **Code Splitting** — All pages are lazy-loaded via React.lazy/Suspense; initial bundle reduced significantly
+- **Sidebar Navigation** — Added missing "Nodes" link; new sections for PuppetDB Explorer (PQL Console, Fact Explorer, Resource Explorer) and Infrastructure (Certificates)
+- **Run Puppet Button** — Node detail page now has a "Run Puppet" button that triggers `puppet_agent::run` via Bolt
+- **Version 0.3.0** — Major version bump reflecting the scope of new features
+
+### Bug Fixes
+- Fixed missing `json` import in config.py router that would crash preferences API
+- Fixed sidebar missing Nodes navigation link
+- Added sudoers rules for `puppetserver ca` and `openssl` commands
+
+### API Endpoints Added
+- `POST /api/pql/query` — Execute PQL queries against PuppetDB
+- `GET /api/pql/examples` — PQL example query library
+- `GET /api/certificates/list` — List all CA certificates (signed + pending)
+- `POST /api/certificates/sign` — Sign a pending certificate
+- `POST /api/certificates/revoke` — Revoke a signed certificate
+- `POST /api/certificates/clean` — Clean (remove) a certificate
+- `GET /api/certificates/info/{certname}` — OpenSSL certificate details
+- `GET /api/deploy/history` — Persistent deployment history log
+
+
 ## [0.2.42] - 2026-02-09
 
 ### Added
