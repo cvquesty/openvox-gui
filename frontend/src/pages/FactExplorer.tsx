@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
-  Table, Badge, Code, Select, TextInput, ScrollArea, Grid, Paper,
+  Title, Card, Stack, Group, Text, Alert, Loader, Center,
+  Table, Badge, Select, TextInput, ScrollArea,
 } from '@mantine/core';
 import { IconSearch, IconFilter } from '@tabler/icons-react';
-import { pql, nodes as nodesApi } from '../services/api';
+import { facts } from '../services/api';
 
 export function FactExplorerPage() {
   const [factNames, setFactNames] = useState<string[]>([]);
@@ -12,50 +12,47 @@ export function FactExplorerPage() {
   const [factData, setFactData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [namesLoading, setNamesLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
 
-  // Load fact names
+  // Load fact names on mount
   useEffect(() => {
-    pql.query('fact-names {}', 5000)
-      .then((r) => {
-        const names = r.results || [];
-        setFactNames(Array.isArray(names) ? names.filter((n: any) => typeof n === 'string') : []);
+    facts.getNames()
+      .then((names: string[]) => {
+        const sorted = (Array.isArray(names) ? names : [])
+          .filter((n: any) => typeof n === 'string')
+          .sort();
+        setFactNames(sorted);
       })
-      .catch(() => {})
+      .catch((e: any) => setError('Failed to load fact names: ' + e.message))
       .finally(() => setNamesLoading(false));
   }, []);
 
-  const handleSearch = async (factName: string) => {
-    if (!factName) return;
+  const handleFactSelect = async (factName: string | null) => {
     setSelectedFact(factName);
+    setFactData([]);
+    setError(null);
+    setFilter('');
+    if (!factName) return;
+
     setLoading(true);
     try {
-      const r = await pql.query(`facts { name = "${factName}" }`, 500);
+      const r = await facts.getByName(factName);
       setFactData(r.results || []);
-    } catch {
+    } catch (e: any) {
+      setError('Failed to load fact values: ' + e.message);
       setFactData([]);
     }
     setLoading(false);
   };
 
-  // Compute unique values for distribution
-  const valueCounts: Record<string, number> = {};
-  factData.forEach((f: any) => {
-    const v = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
-    valueCounts[v] = (valueCounts[v] || 0) + 1;
+  // Apply filter
+  const filtered = factData.filter((f: any) => {
+    if (!filter) return true;
+    const q = filter.toLowerCase();
+    const val = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
+    return f.certname?.toLowerCase().includes(q) || val.toLowerCase().includes(q);
   });
-  const distribution = Object.entries(valueCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 20);
-
-  const filteredFacts = factData.filter((f: any) =>
-    !search || f.certname?.toLowerCase().includes(search.toLowerCase()) ||
-    String(f.value).toLowerCase().includes(search.toLowerCase())
-  );
-
-  const filteredNames = factNames.filter((n) =>
-    !search || n.toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <Stack>
@@ -65,99 +62,86 @@ export function FactExplorerPage() {
       </Group>
 
       <Alert variant="light" color="blue">
-        Explore and compare facts across your entire fleet. Select a fact name to see
-        its value on every node, plus a distribution breakdown.
+        Select a fact from the dropdown to see its value on every node in your fleet.
       </Alert>
 
+      {/* Controls */}
       <Card withBorder shadow="sm" padding="md">
         <Group align="flex-end">
           <Select
             label="Fact Name"
-            placeholder={namesLoading ? 'Loading facts...' : 'Search facts...'}
+            placeholder={namesLoading ? 'Loading facts...' : 'Select a fact...'}
             data={factNames.map((n) => ({ value: n, label: n }))}
             value={selectedFact}
-            onChange={(v) => v && handleSearch(v)}
+            onChange={handleFactSelect}
             searchable
             clearable
-            style={{ flex: 1 }}
+            style={{ flex: 1, minWidth: 300 }}
             nothingFoundMessage="No matching facts"
-            limit={50}
+            limit={100}
+            disabled={namesLoading}
           />
-          <TextInput
-            label="Filter Results"
-            placeholder="Filter by node or value..."
-            leftSection={<IconFilter size={14} />}
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            style={{ width: 250 }}
-          />
+          {selectedFact && factData.length > 0 && (
+            <TextInput
+              label="Filter Results"
+              placeholder="Filter by node or value..."
+              leftSection={<IconFilter size={14} />}
+              value={filter}
+              onChange={(e) => setFilter(e.currentTarget.value)}
+              style={{ width: 300 }}
+            />
+          )}
         </Group>
       </Card>
 
+      {/* Error */}
+      {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+
+      {/* Loading */}
       {loading && <Center h={200}><Loader size="xl" /></Center>}
 
+      {/* Results table */}
       {!loading && selectedFact && factData.length > 0 && (
-        <Grid>
-          {/* Distribution */}
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Card withBorder shadow="sm" padding="md" h="100%">
-              <Title order={4} mb="sm">Value Distribution</Title>
-              <Badge color="blue" mb="sm">{factData.length} nodes</Badge>
-              <ScrollArea style={{ maxHeight: 400 }}>
-                <Stack gap={4}>
-                  {distribution.map(([value, count]) => (
-                    <Paper key={value} withBorder p="xs">
-                      <Group justify="space-between" wrap="nowrap">
-                        <Text size="xs" style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
-                          {value}
-                        </Text>
-                        <Badge size="sm" variant="light">{count}</Badge>
-                      </Group>
-                    </Paper>
-                  ))}
-                </Stack>
-              </ScrollArea>
-            </Card>
-          </Grid.Col>
+        <Card withBorder shadow="sm" padding="md">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>
+              Results for <Text span c="blue" inherit>"{selectedFact}"</Text>
+            </Title>
+            <Badge size="lg" variant="light" color="blue">
+              {filtered.length} node{filtered.length !== 1 ? 's' : ''}
+            </Badge>
+          </Group>
 
-          {/* Per-node values */}
-          <Grid.Col span={{ base: 12, md: 8 }}>
-            <Card withBorder shadow="sm" padding="md">
-              <Group justify="space-between" mb="sm">
-                <Title order={4}>{selectedFact}</Title>
-                <Badge>{filteredFacts.length} results</Badge>
-              </Group>
-              <ScrollArea style={{ maxHeight: 500 }}>
-                <Table striped highlightOnHover withTableBorder>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Node</Table.Th>
-                      <Table.Th>Environment</Table.Th>
-                      <Table.Th>Value</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {filteredFacts.map((f: any, i: number) => (
-                      <Table.Tr key={i}>
-                        <Table.Td><Text fw={500} size="sm">{f.certname}</Text></Table.Td>
-                        <Table.Td><Badge variant="outline" size="xs">{f.environment || 'N/A'}</Badge></Table.Td>
-                        <Table.Td>
-                          <Text size="xs" style={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value)}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </ScrollArea>
-            </Card>
-          </Grid.Col>
-        </Grid>
+          <ScrollArea style={{ maxHeight: 600 }}>
+            <Table striped highlightOnHover withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Certname</Table.Th>
+                  <Table.Th>Value</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filtered.map((f: any, i: number) => (
+                  <Table.Tr key={i}>
+                    <Table.Td>
+                      <Text fw={500} size="sm">{f.certname}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" style={{ wordBreak: 'break-word' }}>
+                        {typeof f.value === 'object' ? JSON.stringify(f.value, null, 2) : String(f.value)}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Card>
       )}
 
-      {!loading && selectedFact && factData.length === 0 && (
-        <Alert color="yellow">No data found for fact "{selectedFact}"</Alert>
+      {/* No results */}
+      {!loading && selectedFact && factData.length === 0 && !error && (
+        <Alert color="yellow">No data found for fact "{selectedFact}".</Alert>
       )}
     </Stack>
   );

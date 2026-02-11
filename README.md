@@ -858,9 +858,9 @@ sudo systemctl restart openvox-gui
 
 ### v0.3.0 Feature Additions
 
-- **PQL Query Console** — Ad-hoc PQL queries against PuppetDB with tabular results, example library, and query history
+- **PQL Query Console** — Ad-hoc PQL queries against PuppetDB with tabular results, example library, query history, and certname dropdown selector
 - **Certificate Authority** — Sign, revoke, and clean Puppet CA certificates; view OpenSSL certificate details
-- **Fact Explorer** — Search any fact across the fleet with value distribution breakdown
+- **Fact Explorer** — Select any fact from a dropdown and view certname + value for every node in the fleet
 - **Resource Explorer** — Search Puppet resources (Package, Service, File, Class) across all nodes
 - **Deploy History** — Persistent log of all r10k deployments with user, environment, and result
 - **Dashboard Auto-Refresh** — Configurable live polling (10s/30s/1m/5m) with "Live" badge
@@ -1079,9 +1079,9 @@ All tabs use the **ClassPicker** component (grouped MultiSelect discovering clas
 The Orchestration page (`/orchestration`) provides a full GUI interface for Puppet Bolt with 5 tabs:
 
 1. **Overview**: Landing page with the BOLT-O-MATIC 4000 animated SVG illustration and Bolt installation status. If Bolt is not installed, shows installation instructions.
-2. **Run Command**: Execute ad-hoc shell commands on remote nodes. Select targets from PuppetDB-discovered nodes via a searchable MultiSelect, enter a command, and view stdout/stderr output.
-3. **Run Task**: Discover and run Puppet tasks from installed modules. Tasks are populated from `bolt task show` and include parameter inputs.
-4. **Run Plan**: Discover and execute Puppet plans for multi-step orchestrated workflows. Plans are populated from `bolt plan show`.
+2. **Run Command**: Execute ad-hoc shell commands on remote nodes. Select targets from PuppetDB-discovered nodes, enter a command, choose output format (Human/JSON/Rainbow), and view results with full ANSI color rendering.
+3. **Run Task**: Discover and run Puppet tasks from installed modules. Tasks are populated from `bolt task show` and include parameter inputs. Output format selector with Rainbow ANSI color support.
+4. **Run Plan**: Discover and execute Puppet plans for multi-step orchestrated workflows. Plans are populated from `bolt plan show`. Output format selector with Rainbow ANSI color support.
 5. **Configuration**: View and manage `bolt-project.yaml` and `inventory.yaml` configuration files.
 
 The backend executes Bolt commands via subprocess as the service user, with sudoers rules allowing `bolt command run`, `bolt task run`, and `bolt plan run`.
@@ -1353,6 +1353,13 @@ When the service is running, interactive API documentation is available at:
 | `POST` | `/api/bolt/run/command` | Yes | Execute a shell command on target nodes |
 | `POST` | `/api/bolt/run/task` | Yes | Run a Puppet task on target nodes |
 | `POST` | `/api/bolt/run/plan` | Yes | Run a Puppet plan on target nodes |
+
+### Facts API
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/facts/names` | Yes | List all known fact names from PuppetDB |
+| `GET` | `/api/facts/values/{fact_name}` | Yes | Get certname + value for every node with the given fact |
 
 ### Configuration API
 

@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/pql", tags=["pql"])
 
 class PQLRequest(BaseModel):
     query: str
-    limit: int = 100
+    limit: int = 10000
 
 
 @router.post("/query")

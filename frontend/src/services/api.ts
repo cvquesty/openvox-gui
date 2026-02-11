@@ -218,7 +218,7 @@ export const config = {
 // ─── PQL Console ────────────────────────────────────────────
 
 export const pql = {
-  query: (query: string, limit: number = 100) =>
+  query: (query: string, limit: number = 10000) =>
     fetchJSON<any>('/pql/query', {
       method: 'POST',
       body: JSON.stringify({ query, limit }),
@@ -251,11 +251,10 @@ export const certificates = {
 // ─── Facts Explorer ─────────────────────────────────────────
 
 export const facts = {
-  getNames: () => fetchJSON<string[]>('/nodes/').then(() =>
-    pql.query('fact-names {}').then((r: any) => r.results || [])
-  ),
+  getNames: () =>
+    fetchJSON<any>('/facts/names').then((r: any) => r.names || []),
   getByName: (name: string) =>
-    pql.query('facts { name =  + name +  }'),
+    fetchJSON<any>('/facts/values/' + encodeURIComponent(name)),
   getForNode: (certname: string) =>
     fetchJSON<any[]>('/nodes/' + certname + '/facts'),
 };

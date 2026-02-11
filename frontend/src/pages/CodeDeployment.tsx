@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Badge, Button, Select, Alert,
+  Title, Card, Stack, Group, Text, Badge, Button, Select, Alert, Table,
   Loader, Center, Code, Paper, ThemeIcon, Grid,
   ScrollArea, Divider,
 } from '@mantine/core';

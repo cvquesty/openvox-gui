@@ -22,6 +22,7 @@ from .database import init_db
 from .middleware.auth import AuthMiddleware
 from .routers import dashboard, nodes, reports, enc, config as config_router, performance
 from .routers import bolt as bolt_router
+from .routers import facts as facts_router
 from .routers import pql as pql_router
 from .routers import certificates as cert_router
 from .routers import auth as auth_router
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     # Startup
-    logger.info(f"Starting {settings.app_name} v0.3.0")
+    logger.info(f"Starting {settings.app_name} v0.3.1")
     logger.info(f"PuppetDB: {settings.puppetdb_host}:{settings.puppetdb_port}")
     logger.info(f"PuppetServer: {settings.puppet_server_host}:{settings.puppet_server_port}")
 
@@ -68,7 +69,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Web-based management GUI for OpenVox/Puppet infrastructure",
-    version="0.3.0",
+    version="0.3.1",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -98,6 +99,7 @@ app.include_router(deploy_router.router)
 app.include_router(bolt_router.router)
 app.include_router(pql_router.router)
 app.include_router(cert_router.router)
+app.include_router(facts_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
@@ -108,7 +110,7 @@ if frontend_dist.exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.3.1"}
 
 
 @app.get("/{full_path:path}")

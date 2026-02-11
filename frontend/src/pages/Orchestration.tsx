@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, TextInput, Textarea, Select, Badge, Code, Grid, Divider,
-  Paper, ThemeIcon, Box,
+  Paper, ThemeIcon, Box, SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -11,6 +11,74 @@ import {
 } from '@tabler/icons-react';
 import { bolt, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import AnsiToHtml from 'ansi-to-html';
+
+/* ── ANSI color converter (singleton) ──────────────────────── */
+const ansiConverter = new AnsiToHtml({
+  fg: '#d4d4d4',
+  bg: 'transparent',
+  newline: true,
+  escapeXML: true,
+  colors: {
+    0: '#1e1e1e', 1: '#e06c75', 2: '#98c379', 3: '#e5c07b',
+    4: '#61afef', 5: '#c678dd', 6: '#56b6c2', 7: '#d4d4d4',
+    8: '#5c6370', 9: '#e06c75', 10: '#98c379', 11: '#e5c07b',
+    12: '#61afef', 13: '#c678dd', 14: '#56b6c2', 15: '#ffffff',
+  },
+});
+
+/* ── Shared result pane with ANSI color support ────────────── */
+function ResultPane({ result, format }: { result: any; format: string }) {
+  if (!result) return null;
+
+  const outputHtml = useMemo(() => {
+    if (!result.output) return '';
+    if (format === 'rainbow') {
+      return ansiConverter.toHtml(result.output);
+    }
+    return '';
+  }, [result.output, format]);
+
+  return (
+    <Card withBorder shadow="sm">
+      <Group mb="sm">
+        <Text fw={700}>Result</Text>
+        <Badge color={result.returncode === 0 ? 'green' : 'red'}>
+          {result.returncode === 0 ? 'Success' : `Exit ${result.returncode}`}
+        </Badge>
+        <Badge variant="light" color="gray">{format} format</Badge>
+      </Group>
+      {result.output && (
+        format === 'rainbow' ? (
+          <Box
+            style={{
+              backgroundColor: '#1e1e1e',
+              borderRadius: 6,
+              padding: '12px 16px',
+              maxHeight: 500,
+              overflow: 'auto',
+              fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+              fontSize: 13,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+            dangerouslySetInnerHTML={{ __html: outputHtml }}
+          />
+        ) : (
+          <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+            {result.output}
+          </Code>
+        )
+      )}
+      {result.error && (
+        <Alert color="red" mt="sm">
+          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{result.error}</Text>
+        </Alert>
+      )}
+    </Card>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════════
    BOLT-O-MATIC 4000 — orchestration machine cartoon
@@ -46,33 +114,19 @@ function BoltOMatic() {
       <rect x="0" y="248" width="520" height="52" fill="#1a1a2e" />
       <rect x="0" y="248" width="520" height="2" fill="#333355" />
 
-      {/* ── Central Control Console ── */}
+      {/* Central Control Console */}
       <rect x="170" y="100" width="180" height="150" fill="url(#bo-metal)" rx="8" stroke="#7788aa" strokeWidth="1.5" />
-
-      {/* Console screen */}
       <rect x="185" y="110" width="150" height="50" fill="#0a1628" rx="4" stroke="#334466" strokeWidth="1" />
-      {/* Screen scan line */}
       <rect x="185" y="110" width="150" height="2" fill="#44aaff" opacity="0.3">
         <animate attributeName="y" values="110;158;110" dur="3s" repeatCount="indefinite" />
       </rect>
-      {/* Screen text */}
-      <text x="195" y="128" fill="#44ff88" fontSize="7" fontFamily="monospace" opacity="0.9">
-        $ bolt task run
-      </text>
-      <text x="195" y="138" fill="#44aaff" fontSize="6" fontFamily="monospace" opacity="0.7">
-        Running on 5 targets...
-      </text>
-      <text x="195" y="148" fill="#44ff44" fontSize="6" fontFamily="monospace">
-        ✓ 5 succeeded | 0 failed
-      </text>
+      <text x="195" y="128" fill="#44ff88" fontSize="7" fontFamily="monospace" opacity="0.9">$ bolt task run</text>
+      <text x="195" y="138" fill="#44aaff" fontSize="6" fontFamily="monospace" opacity="0.7">Running on 5 targets...</text>
+      <text x="195" y="148" fill="#44ff44" fontSize="6" fontFamily="monospace">✓ 5 succeeded | 0 failed</text>
 
-      {/* Label */}
       <rect x="195" y="168" width="130" height="18" fill="#334455" rx="3" />
-      <text x="260" y="180" textAnchor="middle" fill="#EC8622" fontSize="8" fontFamily="monospace" fontWeight="bold">
-        BOLT-O-MATIC 4000
-      </text>
+      <text x="260" y="180" textAnchor="middle" fill="#EC8622" fontSize="8" fontFamily="monospace" fontWeight="bold">BOLT-O-MATIC 4000</text>
 
-      {/* Control buttons */}
       <circle cx="210" cy="200" r="6" fill="#44ff44" stroke="#22aa22" strokeWidth="1">
         <animate attributeName="fill" values="#44ff44;#22aa22;#44ff44" dur="2s" repeatCount="indefinite" />
       </circle>
@@ -82,69 +136,58 @@ function BoltOMatic() {
       <circle cx="250" cy="200" r="6" fill="#ff4444" stroke="#cc2222" strokeWidth="1" />
       <text x="250" y="203" textAnchor="middle" fill="#1a1a2e" fontSize="5" fontWeight="bold">■</text>
 
-      {/* Dial */}
       <circle cx="300" cy="200" r="12" fill="#334455" stroke="#667788" strokeWidth="1.5" />
       <line x1="300" y1="200" x2="300" y2="190" stroke="#EC8622" strokeWidth="2" strokeLinecap="round">
         <animateTransform attributeName="transform" type="rotate" values="0 300 200;360 300 200" dur="4s" repeatCount="indefinite" />
       </line>
       <circle cx="300" cy="200" r="3" fill="#556677" />
 
-      {/* Status lights row */}
       <circle cx="200" cy="225" r="3" fill="#44ff44"><animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" /></circle>
       <circle cx="212" cy="225" r="3" fill="#44ff44"><animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" begin="0.2s" /></circle>
       <circle cx="224" cy="225" r="3" fill="#44ff44"><animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" begin="0.4s" /></circle>
       <circle cx="236" cy="225" r="3" fill="#ffaa22"><animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite" /></circle>
       <circle cx="248" cy="225" r="3" fill="#44aaff"><animate attributeName="opacity" values="1;0.3;1" dur="1.8s" repeatCount="indefinite" /></circle>
 
-      {/* ── Lightning bolts shooting to servers ── */}
-      {/* Left bolt */}
+      {/* Lightning bolts */}
       <polyline points="170,150 130,140 140,155 100,148" fill="none" stroke="#EC8622" strokeWidth="2" opacity="0.8">
         <animate attributeName="opacity" values="0.8;0.2;0.8" dur="0.8s" repeatCount="indefinite" />
       </polyline>
-      {/* Right bolt */}
       <polyline points="350,150 390,140 380,155 420,148" fill="none" stroke="#EC8622" strokeWidth="2" opacity="0.8">
         <animate attributeName="opacity" values="0.8;0.2;0.8" dur="0.8s" repeatCount="indefinite" begin="0.3s" />
       </polyline>
-      {/* Far left bolt */}
       <polyline points="170,170 110,180 120,190 60,185" fill="none" stroke="#ffaa22" strokeWidth="1.5" opacity="0.6">
         <animate attributeName="opacity" values="0.6;0.1;0.6" dur="1.2s" repeatCount="indefinite" begin="0.5s" />
       </polyline>
-      {/* Far right bolt */}
       <polyline points="350,170 410,180 400,190 460,185" fill="none" stroke="#ffaa22" strokeWidth="1.5" opacity="0.6">
         <animate attributeName="opacity" values="0.6;0.1;0.6" dur="1.2s" repeatCount="indefinite" begin="0.8s" />
       </polyline>
 
-      {/* ── Target servers (left) ── */}
+      {/* Target servers */}
       <rect x="35" y="160" width="50" height="35" fill="#445566" rx="3" stroke="#667788" strokeWidth="1" />
       <rect x="40" y="165" width="40" height="8" fill="#0a1628" rx="1" />
       <text x="60" y="172" textAnchor="middle" fill="#44ff88" fontSize="5" fontFamily="monospace">web01</text>
-      <circle cx="45" cy="185" r="2" fill="#44ff44" />
-      <circle cx="52" cy="185" r="2" fill="#44ff44" />
+      <circle cx="45" cy="185" r="2" fill="#44ff44" /><circle cx="52" cy="185" r="2" fill="#44ff44" />
       <text x="60" y="192" textAnchor="middle" fill="#44ff44" fontSize="8">✓</text>
 
       <rect x="80" y="120" width="50" height="35" fill="#445566" rx="3" stroke="#667788" strokeWidth="1" />
       <rect x="85" y="125" width="40" height="8" fill="#0a1628" rx="1" />
       <text x="105" y="132" textAnchor="middle" fill="#44ff88" fontSize="5" fontFamily="monospace">web02</text>
-      <circle cx="90" cy="145" r="2" fill="#44ff44" />
-      <circle cx="97" cy="145" r="2" fill="#44ff44" />
+      <circle cx="90" cy="145" r="2" fill="#44ff44" /><circle cx="97" cy="145" r="2" fill="#44ff44" />
       <text x="105" y="152" textAnchor="middle" fill="#44ff44" fontSize="8">✓</text>
 
-      {/* ── Target servers (right) ── */}
       <rect x="395" y="120" width="50" height="35" fill="#445566" rx="3" stroke="#667788" strokeWidth="1" />
       <rect x="400" y="125" width="40" height="8" fill="#0a1628" rx="1" />
       <text x="420" y="132" textAnchor="middle" fill="#44ff88" fontSize="5" fontFamily="monospace">db01</text>
-      <circle cx="405" cy="145" r="2" fill="#44ff44" />
-      <circle cx="412" cy="145" r="2" fill="#44ff44" />
+      <circle cx="405" cy="145" r="2" fill="#44ff44" /><circle cx="412" cy="145" r="2" fill="#44ff44" />
       <text x="420" y="152" textAnchor="middle" fill="#44ff44" fontSize="8">✓</text>
 
       <rect x="435" y="160" width="50" height="35" fill="#445566" rx="3" stroke="#667788" strokeWidth="1" />
       <rect x="440" y="165" width="40" height="8" fill="#0a1628" rx="1" />
       <text x="460" y="172" textAnchor="middle" fill="#44ff88" fontSize="5" fontFamily="monospace">app01</text>
-      <circle cx="445" cy="185" r="2" fill="#44ff44" />
-      <circle cx="452" cy="185" r="2" fill="#44ff44" />
+      <circle cx="445" cy="185" r="2" fill="#44ff44" /><circle cx="452" cy="185" r="2" fill="#44ff44" />
       <text x="460" y="192" textAnchor="middle" fill="#44ff44" fontSize="8">✓</text>
 
-      {/* ── Antenna ── */}
+      {/* Antenna */}
       <line x1="260" y1="100" x2="260" y2="70" stroke="#667788" strokeWidth="2" />
       <circle cx="260" cy="65" r="5" fill="none" stroke="#EC8622" strokeWidth="1.5">
         <animate attributeName="r" values="5;12;5" dur="2s" repeatCount="indefinite" />
@@ -152,16 +195,9 @@ function BoltOMatic() {
       </circle>
       <circle cx="260" cy="65" r="3" fill="#EC8622" />
 
-      {/* Caption */}
-      <text x="260" y="268" textAnchor="middle" fill="#8899aa" fontSize="10" fontFamily="monospace">
-        The Orchestration Engine
-      </text>
-      <text x="260" y="282" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">
-        lightning-fast task execution across your fleet
-      </text>
-      <text x="260" y="294" textAnchor="middle" fill="#445566" fontSize="6" fontFamily="monospace">
-        (powered by Puppet Bolt)
-      </text>
+      <text x="260" y="268" textAnchor="middle" fill="#8899aa" fontSize="10" fontFamily="monospace">The Orchestration Engine</text>
+      <text x="260" y="282" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">lightning-fast task execution across your fleet</text>
+      <text x="260" y="294" textAnchor="middle" fill="#445566" fontSize="6" fontFamily="monospace">(powered by Puppet Bolt)</text>
     </svg>
   );
 }
@@ -255,6 +291,7 @@ function OverviewTab() {
 function RunCommandTab() {
   const [command, setCommand] = useState('');
   const [targets, setTargets] = useState('');
+  const [format, setFormat] = useState('human');
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -267,7 +304,7 @@ function RunCommandTab() {
     if (!command || !targets) return;
     setRunning(true); setResult(null);
     try {
-      const r = await bolt.runCommand({ command, targets });
+      const r = await bolt.runCommand({ command, targets, format });
       setResult(r);
     } catch (e: any) {
       setResult({ returncode: -1, output: '', error: e.message });
@@ -289,30 +326,26 @@ function RunCommandTab() {
             ...puppetNodes.map((n) => ({ value: n, label: n })),
           ]} value={targets} onChange={(v) => setTargets(v || '')}
             placeholder="Select target nodes" />
+          <div>
+            <Text size="sm" fw={500} mb={4}>Output Format</Text>
+            <SegmentedControl
+              value={format}
+              onChange={setFormat}
+              data={[
+                { label: '📄 Human', value: 'human' },
+                { label: '🔣 JSON', value: 'json' },
+                { label: '🌈 Rainbow', value: 'rainbow' },
+              ]}
+              fullWidth
+            />
+          </div>
           <Button onClick={handleRun} loading={running} disabled={!command || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">
             Run Command
           </Button>
         </Stack>
       </Card>
-      {result && (
-        <Card withBorder shadow="sm">
-          <Group mb="sm">
-            <Text fw={700}>Result</Text>
-            <Badge color={result.returncode === 0 ? 'green' : 'red'}>
-              {result.returncode === 0 ? 'Success' : `Exit ${result.returncode}`}
-            </Badge>
-          </Group>
-          {result.output && (
-            <Code block style={{ fontSize: 12, maxHeight: 400, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
-              {result.output}
-            </Code>
-          )}
-          {result.error && (
-            <Alert color="red" mt="sm"><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{result.error}</Text></Alert>
-          )}
-        </Card>
-      )}
+      <ResultPane result={result} format={format} />
     </Stack>
   );
 }
@@ -325,6 +358,7 @@ function RunTaskTab() {
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [selectedTask, setSelectedTask] = useState('');
   const [targets, setTargets] = useState('');
+  const [format, setFormat] = useState('human');
   const [params, setParams] = useState<Array<{ key: string; val: string }>>([]);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -347,7 +381,7 @@ function RunTaskTab() {
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
     try {
-      const r = await bolt.runTask({ task: selectedTask, targets, params: paramDict });
+      const r = await bolt.runTask({ task: selectedTask, targets, params: paramDict, format });
       setResult(r);
     } catch (e: any) {
       setResult({ returncode: -1, output: '', error: e.message });
@@ -388,22 +422,24 @@ function RunTaskTab() {
               </Group>
             ))}
           </div>
+          <div>
+            <Text size="sm" fw={500} mb={4}>Output Format</Text>
+            <SegmentedControl
+              value={format}
+              onChange={setFormat}
+              data={[
+                { label: '📄 Human', value: 'human' },
+                { label: '🔣 JSON', value: 'json' },
+                { label: '🌈 Rainbow', value: 'rainbow' },
+              ]}
+              fullWidth
+            />
+          </div>
           <Button onClick={handleRun} loading={running} disabled={!selectedTask || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Task</Button>
         </Stack>
       </Card>
-      {result && (
-        <Card withBorder shadow="sm">
-          <Group mb="sm">
-            <Text fw={700}>Result</Text>
-            <Badge color={result.returncode === 0 ? 'green' : 'red'}>
-              {result.returncode === 0 ? 'Success' : `Exit ${result.returncode}`}
-            </Badge>
-          </Group>
-          {result.output && <Code block style={{ fontSize: 12, maxHeight: 400, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{result.output}</Code>}
-          {result.error && <Alert color="red" mt="sm"><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{result.error}</Text></Alert>}
-        </Card>
-      )}
+      <ResultPane result={result} format={format} />
     </Stack>
   );
 }
@@ -414,6 +450,7 @@ function RunTaskTab() {
 function RunPlanTab() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState('');
+  const [format, setFormat] = useState('human');
   const [params, setParams] = useState<Array<{ key: string; val: string }>>([]);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -429,7 +466,7 @@ function RunPlanTab() {
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
     try {
-      const r = await bolt.runPlan({ plan: selectedPlan, params: paramDict });
+      const r = await bolt.runPlan({ plan: selectedPlan, params: paramDict, format });
       setResult(r);
     } catch (e: any) {
       setResult({ returncode: -1, output: '', error: e.message });
@@ -466,22 +503,24 @@ function RunPlanTab() {
               </Group>
             ))}
           </div>
+          <div>
+            <Text size="sm" fw={500} mb={4}>Output Format</Text>
+            <SegmentedControl
+              value={format}
+              onChange={setFormat}
+              data={[
+                { label: '📄 Human', value: 'human' },
+                { label: '🔣 JSON', value: 'json' },
+                { label: '🌈 Rainbow', value: 'rainbow' },
+              ]}
+              fullWidth
+            />
+          </div>
           <Button onClick={handleRun} loading={running} disabled={!selectedPlan}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Plan</Button>
         </Stack>
       </Card>
-      {result && (
-        <Card withBorder shadow="sm">
-          <Group mb="sm">
-            <Text fw={700}>Result</Text>
-            <Badge color={result.returncode === 0 ? 'green' : 'red'}>
-              {result.returncode === 0 ? 'Success' : `Exit ${result.returncode}`}
-            </Badge>
-          </Group>
-          {result.output && <Code block style={{ fontSize: 12, maxHeight: 400, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{result.output}</Code>}
-          {result.error && <Alert color="red" mt="sm"><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{result.error}</Text></Alert>}
-        </Card>
-      )}
+      <ResultPane result={result} format={format} />
     </Stack>
   );
 }

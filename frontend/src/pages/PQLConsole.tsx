@@ -4,7 +4,7 @@ import {
   Code, Badge, Select, Table, ScrollArea, Paper, ActionIcon, Tooltip,
 } from '@mantine/core';
 import { IconTerminal, IconPlayerPlay, IconTrash, IconCopy } from '@tabler/icons-react';
-import { pql } from '../services/api';
+import { pql, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 
 export function PQLConsolePage() {
@@ -15,10 +15,31 @@ export function PQLConsolePage() {
   const [error, setError] = useState<string | null>(null);
   const [examples, setExamples] = useState<any[]>([]);
   const [history, setHistory] = useState<string[]>([]);
+  const [certnames, setCertnames] = useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   useEffect(() => {
     pql.getExamples().then((d) => setExamples(d.examples || [])).catch(() => {});
+    nodesApi.list().then((ns: any[]) => setCertnames(ns.map((n) => n.certname).sort())).catch(() => {});
   }, []);
+
+  // When a node is selected, substitute NODENAME in the query
+  const handleNodeSelect = (certname: string | null) => {
+    setSelectedNode(certname);
+    if (certname && query.includes('NODENAME')) {
+      setQuery(query.replace(/NODENAME/g, certname));
+    }
+  };
+
+  // When an example is selected, substitute NODENAME if a node is already chosen
+  const handleExampleSelect = (exampleQuery: string | null) => {
+    if (!exampleQuery) return;
+    let q = exampleQuery;
+    if (selectedNode) {
+      q = q.replace(/NODENAME/g, selectedNode);
+    }
+    setQuery(q);
+  };
 
   const handleRun = async () => {
     if (!query.trim()) return;
@@ -59,15 +80,27 @@ export function PQLConsolePage() {
       </Alert>
 
       <Card withBorder shadow="sm" padding="md">
-        <Group align="flex-end" mb="sm">
+        <Group align="flex-end" mb="sm" grow>
           <Select
             label="Examples"
             placeholder="Load an example query..."
             data={examples.map((e: any) => ({ value: e.query, label: e.label }))}
-            onChange={(v) => v && setQuery(v)}
+            onChange={handleExampleSelect}
             clearable
             searchable
             style={{ flex: 1 }}
+          />
+          <Select
+            label="Certname"
+            placeholder="Select a node..."
+            data={certnames.map((n) => ({ value: n, label: n }))}
+            value={selectedNode}
+            onChange={handleNodeSelect}
+            clearable
+            searchable
+            nothingFoundMessage="No matching nodes"
+            style={{ flex: 1 }}
+            description={query.includes('NODENAME') ? 'Replaces NODENAME in query' : undefined}
           />
         </Group>
         <Textarea
@@ -120,7 +153,7 @@ export function PQLConsolePage() {
           </Group>
 
           {columns.length > 0 ? (
-            <ScrollArea style={{ maxHeight: 500 }}>
+            <ScrollArea style={{ maxHeight: "calc(100vh - 200px)" }}>
               <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
@@ -145,7 +178,7 @@ export function PQLConsolePage() {
               </Table>
             </ScrollArea>
           ) : (
-            <ScrollArea style={{ maxHeight: 500 }}>
+            <ScrollArea style={{ maxHeight: "calc(100vh - 200px)" }}>
               <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
                 {JSON.stringify(results.results, null, 2)}
               </Code>

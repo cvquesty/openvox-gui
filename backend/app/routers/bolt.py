@@ -6,6 +6,7 @@ import asyncio
 import logging
 import shutil
 from pathlib import Path
+from shlex import quote as shlex_quote
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -31,22 +32,51 @@ def find_bolt() -> Optional[str]:
 
 async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any]:
     """Run a bolt command and return stdout/stderr/returncode."""
+    import os
+
     bolt = find_bolt()
     if not bolt:
         return {"returncode": -1, "stdout": "", "stderr": "Puppet Bolt is not installed"}
 
-    cmd = ["sudo", bolt] + args
+    # Always point Bolt at the inventory file
+    inventory_flag = ["-i", "/etc/puppetlabs/bolt/inventory.yaml"]
+
+    # Check if rainbow format is requested - needs PTY + --color for ANSI output
+    is_rainbow = "--format" in args and "rainbow" in args
+    if is_rainbow and "--color" not in args:
+        args = args + ["--color"]
+
+    bolt_args = ["sudo", bolt] + args + inventory_flag
+
     try:
+        env = os.environ.copy()
+        env["TERM"] = "xterm-256color"
+
+        if is_rainbow:
+            # Use script(1) to allocate a PTY so bolt emits full ANSI colors
+            bolt_cmd_str = " ".join(shlex_quote(a) for a in bolt_args)
+            cmd = ["script", "-qc", bolt_cmd_str, "/dev/null"]
+        else:
+            cmd = bolt_args
+
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        out = stdout.decode("utf-8", errors="replace")
+        err = stderr.decode("utf-8", errors="replace")
+
+        # script(1) adds carriage returns - strip them
+        if is_rainbow:
+            out = out.replace("\r\n", "\n").replace("\r", "")
+
         return {
             "returncode": proc.returncode,
-            "stdout": stdout.decode("utf-8", errors="replace"),
-            "stderr": stderr.decode("utf-8", errors="replace"),
+            "stdout": out,
+            "stderr": err,
         }
     except asyncio.TimeoutError:
         proc.kill()
@@ -131,22 +161,26 @@ class RunCommandRequest(BaseModel):
     command: str
     targets: str  # comma-separated or "all"
     run_as: Optional[str] = None
+    format: Optional[str] = "human"  # human, json, or rainbow
 
 class RunTaskRequest(BaseModel):
     task: str
     targets: str
     params: Dict[str, Any] = Field(default_factory=dict)
     run_as: Optional[str] = None
+    format: Optional[str] = "human"  # human, json, or rainbow
 
 class RunPlanRequest(BaseModel):
     plan: str
     params: Dict[str, Any] = Field(default_factory=dict)
+    format: Optional[str] = "human"  # human, json, or rainbow
 
 
 @router.post("/run/command")
 async def run_command(req: RunCommandRequest):
     """Run an ad-hoc command on targets."""
-    args = ["command", "run", req.command, "--targets", req.targets, "--format", "json"]
+    fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
+    args = ["command", "run", req.command, "--targets", req.targets, "--format", fmt]
     if req.run_as:
         args.extend(["--run-as", req.run_as])
     result = await run_bolt_command(args, timeout=300)
@@ -156,7 +190,8 @@ async def run_command(req: RunCommandRequest):
 @router.post("/run/task")
 async def run_task(req: RunTaskRequest):
     """Run a Bolt task on targets."""
-    args = ["task", "run", req.task, "--targets", req.targets, "--format", "json"]
+    fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
+    args = ["task", "run", req.task, "--targets", req.targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     if req.run_as:
@@ -168,7 +203,8 @@ async def run_task(req: RunTaskRequest):
 @router.post("/run/plan")
 async def run_plan(req: RunPlanRequest):
     """Run a Bolt plan."""
-    args = ["plan", "run", req.plan, "--format", "json"]
+    fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
+    args = ["plan", "run", req.plan, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     result = await run_bolt_command(args, timeout=600)
