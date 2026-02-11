@@ -10,6 +10,7 @@ import {
   IconServer, IconWorld, IconSearch, IconLayersLinked, IconArrowDown, IconX,
 } from '@tabler/icons-react';
 import { enc, nodes as nodesApi, config } from '../services/api';
+import { useAppTheme } from '../hooks/ThemeContext';
 
 /* ═══════════════════════════════════════════════════════════════
    SHARED: Class badges display
