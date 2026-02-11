@@ -301,6 +301,7 @@ function NodeOScope() {
    TAB 1: HIERARCHY OVERVIEW
    ═══════════════════════════════════════════════════════════════ */
 function HierarchyTab() {
+  const { isFormal } = useAppTheme();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -329,9 +330,11 @@ function HierarchyTab() {
 
   return (
     <Stack>
-      <Card withBorder shadow="sm" padding="sm" mb="md" style={{ overflow: 'hidden' }}>
-        <NodeOScope />
-      </Card>
+      {!isFormal && (
+        <Card withBorder shadow="sm" padding="sm" mb="md" style={{ overflow: 'hidden' }}>
+          <NodeOScope />
+        </Card>
+      )}
 
       <Alert variant="light" color="blue" mb="xs">
         Classification is resolved by deep-merging four layers. Higher layers override

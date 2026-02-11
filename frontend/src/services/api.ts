@@ -187,6 +187,11 @@ export const config = {
       body: JSON.stringify({ service, action: 'restart' }),
     }),
   getApp: () => fetchJSON<any>('/config/app'),
+  updateApp: (key: string, value: string) =>
+    fetchJSON<any>('/config/app', {
+      method: 'PUT',
+      body: JSON.stringify({ key, value }),
+    }),
   // Puppet lookup
   lookup: (key: string, node?: string, environment?: string) =>
     fetchJSON<any>('/config/lookup', {

@@ -5,9 +5,11 @@ import {
 } from '@mantine/core';
 import { IconLock } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
+import { useAppTheme } from '../hooks/ThemeContext';
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { isFormal } = useAppTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,10 +29,10 @@ export function LoginPage() {
   };
 
   return (
-    <Center style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1b2e 0%, #252540 100%)' }}>
+    <Center style={{ minHeight: '100vh', background: isFormal ? '#f8f9fa' : 'linear-gradient(135deg, #1a1b2e 0%, #252540 100%)' }}>
       <Card shadow="xl" padding="xl" radius="lg" style={{ width: 400 }}>
         <Stack align="center" mb="lg">
-          <img src="/openvox-logo-orange.svg" alt="OpenVox" style={{ height: 72 }} />
+          <img src={isFormal ? "/openvox-logo.svg" : "/openvox-logo-orange.svg"} alt="OpenVox" style={{ height: 72 }} />
           <Title order={2}>OpenVox GUI</Title>
           <Text size="sm" c="dimmed">Sign in to manage your Puppet infrastructure</Text>
         </Stack>
@@ -69,7 +71,7 @@ export function LoginPage() {
               size="md"
               mt="sm"
               leftSection={<IconLock size={18} />}
-              color='#EC8622'
+              color={isFormal ? '#0D6EFD' : '#EC8622'}
             >
               Sign In
             </Button>
@@ -77,7 +79,7 @@ export function LoginPage() {
         </form>
 
         <Text size="xs" c="dimmed" ta="center" mt="lg">
-          OpenVox GUI v0.2.19
+          OpenVox GUI v0.2.42
         </Text>
       </Card>
     </Center>

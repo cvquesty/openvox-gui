@@ -14,15 +14,12 @@ import {
   ActionIcon,
   Tooltip,
   HoverCard,
-  ThemeIcon,
   Stack,
 } from '@mantine/core';
 import {
   IconDashboard,
-  IconServer,
   IconFileReport,
   IconNetwork,
-  IconDatabase,
   IconAppWindow,
   IconHierarchy2,
   IconRocket,
@@ -32,6 +29,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
+import { useAppTheme } from '../hooks/ThemeContext';
 import { dashboard } from '../services/api';
 
 const mainNav = [
@@ -56,12 +54,12 @@ const configNav = [
   { label: 'Application', icon: IconAppWindow, path: '/config/app' },
 ];
 
-
 export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { isFormal } = useAppTheme();
   const [activeSessions, setActiveSessions] = useState<any>(null);
 
   useEffect(() => {
@@ -78,19 +76,28 @@ export function AppShellLayout() {
   const activeCount = activeSessions?.active_count || 0;
   const activeUsersList = activeSessions?.users || [];
 
+  // Theme-dependent styles
+  const headerBg = isFormal ? '#ffffff' : '#1a1b2e';
+  const headerBorder = isFormal ? '1px solid #dee2e6' : 'none';
+  const navBg = isFormal ? '#f8f9fa' : '#141421';
+  const navBorder = isFormal ? '1px solid #dee2e6' : 'none';
+  const titleColor = isFormal ? '#212529' : undefined;
+  const logoSrc = isFormal ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
+  const sectionLabelColor = isFormal ? '#868e96' : 'dimmed';
+
   return (
     <MantineAppShell
       header={{ height: 60 }}
       navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
     >
-      <MantineAppShell.Header>
+      <MantineAppShell.Header style={{ backgroundColor: headerBg, borderBottom: headerBorder }}>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
             <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
             <Group gap={16} wrap="nowrap">
-              <img src="/openvox-logo-orange.svg" alt="OpenVox" style={{ height: 36, width: 36, flexShrink: 0, display: 'block' }} />
-              <Title order={3} style={{ fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>
+              <img src={logoSrc} alt="OpenVox" style={{ height: 36, width: 36, flexShrink: 0, display: 'block' }} />
+              <Title order={3} c={titleColor} style={{ fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>
                 OpenVox GUI
               </Title>
             </Group>
@@ -113,9 +120,9 @@ export function AppShellLayout() {
         </Group>
       </MantineAppShell.Header>
 
-      <MantineAppShell.Navbar p="xs">
+      <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" mt="xs" ml="sm">
+          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" mt="xs" ml="sm">
             Monitoring
           </Text>
           {mainNav.map((item) => (
@@ -131,7 +138,7 @@ export function AppShellLayout() {
           ))}
 
           <Divider my="sm" />
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
             Code Deployment
           </Text>
           {deployNav.map((item) => (
@@ -147,7 +154,7 @@ export function AppShellLayout() {
           ))}
 
           <Divider my="sm" />
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
             Node Classifier
           </Text>
           {encNav.map((item) => (
@@ -163,7 +170,7 @@ export function AppShellLayout() {
           ))}
 
           <Divider my="sm" />
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
             Orchestration
           </Text>
           {orchNav.map((item) => (
@@ -179,7 +186,7 @@ export function AppShellLayout() {
           ))}
 
           <Divider my="sm" />
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb="xs" ml="sm">
+          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
             Settings
           </Text>
           {configNav.map((item) => (
@@ -197,7 +204,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v0.2.41</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v0.2.42</Text>
             <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
               <HoverCard.Target>
                 <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>

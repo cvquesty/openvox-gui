@@ -10,6 +10,7 @@ import {
   IconBolt,
 } from '@tabler/icons-react';
 import { bolt, nodes as nodesApi } from '../services/api';
+import { useAppTheme } from '../hooks/ThemeContext';
 
 /* ═══════════════════════════════════════════════════════════════
    BOLT-O-MATIC 4000 — orchestration machine cartoon
@@ -169,6 +170,7 @@ function BoltOMatic() {
    TAB 1: OVERVIEW + CARTOON
    ═══════════════════════════════════════════════════════════════ */
 function OverviewTab() {
+  const { isFormal } = useAppTheme();
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -181,12 +183,14 @@ function OverviewTab() {
   return (
     <Stack>
       <Grid>
-        <Grid.Col span={{ base: 12, md: 7 }}>
-          <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
-            <BoltOMatic />
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 5 }}>
+        {!isFormal && (
+          <Grid.Col span={{ base: 12, md: 7 }}>
+            <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
+              <BoltOMatic />
+            </Card>
+          </Grid.Col>
+        )}
+        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 5 }}>
           <Stack>
             <Card withBorder shadow="sm" padding="md">
               <Text fw={700} mb="sm">Puppet Bolt Status</Text>

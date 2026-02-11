@@ -1,7 +1,8 @@
+from pathlib import Path
 """
 Configuration API - Manage PuppetServer, PuppetDB, Hiera, and application settings.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import Request,  APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from ..services.puppetserver import puppetserver_service
@@ -564,3 +565,91 @@ async def get_app_config():
         "auth_backend": settings.auth_backend,
         "debug": settings.debug,
     }
+
+
+@router.put("/app")
+async def update_app_config(request: Request):
+    """Update an application setting in the .env file."""
+    body = await request.json()
+    key = body.get("key", "")
+    value = body.get("value", "")
+
+    # Map frontend keys to .env variable names
+    key_map = {
+        "app_name": "OPENVOX_GUI_APP_NAME",
+        "puppet_server_host": "OPENVOX_GUI_PUPPET_SERVER_HOST",
+        "puppet_server_port": "OPENVOX_GUI_PUPPET_SERVER_PORT",
+        "puppetdb_host": "OPENVOX_GUI_PUPPETDB_HOST",
+        "puppetdb_port": "OPENVOX_GUI_PUPPETDB_PORT",
+        "debug": "OPENVOX_GUI_DEBUG",
+    }
+
+    if key not in key_map:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"detail": f"Setting '{key}' is not editable"})
+
+    env_var = key_map[key]
+    env_path = Path(settings.data_dir).parent / "config" / ".env"
+
+    if not env_path.exists():
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"detail": ".env file not found"})
+
+    # Read current .env, update or add the variable
+    lines = env_path.read_text().splitlines()
+    found = False
+    new_lines = []
+    for line in lines:
+        if line.strip().startswith(env_var + "="):
+            # Quote string values that contain spaces
+            if key in ("app_name",):
+                new_lines.append(f'{env_var}="{value}"')
+            else:
+                new_lines.append(f"{env_var}={value}")
+            found = True
+        else:
+            new_lines.append(line)
+
+    if not found:
+        if key in ("app_name",):
+            new_lines.append(f'{env_var}="{value}"')
+        else:
+            new_lines.append(f"{env_var}={value}")
+
+    env_path.write_text("\n".join(new_lines) + "\n")
+
+    return {"status": "ok", "key": key, "value": value, "message": "Setting updated. Restart service for changes to take effect."}
+
+
+# ── User Preferences ────────────────────────────────────────
+
+PREFS_FILE = Path(settings.data_dir) / "preferences.json"
+
+def _load_prefs() -> dict:
+    """Load preferences from disk."""
+    if PREFS_FILE.exists():
+        try:
+            return json.loads(PREFS_FILE.read_text())
+        except Exception:
+            return {}
+    return {}
+
+def _save_prefs(prefs: dict):
+    """Save preferences to disk."""
+    PREFS_FILE.write_text(json.dumps(prefs, indent=2))
+
+@router.get("/preferences")
+async def get_preferences():
+    """Get user preferences (theme, etc.)."""
+    prefs = _load_prefs()
+    return {"theme": prefs.get("theme", "casual")}
+
+@router.put("/preferences")
+async def update_preferences(request: Request):
+    """Update user preferences."""
+    body = await request.json()
+    prefs = _load_prefs()
+    if "theme" in body and body["theme"] in ("casual", "formal"):
+        prefs["theme"] = body["theme"]
+    _save_prefs(prefs)
+    return {"status": "ok", "theme": prefs.get("theme", "casual")}

@@ -2,15 +2,17 @@ import { useState, useCallback } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Text, Code, Table, Badge, Group,
   Tabs, TextInput, PasswordInput, Select, ActionIcon, Modal, Tooltip, Button,
-  Grid,
+  Grid, SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconSettings, IconUsers, IconPlus, IconTrash, IconKey, IconShield,
+  IconEdit, IconDeviceFloppy, IconX,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { config, users } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
+import { useAppTheme } from '../hooks/ThemeContext';
 
 /* ────────────────────── Types ────────────────────── */
 interface User {
@@ -220,31 +222,149 @@ function PeopleProcessingMachine() {
 
 /* ────────────────────── Application Tab ────────────────────── */
 function ApplicationTab() {
-  const { data, loading, error } = useApi(config.getApp);
+  const { data, loading, error, refetch } = useApi(config.getApp);
+  const { theme: appTheme, setTheme } = useAppTheme();
+
+  // Editable field state
+  const [editing, setEditing] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
 
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
+  const settingsMeta: Record<string, { label: string; description: string; editable: boolean; type?: string }> = {
+    app_name:            { label: 'Application Name',    description: 'Display name shown in the header and login page', editable: true },
+    puppet_server_host:  { label: 'PuppetServer Host',   description: 'FQDN of the PuppetServer for API communication', editable: true },
+    puppet_server_port:  { label: 'PuppetServer Port',   description: 'PuppetServer HTTPS API port (usually 8140)', editable: true, type: 'number' },
+    puppetdb_host:       { label: 'PuppetDB Host',       description: 'FQDN of the PuppetDB server', editable: true },
+    puppetdb_port:       { label: 'PuppetDB Port',       description: 'PuppetDB HTTPS API port (usually 8081)', editable: true, type: 'number' },
+    debug:               { label: 'Debug Mode',          description: 'Enable verbose debug logging (restart required)', editable: true, type: 'boolean' },
+  };
+
   const entries = data ? Object.entries(data).filter(([key]) => key !== 'auth_backend') : [];
+
+  const handleEdit = (key: string, currentValue: any) => {
+    setEditing((prev) => ({ ...prev, [key]: String(currentValue) }));
+  };
+
+  const handleCancel = (key: string) => {
+    setEditing((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleSave = async (key: string) => {
+    setSaving(key);
+    try {
+      const value = editing[key];
+      await config.updateApp(key, value);
+      notifications.show({ title: 'Setting Updated', message: `${settingsMeta[key]?.label || key} updated. Restart the service for changes to take effect.`, color: 'green' });
+      handleCancel(key);
+      refetch();
+    } catch (err: any) {
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    } finally {
+      setSaving(null);
+    }
+  };
 
   return (
     <Stack>
+      {/* Theme Selector */}
       <Card withBorder shadow="sm">
-        <Text fw={700} mb="sm">Current Settings</Text>
+        <Group justify="space-between" align="center">
+          <div>
+            <Text fw={700} mb={4}>Application Theme</Text>
+            <Text size="sm" c="dimmed">
+              Choose the visual style of the interface.
+              <Text span fw={500}> Casual</Text> features dark mode with animated illustrations.
+              <Text span fw={500}> Formal</Text> is a clean, light business theme.
+            </Text>
+          </div>
+          <SegmentedControl
+            value={appTheme}
+            onChange={(v) => setTheme(v as any)}
+            data={[
+              { label: 'Casual', value: 'casual' },
+              { label: 'Formal', value: 'formal' },
+            ]}
+            size="md"
+          />
+        </Group>
+      </Card>
+
+      {/* Editable Settings */}
+      <Card withBorder shadow="sm">
+        <Text fw={700} mb="sm">Application Settings</Text>
+        <Text size="xs" c="dimmed" mb="md">
+          Changes are written to the .env configuration file. Some changes require a service restart to take effect.
+        </Text>
         <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th style={{ width: 220 }}>Setting</Table.Th>
+              <Table.Th>Value</Table.Th>
+              <Table.Th style={{ width: 100, textAlign: 'right' }}>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
           <Table.Tbody>
-            {entries.map(([key, value]: [string, any]) => (
-              <Table.Tr key={key}>
-                <Table.Td style={{ width: 250 }}><Text size="sm" fw={500}>{key}</Text></Table.Td>
-                <Table.Td>
-                  {typeof value === 'boolean' ? (
-                    <Badge color={value ? 'green' : 'gray'}>{value ? 'Yes' : 'No'}</Badge>
-                  ) : (
-                    <Code>{String(value)}</Code>
-                  )}
-                </Table.Td>
-              </Table.Tr>
-            ))}
+            {entries.map(([key, value]: [string, any]) => {
+              const meta = settingsMeta[key];
+              const isEditing = key in editing;
+              return (
+                <Table.Tr key={key}>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>{meta?.label || key}</Text>
+                    {meta?.description && <Text size="xs" c="dimmed">{meta.description}</Text>}
+                  </Table.Td>
+                  <Table.Td>
+                    {isEditing ? (
+                      meta?.type === 'boolean' ? (
+                        <Select
+                          data={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
+                          value={editing[key]}
+                          onChange={(v) => setEditing((prev) => ({ ...prev, [key]: v || 'false' }))}
+                          size="xs"
+                          style={{ maxWidth: 120 }}
+                        />
+                      ) : (
+                        <TextInput
+                          value={editing[key]}
+                          onChange={(e) => setEditing((prev) => ({ ...prev, [key]: e.currentTarget.value }))}
+                          size="xs"
+                          style={{ maxWidth: 300 }}
+                          type={meta?.type === 'number' ? 'number' : 'text'}
+                        />
+                      )
+                    ) : typeof value === 'boolean' ? (
+                      <Badge color={value ? 'green' : 'gray'}>{value ? 'Yes' : 'No'}</Badge>
+                    ) : (
+                      <Code>{String(value)}</Code>
+                    )}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: 'right' }}>
+                    {meta?.editable && (
+                      isEditing ? (
+                        <Group gap={4} justify="flex-end">
+                          <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => handleCancel(key)}>
+                            <IconX size={14} />
+                          </ActionIcon>
+                          <ActionIcon size="sm" variant="filled" color="green" onClick={() => handleSave(key)} loading={saving === key}>
+                            <IconDeviceFloppy size={14} />
+                          </ActionIcon>
+                        </Group>
+                      ) : (
+                        <ActionIcon size="sm" variant="subtle" onClick={() => handleEdit(key, value)}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                      )
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       </Card>
@@ -255,6 +375,7 @@ function ApplicationTab() {
 /* ────────────────────── User Manager Tab ────────────────────── */
 function UserManagerTab() {
   const { user: currentUser } = useAuth();
+  const { isFormal } = useAppTheme();
   const { data: appData } = useApi(config.getApp);
   const [userList, setUserList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,15 +489,17 @@ function UserManagerTab() {
       </Card>
 
       <Grid align="flex-start">
-        {/* Left: People Processing Machine */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
-            <PeopleProcessingMachine />
-          </Card>
-        </Grid.Col>
+        {/* Left: People Processing Machine (casual only) */}
+        {!isFormal && (
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
+              <PeopleProcessingMachine />
+            </Card>
+          </Grid.Col>
+        )}
 
         {/* Right: Add User */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 6 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Add User</Title>
             <Stack gap="sm">

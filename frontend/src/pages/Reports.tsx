@@ -7,6 +7,7 @@ import {
 import { IconSearch } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { reports } from '../services/api';
+import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 
 
@@ -248,6 +249,7 @@ function ReportOScope() {
 }
 
 export function ReportsPage() {
+  const { isFormal } = useAppTheme();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -291,10 +293,12 @@ export function ReportsPage() {
         </Group>
       </Group>
 
-      {/* Report-O-Scope illustration */}
-      <Card withBorder shadow="sm" padding={0} style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
-        <ReportOScope />
-      </Card>
+      {/* Report-O-Scope illustration (casual only) */}
+      {!isFormal && (
+        <Card withBorder shadow="sm" padding={0} style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
+          <ReportOScope />
+        </Card>
+      )}
 
       <Card withBorder shadow="sm">
         <Table striped highlightOnHover>

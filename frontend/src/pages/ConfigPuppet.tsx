@@ -6,9 +6,10 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconNetwork, IconDatabase, IconPackage, IconFile, IconFolder,
-  IconEdit, IconDeviceFloppy, IconX, IconChevronRight, IconSearch,
+  IconEdit, IconDeviceFloppy, IconX, IconChevronRight, IconSearch, IconAlertTriangle,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
+import { useAppTheme } from '../hooks/ThemeContext';
 import { config, nodes as nodesApi } from '../services/api';
 
 /* ── Types ─────────────────────────────────────────────── */
@@ -478,6 +479,7 @@ function HieraTron() {
 
 /* ── Hiera Lookup (puppet lookup --explain) ──────────────── */
 function LookupTrace() {
+  const { isFormal } = useAppTheme();
   const [key, setKey] = useState('');
   const [node, setNode] = useState('');
   const [environment, setEnvironment] = useState<string | null>(null);
@@ -526,7 +528,7 @@ function LookupTrace() {
   return (
     <Stack>
       <Grid>
-        <Grid.Col span={{ base: 12, md: 7 }}>
+        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 7 }}>
       <Card withBorder shadow="sm" padding="md" h="100%">
         <Title order={4} mb="md">Hiera Lookup</Title>
         <Group align="end" grow>
@@ -568,11 +570,13 @@ function LookupTrace() {
         </Group>
       </Card>
         </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 5 }}>
-          <Card withBorder shadow="sm" padding={0} h="100%" style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
-            <HieraTron />
-          </Card>
-        </Grid.Col>
+        {!isFormal && (
+          <Grid.Col span={{ base: 12, md: 5 }}>
+            <Card withBorder shadow="sm" padding={0} h="100%" style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
+              <HieraTron />
+            </Card>
+          </Grid.Col>
+        )}
       </Grid>
 
       <Card withBorder shadow="sm" padding="md">
@@ -624,6 +628,19 @@ export function ConfigPuppetPage() {
   return (
     <Stack>
       <Title order={2}>Puppet Configuration</Title>
+
+      <Alert
+        variant="light"
+        color="yellow"
+        title="Puppet-Managed Configuration Warning"
+        icon={<IconAlertTriangle size={20} />}
+        radius="md"
+      >
+        If you are managing <Code>puppet.conf</Code> or any other configuration files on this page with Puppet itself
+        (e.g. via the <Code>puppet_conf</Code> resource type or an INI settings module), any changes you make here
+        will be <Text span fw={700}>overwritten</Text> on the next Puppet agent run. To make persistent changes,
+        update your Puppet code instead.
+      </Alert>
 
       <Tabs defaultValue="files">
         <Tabs.List>

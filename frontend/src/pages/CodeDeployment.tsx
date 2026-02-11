@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { deploy, config } from '../services/api';
+import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 
 /* ── Giant Robot vs City – inline SVG comic ──────────────── */
@@ -236,6 +237,7 @@ function RobotComic({ attacking }: { attacking: boolean }) {
 }
 
 export function CodeDeploymentPage() {
+  const { isFormal } = useAppTheme();
   const { data: envsData, loading: envsLoading } = useApi(() => deploy.getEnvironments());
   const { data: statusData, loading: statusLoading, refetch: refetchStatus } = useApi(() => deploy.getStatus());
 
@@ -327,7 +329,7 @@ export function CodeDeploymentPage() {
 
       <Grid>
         {/* Left half: Deploy controls + Services */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
+        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 6 }}>
           <Stack>
             <Card withBorder shadow="sm" padding="md">
               <Title order={4} mb="sm">Deploy with r10k</Title>
@@ -390,12 +392,14 @@ export function CodeDeploymentPage() {
           </Stack>
         </Grid.Col>
 
-        {/* Right half: Robot comic */}
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="sm" h="100%" style={{ overflow: 'hidden' }}>
-            <RobotComic attacking={deploying} />
-          </Card>
-        </Grid.Col>
+        {/* Right half: Robot comic (casual only) */}
+        {!isFormal && (
+          <Grid.Col span={{ base: 12, md: isFormal ? 12 : 6 }}>
+            <Card withBorder shadow="sm" padding="sm" h="100%" style={{ overflow: 'hidden' }}>
+              <RobotComic attacking={deploying} />
+            </Card>
+          </Grid.Col>
+        )}
       </Grid>
 
       {/* Deploy error */}
