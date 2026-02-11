@@ -142,8 +142,9 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - **PuppetDB**: View configuration files (jetty, database, global settings)
 - **Environments**: Browse environments and their installed modules
 - **Service Controls**: Restart PuppetServer, PuppetDB, or the Puppet agent from the UI
-- **Application Settings**: View current runtime configuration and authentication status
+- **Application Settings**: View and edit runtime configuration inline — theme selector, connection settings, debug toggle — all changes written to the `.env` file
 - **User Manager**: Full user administration (add, delete, change password/role) consolidated into the Application page as a tab — no separate Administration section
+- **Theme Switching**: Toggle between Casual (dark, illustrated) and Formal (light, business) themes from the Application page
 
 ### 🔐 Authentication & Login
 - **Login Page**: Branded sign-in page with OpenVox logo, gradient background, and error handling
@@ -157,6 +158,13 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 - User info and role displayed in the app header
 - User management via CLI tool and REST API
 - Active session tracking with per-user activity monitoring
+
+### 🎨 Application Themes
+- **Casual** (default): Dark mode with orange accents (`#EC8622`) and animated SVG illustrations throughout the interface
+- **Formal**: Light mode with white backgrounds, black foreground, VoxPupuli Blue (`#0D6EFD`) accents, original black OpenVox logo — all cartoons and animations removed for a clean, business-oriented look
+- **Theme selector**: SegmentedControl in Application → Application Settings to toggle between themes
+- **Persistence**: Theme choice saved to `localStorage` and backend (`/api/config/preferences`) — survives browser refreshes
+- **Editable Settings**: All application settings (name, Puppet/PuppetDB connection, debug mode) editable inline with Save/Cancel
 
 ---
 
@@ -175,6 +183,7 @@ A web-based management GUI for [OpenVox](https://github.com/OpenVoxProject) / Pu
 | **PuppetDB** | 7+ | SSL access using Puppet agent certificates |
 | **openssl** | *(any)* | Used to generate secret keys during installation |
 | **curl** | *(any)* | Used by the installer to verify the health endpoint after starting |
+| **Puppet Bolt** | 3.0+ | **Optional** — required only for the Orchestration page (run commands, tasks, plans on remote nodes). The GUI gracefully handles Bolt not being installed. |
 
 > **Note:** The installer runs pre-flight checks for all prerequisites and will report any missing dependencies with instructions for installing them.
 
@@ -556,6 +565,7 @@ BUILD_FRONTEND="true"
 |---|---|---|---|
 | `CONFIGURE_FIREWALL` | `true` | "Configure firewall (open port …)?" | Automatically open `APP_PORT` in `firewalld`. Only applies on systems with `firewall-cmd` installed (RHEL, CentOS, Fedora). On systems without `firewalld`, this is silently skipped. |
 | `CONFIGURE_SELINUX` | `true` | "Configure SELinux policies?" | Automatically configure SELinux to allow the application to bind to `APP_PORT` and make network connections. Sets `httpd_can_network_connect` and registers the port as `http_port_t`. Only applies when SELinux is in `Enforcing` mode. |
+| `CONFIGURE_BOLT` | `true` | "Install/configure Puppet Bolt?" | Automatically detect or install Puppet Bolt (`puppet-bolt` package) for the Orchestration page. Creates a default `bolt-project.yaml`. Set to `false` to skip Bolt entirely — the Orchestration page will show install instructions instead. |
 
 **Answer file example — Enable both (default for production RHEL):**
 
@@ -563,6 +573,7 @@ BUILD_FRONTEND="true"
 # Full system integration
 CONFIGURE_FIREWALL="true"
 CONFIGURE_SELINUX="true"
+CONFIGURE_BOLT="true"
 ```
 
 **Answer file example — Skip both (container or cloud VM):**
@@ -571,6 +582,7 @@ CONFIGURE_SELINUX="true"
 # No firewalld or SELinux (e.g., Ubuntu, Docker, cloud instances)
 CONFIGURE_FIREWALL="false"
 CONFIGURE_SELINUX="false"
+CONFIGURE_BOLT="false"
 ```
 
 ---
@@ -783,19 +795,20 @@ ADMIN_PASSWORD="CustomC3rt$Setup"
 
 ## What the Installer Does (Step by Step)
 
-The installer performs 9 steps. Each step shows a progress indicator with `✔` (success), `⚠` (warning), or `✘` (failure).
+The installer performs 10 steps. Each step shows a progress indicator with `✔` (success), `⚠` (warning), or `✘` (failure).
 
 | Step | Title | What It Does |
 |---|---|---|
-| **1/9** | Service User | Creates the system user and group if they don't exist (e.g., `puppet:puppet`). Uses `--system` flag for nologin shell. |
-| **2/9** | Directory Structure | Creates `<INSTALL_DIR>/{backend, frontend, config, data, logs, scripts}`. |
-| **3/9** | Copy Application Files | Copies backend Python code, scripts, and the pre-built frontend to the install directory. |
-| **4/9** | Python Virtual Environment | Creates a Python venv at `<INSTALL_DIR>/venv/` and installs all Python dependencies from `requirements.txt` (FastAPI, Uvicorn, httpx, SQLAlchemy, passlib, python-jose, etc.). |
-| **5/9** | Frontend | Uses the pre-built frontend if present in `frontend/dist/`. If `BUILD_FRONTEND=true` and Node.js is available, builds from source using `npm install && npm run build`. |
-| **6/9** | Configuration | Generates `backend/app/config.py` with all configured values baked in. Generates `config/.env` with all runtime environment variables. Updates the ENC script's API base URL to match `APP_PORT`. |
-| **7/9** | Systemd Service | Writes `/etc/systemd/system/openvox-gui.service` with the configured user, port, workers, and paths. Runs `systemctl daemon-reload`. Also creates a sudoers rule in `/etc/sudoers.d/openvox-gui-puppetdb` for PuppetDB config file access. |
-| **8/9** | Permissions & System | Sets file ownership to `SERVICE_USER:SERVICE_GROUP`. Sets `config/.env` to mode `600`. Opens the firewall port (if configured). Configures SELinux (if configured). |
-| **9/9** | Initial Setup & Launch | Creates the admin user (if `AUTH_BACKEND=local`), saves credentials to `config/.credentials`, enables and starts the systemd service, waits for the health endpoint to respond. |
+| **1/10** | Service User | Creates the system user and group if they don't exist (e.g., `puppet:puppet`). Uses `--system` flag for nologin shell. |
+| **2/10** | Directory Structure | Creates `<INSTALL_DIR>/{backend, frontend, config, data, logs, scripts}`. |
+| **3/10** | Copy Application Files | Copies backend Python code, scripts, and the pre-built frontend to the install directory. |
+| **4/10** | Python Virtual Environment | Creates a Python venv at `<INSTALL_DIR>/venv/` and installs all Python dependencies from `requirements.txt` (FastAPI, Uvicorn, httpx, SQLAlchemy, passlib, python-jose, etc.). |
+| **5/10** | Frontend | Uses the pre-built frontend if present in `frontend/dist/`. If `BUILD_FRONTEND=true` and Node.js is available, builds from source using `npm install && npm run build`. |
+| **6/10** | Configuration | Generates `backend/app/config.py` with all configured values baked in. Generates `config/.env` with all runtime environment variables. Updates the ENC script's API base URL to match `APP_PORT`. |
+| **7/10** | Systemd Service | Writes `/etc/systemd/system/openvox-gui.service` with the configured user, port, workers, and paths. Runs `systemctl daemon-reload`. Also creates sudoers rules in `/etc/sudoers.d/openvox-gui` for r10k, PuppetDB config access, service management, and Puppet Bolt. |
+| **8/10** | Permissions & System | Sets file ownership to `SERVICE_USER:SERVICE_GROUP`. Sets `config/.env` to mode `600`. Opens the firewall port (if configured). Configures SELinux (if configured). |
+| **9/10** | Puppet Bolt | Detects or installs Puppet Bolt (`puppet-bolt` package) for orchestration. Creates a default `bolt-project.yaml` if not present. Skipped if `CONFIGURE_BOLT=false`. |
+| **10/10** | Initial Setup & Launch | Creates the admin user (if `AUTH_BACKEND=local`), saves credentials to `config/.credentials`, enables and starts the systemd service, waits for the health endpoint to respond. |
 
 ---
 
@@ -1348,6 +1361,9 @@ When the service is running, interactive API documentation is available at:
 | `GET` | `/api/config/services` | Yes | Status of all Puppet services |
 | `POST` | `/api/config/services/restart` | Yes | Restart a service: `{"service": "puppetserver", "action": "restart"}` |
 | `GET` | `/api/config/app` | Yes | Application config (non-sensitive settings) |
+| `PUT` | `/api/config/app` | Yes | Update a setting: `{"key": "app_name", "value": "My GUI"}` — writes to `.env` |
+| `GET` | `/api/config/preferences` | Yes | Get user preferences (theme, etc.) |
+| `PUT` | `/api/config/preferences` | Yes | Update preferences: `{"theme": "casual"}` or `{"theme": "formal"}` |
 
 ---
 

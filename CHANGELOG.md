@@ -4,6 +4,28 @@ All notable changes to OpenVox GUI are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.42] - 2026-02-09
+
+### Added
+- **Theme system**: Dual-theme support with Casual (dark mode, orange accents, animated SVG illustrations) and Formal (light mode, white background, black foreground, VoxPupuli Blue accents, no illustrations)
+- **ThemeContext provider** (`frontend/src/hooks/ThemeContext.tsx`): React context managing theme state with `localStorage` + backend persistence
+- **Theme selector**: SegmentedControl in Application → Application Settings tab to switch between Casual and Formal themes
+- **Editable application settings**: All settings in the Application Settings tab are now editable inline — click Edit, modify the value, Save or Cancel
+- **Preferences API** (`/api/config/preferences`): GET/PUT endpoint for persisting theme and future user preferences to `preferences.json`
+- **Settings update API** (`PUT /api/config/app`): Endpoint to update individual `.env` settings by key/value pair
+
+### Changed
+- **AppShell**: Header, navbar, and logo dynamically adapt to active theme — white header and light gray navbar (`#f8f9fa`) in Formal mode
+- **Login page**: Background gradient, logo, and sign-in button color adapt to active theme
+- **MantineProvider**: Dynamically switches between dark/light color scheme and orange/blue primary palette based on theme
+- **All illustration pages**: SVG cartoons (NODE-O-SCOPE 2000, BOLT-O-MATIC 4000, RobotComic, Report-O-Scope 9000, HIERA-TRON 5000, USER-O-MATIC 3000) conditionally hidden in Formal mode; layout panels expand to full width
+- **Version strings**: Bumped to v0.2.42
+
+### Fixed
+- **NodeClassifier blank page**: Added missing `useAppTheme` import that caused a crash on navigation
+
+---
 ## [0.2.41] - 2026-02-09
 
 ### Changed

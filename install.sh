@@ -22,8 +22,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="0.2.41"
-TOTAL_STEPS=9
+VERSION="0.2.42"
+TOTAL_STEPS=10
 
 # ─── Terminal Colors ─────────────────────────────────────────
 RED='\033[0;31m'
@@ -62,6 +62,7 @@ SERVICE_GROUP="puppet"
 CONFIGURE_FIREWALL="true"
 CONFIGURE_SELINUX="false"
 BUILD_FRONTEND="false"
+CONFIGURE_BOLT="true"
 
 SILENT="false"
 CONF_FILE=""
@@ -307,6 +308,7 @@ if [ "$SILENT" != "true" ]; then
     echo -e "${BOLD}System Integration${NC}"
     prompt_yesno CONFIGURE_FIREWALL "Configure firewall?" "$CONFIGURE_FIREWALL"
     prompt_yesno BUILD_FRONTEND "Build frontend from source? (requires Node.js 18+)" "$BUILD_FRONTEND"
+    prompt_yesno CONFIGURE_BOLT "Install/configure Puppet Bolt for orchestration?" "$CONFIGURE_BOLT"
     echo
 fi
 
@@ -573,9 +575,103 @@ if [ "$CONFIGURE_SELINUX" = "true" ]; then
     fi
 fi
 
-# ─── Step 9: Initial Setup & Launch ──────────────────────────
+# ─── Step 9: Puppet Bolt (Optional) ───────────────────────────
 
-log_step 9 "Initial Setup & Launch"
+log_step 9 "Puppet Bolt"
+
+if [ "$CONFIGURE_BOLT" = "true" ]; then
+    # Check if bolt is already installed
+    BOLT_BIN=""
+    if [ -x /opt/puppetlabs/bolt/bin/bolt ]; then
+        BOLT_BIN="/opt/puppetlabs/bolt/bin/bolt"
+    elif command -v bolt &>/dev/null; then
+        BOLT_BIN="$(command -v bolt)"
+    fi
+
+    if [ -n "$BOLT_BIN" ]; then
+        BOLT_VERSION=$($BOLT_BIN --version 2>/dev/null || echo "unknown")
+        log_ok "Puppet Bolt already installed: ${BOLT_VERSION} (${BOLT_BIN})"
+    else
+        log_info "Puppet Bolt not found — attempting to install..."
+
+        # Detect package manager and install
+        BOLT_INSTALLED="false"
+
+        # Try puppet7/8 release repo (RPM-based)
+        if command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+            PKG_MGR="$(command -v dnf 2>/dev/null || command -v yum)"
+
+            # Check if puppet release repo exists
+            if [ -f /etc/yum.repos.d/puppet7.repo ] || [ -f /etc/yum.repos.d/puppet8.repo ] || [ -f /etc/yum.repos.d/puppet.repo ]; then
+                $PKG_MGR install -y puppet-bolt 2>/dev/null && BOLT_INSTALLED="true"
+            else
+                # Try to add Puppet repo first
+                RHEL_MAJOR=$(rpm -E %{rhel} 2>/dev/null || echo "8")
+                if [ -f /opt/puppetlabs/puppet/bin/puppet ]; then
+                    PUPPET_VER=$(/opt/puppetlabs/puppet/bin/puppet --version 2>/dev/null | cut -d. -f1)
+                    if [ "$PUPPET_VER" = "7" ] || [ "$PUPPET_VER" = "8" ]; then
+                        rpm -Uvh "https://yum.puppet.com/puppet${PUPPET_VER}-release-el-${RHEL_MAJOR}.noarch.rpm" 2>/dev/null || true
+                        $PKG_MGR install -y puppet-bolt 2>/dev/null && BOLT_INSTALLED="true"
+                    fi
+                fi
+            fi
+        # Try APT (Debian/Ubuntu)
+        elif command -v apt-get &>/dev/null; then
+            apt-get update -qq 2>/dev/null
+            apt-get install -y puppet-bolt 2>/dev/null && BOLT_INSTALLED="true"
+        fi
+
+        if [ "$BOLT_INSTALLED" = "true" ]; then
+            BOLT_BIN=""
+            if [ -x /opt/puppetlabs/bolt/bin/bolt ]; then
+                BOLT_BIN="/opt/puppetlabs/bolt/bin/bolt"
+            elif command -v bolt &>/dev/null; then
+                BOLT_BIN="$(command -v bolt)"
+            fi
+            if [ -n "$BOLT_BIN" ]; then
+                BOLT_VERSION=$($BOLT_BIN --version 2>/dev/null || echo "unknown")
+                log_ok "Puppet Bolt installed: ${BOLT_VERSION}"
+            else
+                log_warn "Puppet Bolt package installed but binary not found in expected paths"
+            fi
+        else
+            log_warn "Could not auto-install Puppet Bolt"
+            log_info "To install manually:"
+            log_info "  RHEL/CentOS: sudo yum install puppet-bolt"
+            log_info "  Ubuntu/Debian: sudo apt-get install puppet-bolt"
+            log_info "  Gem: sudo gem install bolt"
+            log_info "The Orchestration page will show install instructions until Bolt is available."
+        fi
+    fi
+
+    # Create bolt project directory if it doesn't exist
+    BOLT_PROJECT_DIR="${INSTALL_DIR}/bolt-project"
+    if [ ! -d "$BOLT_PROJECT_DIR" ]; then
+        mkdir -p "$BOLT_PROJECT_DIR"
+        chown "${SERVICE_USER}:${SERVICE_GROUP}" "$BOLT_PROJECT_DIR"
+        if [ ! -f "${BOLT_PROJECT_DIR}/bolt-project.yaml" ]; then
+            cat > "${BOLT_PROJECT_DIR}/bolt-project.yaml" << BOLTEOF
+---
+name: openvox-gui
+modulepath:
+  - /etc/puppetlabs/code/environments/production/modules
+  - /etc/puppetlabs/code/environments/production/site-modules
+  - /etc/puppetlabs/code/modules
+BOLTEOF
+            chown "${SERVICE_USER}:${SERVICE_GROUP}" "${BOLT_PROJECT_DIR}/bolt-project.yaml"
+            log_ok "Created default bolt-project.yaml"
+        fi
+    else
+        log_ok "Bolt project directory already exists"
+    fi
+else
+    log_info "Skipping Puppet Bolt (CONFIGURE_BOLT=false)"
+    log_info "The Orchestration page will show install instructions until Bolt is available."
+fi
+
+# ─── Step 10: Initial Setup & Launch ──────────────────────────
+
+log_step 10 "Initial Setup & Launch"
 
 # Create admin user if using local auth
 if [ "$AUTH_BACKEND" = "local" ]; then
