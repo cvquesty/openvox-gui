@@ -122,8 +122,8 @@ async def serve_spa(full_path: str):
         # Ensure the resolved path is still within frontend_dist (prevent traversal)
         if static_file.is_file() and str(static_file).startswith(str(frontend_dist.resolve())):
             return FileResponse(str(static_file))
-    # Fall back to SPA index.html
+    # Fall back to SPA index.html (no-cache so browser always gets latest chunk references)
     index_file = frontend_dist / "index.html"
     if index_file.exists():
-        return FileResponse(str(index_file))
+        return FileResponse(str(index_file), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     return {"message": f"OpenVox GUI API is running. Frontend not built yet. Visit /api/docs for API documentation."}
