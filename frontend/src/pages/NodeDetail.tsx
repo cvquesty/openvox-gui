@@ -8,6 +8,7 @@ import { IconServer, IconFileReport, IconList, IconCode, IconPlayerPlay } from '
 import { useApi } from '../hooks/useApi';
 import { nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { PrettyJson } from '../components/PrettyJson';
 import { bolt } from '../services/api';
 import { notifications } from '@mantine/notifications';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -247,9 +248,7 @@ export function NodeDetailPage() {
 
         <Tabs.Panel value="allfacts" pt="md">
           <Paper withBorder p="md">
-            <Code block style={{ maxHeight: 500, overflow: 'auto', fontSize: 12 }}>
-              {JSON.stringify(node.facts, null, 2)}
-            </Code>
+            <PrettyJson data={node.facts} maxHeight={500} withBorder={false} />
           </Paper>
         </Tabs.Panel>
 

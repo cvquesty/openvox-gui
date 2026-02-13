@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
-  Table, Badge, Select, TextInput, ScrollArea, Grid,
+  Table, Badge, Select, TextInput, ScrollArea, Grid, Tooltip, Button,
 } from '@mantine/core';
-import { IconSearch, IconFilter } from '@tabler/icons-react';
+import { IconSearch, IconFilter, IconInfoCircle } from '@tabler/icons-react';
 import { facts } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { PrettyJson, isJsonLike } from '../components/PrettyJson';
 
 /* ═══════════════════════════════════════════════════════════════
    FACT-O-SCOPE 5000 — the giant magnifying glass
@@ -104,14 +105,16 @@ export function FactExplorerPage() {
   const { isFormal } = useAppTheme();
   const [factNames, setFactNames] = useState<string[]>([]);
   const [selectedFact, setSelectedFact] = useState<string | null>(null);
-  const [factData, setFactData] = useState<any[]>([]);
+  const [factData, setFactData] = useState<any>(null);
+  const [factStructure, setFactStructure] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [namesLoading, setNamesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  const [showStructure, setShowStructure] = useState(false);
 
   useEffect(() => {
-    facts.getNames()
+    facts.getNames(true)  // Include nested paths
       .then((names: string[]) => {
         const sorted = (Array.isArray(names) ? names : [])
           .filter((n: any) => typeof n === 'string')
@@ -124,27 +127,69 @@ export function FactExplorerPage() {
 
   const handleFactSelect = async (factName: string | null) => {
     setSelectedFact(factName);
-    setFactData([]);
+    setFactData(null);
+    setFactStructure(null);
     setError(null);
     setFilter('');
+    setShowStructure(false);
     if (!factName) return;
 
     setLoading(true);
     try {
       const r = await facts.getByName(factName);
-      setFactData(r.results || []);
+      setFactData(r);
+      
+      // If it's a base fact (no dots), also fetch structure info
+      if (!factName.includes('.')) {
+        try {
+          const struct = await facts.getStructure(factName, 3);
+          setFactStructure(struct);
+        } catch (e) {
+          // Structure fetch is optional, don't fail the whole operation
+        }
+      }
     } catch (e: any) {
       setError('Failed to load fact values: ' + e.message);
-      setFactData([]);
+      setFactData(null);
     }
     setLoading(false);
   };
 
-  const filtered = factData.filter((f: any) => {
+  const results = factData?.results || [];
+  const filtered = results.filter((f: any) => {
     if (!filter) return true;
     const q = filter.toLowerCase();
     const val = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
     return f.certname?.toLowerCase().includes(q) || val.toLowerCase().includes(q);
+  });
+
+  // Group facts by common prefixes for better organization in dropdown
+  const groupedFactNames = factNames.reduce((acc, name) => {
+    const prefix = name.split('.')[0];
+    const isNested = name.includes('.');
+    
+    if (isNested) {
+      if (!acc[prefix]) acc[prefix] = [];
+      acc[prefix].push(name);
+    } else {
+      if (!acc['_base']) acc['_base'] = [];
+      acc['_base'].push(name);
+    }
+    return acc;
+  }, {} as Record<string, string[]>);
+
+  // Convert grouped facts to Select data format
+  const selectData = Object.entries(groupedFactNames).flatMap(([group, names]) => {
+    if (group === '_base') {
+      return names.map(n => ({ value: n, label: n }));
+    }
+    return {
+      group,
+      items: names.map(n => ({ 
+        value: n, 
+        label: n.replace(group + '.', '  ↳ ') 
+      }))
+    };
   });
 
   return (
@@ -156,37 +201,64 @@ export function FactExplorerPage() {
 
       <Alert variant="light" color="blue">
         Select a fact from the dropdown to see its value on every node in your fleet.
+        You can also query nested facts like "os.family" or "memory.system.total".
       </Alert>
 
       {/* Controls + illustration */}
       <Grid>
         <Grid.Col span={{ base: 12, md: isFormal ? 12 : 7 }}>
           <Card withBorder shadow="sm" padding="md">
-            <Group align="flex-end">
-              <Select
-                label="Fact Name"
-                placeholder={namesLoading ? 'Loading facts...' : 'Select a fact...'}
-                data={factNames.map((n) => ({ value: n, label: n }))}
-                value={selectedFact}
-                onChange={handleFactSelect}
-                searchable
-                clearable
-                style={{ flex: 1, minWidth: 300 }}
-                nothingFoundMessage="No matching facts"
-                limit={100}
-                disabled={namesLoading}
-              />
-              {selectedFact && factData.length > 0 && (
-                <TextInput
-                  label="Filter Results"
-                  placeholder="Filter by node or value..."
-                  leftSection={<IconFilter size={14} />}
-                  value={filter}
-                  onChange={(e) => setFilter(e.currentTarget.value)}
-                  style={{ width: 300 }}
+            <Stack>
+              <Group align="flex-end">
+                <Select
+                  label="Fact Name"
+                  placeholder={namesLoading ? 'Loading facts...' : 'Select a fact (e.g., os.family)...'}
+                  data={selectData}
+                  value={selectedFact}
+                  onChange={handleFactSelect}
+                  searchable
+                  clearable
+                  style={{ flex: 1, minWidth: 300 }}
+                  nothingFoundMessage="No matching facts"
+                  limit={200}
+                  disabled={namesLoading}
+                  description="Supports nested facts like os.family, memory.system.total"
                 />
+                {selectedFact && results.length > 0 && (
+                  <TextInput
+                    label="Filter Results"
+                    placeholder="Filter by node or value..."
+                    leftSection={<IconFilter size={14} />}
+                    value={filter}
+                    onChange={(e) => setFilter(e.currentTarget.value)}
+                    style={{ width: 300 }}
+                  />
+                )}
+              </Group>
+              
+              {/* Show available paths for structured facts */}
+              {factStructure?.available_paths && factStructure.available_paths.length > 0 && (
+                <Alert variant="light" color="cyan" icon={<IconInfoCircle />}>
+                  <Text size="sm" fw={500} mb={4}>This fact has nested values. Try querying:</Text>
+                  <Group gap={4}>
+                    {factStructure.available_paths.slice(0, 10).map((path: string) => (
+                      <Badge 
+                        key={path}
+                        size="sm"
+                        variant="light"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => handleFactSelect(path)}
+                      >
+                        {path}
+                      </Badge>
+                    ))}
+                    {factStructure.available_paths.length > 10 && (
+                      <Text size="xs" c="dimmed">... and {factStructure.available_paths.length - 10} more</Text>
+                    )}
+                  </Group>
+                </Alert>
               )}
-            </Group>
+            </Stack>
           </Card>
         </Grid.Col>
 
@@ -203,12 +275,19 @@ export function FactExplorerPage() {
 
       {loading && <Center h={200}><Loader size="xl" /></Center>}
 
-      {!loading && selectedFact && factData.length > 0 && (
+      {!loading && selectedFact && factData && (
         <Card withBorder shadow="sm" padding="md">
           <Group justify="space-between" mb="md">
-            <Title order={4}>
-              Results for <Text span c="blue" inherit>"{selectedFact}"</Text>
-            </Title>
+            <Stack gap={4}>
+              <Title order={4}>
+                Results for <Text span c="blue" inherit>"{selectedFact}"</Text>
+              </Title>
+              {factData.nested_path && (
+                <Text size="xs" c="dimmed">
+                  Base fact: {factData.base_fact} → Nested path: {factData.nested_path}
+                </Text>
+              )}
+            </Stack>
             <Badge size="lg" variant="light" color="blue">
               {filtered.length} node{filtered.length !== 1 ? 's' : ''}
             </Badge>
@@ -218,7 +297,7 @@ export function FactExplorerPage() {
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Certname</Table.Th>
+                  <Table.Th style={{ width: '30%' }}>Certname</Table.Th>
                   <Table.Th>Value</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -229,9 +308,13 @@ export function FactExplorerPage() {
                       <Text fw={500} size="sm">{f.certname}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" style={{ wordBreak: 'break-word' }}>
-                        {typeof f.value === 'object' ? JSON.stringify(f.value, null, 2) : String(f.value)}
-                      </Text>
+                      {isJsonLike(f.value) ? (
+                        <PrettyJson data={f.value} maxHeight={200} withBorder={false} />
+                      ) : (
+                        <Text size="sm" style={{ wordBreak: 'break-word' }}>
+                          {f.value === null ? 'null' : String(f.value)}
+                        </Text>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -241,8 +324,16 @@ export function FactExplorerPage() {
         </Card>
       )}
 
-      {!loading && selectedFact && factData.length === 0 && !error && (
-        <Alert color="yellow">No data found for fact "{selectedFact}".</Alert>
+      {!loading && selectedFact && results.length === 0 && !error && (
+        <Alert color="yellow">
+          No data found for fact "{selectedFact}".
+          {factData?.nested_path && (
+            <Text size="sm" mt="xs">
+              This might be because the nested path doesn't exist on any nodes. 
+              Try checking the base fact "{factData.base_fact}" first.
+            </Text>
+          )}
+        </Alert>
       )}
     </Stack>
   );

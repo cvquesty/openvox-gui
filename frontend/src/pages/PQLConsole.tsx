@@ -6,6 +6,7 @@ import {
 import { IconTerminal, IconPlayerPlay, IconTrash, IconCopy } from '@tabler/icons-react';
 import { pql, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { PrettyJson } from '../components/PrettyJson';
 
 /* ═══════════════════════════════════════════════════════════════
    QUERY-O-TRON 7000 — the PQL query machine
@@ -288,9 +289,7 @@ export function PQLConsolePage() {
             </ScrollArea>
           ) : (
             <ScrollArea style={{ maxHeight: "calc(100vh - 200px)" }}>
-              <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-                {JSON.stringify(results.results, null, 2)}
-              </Code>
+              <PrettyJson data={results.results} maxHeight="calc(100vh - 200px)" />
             </ScrollArea>
           )}
         </Card>

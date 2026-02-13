@@ -40,6 +40,7 @@ import {
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { executionHistory, ExecutionHistoryEntry } from '../services/api';
+import { PrettyJson } from './PrettyJson';
 
 export function ExecutionHistory() {
   const [history, setHistory] = useState<ExecutionHistoryEntry[]>([]);
@@ -386,7 +387,7 @@ export function ExecutionHistory() {
               <>
                 <Divider />
                 <Text fw={500}>Parameters:</Text>
-                <Code block>{JSON.stringify(selectedEntry.parameters, null, 2)}</Code>
+                <PrettyJson data={selectedEntry.parameters} maxHeight={200} />
               </>
             )}
             

@@ -254,12 +254,18 @@ export const certificates = {
 // ─── Facts Explorer ─────────────────────────────────────────
 
 export const facts = {
-  getNames: () =>
-    fetchJSON<any>('/facts/names').then((r: any) => r.names || []),
-  getByName: (name: string) =>
-    fetchJSON<any>('/facts/values/' + encodeURIComponent(name)),
+  getNames: (includePaths: boolean = true) =>
+    fetchJSON<any>('/facts/names' + (includePaths ? '?include_paths=true' : ''))
+      .then((r: any) => r.names || []),
+  
+  getByName: (factPath: string) =>
+    fetchJSON<any>('/facts/values/' + encodeURIComponent(factPath)),
+  
   getForNode: (certname: string) =>
     fetchJSON<any[]>('/nodes/' + certname + '/facts'),
+  
+  getStructure: (factName: string, sampleCount: number = 5) =>
+    fetchJSON<any>('/facts/structure/' + encodeURIComponent(factName) + '?sample_count=' + sampleCount),
 };
 
 // ─── Resource Explorer ──────────────────────────────────────

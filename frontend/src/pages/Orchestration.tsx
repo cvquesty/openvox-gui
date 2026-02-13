@@ -13,6 +13,7 @@ import { bolt, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import AnsiToHtml from 'ansi-to-html';
 import { ExecutionHistory } from '../components/ExecutionHistory';
+import { PrettyJson } from '../components/PrettyJson';
 
 /* ── ANSI color converter (singleton) ──────────────────────── */
 const ansiConverter = new AnsiToHtml({
@@ -62,6 +63,22 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
       );
     }
     
+    if (format === 'json') {
+      // Try to parse and pretty print JSON
+      try {
+        const parsed = JSON.parse(result.output);
+        return <PrettyJson data={parsed} maxHeight={500} withBorder={false} />;
+      } catch {
+        // If not valid JSON, show as regular code
+        return (
+          <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+            {result.output}
+          </Code>
+        );
+      }
+    }
+    
+    // Default (human format)
     return (
       <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
         {result.output}

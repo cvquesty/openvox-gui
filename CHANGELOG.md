@@ -5,6 +5,28 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-13
+
+### New Features
+- **Nested Fact Querying**: Fact Explorer now supports querying nested fact values using dot notation
+  - Query structured facts like "os.family", "memory.system.total", "networking.hostname"
+  - Automatically discovers and suggests available nested paths for structured facts
+  - Shows both base fact and nested path information in results
+  - Grouped dropdown organizes facts by their base name for easier navigation
+- **Pretty JSON Display**: All JSON outputs throughout the application are now formatted for readability
+  - Similar to `jq` output with proper indentation and syntax highlighting
+  - Implemented in: Fact Explorer, PQL Console, Node Details, Node Classifier, Orchestration results, Execution History
+  - New reusable PrettyJson component for consistent JSON formatting
+- **Fact Structure Explorer**: New API endpoint to explore the structure of complex facts
+  - Sample values from multiple nodes to understand fact structure
+  - Automatically extract available nested paths from structured facts
+
+### Technical Improvements
+- Enhanced Facts API with nested value extraction using dot notation
+- New `get_nested_value` function for traversing complex fact structures
+- PrettyJson component with scrollable areas and proper overflow handling
+- Improved fact name suggestions with common nested paths for known structured facts
+
 ## [1.2.0] - 2026-02-13
 
 ### New Features

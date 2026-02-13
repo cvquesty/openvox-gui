@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react';
 import { enc, nodes as nodesApi, config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { PrettyJson } from '../components/PrettyJson';
 
 /* ═══════════════════════════════════════════════════════════════
    SHARED: Class badges display
@@ -887,7 +888,9 @@ function LookupTab() {
                     <div key={cls}>
                       <Badge color="grape" variant="light">{cls}</Badge>
                       {params && Object.keys(params).length > 0 && (
-                        <Code block mt={2} style={{ fontSize: 11 }}>{JSON.stringify(params, null, 2)}</Code>
+                        <Box mt={2}>
+                          <PrettyJson data={params} maxHeight={150} />
+                        </Box>
                       )}
                     </div>
                   ))}
@@ -899,7 +902,7 @@ function LookupTab() {
               <Paper p="md" withBorder>
                 <Text fw={600} size="sm" mb="xs">Parameters ({Object.keys(result.parameters || {}).length})</Text>
                 {Object.keys(result.parameters || {}).length > 0 ? (
-                  <Code block style={{ fontSize: 11 }}>{JSON.stringify(result.parameters, null, 2)}</Code>
+                  <PrettyJson data={result.parameters} maxHeight={200} />
                 ) : <Text size="sm" c="dimmed">No parameters</Text>}
               </Paper>
             </Grid.Col>
