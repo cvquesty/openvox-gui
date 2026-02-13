@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
-  Table, Badge, Code, TextInput, ScrollArea, Select, Grid,
+  Table, Badge, Code, TextInput, ScrollArea, Select, Grid, Box,
 } from '@mantine/core';
 import { IconPackage, IconSearch } from '@tabler/icons-react';
 import { pql } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { PrettyJson } from '../components/PrettyJson';
 
 const COMMON_TYPES = [
   'Class', 'File', 'Package', 'Service', 'Exec', 'User', 'Group',
@@ -215,7 +216,7 @@ export function ResourceExplorerPage() {
       {error && <Alert color="red" title="Search Error">{error}</Alert>}
 
       {!loading && results.length > 0 && (
-        <Card withBorder shadow="sm" padding="md">
+        <Card withBorder shadow="sm" padding="md" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 450px)', minHeight: 400 }}>
           <Group justify="space-between" mb="sm">
             <Group gap="sm">
               <Title order={4}>{resourceType} Resources</Title>
@@ -243,30 +244,36 @@ export function ResourceExplorerPage() {
             </Group>
           )}
 
-          <ScrollArea style={{ maxHeight: 500 }}>
-            <Table striped highlightOnHover withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Node</Table.Th>
-                  <Table.Th>Title</Table.Th>
-                  <Table.Th>Environment</Table.Th>
-                  <Table.Th>File</Table.Th>
-                  <Table.Th>Line</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filtered.map((r: any, i: number) => (
-                  <Table.Tr key={i}>
-                    <Table.Td><Text fw={500} size="sm">{r.certname}</Text></Table.Td>
-                    <Table.Td><Code style={{ fontSize: 12 }}>{r.title}</Code></Table.Td>
-                    <Table.Td><Badge variant="outline" size="xs">{r.environment || 'N/A'}</Badge></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{r.file || '\u2014'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{r.line || '\u2014'}</Text></Table.Td>
+          <Box style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <ScrollArea h="100%" offsetScrollbars scrollbarSize={8}>
+              <Table striped highlightOnHover withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Node</Table.Th>
+                    <Table.Th>Title</Table.Th>
+                    <Table.Th>Environment</Table.Th>
+                    <Table.Th>File</Table.Th>
+                    <Table.Th>Line</Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
+                </Table.Thead>
+                <Table.Tbody>
+                  {filtered.map((r: any, i: number) => (
+                    <Table.Tr key={i}>
+                      <Table.Td><Text fw={500} size="sm">{r.certname}</Text></Table.Td>
+                      <Table.Td>
+                        <Code style={{ fontSize: 12, maxWidth: 400, display: 'inline-block', wordBreak: 'break-word' }}>
+                          {r.title}
+                        </Code>
+                      </Table.Td>
+                      <Table.Td><Badge variant="outline" size="xs">{r.environment || 'N/A'}</Badge></Table.Td>
+                      <Table.Td><Text size="xs" c="dimmed" style={{ maxWidth: 300, wordBreak: 'break-word' }}>{r.file || '\u2014'}</Text></Table.Td>
+                      <Table.Td><Text size="xs" c="dimmed">{r.line || '\u2014'}</Text></Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea>
+          </Box>
         </Card>
       )}
 
