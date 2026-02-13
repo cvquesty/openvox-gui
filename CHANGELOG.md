@@ -5,6 +5,19 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-02-13
+
+### Enhanced
+- **Fact Explorer Nested Fact Support**: Significantly improved nested fact querying experience
+  - Replaced Select dropdown with Autocomplete component for direct typing of nested facts
+  - Added intelligent autocomplete suggestions that understand dotted notation (e.g., os.family, memory.system.total)
+  - Added ability to press Enter or click Query button to submit any typed fact name
+  - Added quick access badges for common nested facts organized by category (System, Network)
+  - Improved suggestion filtering with prefix-first matching
+  - Supports up to 100 autocomplete suggestions with scrollable dropdown
+  - Clear button to reset the fact search
+  - Better placeholder text showing example nested fact paths
+
 ## [1.3.2] - 2026-02-13
 
 ### Changed

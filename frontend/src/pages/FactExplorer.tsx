@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Select, TextInput, ScrollArea, Grid, Tooltip, Button,
+  Autocomplete, Combobox, useCombobox,
 } from '@mantine/core';
 import { IconSearch, IconFilter, IconInfoCircle } from '@tabler/icons-react';
 import { facts } from '../services/api';
@@ -105,6 +106,7 @@ export function FactExplorerPage() {
   const { isFormal } = useAppTheme();
   const [factNames, setFactNames] = useState<string[]>([]);
   const [selectedFact, setSelectedFact] = useState<string | null>(null);
+  const [factInput, setFactInput] = useState<string>('');
   const [factData, setFactData] = useState<any>(null);
   const [factStructure, setFactStructure] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -126,13 +128,21 @@ export function FactExplorerPage() {
   }, []);
 
   const handleFactSelect = async (factName: string | null) => {
+    if (!factName || factName.trim() === '') {
+      setSelectedFact(null);
+      setFactData(null);
+      setFactStructure(null);
+      setFactInput('');
+      return;
+    }
+    
     setSelectedFact(factName);
+    setFactInput(factName);
     setFactData(null);
     setFactStructure(null);
     setError(null);
     setFilter('');
     setShowStructure(false);
-    if (!factName) return;
 
     setLoading(true);
     try {
@@ -163,34 +173,33 @@ export function FactExplorerPage() {
     return f.certname?.toLowerCase().includes(q) || val.toLowerCase().includes(q);
   });
 
-  // Group facts by common prefixes for better organization in dropdown
-  const groupedFactNames = factNames.reduce((acc, name) => {
-    const prefix = name.split('.')[0];
-    const isNested = name.includes('.');
+  // Generate autocomplete suggestions based on user input
+  const getAutocompleteSuggestions = (query: string) => {
+    if (!query) return factNames.slice(0, 50); // Show first 50 when empty
     
-    if (isNested) {
-      if (!acc[prefix]) acc[prefix] = [];
-      acc[prefix].push(name);
-    } else {
-      if (!acc['_base']) acc['_base'] = [];
-      acc['_base'].push(name);
-    }
-    return acc;
-  }, {} as Record<string, string[]>);
+    const lowerQuery = query.toLowerCase();
+    
+    // First, find exact prefix matches
+    const prefixMatches = factNames.filter(name => 
+      name.toLowerCase().startsWith(lowerQuery)
+    );
+    
+    // Then find contains matches
+    const containsMatches = factNames.filter(name => 
+      !name.toLowerCase().startsWith(lowerQuery) && 
+      name.toLowerCase().includes(lowerQuery)
+    );
+    
+    // Combine and limit results
+    return [...prefixMatches, ...containsMatches].slice(0, 100);
+  };
 
-  // Convert grouped facts to Select data format
-  const selectData = Object.entries(groupedFactNames).flatMap(([group, names]) => {
-    if (group === '_base') {
-      return names.map(n => ({ value: n, label: n }));
+  // Handle Enter key to submit the typed fact
+  const handleFactInputSubmit = () => {
+    if (factInput.trim()) {
+      handleFactSelect(factInput.trim());
     }
-    return {
-      group,
-      items: names.map(n => ({ 
-        value: n, 
-        label: n.replace(group + '.', '  ↳ ') 
-      }))
-    };
-  });
+  };
 
   return (
     <Stack>
@@ -200,8 +209,8 @@ export function FactExplorerPage() {
       </Group>
 
       <Alert variant="light" color="blue">
-        Select a fact from the dropdown to see its value on every node in your fleet.
-        You can also query nested facts like "os.family" or "memory.system.total".
+        Type or select a fact to see its value on every node. Supports nested facts like "os.family", 
+        "memory.system.total", or "networking.interfaces.lo.bindings".
       </Alert>
 
       {/* Controls + illustration */}
@@ -210,20 +219,49 @@ export function FactExplorerPage() {
           <Card withBorder shadow="sm" padding="md">
             <Stack>
               <Group align="flex-end">
-                <Select
+                <Autocomplete
                   label="Fact Name"
-                  placeholder={namesLoading ? 'Loading facts...' : 'Select a fact (e.g., os.family)...'}
-                  data={selectData}
-                  value={selectedFact}
-                  onChange={handleFactSelect}
-                  searchable
-                  clearable
+                  placeholder={namesLoading ? 'Loading facts...' : 'Type a fact name (e.g., os.family, memory.system.total)...'}
+                  data={getAutocompleteSuggestions(factInput)}
+                  value={factInput}
+                  onChange={setFactInput}
+                  onOptionSubmit={(val) => {
+                    setFactInput(val);
+                    handleFactSelect(val);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.defaultPrevented) {
+                      handleFactInputSubmit();
+                    }
+                  }}
                   style={{ flex: 1, minWidth: 300 }}
-                  nothingFoundMessage="No matching facts"
-                  limit={200}
                   disabled={namesLoading}
-                  description="Supports nested facts like os.family, memory.system.total"
+                  description="Start typing to see suggestions. Press Enter to query any typed fact."
+                  leftSection={<IconSearch size={14} />}
+                  limit={50}
+                  maxDropdownHeight={400}
                 />
+                <Button 
+                  onClick={handleFactInputSubmit}
+                  disabled={!factInput.trim() || namesLoading}
+                  variant="filled"
+                >
+                  Query
+                </Button>
+                {factInput && (
+                  <Button 
+                    onClick={() => {
+                      setFactInput('');
+                      setSelectedFact(null);
+                      setFactData(null);
+                      setFactStructure(null);
+                    }}
+                    variant="light"
+                    color="gray"
+                  >
+                    Clear
+                  </Button>
+                )}
                 {selectedFact && results.length > 0 && (
                   <TextInput
                     label="Filter Results"
@@ -231,7 +269,7 @@ export function FactExplorerPage() {
                     leftSection={<IconFilter size={14} />}
                     value={filter}
                     onChange={(e) => setFilter(e.currentTarget.value)}
-                    style={{ width: 300 }}
+                    style={{ width: 250 }}
                   />
                 )}
               </Group>
@@ -241,21 +279,73 @@ export function FactExplorerPage() {
                 <Alert variant="light" color="cyan" icon={<IconInfoCircle />}>
                   <Text size="sm" fw={500} mb={4}>This fact has nested values. Try querying:</Text>
                   <Group gap={4}>
-                    {factStructure.available_paths.slice(0, 10).map((path: string) => (
+                    {factStructure.available_paths.slice(0, 15).map((path: string) => (
                       <Badge 
                         key={path}
                         size="sm"
                         variant="light"
                         style={{ cursor: 'pointer' }}
-                        onClick={() => handleFactSelect(path)}
+                        onClick={() => {
+                          setFactInput(path);
+                          handleFactSelect(path);
+                        }}
                       >
                         {path}
                       </Badge>
                     ))}
-                    {factStructure.available_paths.length > 10 && (
-                      <Text size="xs" c="dimmed">... and {factStructure.available_paths.length - 10} more</Text>
+                    {factStructure.available_paths.length > 15 && (
+                      <Badge size="sm" variant="outline">
+                        +{factStructure.available_paths.length - 15} more
+                      </Badge>
                     )}
                   </Group>
+                </Alert>
+              )}
+              
+              {/* Show quick access to common nested facts */}
+              {!selectedFact && !namesLoading && (
+                <Alert variant="light" color="gray">
+                  <Text size="sm" fw={500} mb={8}>Quick access to common facts:</Text>
+                  <Grid gutter="xs">
+                    <Grid.Col span={6}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">System</Text>
+                        {['os.family', 'os.release.full', 'kernel', 'kernelrelease', 'memory.system.total'].map(fact => (
+                          <Badge 
+                            key={fact}
+                            size="sm"
+                            variant="light"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              setFactInput(fact);
+                              handleFactSelect(fact);
+                            }}
+                          >
+                            {fact}
+                          </Badge>
+                        ))}
+                      </Stack>
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <Stack gap={4}>
+                        <Text size="xs" c="dimmed">Network</Text>
+                        {['networking.hostname', 'networking.fqdn', 'networking.ip', 'networking.interfaces.eth0.ip'].map(fact => (
+                          <Badge 
+                            key={fact}
+                            size="sm"
+                            variant="light"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              setFactInput(fact);
+                              handleFactSelect(fact);
+                            }}
+                          >
+                            {fact}
+                          </Badge>
+                        ))}
+                      </Stack>
+                    </Grid.Col>
+                  </Grid>
                 </Alert>
               )}
             </Stack>
