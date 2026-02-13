@@ -137,7 +137,7 @@ if frontend_dist.exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "1.4.0"}
+    return {"status": "ok", "version": "1.4.1"}
 
 
 @app.get("/{full_path:path}")
