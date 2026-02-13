@@ -5,6 +5,40 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-02-13
+
+**🎉 Production Release - Launch Ready!**
+
+This is our first production-ready release with comprehensive documentation, improved stability, and a better user experience.
+
+### ✨ New Features
+- **Comprehensive Documentation Suite**
+  - Brand new installation guide with step-by-step instructions
+  - Detailed update guide for seamless upgrades
+  - Complete troubleshooting guide for common issues
+  - User-friendly README with clear explanations
+
+### 🐛 Bug Fixes from Recent Development
+- **Application Update Handling** - No more errors when navigating after deployments
+- **Scrolling Issues** - Fixed multiple scrolling problems throughout the interface
+- **Certificate Statistics** - Corrected counting and display of certificates
+- **Fact Explorer** - Enhanced with nested fact support and autocomplete
+- **Module Loading** - Better caching and error recovery
+
+### 📝 Documentation
+- Created [INSTALL.md](INSTALL.md) - Complete installation guide for new users
+- Created [UPDATE.md](UPDATE.md) - Step-by-step update procedures
+- Created [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Solutions for common problems
+- Rewrote [README.md](README.md) - Clear, beginner-friendly overview
+- Simplified this changelog to be more user-friendly
+
+### 🔧 Technical Improvements
+- Version checking system to detect updates
+- Graceful error handling for chunk loading failures
+- Improved cache control headers
+- Better error messages throughout
+- Enhanced ScrollArea components for better UX
+
 ## [1.3.11] - 2026-02-13
 
 ### Added
