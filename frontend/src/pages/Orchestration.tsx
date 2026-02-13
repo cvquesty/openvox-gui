@@ -45,21 +45,19 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
     if (format === 'rainbow') {
       const outputHtml = ansiConverter.toHtml(result.output);
       return (
-        <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
-          <Box
-            style={{
-              backgroundColor: '#1e1e1e',
-              borderRadius: 6,
-              padding: '12px 16px',
-              fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
-              fontSize: 13,
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-            dangerouslySetInnerHTML={{ __html: outputHtml }}
-          />
-        </ScrollArea>
+        <Box
+          style={{
+            backgroundColor: '#1e1e1e',
+            borderRadius: 6,
+            padding: '12px 16px',
+            fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+            fontSize: 13,
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+          dangerouslySetInnerHTML={{ __html: outputHtml }}
+        />
       );
     }
     
@@ -67,30 +65,22 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
       // Try to parse and pretty print JSON
       try {
         const parsed = JSON.parse(result.output);
-        return (
-          <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
-            <PrettyJson data={parsed} withBorder={false} />
-          </ScrollArea>
-        );
+        return <PrettyJson data={parsed} withBorder={false} />;
       } catch {
         // If not valid JSON, show as regular code
         return (
-          <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
-            <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-              {result.output}
-            </Code>
-          </ScrollArea>
+          <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+            {result.output}
+          </Code>
         );
       }
     }
     
     // Default (human format)
     return (
-      <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
-        <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-          {result.output}
-        </Code>
-      </ScrollArea>
+      <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+        {result.output}
+      </Code>
     );
   };
 
@@ -116,31 +106,37 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
           </Tabs.Tab>
         </Tabs.List>
         
-        <Tabs.Panel value="human" pt="sm">
-          {results.human && renderOutput(results.human, 'human')}
-          {results.human?.error && (
-            <Alert color="red" mt="sm">
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.human.error}</Text>
-            </Alert>
-          )}
+        <Tabs.Panel value="human" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
+          <ScrollArea style={{ height: '100%' }}>
+            {results.human && renderOutput(results.human, 'human')}
+            {results.human?.error && (
+              <Alert color="red" mt="sm">
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.human.error}</Text>
+              </Alert>
+            )}
+          </ScrollArea>
         </Tabs.Panel>
         
-        <Tabs.Panel value="json" pt="sm">
-          {results.json && renderOutput(results.json, 'json')}
-          {results.json?.error && (
-            <Alert color="red" mt="sm">
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.json.error}</Text>
-            </Alert>
-          )}
+        <Tabs.Panel value="json" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
+          <ScrollArea style={{ height: '100%' }}>
+            {results.json && renderOutput(results.json, 'json')}
+            {results.json?.error && (
+              <Alert color="red" mt="sm">
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.json.error}</Text>
+              </Alert>
+            )}
+          </ScrollArea>
         </Tabs.Panel>
         
-        <Tabs.Panel value="rainbow" pt="sm">
-          {results.rainbow && renderOutput(results.rainbow, 'rainbow')}
-          {results.rainbow?.error && (
-            <Alert color="red" mt="sm">
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.rainbow.error}</Text>
-            </Alert>
-          )}
+        <Tabs.Panel value="rainbow" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
+          <ScrollArea style={{ height: '100%' }}>
+            {results.rainbow && renderOutput(results.rainbow, 'rainbow')}
+            {results.rainbow?.error && (
+              <Alert color="red" mt="sm">
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.rainbow.error}</Text>
+              </Alert>
+            )}
+          </ScrollArea>
         </Tabs.Panel>
       </Tabs>
     </Card>

@@ -5,6 +5,18 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.8] - 2026-02-13
+
+### Fixed
+- **Orchestration Result Tab Scrolling**: Fixed scrolling issues when switching between result tabs
+  - Wrapped tab panels with ScrollArea components with fixed 65vh height
+  - Removed redundant nested ScrollArea from renderOutput function
+  - All three view modes (Human/JSON/Rainbow) now scroll properly
+- **Fact Explorer Node Output Scrolling**: Fixed scrollability of large fact values in table cells
+  - Wrapped individual fact values in ScrollArea with 300px max height
+  - Large JSON and text values can now be scrolled within their cells
+  - Improved usability when viewing complex nested fact structures
+
 ## [1.3.7] - 2026-02-13
 
 ### Fixed
