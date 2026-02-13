@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# OpenVox GUI Installer v1.0.0
+# OpenVox GUI Installer v1.1.0
 #
 # Installs the OpenVox GUI web application for managing Puppet infrastructure.
 # Supports interactive prompts, answer-file (install.conf), and silent mode.

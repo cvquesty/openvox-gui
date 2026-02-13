@@ -5,6 +5,45 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-13
+
+### New Features
+- **Multi-format Output Display**: Orchestration page now displays command/task/plan results in all three formats (Human, JSON, Rainbow) simultaneously in tabbed panes - users can switch between formats without re-running commands
+- **Parallel Format Fetching**: All three output formats are fetched in parallel for better performance
+
+### Security Updates
+- **Critical Security Fixes**: Updated 11 vulnerable dependencies (1 critical, 3 high, 7 moderate)
+  - **Frontend Dependencies**:
+    - Vite: 5.0.8 → 6.4.1 (fixes CVE-2024-23331 critical directory traversal vulnerability)
+    - React: 18.2.0 → 18.2.0 (kept stable)
+    - React Router DOM: 6.20.0 → 6.21.0
+    - TypeScript: 5.3.3 → 5.3.3 (kept compatible)
+    - PostCSS and build tools updated to latest secure versions
+    - esbuild: Now using 0.25.12 (fixes GHSA-67mh-4wv8-2f99 CORS vulnerability)
+  - **Backend Dependencies**:
+    - **python-jose**: 3.3.0 → 3.5.0 (CRITICAL - fixes CVE-2024-33663 CVSS 9.3 algorithm confusion, CVE-2025-61152 alg=none bypass)
+    - FastAPI: 0.104.1 → 0.129.0
+    - Uvicorn: 0.24.0 → 0.30.6
+    - Pydantic: 2.5.2 → 2.10.5
+    - SQLAlchemy: 2.0.23 → 2.0.36
+    - Jinja2: 3.1.2 → 3.1.6
+    - python-multipart: 0.0.6 → 0.0.22
+    - bcrypt: 4.0.1 → 4.2.1
+    - PyYAML: 6.0.1 → 6.0.2
+    - aiosqlite: 0.19.0 → 0.20.0
+    - alembic: 1.13.0 → 1.14.1
+    - httpx: 0.25.2 → 0.27.2
+- **Virtual Environment**: Added Python virtual environment support to backend for better dependency isolation
+- **Node.js Requirement**: Vite 6+ requires Node.js 18+ (previously Node 14.18+ was sufficient)
+
+### Improvements
+- **Orchestration Results**: Removed single format selector in favor of tabbed display showing all formats
+- **Error Handling**: Better error display in each format tab
+- **Build System**: Updated to latest Vite which includes numerous performance improvements
+
+### Bug Fixes
+- **Security Vulnerability Remediation**: Resolved all critical and high severity vulnerabilities, reduced moderate vulnerabilities from 7 to 1
+
 ## [1.0.0] - 2026-02-12
 
 ### Highlights
