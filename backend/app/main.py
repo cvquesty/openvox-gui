@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Web-based management GUI for OpenVox/Puppet infrastructure",
-    version="1.3.1",
+    version="1.3.2",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -112,7 +112,7 @@ if frontend_dist.exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "1.3.1"}
+    return {"status": "ok", "version": "1.3.2"}
 
 
 @app.get("/{full_path:path}")

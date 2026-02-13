@@ -7,7 +7,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconTerminal2, IconListDetails, IconRoute, IconSettings, IconPlayerPlay,
-  IconBolt,
+  IconBolt, IconHistory,
 } from '@tabler/icons-react';
 import { bolt, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -599,7 +599,14 @@ function RunPlanTab() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   TAB 5: CONFIGURATION
+   TAB 5: EXECUTION HISTORY
+   ═══════════════════════════════════════════════════════════════ */
+function ExecutionHistoryTab() {
+  return <ExecutionHistory />;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TAB 6: CONFIGURATION
    ═══════════════════════════════════════════════════════════════ */
 function ConfigTab() {
   const [cfg, setCfg] = useState<any>(null);
@@ -686,35 +693,26 @@ groups:
    ═══════════════════════════════════════════════════════════════ */
 export function OrchestrationPage() {
   return (
-    <Stack h="100vh" style={{ overflow: 'hidden' }}>
-      <Box>
-        <Title order={2}>Orchestration</Title>
-      </Box>
+    <Stack>
+      <Title order={2}>Orchestration</Title>
       
-      {/* Main tabs section */}
-      <Box style={{ minHeight: 0, flex: '1 1 60%' }}>
-        <Tabs defaultValue="overview" variant="outline" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-          <Tabs.List>
-            <Tabs.Tab value="overview" leftSection={<IconBolt size={16} />}>Overview</Tabs.Tab>
-            <Tabs.Tab value="command" leftSection={<IconTerminal2 size={16} />}>Run Command</Tabs.Tab>
-            <Tabs.Tab value="task" leftSection={<IconListDetails size={16} />}>Run Task</Tabs.Tab>
-            <Tabs.Tab value="plan" leftSection={<IconRoute size={16} />}>Run Plan</Tabs.Tab>
-            <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Configuration</Tabs.Tab>
-          </Tabs.List>
-          <Box style={{ flex: 1, overflow: 'auto' }} pt="md">
-            <Tabs.Panel value="overview"><OverviewTab /></Tabs.Panel>
-            <Tabs.Panel value="command"><RunCommandTab /></Tabs.Panel>
-            <Tabs.Panel value="task"><RunTaskTab /></Tabs.Panel>
-            <Tabs.Panel value="plan"><RunPlanTab /></Tabs.Panel>
-            <Tabs.Panel value="config"><ConfigTab /></Tabs.Panel>
-          </Box>
-        </Tabs>
-      </Box>
-      
-      {/* Execution history section at bottom */}
-      <Box style={{ flex: '0 1 40%', minHeight: 300, maxHeight: 500 }}>
-        <ExecutionHistory />
-      </Box>
+      <Tabs defaultValue="overview" variant="outline">
+        <Tabs.List>
+          <Tabs.Tab value="overview" leftSection={<IconBolt size={16} />}>Overview</Tabs.Tab>
+          <Tabs.Tab value="command" leftSection={<IconTerminal2 size={16} />}>Run Command</Tabs.Tab>
+          <Tabs.Tab value="task" leftSection={<IconListDetails size={16} />}>Run Task</Tabs.Tab>
+          <Tabs.Tab value="plan" leftSection={<IconRoute size={16} />}>Run Plan</Tabs.Tab>
+          <Tabs.Tab value="history" leftSection={<IconHistory size={16} />}>Execution History</Tabs.Tab>
+          <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Configuration</Tabs.Tab>
+        </Tabs.List>
+        
+        <Tabs.Panel value="overview" pt="md"><OverviewTab /></Tabs.Panel>
+        <Tabs.Panel value="command" pt="md"><RunCommandTab /></Tabs.Panel>
+        <Tabs.Panel value="task" pt="md"><RunTaskTab /></Tabs.Panel>
+        <Tabs.Panel value="plan" pt="md"><RunPlanTab /></Tabs.Panel>
+        <Tabs.Panel value="history" pt="md"><ExecutionHistoryTab /></Tabs.Panel>
+        <Tabs.Panel value="config" pt="md"><ConfigTab /></Tabs.Panel>
+      </Tabs>
     </Stack>
   );
 }

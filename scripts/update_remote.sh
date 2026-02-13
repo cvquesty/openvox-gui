@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# OpenVox GUI Remote Update Script v1.3.1
+# OpenVox GUI Remote Update Script v1.3.2
 #
 # Deploys updates to the production OpenVox GUI server at openvox.questy.org
 #
@@ -72,7 +72,7 @@ log_err() {
 
 # ─── Main Deployment ──────────────────────────────────────────
 
-echo -e "${BOLD}OpenVox GUI Remote Deployment v1.3.1${NC}"
+echo -e "${BOLD}OpenVox GUI Remote Deployment v1.3.2${NC}"
 echo -e "Target: ${YELLOW}${REMOTE_NAME}${NC} (${REMOTE_HOST})"
 echo ""
 
@@ -190,7 +190,7 @@ echo -e "${GREEN}${BOLD}  Remote Deployment Complete!${NC}"
 echo -e "${GREEN}${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}Server:${NC}      ${REMOTE_NAME} (${REMOTE_HOST})"
-echo -e "  ${BOLD}Version:${NC}     1.3.1"
+echo -e "  ${BOLD}Version:${NC}     1.3.2"
 echo -e "  ${BOLD}Access URL:${NC}  https://${REMOTE_NAME}:8080"
 echo ""
 echo -e "  ${BOLD}Remote Commands:${NC}"
