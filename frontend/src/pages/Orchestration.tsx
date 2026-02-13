@@ -12,6 +12,7 @@ import {
 import { bolt, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import AnsiToHtml from 'ansi-to-html';
+import { ExecutionHistory } from '../components/ExecutionHistory';
 
 /* ── ANSI color converter (singleton) ──────────────────────── */
 const ansiConverter = new AnsiToHtml({
@@ -668,22 +669,35 @@ groups:
    ═══════════════════════════════════════════════════════════════ */
 export function OrchestrationPage() {
   return (
-    <Stack>
-      <Title order={2}>Orchestration</Title>
-      <Tabs defaultValue="overview" variant="outline">
-        <Tabs.List>
-          <Tabs.Tab value="overview" leftSection={<IconBolt size={16} />}>Overview</Tabs.Tab>
-          <Tabs.Tab value="command" leftSection={<IconTerminal2 size={16} />}>Run Command</Tabs.Tab>
-          <Tabs.Tab value="task" leftSection={<IconListDetails size={16} />}>Run Task</Tabs.Tab>
-          <Tabs.Tab value="plan" leftSection={<IconRoute size={16} />}>Run Plan</Tabs.Tab>
-          <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Configuration</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="overview" pt="md"><OverviewTab /></Tabs.Panel>
-        <Tabs.Panel value="command" pt="md"><RunCommandTab /></Tabs.Panel>
-        <Tabs.Panel value="task" pt="md"><RunTaskTab /></Tabs.Panel>
-        <Tabs.Panel value="plan" pt="md"><RunPlanTab /></Tabs.Panel>
-        <Tabs.Panel value="config" pt="md"><ConfigTab /></Tabs.Panel>
-      </Tabs>
+    <Stack h="100vh" style={{ overflow: 'hidden' }}>
+      <Box>
+        <Title order={2}>Orchestration</Title>
+      </Box>
+      
+      {/* Main tabs section */}
+      <Box style={{ minHeight: 0, flex: '1 1 60%' }}>
+        <Tabs defaultValue="overview" variant="outline" h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+          <Tabs.List>
+            <Tabs.Tab value="overview" leftSection={<IconBolt size={16} />}>Overview</Tabs.Tab>
+            <Tabs.Tab value="command" leftSection={<IconTerminal2 size={16} />}>Run Command</Tabs.Tab>
+            <Tabs.Tab value="task" leftSection={<IconListDetails size={16} />}>Run Task</Tabs.Tab>
+            <Tabs.Tab value="plan" leftSection={<IconRoute size={16} />}>Run Plan</Tabs.Tab>
+            <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Configuration</Tabs.Tab>
+          </Tabs.List>
+          <Box style={{ flex: 1, overflow: 'auto' }} pt="md">
+            <Tabs.Panel value="overview"><OverviewTab /></Tabs.Panel>
+            <Tabs.Panel value="command"><RunCommandTab /></Tabs.Panel>
+            <Tabs.Panel value="task"><RunTaskTab /></Tabs.Panel>
+            <Tabs.Panel value="plan"><RunPlanTab /></Tabs.Panel>
+            <Tabs.Panel value="config"><ConfigTab /></Tabs.Panel>
+          </Box>
+        </Tabs>
+      </Box>
+      
+      {/* Execution history section at bottom */}
+      <Box style={{ flex: '0 1 40%', minHeight: 300, maxHeight: 500 }}>
+        <ExecutionHistory />
+      </Box>
     </Stack>
   );
 }

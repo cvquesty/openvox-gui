@@ -5,11 +5,18 @@ Provides status, task/plan discovery, and execution endpoints.
 import asyncio
 import logging
 import shutil
+import time
 from pathlib import Path
 from shlex import quote as shlex_quote
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
+
+from ..database import get_db
+from ..models import ExecutionHistory
+from ..middleware.auth import get_current_user
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
@@ -185,37 +192,130 @@ class RunPlanRequest(BaseModel):
 
 
 @router.post("/run/command")
-async def run_command(req: RunCommandRequest):
+async def run_command(
+    req: RunCommandRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user)
+):
     """Run an ad-hoc command on targets."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
+    
+    # Create execution history entry
+    history_entry = ExecutionHistory(
+        execution_type="command",
+        node_name=req.targets,
+        command_name=req.command,
+        result_format=fmt,
+        status="running",
+        executed_by=current_user,
+        parameters={"run_as": req.run_as} if req.run_as else None
+    )
+    db.add(history_entry)
+    await db.commit()
+    await db.refresh(history_entry)
+    
+    # Execute command
+    start_time = time.time()
     args = ["command", "run", req.command, "--targets", req.targets, "--format", fmt]
     if req.run_as:
         args.extend(["--run-as", req.run_as])
     result = await run_bolt_command(args, timeout=300)
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    # Update history entry with results
+    history_entry.status = "success" if result["returncode"] == 0 else "failure"
+    history_entry.duration_ms = duration_ms
+    if result["returncode"] != 0:
+        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
+    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
+    await db.commit()
+    
     return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
 
 
 @router.post("/run/task")
-async def run_task(req: RunTaskRequest):
+async def run_task(
+    req: RunTaskRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user)
+):
     """Run a Bolt task on targets."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
+    
+    # Create execution history entry
+    history_entry = ExecutionHistory(
+        execution_type="task",
+        node_name=req.targets,
+        task_name=req.task,
+        result_format=fmt,
+        status="running",
+        executed_by=current_user,
+        parameters={"params": req.params, "run_as": req.run_as} if req.params or req.run_as else None
+    )
+    db.add(history_entry)
+    await db.commit()
+    await db.refresh(history_entry)
+    
+    # Execute task
+    start_time = time.time()
     args = ["task", "run", req.task, "--targets", req.targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     if req.run_as:
         args.extend(["--run-as", req.run_as])
     result = await run_bolt_command(args, timeout=300)
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    # Update history entry with results
+    history_entry.status = "success" if result["returncode"] == 0 else "failure"
+    history_entry.duration_ms = duration_ms
+    if result["returncode"] != 0:
+        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
+    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
+    await db.commit()
+    
     return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
 
 
 @router.post("/run/plan")
-async def run_plan(req: RunPlanRequest):
+async def run_plan(
+    req: RunPlanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user)
+):
     """Run a Bolt plan."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
+    
+    # Create execution history entry
+    history_entry = ExecutionHistory(
+        execution_type="plan",
+        node_name="all",  # Plans typically run on multiple nodes
+        plan_name=req.plan,
+        result_format=fmt,
+        status="running",
+        executed_by=current_user,
+        parameters=req.params if req.params else None
+    )
+    db.add(history_entry)
+    await db.commit()
+    await db.refresh(history_entry)
+    
+    # Execute plan
+    start_time = time.time()
     args = ["plan", "run", req.plan, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     result = await run_bolt_command(args, timeout=600)
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    # Update history entry with results
+    history_entry.status = "success" if result["returncode"] == 0 else "failure"
+    history_entry.duration_ms = duration_ms
+    if result["returncode"] != 0:
+        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
+    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
+    await db.commit()
+    
     return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
 
 

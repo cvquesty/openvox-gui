@@ -5,6 +5,23 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-13
+
+### New Features
+- **Execution History Tracking**: New scrollable pane at the bottom of the Orchestration page showing all commands, tasks, and plans executed in the last 14 days
+  - Automatic logging of all orchestration executions with timestamps, duration, and status
+  - Filter by execution type (command/task/plan), status (success/failure/running), node, and time period
+  - View detailed execution information including parameters, errors, and result previews
+  - Auto-refresh every 10 seconds to show latest executions
+  - Delete individual history entries or bulk cleanup old entries
+- **Execution Statistics API**: New `/api/execution-history/stats` endpoint providing execution analytics
+
+### Technical Improvements
+- Added new `ExecutionHistory` database model with comprehensive execution tracking
+- Modified Bolt orchestration endpoints to automatically log all executions
+- New `ExecutionHistory` React component with advanced filtering and detail views
+- Responsive layout with the history pane taking up to 40% of the Orchestration page
+
 ## [1.1.0] - 2026-02-13
 
 ### New Features

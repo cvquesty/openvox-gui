@@ -282,3 +282,66 @@ export const performance = {
     fetchJSON<any>('/performance/node/' + certname),
 };
 
+// ─── Execution History ──────────────────────────────────────
+
+export interface ExecutionHistoryEntry {
+  id: number;
+  execution_type: 'command' | 'task' | 'plan';
+  node_name: string;
+  command_name?: string;
+  task_name?: string;
+  plan_name?: string;
+  environment?: string;
+  parameters?: Record<string, any>;
+  result_format?: string;
+  status: 'running' | 'success' | 'failure' | 'queued';
+  executed_at: string;
+  executed_by: string;
+  duration_ms?: number;
+  error_message?: string;
+  result_preview?: string;
+}
+
+export interface ExecutionStats {
+  period_days: number;
+  total_executions: number;
+  successful: number;
+  failed: number;
+  running: number;
+  by_type: {
+    command: number;
+    task: number;
+    plan: number;
+  };
+  top_nodes: Array<{ node: string; count: number }>;
+  avg_duration_ms: number;
+}
+
+export const executionHistory = {
+  getHistory: (params?: {
+    days?: number;
+    execution_type?: string;
+    node_name?: string;
+    status?: string;
+    limit?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.days) qs.set('days', params.days.toString());
+    if (params?.execution_type) qs.set('execution_type', params.execution_type);
+    if (params?.node_name) qs.set('node_name', params.node_name);
+    if (params?.status) qs.set('status', params.status);
+    if (params?.limit) qs.set('limit', params.limit.toString());
+    const query = qs.toString();
+    return fetchJSON<ExecutionHistoryEntry[]>(`/execution-history/${query ? '?' + query : ''}`);
+  },
+  
+  getStats: (days: number = 14) =>
+    fetchJSON<ExecutionStats>(`/execution-history/stats?days=${days}`),
+  
+  deleteEntry: (id: number) =>
+    fetchJSON<any>(`/execution-history/${id}`, { method: 'DELETE' }),
+  
+  cleanupOld: (days: number = 90) =>
+    fetchJSON<any>(`/execution-history/cleanup/old?days=${days}`, { method: 'DELETE' }),
+};
+
