@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, TextInput, Textarea, Select, Badge, Code, Grid, Divider,
-  Paper, ThemeIcon, Box, SegmentedControl,
+  Paper, ThemeIcon, Box, SegmentedControl, ScrollArea,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -45,21 +45,21 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
     if (format === 'rainbow') {
       const outputHtml = ansiConverter.toHtml(result.output);
       return (
-        <Box
-          style={{
-            backgroundColor: '#1e1e1e',
-            borderRadius: 6,
-            padding: '12px 16px',
-            maxHeight: 500,
-            overflow: 'auto',
-            fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
-            fontSize: 13,
-            lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-          dangerouslySetInnerHTML={{ __html: outputHtml }}
-        />
+        <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
+          <Box
+            style={{
+              backgroundColor: '#1e1e1e',
+              borderRadius: 6,
+              padding: '12px 16px',
+              fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+              fontSize: 13,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+            dangerouslySetInnerHTML={{ __html: outputHtml }}
+          />
+        </ScrollArea>
       );
     }
     
@@ -67,22 +67,30 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
       // Try to parse and pretty print JSON
       try {
         const parsed = JSON.parse(result.output);
-        return <PrettyJson data={parsed} maxHeight={500} withBorder={false} />;
+        return (
+          <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
+            <PrettyJson data={parsed} withBorder={false} />
+          </ScrollArea>
+        );
       } catch {
         // If not valid JSON, show as regular code
         return (
-          <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
-            {result.output}
-          </Code>
+          <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
+            <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+              {result.output}
+            </Code>
+          </ScrollArea>
         );
       }
     }
     
     // Default (human format)
     return (
-      <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
-        {result.output}
-      </Code>
+      <ScrollArea style={{ height: '60vh', minHeight: 400, maxHeight: 800 }}>
+        <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+          {result.output}
+        </Code>
+      </ScrollArea>
     );
   };
 

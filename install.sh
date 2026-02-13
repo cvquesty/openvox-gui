@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# OpenVox GUI Installer v1.3.4
+# OpenVox GUI Installer v1.3.5
 #
 # Installs the OpenVox GUI web application for managing Puppet infrastructure.
 # Supports interactive prompts, answer-file (install.conf), and silent mode.
@@ -22,7 +22,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="1.3.4"
+VERSION="1.3.5"
 TOTAL_STEPS=10
 
 # ─── Terminal Colors ─────────────────────────────────────────
