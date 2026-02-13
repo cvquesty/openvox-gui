@@ -321,22 +321,28 @@ export function CertificatesPage() {
                 </Group>
                 <Grid ml={28}>
                   <Grid.Col span={4}>
-                    <Stack gap={0} align="center">
-                      <Text size="xl" fw={700} c="green">{caInfo.total_signed || 0}</Text>
-                      <Text size="xs" c="dimmed">Signed</Text>
-                    </Stack>
+                    <Tooltip label="Total active signed certificates">
+                      <Stack gap={0} align="center" style={{ cursor: 'help' }}>
+                        <Text size="xl" fw={700} c="green">{caInfo.total_signed || 0}</Text>
+                        <Text size="xs" c="dimmed">Active</Text>
+                      </Stack>
+                    </Tooltip>
                   </Grid.Col>
                   <Grid.Col span={4}>
-                    <Stack gap={0} align="center">
-                      <Text size="xl" fw={700} c="yellow">{caInfo.total_pending || 0}</Text>
-                      <Text size="xs" c="dimmed">Pending</Text>
-                    </Stack>
+                    <Tooltip label="Certificates waiting for approval">
+                      <Stack gap={0} align="center" style={{ cursor: 'help' }}>
+                        <Text size="xl" fw={700} c="yellow">{caInfo.total_pending || 0}</Text>
+                        <Text size="xs" c="dimmed">Pending</Text>
+                      </Stack>
+                    </Tooltip>
                   </Grid.Col>
                   <Grid.Col span={4}>
-                    <Stack gap={0} align="center">
-                      <Text size="xl" fw={700} c="red">{caInfo.revoked_count || 0}</Text>
-                      <Text size="xs" c="dimmed">Revoked</Text>
-                    </Stack>
+                    <Tooltip label="Total certificates revoked (all-time)">
+                      <Stack gap={0} align="center" style={{ cursor: 'help' }}>
+                        <Text size="xl" fw={700} c="red">{caInfo.revoked_count || 0}</Text>
+                        <Text size="xs" c="dimmed">Revoked</Text>
+                      </Stack>
+                    </Tooltip>
                   </Grid.Col>
                 </Grid>
               </Stack>
@@ -457,14 +463,14 @@ export function CertificatesPage() {
       </Card>
 
       <Modal opened={detailOpen} onClose={() => setDetailOpen(false)}
-        title={`Certificate Details \u2014 ${detailData?.certname || ''}`} size="lg">
+        title={`Certificate Details — ${detailData?.certname || ''}`} size="xl">
         {detailLoading ? (
           <Center h={200}><Loader /></Center>
         ) : detailData?.error ? (
           <Alert color="red">{detailData.error}</Alert>
         ) : (
-          <ScrollArea style={{ maxHeight: 500 }}>
-            <Code block style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>
+          <ScrollArea style={{ height: '70vh', maxHeight: 600, minHeight: 400 }}>
+            <Code block style={{ fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {detailData?.details || 'No details available'}
             </Code>
           </ScrollArea>

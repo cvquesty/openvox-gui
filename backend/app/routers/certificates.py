@@ -260,14 +260,14 @@ async def get_ca_info():
             revoked_count = len(re.findall(r"Serial Number:", crl_result.stdout)) - 1  # Subtract CRL's own serial
             info["revoked_count"] = max(0, revoked_count)
         
-        # Count total certificates
-        list_result = await _run_ca_command(["list", "--all"])
-        if list_result["returncode"] == 0:
-            output = list_result["stdout"]
-            signed_count = len(re.findall(r"^\s*\+", output, re.MULTILINE))
-            pending_count = output.count('"') // 2  # Requested certs are quoted
-            info["total_signed"] = signed_count
-            info["total_pending"] = pending_count
+        # Count total certificates from the list we already fetched
+        list_result = await list_certificates()
+        if list_result:
+            info["total_signed"] = len(list_result.get("signed", []))
+            info["total_pending"] = len(list_result.get("requested", []))
+        else:
+            info["total_signed"] = 0
+            info["total_pending"] = 0
         
         return {"ca_info": info}
         

@@ -5,6 +5,22 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7] - 2026-02-13
+
+### Fixed
+- **Certificate Statistics Accuracy**: Fixed incorrect certificate counting in CA info panel
+  - Now properly counts signed certificates from the actual list
+  - Fixed pending count to accurately reflect waiting certificate requests
+  - Statistics now match the data shown in the panels below
+- **Certificate Details Modal Scrolling**: Fixed scrollability of certificate details window
+  - Increased modal size to extra-large for better visibility
+  - Set proper height with viewport units (70vh) for consistent scrolling
+  - Added min/max height constraints for better usability
+- **Certificate Statistics Clarity**: Improved labels and added tooltips
+  - "Signed" renamed to "Active" to clarify these are currently active certificates
+  - Added hover tooltips explaining each statistic
+  - Clarified that revoked count is all-time total from CRL
+
 ## [1.3.6] - 2026-02-13
 
 ### Added
