@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
   Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid,
+  Progress, Box, ThemeIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconCertificate, IconCheck, IconX, IconTrash, IconRefresh, IconInfoCircle,
+  IconShield, IconClock, IconKey, IconFingerprint, IconCalendar,
 } from '@tabler/icons-react';
 import { certificates } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -117,6 +119,7 @@ function CertOStamp() {
 export function CertificatesPage() {
   const { isFormal } = useAppTheme();
   const [data, setData] = useState<any>(null);
+  const [caInfo, setCaInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -127,9 +130,15 @@ export function CertificatesPage() {
     setLoading(true);
     setError(null);
     try {
-      const d = await certificates.list();
-      setData(d);
-      if (d.error) setError(d.error);
+      // Fetch both certificates list and CA info in parallel
+      const [certData, caData] = await Promise.all([
+        certificates.list(),
+        certificates.caInfo()
+      ]);
+      setData(certData);
+      setCaInfo(caData.ca_info || null);
+      if (certData.error) setError(certData.error);
+      if (caData.error) setError(caData.error);
     } catch (e: any) {
       setError(e.message);
     }
@@ -211,6 +220,142 @@ export function CertificatesPage() {
         Manage Puppet CA certificates. Sign pending requests, revoke compromised certs,
         or clean removed nodes. This interfaces with <Code>puppetserver ca</Code>.
       </Alert>
+
+      {/* CA Information Panel */}
+      {caInfo && (
+        <Card withBorder shadow="sm" padding="md">
+          <Group mb="md">
+            <ThemeIcon size="lg" variant="light" color="orange">
+              <IconShield size={20} />
+            </ThemeIcon>
+            <Title order={3}>Certificate Authority Information</Title>
+          </Group>
+          
+          <Grid>
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <ThemeIcon size="sm" variant="subtle" color="gray">
+                    <IconCertificate size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">Subject:</Text>
+                  <Text size="sm" fw={500}>{caInfo.subject || 'N/A'}</Text>
+                </Group>
+                
+                <Group gap="xs">
+                  <ThemeIcon size="sm" variant="subtle" color="gray">
+                    <IconCalendar size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">Valid From:</Text>
+                  <Text size="sm">{caInfo.not_before || 'N/A'}</Text>
+                </Group>
+                
+                <Group gap="xs">
+                  <ThemeIcon size="sm" variant="subtle" color="gray">
+                    <IconClock size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">Valid Until:</Text>
+                  <Badge 
+                    color={caInfo.is_expired ? 'red' : caInfo.expires_soon ? 'yellow' : 'green'}
+                    variant="light"
+                  >
+                    {caInfo.not_after || 'N/A'}
+                  </Badge>
+                </Group>
+                
+                {caInfo.days_until_expiry !== undefined && (
+                  <Group gap="xs">
+                    <Text size="sm" c="dimmed" ml={28}>Days Until Expiry:</Text>
+                    <Badge 
+                      color={caInfo.is_expired ? 'red' : caInfo.expires_soon ? 'yellow' : 'blue'}
+                    >
+                      {caInfo.is_expired ? 'EXPIRED' : `${caInfo.days_until_expiry} days`}
+                    </Badge>
+                  </Group>
+                )}
+                
+                <Group gap="xs">
+                  <ThemeIcon size="sm" variant="subtle" color="gray">
+                    <IconKey size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">Key Algorithm:</Text>
+                  <Text size="sm">{caInfo.key_algorithm || 'N/A'} 
+                    {caInfo.key_size && ` (${caInfo.key_size} bit)`}
+                  </Text>
+                </Group>
+              </Stack>
+            </Grid.Col>
+            
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <ThemeIcon size="sm" variant="subtle" color="gray">
+                    <IconFingerprint size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">Serial Number:</Text>
+                  <Code style={{ fontSize: 11 }}>{caInfo.serial_number || 'N/A'}</Code>
+                </Group>
+                
+                <Group gap="xs">
+                  <ThemeIcon size="sm" variant="subtle" color="gray">
+                    <IconShield size={14} />
+                  </ThemeIcon>
+                  <Text size="sm" c="dimmed">Signature Algorithm:</Text>
+                  <Text size="sm">{caInfo.signature_algorithm || 'N/A'}</Text>
+                </Group>
+                
+                {caInfo.sha256_fingerprint && (
+                  <Group gap="xs">
+                    <ThemeIcon size="sm" variant="subtle" color="gray">
+                      <IconFingerprint size={14} />
+                    </ThemeIcon>
+                    <Text size="sm" c="dimmed">SHA256 Fingerprint:</Text>
+                  </Group>
+                )}
+                {caInfo.sha256_fingerprint && (
+                  <Code style={{ fontSize: 10, marginLeft: 28 }}>{caInfo.sha256_fingerprint}</Code>
+                )}
+                
+                <Group gap="xs" mt="sm">
+                  <Text size="sm" fw={500}>Certificate Statistics:</Text>
+                </Group>
+                <Grid ml={28}>
+                  <Grid.Col span={4}>
+                    <Stack gap={0} align="center">
+                      <Text size="xl" fw={700} c="green">{caInfo.total_signed || 0}</Text>
+                      <Text size="xs" c="dimmed">Signed</Text>
+                    </Stack>
+                  </Grid.Col>
+                  <Grid.Col span={4}>
+                    <Stack gap={0} align="center">
+                      <Text size="xl" fw={700} c="yellow">{caInfo.total_pending || 0}</Text>
+                      <Text size="xs" c="dimmed">Pending</Text>
+                    </Stack>
+                  </Grid.Col>
+                  <Grid.Col span={4}>
+                    <Stack gap={0} align="center">
+                      <Text size="xl" fw={700} c="red">{caInfo.revoked_count || 0}</Text>
+                      <Text size="xs" c="dimmed">Revoked</Text>
+                    </Stack>
+                  </Grid.Col>
+                </Grid>
+              </Stack>
+            </Grid.Col>
+          </Grid>
+          
+          {caInfo.expires_soon && !caInfo.is_expired && (
+            <Alert color="yellow" mt="md" icon={<IconClock />}>
+              <Text size="sm">CA certificate expires in {caInfo.days_until_expiry} days. Consider renewal planning.</Text>
+            </Alert>
+          )}
+          
+          {caInfo.is_expired && (
+            <Alert color="red" mt="md" icon={<IconX />}>
+              <Text size="sm">CA certificate has EXPIRED! Immediate action required.</Text>
+            </Alert>
+          )}
+        </Card>
+      )}
 
       {/* Casual illustration */}
       {!isFormal && (

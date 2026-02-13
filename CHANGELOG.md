@@ -5,6 +5,21 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] - 2026-02-13
+
+### Added
+- **Certificate Authority Information Panel**: Added comprehensive CA info display to Certificates page
+  - New dedicated panel at top of page showing CA certificate details
+  - Displays Subject, Issuer, Serial Number, and Fingerprint
+  - Shows validity dates with automatic expiration warnings
+  - Displays days until expiry with color-coded badges
+  - Shows key algorithm and key size information
+  - Displays signature algorithm details
+  - Real-time certificate statistics (signed, pending, revoked counts)
+  - Automatic alerts for expired or soon-to-expire CA certificates
+  - New backend endpoint `/api/certificates/ca-info` for fetching CA details
+  - CRL (Certificate Revocation List) information when available
+
 ## [1.3.5] - 2026-02-13
 
 ### Fixed

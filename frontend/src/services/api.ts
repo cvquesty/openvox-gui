@@ -233,6 +233,7 @@ export const pql = {
 
 export const certificates = {
   list: () => fetchJSON<any>('/certificates/list'),
+  caInfo: () => fetchJSON<any>('/certificates/ca-info'),
   sign: (certname: string) =>
     fetchJSON<any>('/certificates/sign', {
       method: 'POST',
