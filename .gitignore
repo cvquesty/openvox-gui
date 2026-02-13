@@ -29,3 +29,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Python virtual environment
+backend/venv/
