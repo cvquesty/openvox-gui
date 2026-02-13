@@ -5,6 +5,39 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-02-13
+
+### 🔒 Security Update
+
+This release focuses on strengthening the security posture of OpenVox GUI.
+
+### Security
+- **Fixed critical vulnerability in cryptography package** - Updated to v43.0.3
+- **Implemented comprehensive security headers** including CSP, HSTS, X-Frame-Options
+- **Added rate limiting** to prevent brute force attacks
+  - Authentication endpoints: 5 requests/minute
+  - API endpoints: 60 requests/minute
+  - Resource-intensive endpoints: 10 requests/minute
+- **Restricted CORS origins** - Only allows configured origins in production
+- **Added input validation and sanitization module** to prevent injection attacks
+- **Updated all frontend dependencies** to latest secure versions
+- **Implemented secure cookie settings** with httponly and secure flags
+- **Added protection against common attack patterns** in command execution
+
+### Changed
+- Updated backend dependencies to latest secure versions
+- Enhanced authentication security with rate limiting
+- Improved error handling for security-related failures
+- CORS now restricts origins in production mode
+
+### Added
+- New validation utilities for all user inputs
+- Security middleware with configurable headers
+- Rate limiting middleware using slowapi
+- Input sanitization for filenames and paths
+- Command validation for Bolt execution
+- PQL query validation
+
 ## [1.4.0] - 2026-02-13
 
 **🎉 Production Release - Launch Ready!**

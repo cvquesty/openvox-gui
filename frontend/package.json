@@ -1,7 +1,7 @@
 {
   "name": "openvox-gui",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,24 +9,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mantine/core": "^7.3.2",
-    "@mantine/hooks": "^7.3.2",
-    "@mantine/notifications": "^7.3.2",
-    "@tabler/icons-react": "^2.47.0",
+    "@mantine/core": "^7.15.2",
+    "@mantine/hooks": "^7.15.2",
+    "@mantine/notifications": "^7.15.2",
+    "@tabler/icons-react": "^3.26.0",
     "ansi-to-html": "^0.7.2",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.0",
-    "recharts": "^2.10.4"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.1",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18",
-    "@vitejs/plugin-react": "^4.2.1",
-    "postcss": "^8.4.33",
-    "postcss-preset-mantine": "^1.12.0",
-    "postcss-simple-vars": "^7.0.1",
-    "typescript": "^5.3.3",
-    "vite": "^6.2.0"
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.4.3",
+    "postcss": "^8.5.3",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.1.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.1"
   }
 }

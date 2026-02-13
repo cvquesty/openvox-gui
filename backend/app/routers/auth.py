@@ -11,6 +11,7 @@ from ..middleware.auth_local import (
     add_user, remove_user, list_users, change_password, change_role,
     get_user_role,
 )
+from ..middleware.security import rate_limit_auth, rate_limit_api
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -45,7 +46,8 @@ async def auth_status():
 
 
 @router.post("/login")
-async def login(request: LoginRequest):
+@rate_limit_auth()
+async def login(request: Request, login_request: LoginRequest):
     """
     Authenticate with username/password, receive a JWT token.
     Token is also set as an HTTP-only cookie for browser sessions.
@@ -60,22 +62,24 @@ async def login(request: LoginRequest):
         response.set_cookie(
             key="openvox_token", value=token,
             httponly=True, samesite="lax", max_age=86400,
+            secure=not settings.debug  # Use secure cookies in production
         )
         return response
 
-    if not await verify_password(request.username, request.password):
+    if not await verify_password(login_request.username, login_request.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    role = await get_user_role(request.username)
-    token = create_token(request.username, role)
+    role = await get_user_role(login_request.username)
+    token = create_token(login_request.username, role)
 
     response = JSONResponse(content={
         "token": token,
-        "user": {"username": request.username, "role": role},
+        "user": {"username": login_request.username, "role": role},
     })
     response.set_cookie(
         key="openvox_token", value=token,
         httponly=True, samesite="lax", max_age=86400,
+        secure=not settings.debug  # Use secure cookies in production
     )
     return response
 

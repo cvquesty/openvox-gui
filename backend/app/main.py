@@ -12,14 +12,17 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from .config import settings
 from .database import init_db
 from .middleware.auth import AuthMiddleware
+from .middleware.security import SecurityHeadersMiddleware, limiter
 from .routers import dashboard, nodes, reports, enc, config as config_router, performance
 from .routers import bolt as bolt_router
 from .routers import facts as facts_router
@@ -42,7 +45,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     # Startup
-    logger.info(f"Starting {settings.app_name} v1.4.0")
+    logger.info(f"Starting {settings.app_name} v1.4.1")
     logger.info(f"PuppetDB: {settings.puppetdb_host}:{settings.puppetdb_port}")
     logger.info(f"PuppetServer: {settings.puppet_server_host}:{settings.puppet_server_port}")
 
@@ -70,20 +73,42 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Web-based management GUI for OpenVox/Puppet infrastructure",
-    version="1.4.0",
+    version="1.4.1",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
 )
 
-# CORS middleware (for development; production serves frontend from same origin)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Add rate limiter state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS middleware - restrictive in production
+allowed_origins = []
+if settings.debug:
+    # Allow localhost origins for development
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+else:
+    # In production, only allow same-origin (frontend served from same domain)
+    # Add specific origins if needed for your deployment
+    allowed_origins = []
+
+if allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
 # Authentication middleware
 app.add_middleware(AuthMiddleware, auth_backend=settings.auth_backend)
