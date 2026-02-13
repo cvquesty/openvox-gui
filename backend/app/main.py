@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Web-based management GUI for OpenVox/Puppet infrastructure",
-    version="1.3.3",
+    version="1.3.4",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -112,7 +112,7 @@ if frontend_dist.exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "1.3.3"}
+    return {"status": "ok", "version": "1.3.4"}
 
 
 @app.get("/{full_path:path}")
@@ -123,7 +123,15 @@ async def serve_spa(full_path: str):
         static_file = (frontend_dist / full_path).resolve()
         # Ensure the resolved path is still within frontend_dist (prevent traversal)
         if static_file.is_file() and str(static_file).startswith(str(frontend_dist.resolve())):
-            return FileResponse(str(static_file))
+            # Set cache headers based on file type
+            headers = {}
+            if full_path.startswith("assets/"):
+                # Versioned assets can be cached for a long time
+                headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            else:
+                # Other static files get shorter cache
+                headers["Cache-Control"] = "public, max-age=3600"
+            return FileResponse(str(static_file), headers=headers)
     # Fall back to SPA index.html (no-cache so browser always gets latest chunk references)
     index_file = frontend_dist / "index.html"
     if index_file.exists():

@@ -5,6 +5,15 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-02-13
+
+### Fixed
+- **Resource Explorer Module Loading**: Fixed cache issues causing module loading failures
+  - Added proper cache-control headers for versioned assets (immutable, long-term cache)
+  - Ensured index.html is never cached to always get latest chunk references
+  - Cleared stale cached files on production server
+  - Prevents "Failed to fetch dynamically imported module" errors
+
 ## [1.3.3] - 2026-02-13
 
 ### Enhanced
