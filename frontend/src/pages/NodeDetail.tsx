@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Badge,
-  Table, Tabs, Grid, Code, Paper, Button,
+  Table, Tabs, Grid, Code, Paper, Button, ScrollArea,
 } from '@mantine/core';
 import { IconServer, IconFileReport, IconList, IconCode, IconPlayerPlay } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -248,7 +248,9 @@ export function NodeDetailPage() {
 
         <Tabs.Panel value="allfacts" pt="md">
           <Paper withBorder p="md">
-            <PrettyJson data={node.facts} maxHeight={500} withBorder={false} />
+            <ScrollArea style={{ height: '500px' }}>
+              <PrettyJson data={node.facts} maxHeight={false} withBorder={false} />
+            </ScrollArea>
           </Paper>
         </Tabs.Panel>
 
