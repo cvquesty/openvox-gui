@@ -144,11 +144,11 @@ export const bolt = {
   getPlans: () => fetchJSON<any>('/bolt/plans'),
   getInventory: () => fetchJSON<any>('/bolt/inventory'),
   getConfig: () => fetchJSON<any>('/bolt/config'),
-  runCommand: (data: { command: string; targets: string; run_as?: string }) =>
+  runCommand: (data: { command: string; targets: string; format?: string; run_as?: string }) =>
     fetchJSON<any>('/bolt/run/command', { method: 'POST', body: JSON.stringify(data) }),
-  runTask: (data: { task: string; targets: string; params?: any; run_as?: string }) =>
+  runTask: (data: { task: string; targets: string; params?: any; format?: string; run_as?: string }) =>
     fetchJSON<any>('/bolt/run/task', { method: 'POST', body: JSON.stringify(data) }),
-  runPlan: (data: { plan: string; params?: any }) =>
+  runPlan: (data: { plan: string; params?: any; format?: string }) =>
     fetchJSON<any>('/bolt/run/plan', { method: 'POST', body: JSON.stringify(data) }),
 };
 // ─── Users ──────────────────────────────────────────────────

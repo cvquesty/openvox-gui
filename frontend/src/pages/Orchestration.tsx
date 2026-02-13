@@ -28,54 +28,95 @@ const ansiConverter = new AnsiToHtml({
 });
 
 /* ── Shared result pane with ANSI color support ────────────── */
-function ResultPane({ result, format }: { result: any; format: string }) {
-  if (!result) return null;
+function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?: any } | null }) {
+  const [activeTab, setActiveTab] = useState<string>('human');
+  
+  if (!results) return null;
+  
+  // Get the first available result to check status
+  const firstResult = results.human || results.json || results.rainbow;
+  if (!firstResult) return null;
 
-  const outputHtml = useMemo(() => {
-    if (!result.output) return '';
+  const renderOutput = (result: any, format: string) => {
+    if (!result || !result.output) return null;
+    
     if (format === 'rainbow') {
-      return ansiConverter.toHtml(result.output);
+      const outputHtml = ansiConverter.toHtml(result.output);
+      return (
+        <Box
+          style={{
+            backgroundColor: '#1e1e1e',
+            borderRadius: 6,
+            padding: '12px 16px',
+            maxHeight: 500,
+            overflow: 'auto',
+            fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+            fontSize: 13,
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+          dangerouslySetInnerHTML={{ __html: outputHtml }}
+        />
+      );
     }
-    return '';
-  }, [result.output, format]);
+    
+    return (
+      <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+        {result.output}
+      </Code>
+    );
+  };
 
   return (
     <Card withBorder shadow="sm">
       <Group mb="sm">
         <Text fw={700}>Result</Text>
-        <Badge color={result.returncode === 0 ? 'green' : 'red'}>
-          {result.returncode === 0 ? 'Success' : `Exit ${result.returncode}`}
+        <Badge color={firstResult.returncode === 0 ? 'green' : 'red'}>
+          {firstResult.returncode === 0 ? 'Success' : `Exit ${firstResult.returncode}`}
         </Badge>
-        <Badge variant="light" color="gray">{format} format</Badge>
       </Group>
-      {result.output && (
-        format === 'rainbow' ? (
-          <Box
-            style={{
-              backgroundColor: '#1e1e1e',
-              borderRadius: 6,
-              padding: '12px 16px',
-              maxHeight: 500,
-              overflow: 'auto',
-              fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
-              fontSize: 13,
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-            dangerouslySetInnerHTML={{ __html: outputHtml }}
-          />
-        ) : (
-          <Code block style={{ fontSize: 12, maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
-            {result.output}
-          </Code>
-        )
-      )}
-      {result.error && (
-        <Alert color="red" mt="sm">
-          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{result.error}</Text>
-        </Alert>
-      )}
+      
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'human')}>
+        <Tabs.List>
+          <Tabs.Tab value="human" disabled={!results.human}>
+            📄 Human
+          </Tabs.Tab>
+          <Tabs.Tab value="json" disabled={!results.json}>
+            🔣 JSON
+          </Tabs.Tab>
+          <Tabs.Tab value="rainbow" disabled={!results.rainbow}>
+            🌈 Rainbow
+          </Tabs.Tab>
+        </Tabs.List>
+        
+        <Tabs.Panel value="human" pt="sm">
+          {results.human && renderOutput(results.human, 'human')}
+          {results.human?.error && (
+            <Alert color="red" mt="sm">
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.human.error}</Text>
+            </Alert>
+          )}
+        </Tabs.Panel>
+        
+        <Tabs.Panel value="json" pt="sm">
+          {results.json && renderOutput(results.json, 'json')}
+          {results.json?.error && (
+            <Alert color="red" mt="sm">
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.json.error}</Text>
+            </Alert>
+          )}
+        </Tabs.Panel>
+        
+        <Tabs.Panel value="rainbow" pt="sm">
+          {results.rainbow && renderOutput(results.rainbow, 'rainbow')}
+          {results.rainbow?.error && (
+            <Alert color="red" mt="sm">
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.rainbow.error}</Text>
+            </Alert>
+          )}
+        </Tabs.Panel>
+      </Tabs>
     </Card>
   );
 }
@@ -291,12 +332,9 @@ function OverviewTab() {
 function RunCommandTab() {
   const [command, setCommand] = useState('');
   const [targets, setTargets] = useState('');
-  const [format, setFormat] = useState('human');
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<any>(null);
-
-  const changeFormat = (v: string) => { setFormat(v); setResult(null); };
+  const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
 
   useEffect(() => {
     nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
@@ -304,12 +342,30 @@ function RunCommandTab() {
 
   const handleRun = async () => {
     if (!command || !targets) return;
-    setRunning(true); setResult(null);
+    setRunning(true); 
+    setResults(null);
+    
     try {
-      const r = await bolt.runCommand({ command, targets, format });
-      setResult(r);
+      // Fetch all three formats in parallel
+      const [humanResult, jsonResult, rainbowResult] = await Promise.all([
+        bolt.runCommand({ command, targets, format: 'human' }),
+        bolt.runCommand({ command, targets, format: 'json' }),
+        bolt.runCommand({ command, targets, format: 'rainbow' }),
+      ]);
+      
+      setResults({
+        human: humanResult,
+        json: jsonResult,
+        rainbow: rainbowResult,
+      });
     } catch (e: any) {
-      setResult({ returncode: -1, output: '', error: e.message });
+      // If any request fails, store error in all formats
+      const errorResult = { returncode: -1, output: '', error: e.message };
+      setResults({
+        human: errorResult,
+        json: errorResult,
+        rainbow: errorResult,
+      });
     }
     setRunning(false);
   };
@@ -328,26 +384,13 @@ function RunCommandTab() {
             ...puppetNodes.map((n) => ({ value: n, label: n })),
           ]} value={targets} onChange={(v) => setTargets(v || '')}
             placeholder="Select target nodes" />
-          <div>
-            <Text size="sm" fw={500} mb={4}>Output Format</Text>
-            <SegmentedControl
-              value={format}
-              onChange={changeFormat}
-              data={[
-                { label: '📄 Human', value: 'human' },
-                { label: '🔣 JSON', value: 'json' },
-                { label: '🌈 Rainbow', value: 'rainbow' },
-              ]}
-              fullWidth
-            />
-          </div>
           <Button onClick={handleRun} loading={running} disabled={!command || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">
             Run Command
           </Button>
         </Stack>
       </Card>
-      <ResultPane result={result} format={format} />
+      <ResultPane results={results} />
     </Stack>
   );
 }
@@ -360,13 +403,10 @@ function RunTaskTab() {
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [selectedTask, setSelectedTask] = useState('');
   const [targets, setTargets] = useState('');
-  const [format, setFormat] = useState('human');
   const [params, setParams] = useState<Array<{ key: string; val: string }>>([]);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const changeFormat = (v: string) => { setFormat(v); setResult(null); };
 
   useEffect(() => {
     Promise.all([
@@ -381,14 +421,33 @@ function RunTaskTab() {
 
   const handleRun = async () => {
     if (!selectedTask || !targets) return;
-    setRunning(true); setResult(null);
+    setRunning(true); 
+    setResults(null);
+    
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
+    
     try {
-      const r = await bolt.runTask({ task: selectedTask, targets, params: paramDict, format });
-      setResult(r);
+      // Fetch all three formats in parallel
+      const [humanResult, jsonResult, rainbowResult] = await Promise.all([
+        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'human' }),
+        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'json' }),
+        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'rainbow' }),
+      ]);
+      
+      setResults({
+        human: humanResult,
+        json: jsonResult,
+        rainbow: rainbowResult,
+      });
     } catch (e: any) {
-      setResult({ returncode: -1, output: '', error: e.message });
+      // If any request fails, store error in all formats
+      const errorResult = { returncode: -1, output: '', error: e.message };
+      setResults({
+        human: errorResult,
+        json: errorResult,
+        rainbow: errorResult,
+      });
     }
     setRunning(false);
   };
@@ -426,24 +485,11 @@ function RunTaskTab() {
               </Group>
             ))}
           </div>
-          <div>
-            <Text size="sm" fw={500} mb={4}>Output Format</Text>
-            <SegmentedControl
-              value={format}
-              onChange={changeFormat}
-              data={[
-                { label: '📄 Human', value: 'human' },
-                { label: '🔣 JSON', value: 'json' },
-                { label: '🌈 Rainbow', value: 'rainbow' },
-              ]}
-              fullWidth
-            />
-          </div>
           <Button onClick={handleRun} loading={running} disabled={!selectedTask || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Task</Button>
         </Stack>
       </Card>
-      <ResultPane result={result} format={format} />
+      <ResultPane results={results} />
     </Stack>
   );
 }
@@ -454,13 +500,10 @@ function RunTaskTab() {
 function RunPlanTab() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState('');
-  const [format, setFormat] = useState('human');
   const [params, setParams] = useState<Array<{ key: string; val: string }>>([]);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const changeFormat = (v: string) => { setFormat(v); setResult(null); };
 
   useEffect(() => {
     bolt.getPlans().then((p) => setPlans(p.plans || [])).catch(() => {}).finally(() => setLoading(false));
@@ -468,14 +511,33 @@ function RunPlanTab() {
 
   const handleRun = async () => {
     if (!selectedPlan) return;
-    setRunning(true); setResult(null);
+    setRunning(true); 
+    setResults(null);
+    
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
+    
     try {
-      const r = await bolt.runPlan({ plan: selectedPlan, params: paramDict, format });
-      setResult(r);
+      // Fetch all three formats in parallel
+      const [humanResult, jsonResult, rainbowResult] = await Promise.all([
+        bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'human' }),
+        bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'json' }),
+        bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'rainbow' }),
+      ]);
+      
+      setResults({
+        human: humanResult,
+        json: jsonResult,
+        rainbow: rainbowResult,
+      });
     } catch (e: any) {
-      setResult({ returncode: -1, output: '', error: e.message });
+      // If any request fails, store error in all formats
+      const errorResult = { returncode: -1, output: '', error: e.message };
+      setResults({
+        human: errorResult,
+        json: errorResult,
+        rainbow: errorResult,
+      });
     }
     setRunning(false);
   };
@@ -509,24 +571,11 @@ function RunPlanTab() {
               </Group>
             ))}
           </div>
-          <div>
-            <Text size="sm" fw={500} mb={4}>Output Format</Text>
-            <SegmentedControl
-              value={format}
-              onChange={changeFormat}
-              data={[
-                { label: '📄 Human', value: 'human' },
-                { label: '🔣 JSON', value: 'json' },
-                { label: '🌈 Rainbow', value: 'rainbow' },
-              ]}
-              fullWidth
-            />
-          </div>
           <Button onClick={handleRun} loading={running} disabled={!selectedPlan}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Plan</Button>
         </Stack>
       </Card>
-      <ResultPane result={result} format={format} />
+      <ResultPane results={results} />
     </Stack>
   );
 }
