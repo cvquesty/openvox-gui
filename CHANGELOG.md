@@ -5,6 +5,38 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-02-13
+
+### 🔒 Comprehensive Security Update - All 11 Dependabot Alerts Fixed
+
+This release addresses all 11 security vulnerabilities identified by GitHub Dependabot.
+
+### Security
+- **Fixed all 11 Dependabot security alerts**
+- Updated Python dependencies to secure versions while maintaining compatibility
+- Updated JavaScript dependencies with security overrides for transitive vulnerabilities
+- Fixed vulnerable transitive dependencies including:
+  - semver (ReDoS vulnerability)
+  - ws (WebSocket DoS)
+  - braces (prototype pollution)
+  - micromatch (ReDoS vulnerability)
+  - nanoid (insufficient entropy)
+  - path-to-regexp (ReDoS vulnerability)
+  - cookie (prototype pollution)
+  - cross-spawn (command injection)
+  - dompurify (XSS vulnerability)
+
+### Changed
+- Downgraded Vite from 6.x to 4.5.5 for Node 14 compatibility while maintaining security
+- Updated PostCSS to 8.4.47 with security patches
+- Updated all Python packages to latest secure versions
+- Added package overrides to force secure versions of transitive dependencies
+
+### Technical
+- cryptography remains at 44.0.1 (secure version)
+- All packages tested and verified to build successfully
+- Maintained backward compatibility with production environment
+
 ## [1.4.1] - 2026-02-13
 
 ### 🔒 Security Update

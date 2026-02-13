@@ -1,7 +1,7 @@
 {
   "name": "openvox-gui",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.4.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -23,10 +23,22 @@
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
-    "postcss": "^8.4.33",
+    "postcss": "^8.4.47",
     "postcss-preset-mantine": "^1.12.0",
     "postcss-simple-vars": "^7.0.1",
     "typescript": "^5.3.3",
-    "vite": "^6.2.3"
+    "vite": "^4.5.5"
+  },
+  "overrides": {
+    "semver": "^7.6.3",
+    "ws": "^8.18.0",
+    "braces": "^3.0.3",
+    "micromatch": "^4.0.8",
+    "nanoid": "^3.3.8",
+    "path-to-regexp": "^8.2.0",
+    "cookie": "^0.7.2",
+    "cross-spawn": "^7.0.5",
+    "dompurify": "^3.2.2",
+    "vite": "^4.5.5"
   }
 }
