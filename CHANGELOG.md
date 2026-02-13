@@ -5,6 +5,14 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.9] - 2026-02-13
+
+### Fixed
+- **Fact Explorer Results Pane Scrolling**: Fixed scrolling issue with the main results table
+  - Changed from maxHeight-only to fixed height (50vh) with min/max constraints
+  - Results table now properly scrolls when content exceeds viewport
+  - Maintains responsive behavior with viewport-based sizing
+
 ## [1.3.8] - 2026-02-13
 
 ### Fixed

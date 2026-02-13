@@ -383,7 +383,7 @@ export function FactExplorerPage() {
             </Badge>
           </Group>
 
-          <ScrollArea style={{ maxHeight: 600 }}>
+          <ScrollArea style={{ height: '50vh', minHeight: 300, maxHeight: 600 }}>
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
