@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { Alert, Button, Code, Stack, Text, Title, Center, Paper } from '@mantine/core';
-import { IconAlertTriangle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconReload } from '@tabler/icons-react';
+import { isChunkLoadError } from '../utils/versionCheck';
 
 interface Props {
   children: ReactNode;
@@ -10,16 +11,18 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  isVersionError: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, isVersionError: false };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, error };
+    const isVersionError = isChunkLoadError(error);
+    return { hasError: true, error, isVersionError };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -28,11 +31,37 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    this.setState({ hasError: false, error: null, errorInfo: null, isVersionError: false });
   };
 
   render() {
     if (this.state.hasError) {
+      // Special handling for version/deployment errors
+      if (this.state.isVersionError) {
+        return (
+          <Center h="100vh" p="xl">
+            <Paper withBorder shadow="md" p="xl" radius="md" maw={500} w="100%">
+              <Stack align="center" gap="md">
+                <IconReload size={48} color="var(--mantine-color-blue-6)" />
+                <Title order={3} c="blue">Application Updated</Title>
+                <Text c="dimmed" ta="center">
+                  A new version of the application has been deployed. Please refresh the page to load the latest version.
+                </Text>
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  color="blue" 
+                  size="md"
+                  leftSection={<IconReload size={16} />}
+                >
+                  Refresh Page
+                </Button>
+              </Stack>
+            </Paper>
+          </Center>
+        );
+      }
+
+      // Regular error handling
       return (
         <Center h="100vh" p="xl">
           <Paper withBorder shadow="md" p="xl" radius="md" maw={600} w="100%">

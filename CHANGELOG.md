@@ -5,6 +5,23 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.11] - 2026-02-13
+
+### Added
+- **Graceful Handling of Application Updates**: Prevents errors when navigating after deployment
+  - Added lazyWithRetry wrapper for code-split pages to handle chunk loading failures
+  - Implemented version checking that runs every 5 minutes to detect updates
+  - Shows user-friendly notification when new version is available
+  - ErrorBoundary now detects and specially handles version mismatch errors
+  - Users are prompted to refresh rather than seeing cryptic error messages
+  - Prevents "Failed to fetch dynamically imported module" errors during deployments
+
+### Technical Details
+- Created `utils/versionCheck.ts` for version monitoring and chunk error detection
+- Created `utils/lazyWithRetry.tsx` wrapper for React.lazy with error recovery
+- Enhanced ErrorBoundary to differentiate between version errors and other crashes
+- Version checker uses ETag/Last-Modified headers to detect changes without polling backend
+
 ## [1.3.10] - 2026-02-13
 
 ### Changed
