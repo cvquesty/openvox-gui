@@ -11,7 +11,7 @@ import time
 
 from ..database import get_db
 from ..models import ExecutionHistory
-from ..middleware.auth import get_current_user
+from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/api/execution-history", tags=["Execution History"])
 

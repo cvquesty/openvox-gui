@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from ..database import get_db
 from ..models import ExecutionHistory
-from ..middleware.auth import get_current_user
+from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
