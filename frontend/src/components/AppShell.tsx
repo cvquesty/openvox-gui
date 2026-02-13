@@ -191,7 +191,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v1.4.0</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v1.4.2</Text>
             <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
               <HoverCard.Target>
                 <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>
