@@ -645,7 +645,7 @@ export function ConfigPuppetPage() {
       <Tabs defaultValue="files">
         <Tabs.List>
           <Tabs.Tab value="files" leftSection={<IconNetwork size={16} />}>Configuration Files</Tabs.Tab>
-          <Tabs.Tab value="hiera" leftSection={<IconPackage size={16} />}>Hiera</Tabs.Tab>
+          <Tabs.Tab value="hiera" leftSection={<IconPackage size={16} />}>Hiera Data Files</Tabs.Tab>
           <Tabs.Tab value="lookup" leftSection={<IconSearch size={16} />}>Hiera Lookup</Tabs.Tab>
         </Tabs.List>
 

@@ -5,6 +5,13 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.10] - 2026-02-13
+
+### Changed
+- **Puppet Configuration Page**: Renamed "Hiera" tab to "Hiera Data Files" for clarity
+  - Better describes the tab's content which shows Hiera data file management
+  - Improves user understanding of the tab's functionality
+
 ## [1.3.9] - 2026-02-13
 
 ### Fixed
