@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 1.4.0** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 1.4.2** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -186,11 +186,18 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.0
+## 🌟 What's New in Version 1.4.2
+
+### Security Enhancements
+- **Comprehensive Security Update**: Fixed all critical vulnerabilities identified by GitHub Dependabot
+- **Security Headers**: Added CSP, HSTS, X-Frame-Options, and other security headers
+- **Rate Limiting**: Added brute force protection on authentication endpoints
+- **Input Validation**: New sanitization module for all user inputs
+- **Updated Dependencies**: All Python and JavaScript packages updated to latest secure versions
 
 ### Major Improvements
 - **Better Update Experience**: The app now handles updates gracefully - no more errors when we deploy new versions while you're using it
-- **Improved Scrolling**: Fixed scrolling issues throughout the interface
+- **Improved Scrolling**: Fixed scrolling issues throughout the interface, including Node Details "All Facts" tab
 - **Enhanced Fact Explorer**: Now supports nested facts with autocomplete
 - **Certificate Authority Panel**: Comprehensive view of your CA status and certificates
 - **Better Error Messages**: Clearer, more helpful error messages when things go wrong
@@ -201,6 +208,7 @@ sudo ./scripts/manage_user.py list
 - Fixed certificate statistics accuracy
 - Fixed fact value display for large data
 - Improved module loading with better caching
+- Fixed Node Details "All Facts" tab scrollability
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).
 
