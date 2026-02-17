@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 1.4.5** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 1.4.6** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -186,9 +186,14 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.5
+## 🌟 What's New in Version 1.4.6
 
-### Ghost User Prevention
+### Security Update
+- **Vite**: Upgraded from 4.5.x to 5.4.21, fixing `server.fs.deny` bypass (CVE-2025-62522) and middleware file serving issues (CVE-2025-58751, CVE-2025-58752)
+- **python-multipart** (CVE-2026-24486): Not exploitable — this app uses default config; fix requires Python ≥ 3.10
+- **esbuild** (GHSA-67mh-4wv8-2f99): Dev-server-only; does not affect production builds
+
+### Ghost User Prevention (1.4.5)
 - **Username whitespace stripping**: Usernames are now automatically trimmed on creation and login, preventing "ghost" users that can't be deleted (e.g. `"adrian "` vs `"adrian"`)
 
 ### Centralized Version Management (1.4.4)

@@ -5,6 +5,15 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6] - 2026-02-17
+
+### Security
+- **Vite** (CVE-2025-62522, MODERATE): Upgraded from 4.5.x to 5.4.21 — fixes `server.fs.deny` bypass via backslash on Windows
+- **Vite** (CVE-2025-58751, CVE-2025-58752, LOW): Vite 5.4.21 also fixes middleware file serving issues with public directory and HTML files
+- **python-multipart** (CVE-2026-24486, HIGH): Not exploitable — this application uses default configuration (no `UPLOAD_DIR` or `UPLOAD_KEEP_FILENAME`); fix requires Python ≥ 3.10 but production runs Python 3.9; kept at 0.0.20
+- **esbuild** (GHSA-67mh-4wv8-2f99, MODERATE): Dev-server-only CORS vulnerability — does not affect production builds; esbuild is used only as a build-time transpiler, never as a server in this application. Vite 5.4.x pins esbuild to 0.21.x internally; upgrading to esbuild ≥ 0.25.0 requires Vite 6+/7+ which is tracked for a future release
+- Removed stale `vite` override from package.json (no longer needed with Vite 5.x)
+
 ## [1.4.5] - 2026-02-17
 
 ### Fixed
