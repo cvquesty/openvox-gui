@@ -326,9 +326,10 @@ export function UserManagerPage() {
     try {
       await users.remove(username);
       notifications.show({ title: 'User Deleted', message: `User '${username}' removed`, color: 'green' });
-      loadUsers();
     } catch (err: any) {
       notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    } finally {
+      loadUsers();
     }
   };
 

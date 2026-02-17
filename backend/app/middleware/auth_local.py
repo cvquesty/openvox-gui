@@ -16,7 +16,7 @@ from fastapi import Request
 from passlib.hash import bcrypt
 from jose import jwt, JWTError
 
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth_base import AuthBackend
@@ -101,14 +101,21 @@ async def add_user(username: str, password: str, role: str = "viewer"):
 
 
 async def remove_user(username: str) -> bool:
-    """Remove a user from the database."""
+    """Remove a user from the database.
+
+    Uses ORM select-then-delete pattern instead of Core delete() because
+    aiosqlite does not reliably report rowcount for bulk DELETE statements
+    through SQLAlchemy's async session, which can cause false 'not found' results.
+    """
     async with async_session() as session:
-        result = await session.execute(delete(User).where(User.username == username))
+        result = await session.execute(select(User).where(User.username == username))
+        user = result.scalar_one_or_none()
+        if user is None:
+            return False
+        await session.delete(user)
         await session.commit()
-        removed = result.rowcount > 0
-    if removed:
-        logger.info(f"User '{username}' removed")
-    return removed
+    logger.info(f"User '{username}' removed")
+    return True
 
 
 async def list_users() -> List[Dict[str, str]]:
