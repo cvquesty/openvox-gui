@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# OpenVox GUI Remote Update Script v1.4.3
+# OpenVox GUI Remote Update Script
 #
 # Deploys updates to the production OpenVox GUI server at openvox.questy.org
 #
@@ -16,6 +16,12 @@
 set -e  # Exit on error
 
 # ─── Configuration ────────────────────────────────────────────
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Read version from the single source of truth (backend/__init__.py)
+APP_VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$REPO_ROOT/backend/app/__init__.py" 2>/dev/null || echo "unknown")
 
 REMOTE_HOST="10.0.100.225"
 REMOTE_USER="jsheets"
@@ -72,7 +78,7 @@ log_err() {
 
 # ─── Main Deployment ──────────────────────────────────────────
 
-echo -e "${BOLD}OpenVox GUI Remote Deployment v1.4.3${NC}"
+echo -e "${BOLD}OpenVox GUI Remote Deployment v${APP_VERSION}${NC}"
 echo -e "Target: ${YELLOW}${REMOTE_NAME}${NC} (${REMOTE_HOST})"
 echo ""
 
@@ -191,7 +197,7 @@ echo -e "${GREEN}${BOLD}  Remote Deployment Complete!${NC}"
 echo -e "${GREEN}${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}Server:${NC}      ${REMOTE_NAME} (${REMOTE_HOST})"
-echo -e "  ${BOLD}Version:${NC}     1.4.3"
+echo -e "  ${BOLD}Version:${NC}     ${APP_VERSION}"
 echo -e "  ${BOLD}Access URL:${NC}  https://${REMOTE_NAME}:8080"
 echo ""
 echo -e "  ${BOLD}Remote Commands:${NC}"

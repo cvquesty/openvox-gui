@@ -37,6 +37,7 @@ import {
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { dashboard, config } from '../services/api';
+import { APP_VERSION } from '../version';
 
 const monitoringNav = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
@@ -191,7 +192,7 @@ export function AppShellLayout() {
 
         <MantineAppShell.Section>
           <Box p="sm">
-            <Text size="xs" c="dimmed">OpenVox GUI v1.4.3</Text>
+            <Text size="xs" c="dimmed">OpenVox GUI v{APP_VERSION}</Text>
             <HoverCard width={220} shadow="md" position="right" withArrow openDelay={200}>
               <HoverCard.Target>
                 <Text size="xs" c="dimmed" style={{ cursor: 'pointer' }}>

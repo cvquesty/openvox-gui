@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from . import __version__
 from .config import settings
 from .database import init_db
 from .middleware.auth import AuthMiddleware
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
     # Startup
-    logger.info(f"Starting {settings.app_name} v1.4.3")
+    logger.info(f"Starting {settings.app_name} v{__version__}")
     logger.info(f"PuppetDB: {settings.puppetdb_host}:{settings.puppetdb_port}")
     logger.info(f"PuppetServer: {settings.puppet_server_host}:{settings.puppet_server_port}")
 
@@ -73,7 +74,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="Web-based management GUI for OpenVox/Puppet infrastructure",
-    version="1.4.3",
+    version=__version__,
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -137,7 +138,13 @@ if frontend_dist.exists():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "version": "1.4.3"}
+    return {"status": "ok", "version": __version__}
+
+
+@app.get("/api/version")
+async def get_version():
+    """Public endpoint returning the application version. No auth required."""
+    return {"version": __version__}
 
 
 @app.get("/{full_path:path}")

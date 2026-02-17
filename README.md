@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 1.4.3** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 1.4.4** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -186,13 +186,18 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.3
+## 🌟 What's New in Version 1.4.4
+
+### Centralized Version Management
+- **Single source of truth**: The version is now defined in exactly two canonical files (`backend/app/__init__.py` and `frontend/package.json`) — all other code reads from these at build/import time
+- **No more version drift**: A new `scripts/bump-version.sh` script updates both files atomically so they can never get out of sync
+- **Login page version fix**: The login page was stuck showing v1.3.0 while the dashboard showed v1.4.3 — now both read from the same source
+- **New `/api/version` endpoint**: Public endpoint for programmatic version queries
+
+### Previous Release Highlights (1.4.3)
 
 ### Bug Fixes
-- **User Deletion Fix**: Fixed a bug where deleting a user from the User Manager would return a false "404: User not found" error even though the deletion succeeded — caused by unreliable `rowcount` with aiosqlite after commit
-- **User List Refresh**: The user list now always refreshes after a delete attempt, preventing stale UI state
-
-### Previous Release Highlights (1.4.2)
+- **User Deletion Fix**: Fixed a bug where deleting a user from the User Manager would return a false "404: User not found" error even though the deletion succeeded
 
 ### Security Enhancements
 - **Comprehensive Security Update**: Fixed all critical vulnerabilities identified by GitHub Dependabot

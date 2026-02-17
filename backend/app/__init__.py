@@ -1,2 +1,4 @@
 # OpenVox GUI - Backend Application
-__version__ = "0.1.0"
+# This is the single source of truth for the backend version.
+# Keep in sync with frontend/package.json — use scripts/bump-version.sh to update both.
+__version__ = "1.4.4"

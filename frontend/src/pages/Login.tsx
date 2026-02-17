@@ -7,6 +7,7 @@ import { IconLock } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { APP_VERSION } from '../version';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -87,7 +88,7 @@ export function LoginPage() {
         </form>
 
         <Text size="xs" c="dimmed" ta="center" mt="lg">
-          OpenVox GUI v1.3.0
+          OpenVox GUI v{APP_VERSION}
         </Text>
       </Card>
     </Center>

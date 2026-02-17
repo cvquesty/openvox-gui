@@ -5,6 +5,17 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4] - 2026-02-17
+
+### Changed
+- **Centralized Version Management**: Eliminated hardcoded version strings scattered across the codebase
+  - **Backend**: `backend/app/__init__.py` is now the single source of truth; `main.py` imports `__version__` instead of hardcoding the version in 3 places (FastAPI metadata, startup log, health endpoint)
+  - **Frontend**: `package.json` version is injected at build time via Vite `define` → new `src/version.ts` module exports `APP_VERSION` for all components
+  - **Login page & navigation bar**: Now import `APP_VERSION` instead of hardcoded strings — fixes the bug where the login page showed v1.3.0 while the dashboard showed v1.4.3
+  - **New `scripts/bump-version.sh`**: Single command to update both `package.json` and `__init__.py` atomically, preventing version drift
+  - **New `/api/version` endpoint**: Public (no-auth) endpoint returning the current application version
+  - **`update_remote.sh`**: Now reads the version dynamically from `__init__.py` instead of hardcoding it
+
 ## [1.4.3] - 2026-02-16
 
 ### Fixed
