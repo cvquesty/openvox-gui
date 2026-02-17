@@ -5,6 +5,14 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-02-16
+
+### Fixed
+- **User Deletion 404 Error**: Fixed bug where deleting a user from the User Manager returned "API Error 404: User not found" even though the user was successfully deleted from the database
+  - **Root cause (backend)**: `remove_user()` in `auth_local.py` used a SQLAlchemy Core `delete()` statement whose `rowcount` is unreliable with aiosqlite after `commit()` — it could return `0` or `-1` even on a successful delete, causing the API to incorrectly report failure
+  - **Fix (backend)**: Rewrote `remove_user()` to use the ORM pattern: fetch the user with `select()`, check if it exists, then delete with `session.delete(user)` — this gives a reliable existence check before deletion
+  - **Fix (frontend)**: Moved `loadUsers()` call in `handleDeleteUser()` from the success-only path into a `finally` block so the user list always refreshes after a delete attempt, preventing stale UI state
+
 ## [1.4.2] - 2026-02-13
 
 ### 🔒 Comprehensive Security Update - All 11 Dependabot Alerts Fixed
