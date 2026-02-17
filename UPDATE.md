@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 1.4.6**
+**OpenVox GUI Version 1.4.7**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -92,7 +92,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"1.4.6"}
+# {"status":"ok","version":"1.4.7"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -451,14 +451,18 @@ OpenVox GUI uses semantic versioning: `MAJOR.MINOR.PATCH`
 Examples:
 - `1.3.9` → `1.3.10`: Small bug fix, safe to update
 - `1.3.10` → `1.4.0`: New features added, safe to update
-- `1.4.0` → `1.4.6`: Security updates + version management + bug fixes, safe to update
-- `1.4.6` → `2.0.0`: Major changes, read notes carefully
+- `1.4.0` → `1.4.7`: Security updates + version management + bug fixes, safe to update
+- `1.4.7` → `2.0.0`: Major changes, read notes carefully
 
 ### Recent Versions
 
-**Version 1.4.6** (Latest)
+**Version 1.4.7** (Latest)
+- All Dependabot alerts fully resolved
+- python-multipart 0.0.22 (CVE-2026-24486 HIGH), Vite 6.4.1 + esbuild ≥0.25.0 (GHSA-67mh-4wv8-2f99 MODERATE)
+- Production Python upgraded from 3.9 to 3.11
+
+**Version 1.4.6**
 - Security update: Vite 4.x → 5.4.21 (CVE-2025-62522 MODERATE, CVE-2025-58751/58752 LOW)
-- python-multipart CVE-2026-24486 not exploitable (default config); esbuild GHSA-67mh-4wv8-2f99 dev-only
 
 **Version 1.4.5**
 - Ghost user prevention — usernames are now trimmed of whitespace on creation and login

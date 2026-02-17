@@ -5,6 +5,17 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.7] - 2026-02-17
+
+### Security
+- **python-multipart** (CVE-2026-24486, HIGH): Updated from 0.0.20 to 0.0.22 — fixes arbitrary file write via non-default configuration. Required upgrading production Python from 3.9 to 3.11 (python-multipart 0.0.22 requires Python ≥ 3.10)
+- **esbuild** (GHSA-67mh-4wv8-2f99, MODERATE): Fully resolved by upgrading Vite from 5.4.x to 6.4.1, which bundles esbuild ≥ 0.25.0
+- **Vite**: Upgraded from 5.4.21 to 6.4.1 — latest stable release
+- **@vitejs/plugin-react**: Updated from 4.2.1 to 4.7.0 for Vite 6 compatibility
+
+### Changed
+- **Production Python runtime**: Upgraded from Python 3.9 to Python 3.11 to support latest security patches in dependencies
+
 ## [1.4.6] - 2026-02-17
 
 ### Security

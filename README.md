@@ -1,11 +1,11 @@
 # OpenVox GUI
 
-**Version 1.4.6** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 1.4.7** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
-![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![React](https://img.shields.io/badge/react-18-blue)
 ![Status](https://img.shields.io/badge/status-production%20ready-green)
 
@@ -120,7 +120,7 @@ You need a Linux server with:
 - **Operating System**: Red Hat 8+, CentOS 8+, Ubuntu 20.04+, or similar
 - **Memory**: At least 2GB RAM (4GB recommended)
 - **Disk Space**: 1GB free space
-- **Python**: Version 3.8 or newer (usually pre-installed)
+- **Python**: Version 3.10 or newer (3.11+ recommended)
 - **Network**: Access to your PuppetServer and PuppetDB
 
 ### What Gets Installed
@@ -186,12 +186,13 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.6
+## 🌟 What's New in Version 1.4.7
 
-### Security Update
-- **Vite**: Upgraded from 4.5.x to 5.4.21, fixing `server.fs.deny` bypass (CVE-2025-62522) and middleware file serving issues (CVE-2025-58751, CVE-2025-58752)
-- **python-multipart** (CVE-2026-24486): Not exploitable — this app uses default config; fix requires Python ≥ 3.10
-- **esbuild** (GHSA-67mh-4wv8-2f99): Dev-server-only; does not affect production builds
+### Security — All Dependabot Alerts Resolved
+- **python-multipart** 0.0.20→0.0.22 (CVE-2026-24486, HIGH): Fixed arbitrary file write vulnerability
+- **esbuild** (GHSA-67mh-4wv8-2f99, MODERATE): Fully resolved via Vite 6.4.1 (bundles esbuild ≥ 0.25.0)
+- **Vite** 5.4.21→6.4.1: Latest stable release
+- **Python runtime**: Upgraded production from 3.9 to 3.11 to support latest dependency security patches
 
 ### Ghost User Prevention (1.4.5)
 - **Username whitespace stripping**: Usernames are now automatically trimmed on creation and login, preventing "ghost" users that can't be deleted (e.g. `"adrian "` vs `"adrian"`)
