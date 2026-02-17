@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 1.4.4**
+**OpenVox GUI Version 1.4.5**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -224,7 +224,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"1.4.4"}` if everything is working.
+You should see `{"status":"ok","version":"1.4.5"}` if everything is working.
 
 ---
 

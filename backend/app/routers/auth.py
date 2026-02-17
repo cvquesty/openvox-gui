@@ -66,15 +66,16 @@ async def login(request: Request, login_request: LoginRequest):
         )
         return response
 
-    if not await verify_password(login_request.username, login_request.password):
+    login_username = login_request.username.strip()
+    if not await verify_password(login_username, login_request.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    role = await get_user_role(login_request.username)
-    token = create_token(login_request.username, role)
+    role = await get_user_role(login_username)
+    token = create_token(login_username, role)
 
     response = JSONResponse(content={
         "token": token,
-        "user": {"username": login_request.username, "role": role},
+        "user": {"username": login_username, "role": role},
     })
     response.set_cookie(
         key="openvox_token", value=token,
@@ -118,11 +119,15 @@ async def create_user(data: AddUserRequest, request: Request):
     user = getattr(request.state, "user", None)
     if not user or user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
+    # Strip whitespace from username to prevent ghost users (e.g. "adrian " vs "adrian")
+    username = data.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username cannot be empty")
     if data.role not in ("admin", "operator", "viewer"):
         raise HTTPException(status_code=400, detail="Role must be admin, operator, or viewer")
     try:
-        await add_user(data.username, data.password, data.role)
-        return {"status": "ok", "message": f"User '{data.username}' created with role '{data.role}'"}
+        await add_user(username, data.password, data.role)
+        return {"status": "ok", "message": f"User '{username}' created with role '{data.role}'"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 1.4.4** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 1.4.5** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -186,13 +186,15 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.4
+## 🌟 What's New in Version 1.4.5
 
-### Centralized Version Management
+### Ghost User Prevention
+- **Username whitespace stripping**: Usernames are now automatically trimmed on creation and login, preventing "ghost" users that can't be deleted (e.g. `"adrian "` vs `"adrian"`)
+
+### Centralized Version Management (1.4.4)
 - **Single source of truth**: The version is now defined in exactly two canonical files (`backend/app/__init__.py` and `frontend/package.json`) — all other code reads from these at build/import time
 - **No more version drift**: A new `scripts/bump-version.sh` script updates both files atomically so they can never get out of sync
 - **Login page version fix**: The login page was stuck showing v1.3.0 while the dashboard showed v1.4.3 — now both read from the same source
-- **New `/api/version` endpoint**: Public endpoint for programmatic version queries
 
 ### Previous Release Highlights (1.4.3)
 

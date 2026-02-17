@@ -5,6 +5,14 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.5] - 2026-02-17
+
+### Fixed
+- **Ghost User Prevention**: Usernames are now stripped of leading/trailing whitespace on creation and login
+  - **Root cause**: Creating a user with a trailing space (e.g. `"adrian "`) stored it as a distinct entry from `"adrian"`, making it impossible to delete via the UI which sent the trimmed name
+  - **Fix**: Added `.strip()` to the user creation endpoint, the `add_user()` function, and the login endpoint
+  - Empty usernames after stripping are now rejected with a 400 error
+
 ## [1.4.4] - 2026-02-17
 
 ### Changed

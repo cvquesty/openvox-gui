@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 1.4.4**
+**OpenVox GUI Version 1.4.5**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -112,7 +112,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"1.4.4"}
+   # Should return: {"status":"ok","version":"1.4.5"}
    ```
 
 ### Problem: Forgot Admin Password

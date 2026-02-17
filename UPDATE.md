@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 1.4.4**
+**OpenVox GUI Version 1.4.5**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -92,7 +92,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"1.4.4"}
+# {"status":"ok","version":"1.4.5"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -451,12 +451,16 @@ OpenVox GUI uses semantic versioning: `MAJOR.MINOR.PATCH`
 Examples:
 - `1.3.9` → `1.3.10`: Small bug fix, safe to update
 - `1.3.10` → `1.4.0`: New features added, safe to update
-- `1.4.0` → `1.4.4`: Security update + version management, safe to update
-- `1.4.4` → `2.0.0`: Major changes, read notes carefully
+- `1.4.0` → `1.4.5`: Security update + version management + bug fixes, safe to update
+- `1.4.5` → `2.0.0`: Major changes, read notes carefully
 
 ### Recent Versions
 
-**Version 1.4.4** (Latest)
+**Version 1.4.5** (Latest)
+- Ghost user prevention — usernames are now trimmed of whitespace on creation and login
+- Prevents undeletable users caused by trailing spaces in usernames
+
+**Version 1.4.4**
 - Centralized version management — single source of truth, no more version drift
 - New `scripts/bump-version.sh` for atomic version updates
 - New `/api/version` public endpoint

@@ -86,6 +86,9 @@ async def verify_password(username: str, password: str) -> bool:
 
 async def add_user(username: str, password: str, role: str = "viewer"):
     """Add a user to the database."""
+    username = username.strip()
+    if not username:
+        raise ValueError("Username cannot be empty")
     async with async_session() as session:
         existing = await session.execute(select(User).where(User.username == username))
         if existing.scalar_one_or_none():
