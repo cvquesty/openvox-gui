@@ -18,7 +18,7 @@ set -e  # Exit on error
 # ─── Configuration ────────────────────────────────────────────
 
 REMOTE_HOST="10.0.100.225"
-REMOTE_USER="root"  # Change if different
+REMOTE_USER="jsheets"
 REMOTE_NAME="openvox.questy.org"
 INSTALL_DIR="/opt/openvox-gui"
 SERVICE_NAME="openvox-gui"
@@ -124,7 +124,8 @@ if [ ! -f "$(dirname "$0")/deploy.sh" ]; then
 fi
 
 # Copy the deploy script to remote
-scp "$(dirname "$0")/deploy.sh" "${REMOTE_USER}@${REMOTE_HOST}:/tmp/openvox-deploy.sh"
+REMOTE_DEPLOY_PATH="/home/${REMOTE_USER}/openvox-deploy.sh"
+scp "$(dirname "$0")/deploy.sh" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DEPLOY_PATH}"
 log_ok "Deploy script copied"
 
 # ─── Step 4: Execute Remote Update ───────────────────────────
@@ -136,7 +137,7 @@ echo -e "${CYAN}Remote server output:${NC}"
 echo "────────────────────────────────────────────────────────"
 
 # Execute the deployment script on remote server
-ssh -t "${REMOTE_USER}@${REMOTE_HOST}" "cd ${INSTALL_DIR} && sudo bash /tmp/openvox-deploy.sh ${INSTALL_DIR}"
+ssh -t "${REMOTE_USER}@${REMOTE_HOST}" "cd ${INSTALL_DIR} && sudo bash ${REMOTE_DEPLOY_PATH} ${INSTALL_DIR}"
 
 DEPLOY_RESULT=$?
 
@@ -200,4 +201,4 @@ echo -e "    Restart:       ssh ${REMOTE_USER}@${REMOTE_HOST} 'sudo systemctl re
 echo ""
 
 # Cleanup
-ssh "${REMOTE_USER}@${REMOTE_HOST}" "rm -f /tmp/openvox-deploy.sh" 2>/dev/null || true
+ssh "${REMOTE_USER}@${REMOTE_HOST}" "rm -f ${REMOTE_DEPLOY_PATH}" 2>/dev/null || true
