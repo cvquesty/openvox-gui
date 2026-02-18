@@ -5,6 +5,14 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.8] - 2026-02-17
+
+### Fixed
+- **Run Puppet button always returned exit code 1**: The "Run Puppet" button on the Node Detail page used `bolt task run puppet_agent::run`, but the `puppet_agent` module was never installed — Bolt returned "Could not find a task named 'puppet_agent::run'"
+  - **Fix**: Changed to `bolt command run '/opt/puppetlabs/bin/puppet agent -t'` which runs the agent directly and works with any Bolt installation
+  - **Bolt inventory fix**: Configured `transport: local` for the Puppet server itself (root SSH was disabled) so Bolt executes locally without SSH; remote agents use SSH with sudo escalation
+  - **Exit code handling**: Puppet exit code 2 (changes applied) is now correctly reported as success instead of an error
+
 ## [1.4.7] - 2026-02-17
 
 ### Security

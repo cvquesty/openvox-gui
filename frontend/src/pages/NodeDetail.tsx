@@ -125,16 +125,18 @@ export function NodeDetailPage() {
     setRunningPuppet(true);
     setPuppetResult(null);
     try {
-      const r = await bolt.runTask({
-        task: 'puppet_agent::run',
+      const r = await bolt.runCommand({
+        command: '/opt/puppetlabs/bin/puppet agent -t',
         targets: certname,
-        params: {},
       });
       setPuppetResult(r);
+      // Puppet exit codes: 0 = no changes, 2 = changes applied successfully, anything else = error
       if (r.returncode === 0) {
-        notifications.show({ title: 'Puppet Run Complete', message: `Agent run completed on ${certname}`, color: 'green' });
+        notifications.show({ title: 'Puppet Run Complete', message: `No changes needed on ${certname}`, color: 'green' });
+      } else if (r.returncode === 2) {
+        notifications.show({ title: 'Puppet Run Complete', message: `Changes applied successfully on ${certname}`, color: 'green' });
       } else {
-        notifications.show({ title: 'Puppet Run', message: `Agent run finished with exit code ${r.returncode}`, color: 'yellow' });
+        notifications.show({ title: 'Puppet Run Failed', message: `Agent run failed with exit code ${r.returncode}`, color: 'red' });
       }
     } catch (e: any) {
       notifications.show({ title: 'Error', message: e.message, color: 'red' });

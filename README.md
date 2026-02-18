@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 1.4.7** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 1.4.8** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -186,13 +186,16 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.7
+## 🌟 What's New in Version 1.4.8
 
-### Security — All Dependabot Alerts Resolved
+### Run Puppet Fix
+- **"Run Puppet" button now works** — was always failing with exit code 1 because the `puppet_agent` Bolt module wasn't installed. Now uses `bolt command run` with `puppet agent -t` directly.
+- Puppet exit code 2 (changes applied) is now correctly shown as success
+
+### Security — All Dependabot Alerts Resolved (1.4.7)
 - **python-multipart** 0.0.20→0.0.22 (CVE-2026-24486, HIGH): Fixed arbitrary file write vulnerability
 - **esbuild** (GHSA-67mh-4wv8-2f99, MODERATE): Fully resolved via Vite 6.4.1 (bundles esbuild ≥ 0.25.0)
-- **Vite** 5.4.21→6.4.1: Latest stable release
-- **Python runtime**: Upgraded production from 3.9 to 3.11 to support latest dependency security patches
+- **Python runtime**: Upgraded production from 3.9 to 3.11
 
 ### Ghost User Prevention (1.4.5)
 - **Username whitespace stripping**: Usernames are now automatically trimmed on creation and login, preventing "ghost" users that can't be deleted (e.g. `"adrian "` vs `"adrian"`)
