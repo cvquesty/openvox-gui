@@ -6,7 +6,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconPlus, IconTrash, IconKey, IconShield, IconUsers,
+  IconPlus, IconTrash, IconKey, IconShield, IconUsers, IconLock, IconWorld,
 } from '@tabler/icons-react';
 import { users } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
@@ -14,6 +14,7 @@ import { useAuth } from '../hooks/AuthContext';
 interface User {
   username: string;
   role: string;
+  auth_source?: string;
 }
 
 const roleBadgeColor: Record<string, string> = {
@@ -430,6 +431,7 @@ export function UserManagerPage() {
             <Table.Tr>
               <Table.Th>Username</Table.Th>
               <Table.Th>Role</Table.Th>
+              <Table.Th>Source</Table.Th>
               <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -445,16 +447,28 @@ export function UserManagerPage() {
                   </Badge>
                 </Table.Td>
                 <Table.Td>
+                  <Badge
+                    color={u.auth_source === 'ldap' ? 'grape' : 'cyan'}
+                    variant="outline"
+                    size="sm"
+                    leftSection={u.auth_source === 'ldap' ? <IconWorld size={10} /> : <IconLock size={10} />}
+                  >
+                    {u.auth_source || 'local'}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
                   <Group gap="xs" justify="flex-end">
-                    <Tooltip label="Change password">
-                      <ActionIcon
-                        variant="subtle"
-                        color="blue"
-                        onClick={() => { setPwUser(u.username); setPwValue(''); setPwOpen(true); }}
-                      >
-                        <IconKey size={16} />
-                      </ActionIcon>
-                    </Tooltip>
+                    {(u.auth_source || 'local') === 'local' && (
+                      <Tooltip label="Change password">
+                        <ActionIcon
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => { setPwUser(u.username); setPwValue(''); setPwOpen(true); }}
+                        >
+                          <IconKey size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
                     <Tooltip label="Change role">
                       <ActionIcon
                         variant="subtle"
@@ -481,7 +495,7 @@ export function UserManagerPage() {
             ))}
             {userList.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={3}>
+                <Table.Td colSpan={4}>
                   <Text c="dimmed" ta="center" py="lg">No users found</Text>
                 </Table.Td>
               </Table.Tr>

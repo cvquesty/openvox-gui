@@ -122,11 +122,18 @@ async def remove_user(username: str) -> bool:
 
 
 async def list_users() -> List[Dict[str, str]]:
-    """List all users and their roles."""
+    """List all users, their roles, and authentication source."""
     async with async_session() as session:
         result = await session.execute(select(User).order_by(User.username))
         users = result.scalars().all()
-        return [{"username": u.username, "role": u.role} for u in users]
+        return [
+            {
+                "username": u.username,
+                "role": u.role,
+                "auth_source": getattr(u, "auth_source", "local") or "local",
+            }
+            for u in users
+        ]
 
 
 async def change_password(username: str, password: str) -> bool:

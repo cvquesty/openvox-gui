@@ -38,11 +38,12 @@ class NoAuthBackend(AuthBackend):
 
 
 from .auth_local import LocalAuthBackend
+from .auth_ldap import LDAPAuthBackend
 
 AUTH_BACKENDS = {
     "none": NoAuthBackend,
     "local": LocalAuthBackend,
-    # "ldap": LDAPAuthBackend,     # Future
+    "ldap": LDAPAuthBackend,
     # "saml": SAMLAuthBackend,     # Future
     # "oidc": OIDCAuthBackend,     # Future
 }
