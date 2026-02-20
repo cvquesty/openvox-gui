@@ -628,11 +628,35 @@ function LdapConfigPanel() {
   );
 }
 
+/* ────────────────────── Auth Settings Tab ────────────────────── */
+function AuthSettingsTab() {
+  const { data: appData } = useApi(config.getApp);
+
+  return (
+    <Stack>
+      {/* Authentication Source Summary */}
+      <Card withBorder shadow="sm">
+        <Text fw={700} mb="sm">Authentication</Text>
+        <Group>
+          <Text size="sm" c="dimmed">Backend:</Text>
+          <Badge color={appData?.auth_backend === 'none' ? 'yellow' : 'green'} size="lg">{appData?.auth_backend || 'none'}</Badge>
+        </Group>
+        <Text size="xs" c="dimmed" mt="sm">
+          Each user can authenticate via LDAP (corporate credentials) or local accounts (service accounts, break-glass).
+          The authentication source is selectable per user. Roles are always managed locally.
+        </Text>
+      </Card>
+
+      {/* LDAP Configuration */}
+      <LdapConfigPanel />
+    </Stack>
+  );
+}
+
 /* ────────────────────── User Manager Tab ────────────────────── */
 function UserManagerTab() {
   const { user: currentUser } = useAuth();
   const { isFormal } = useAppTheme();
-  const { data: appData } = useApi(config.getApp);
   const [userList, setUserList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -721,22 +745,6 @@ function UserManagerTab() {
 
   return (
     <Stack>
-      {/* Authentication Source Summary */}
-      <Card withBorder shadow="sm">
-        <Text fw={700} mb="sm">Authentication</Text>
-        <Group>
-          <Text size="sm" c="dimmed">Backend:</Text>
-          <Badge color={appData?.auth_backend === 'none' ? 'yellow' : 'green'} size="lg">{appData?.auth_backend || 'none'}</Badge>
-        </Group>
-        <Text size="xs" c="dimmed" mt="sm">
-          Each user can authenticate via LDAP (corporate credentials) or local accounts (service accounts, break-glass).
-          The authentication source is selectable per user. Roles are always managed locally.
-        </Text>
-      </Card>
-
-      {/* LDAP Configuration */}
-      <LdapConfigPanel />
-
       {/* Add User */}
       <Grid align="flex-start">
         {!isFormal && (
@@ -873,10 +881,12 @@ export function ConfigAppPage() {
         <Tabs.List>
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>Application Settings</Tabs.Tab>
           <Tabs.Tab value="services" leftSection={<IconServer size={16} />}>Services</Tabs.Tab>
+          <Tabs.Tab value="auth" leftSection={<IconPlugConnected size={16} />}>Auth Settings</Tabs.Tab>
           <Tabs.Tab value="users" leftSection={<IconUsers size={16} />}>User Manager</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings" pt="md"><ApplicationTab onSwitchToServices={() => setActiveTab('services')} /></Tabs.Panel>
         <Tabs.Panel value="services" pt="md"><ServicesTab /></Tabs.Panel>
+        <Tabs.Panel value="auth" pt="md"><AuthSettingsTab /></Tabs.Panel>
         <Tabs.Panel value="users" pt="md"><UserManagerTab /></Tabs.Panel>
       </Tabs>
     </Stack>
