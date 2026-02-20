@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 1.4.8** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 2.0.0** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -186,52 +186,36 @@ sudo ./scripts/manage_user.py delete username
 sudo ./scripts/manage_user.py list
 ```
 
-## 🌟 What's New in Version 1.4.8
+## 🌟 What's New in Version 2.0.0
 
-### Run Puppet Fix
-- **"Run Puppet" button now works** — was always failing with exit code 1 because the `puppet_agent` Bolt module wasn't installed. Now uses `bolt command run` with `puppet agent -t` directly.
-- Puppet exit code 2 (changes applied) is now correctly shown as success
+### 🔐 LDAP / Active Directory Authentication
+This is a **major release** introducing enterprise authentication:
 
-### Security — All Dependabot Alerts Resolved (1.4.7)
-- **python-multipart** 0.0.20→0.0.22 (CVE-2026-24486, HIGH): Fixed arbitrary file write vulnerability
-- **esbuild** (GHSA-67mh-4wv8-2f99, MODERATE): Fully resolved via Vite 6.4.1 (bundles esbuild ≥ 0.25.0)
-- **Python runtime**: Upgraded production from 3.9 to 3.11
+- **Split authentication**: Authenticate users against LDAP (OpenLDAP, 389 DS, Red Hat Directory Server, or Active Directory) while managing roles locally
+- **Per-user auth source**: Each user can be individually set to authenticate via LDAP or local password — configurable when creating users and changeable at any time
+- **Auto-provisioning**: New LDAP users are created automatically on first login with roles derived from LDAP group membership
+- **Group-to-role mapping**: Map LDAP groups to Admin, Operator, and Viewer roles
+- **Quick presets**: One-click configuration templates for OpenLDAP, 389 DS / Red Hat DS, and Active Directory
+- **Connection testing**: Test LDAP connectivity with diagnostic feedback before saving
+- **Backward compatible**: Local accounts continue to work for service accounts and break-glass access
 
-### Ghost User Prevention (1.4.5)
-- **Username whitespace stripping**: Usernames are now automatically trimmed on creation and login, preventing "ghost" users that can't be deleted (e.g. `"adrian "` vs `"adrian"`)
+### 🎛️ New Auth Settings Tab
+- LDAP/AD configuration has been extracted to its own dedicated **Auth Settings** tab in the Settings page
+- Settings tabs are now: Application Settings → Services → User Manager → Auth Settings
 
-### Centralized Version Management (1.4.4)
-- **Single source of truth**: The version is now defined in exactly two canonical files (`backend/app/__init__.py` and `frontend/package.json`) — all other code reads from these at build/import time
-- **No more version drift**: A new `scripts/bump-version.sh` script updates both files atomically so they can never get out of sync
-- **Login page version fix**: The login page was stuck showing v1.3.0 while the dashboard showed v1.4.3 — now both read from the same source
+### 👥 Enhanced User Management
+- **Add User form** now includes an Authentication Source selector (LDAP / Local) — defaults to LDAP
+- Password field only shown when creating local users
+- New **"Change auth source"** action button per user in the user table
+- Source column shows colored badges indicating local vs LDAP authentication
 
-### Previous Release Highlights (1.4.3)
-
-### Bug Fixes
-- **User Deletion Fix**: Fixed a bug where deleting a user from the User Manager would return a false "404: User not found" error even though the deletion succeeded
-
-### Security Enhancements
-- **Comprehensive Security Update**: Fixed all critical vulnerabilities identified by GitHub Dependabot
-- **Security Headers**: Added CSP, HSTS, X-Frame-Options, and other security headers
-- **Rate Limiting**: Added brute force protection on authentication endpoints
-- **Input Validation**: New sanitization module for all user inputs
-- **Updated Dependencies**: All Python and JavaScript packages updated to latest secure versions
-
-### Major Improvements
-- **Better Update Experience**: The app now handles updates gracefully - no more errors when we deploy new versions while you're using it
-- **Improved Scrolling**: Fixed scrolling issues throughout the interface, including Node Details "All Facts" tab
-- **Enhanced Fact Explorer**: Now supports nested facts with autocomplete
-- **Certificate Authority Panel**: Comprehensive view of your CA status and certificates
-- **Better Error Messages**: Clearer, more helpful error messages when things go wrong
-
-### Recent Fixes
-- Fixed user deletion returning false 404 errors
-- Fixed navigation errors after deployments
-- Fixed result window scrolling in Orchestration
-- Fixed certificate statistics accuracy
-- Fixed fact value display for large data
-- Improved module loading with better caching
-- Fixed Node Details "All Facts" tab scrollability
+### Previous Releases (1.4.x)
+- **1.4.8**: Fixed Run Puppet button (uses `bolt command run` instead of missing task)
+- **1.4.7**: Resolved all Dependabot security alerts; upgraded Python 3.9 → 3.11
+- **1.4.6**: Vite security update (4.x → 5.4.21)
+- **1.4.5**: Ghost user prevention (username whitespace stripping)
+- **1.4.4**: Centralized version management
+- **1.4.3**: User deletion bug fix; comprehensive security headers
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).
 

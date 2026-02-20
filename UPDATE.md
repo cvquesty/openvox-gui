@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 1.4.8**
+**OpenVox GUI Version 2.0.0**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -92,7 +92,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"1.4.8"}
+# {"status":"ok","version":"2.0.0"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -452,11 +452,21 @@ Examples:
 - `1.3.9` → `1.3.10`: Small bug fix, safe to update
 - `1.3.10` → `1.4.0`: New features added, safe to update
 - `1.4.0` → `1.4.8`: Security updates + version management + bug fixes, safe to update
-- `1.4.8` → `2.0.0`: Major changes, read notes carefully
+- `1.4.8` → `2.0.0`: Major new feature (LDAP authentication), read notes below
 
 ### Recent Versions
 
-**Version 1.4.8** (Latest)
+**Version 2.0.0** (Latest)
+- LDAP / Active Directory split authentication
+- Per-user authentication source selection (local or LDAP)
+- Auto-provisioning of LDAP users on first login
+- LDAP group-to-role mapping (Admin, Operator, Viewer)
+- New "Auth Settings" tab in Settings page
+- Enhanced Add User form with auth source selector
+- **Database migration**: Adds `auth_source` column to `users` table and `ldap_config` table (applied automatically on first start)
+- **New dependency**: `ldap3` Python library (installed automatically via `requirements.txt`)
+
+**Version 1.4.8**
 - Fixed "Run Puppet" button always returning exit code 1
 - Uses `bolt command run` with `puppet agent -t` instead of missing `puppet_agent::run` task
 

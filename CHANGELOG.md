@@ -5,6 +5,41 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-20
+
+### Added — LDAP / Active Directory Split Authentication
+- **LDAP authentication backend**: Users can now authenticate against OpenLDAP, 389 Directory Server, Red Hat Directory Server, or Microsoft Active Directory
+- **Per-user authentication source**: Each user can be individually configured to authenticate via LDAP or local password — selectable when creating users and changeable at any time via the UI
+- **Auto-provisioning**: New LDAP users are automatically created in the local database on their first login, with roles derived from LDAP group membership
+- **LDAP group-to-role mapping**: Map LDAP groups to Admin, Operator, and Viewer roles; administrators can always override roles locally
+- **Quick presets**: One-click configuration templates for OpenLDAP, 389 DS / Red Hat DS, and Active Directory
+- **Connection testing**: Test LDAP connectivity with diagnostic feedback before saving configuration
+- **New `auth_source` column**: User model tracks whether each user authenticates via `local` or `ldap`
+- **New API endpoints**:
+  - `PUT /api/auth/users/{username}/auth-source` — change a user's authentication source
+  - LDAP config CRUD: `GET/PUT /api/auth/ldap/config`
+  - LDAP connection test: `POST /api/auth/ldap/test`
+- **`ldap3` library**: Pure-Python LDAP client (cross-platform, no system dependencies)
+
+### Changed — UI Improvements
+- **New "Auth Settings" tab**: LDAP/AD configuration has its own dedicated tab in Settings (previously embedded in User Manager)
+- **Add User form**: Now includes an "Authentication Source" selector (LDAP / Local); password field is conditionally shown only for local users; defaults to LDAP
+- **User table**: New "Change auth source" action button (⇌) per user row for switching between local and LDAP authentication
+- **Auth source change modal**: Includes a warning when switching to LDAP that the local password will be invalidated
+- **Source badge**: Each user shows a colored badge indicating their authentication source (local/LDAP)
+- **Settings tabs reordered**: Application Settings → Services → User Manager → Auth Settings
+
+### Security
+- Switching a user from local to LDAP invalidates their local password hash (prevents stale credential reuse)
+- LDAP bind passwords are never exposed via the API (masked with `bind_password_set` boolean)
+- Local accounts continue to work for service accounts and break-glass access alongside LDAP
+
+### Technical Details
+- **Backend files changed**: `auth_local.py`, `auth_ldap.py` (new), `auth.py` middleware, `user.py` model, `auth.py` router, `requirements.txt`
+- **Frontend files changed**: `ConfigApp.tsx`, `UserManager.tsx`, `api.ts`
+- **Database migration**: `auth_source` column added to `users` table; `ldap_config` table created
+- **Login flow**: Per-user routing — checks user's `auth_source` to decide LDAP vs local authentication; unknown users try LDAP when enabled
+
 ## [1.4.8] - 2026-02-17
 
 ### Fixed
