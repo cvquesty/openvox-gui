@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 2.0.0-2 Alpha**
+**OpenVox GUI Version 2.0.0-3 Alpha**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -112,7 +112,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"2.0.0-2 Alpha"}
+   # Should return: {"status":"ok","version":"2.0.0-3 Alpha"}
    ```
 
 ### Problem: Forgot Admin Password

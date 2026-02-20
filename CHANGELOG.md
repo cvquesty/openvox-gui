@@ -5,6 +5,19 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-3 Alpha] - 2026-02-20
+
+### Added
+- **Editable Bolt configuration**: `bolt-project.yaml` and `inventory.yaml` are now editable inline on the Orchestration → Configuration tab with monospace editor, Save/Cancel buttons, and YAML syntax validation before save
+- **Bolt debug log viewer**: `bolt-debug.log` displayed as a read-only scrollable section for troubleshooting (shown when present)
+- **Bolt rerun viewer**: `.rerun.json` displayed as a read-only scrollable section showing the last executed Bolt command (shown when present)
+- **Backend save endpoint**: `PUT /api/bolt/config` saves Bolt YAML files with syntax validation and automatic `.bak` backup
+- **ENC executable fix**: `scripts/enc.py` git filemode set to 0755; `deploy.sh` explicitly ensures executable permissions on re-deploy
+
+### Changed
+- **Scrollable config display**: All Bolt configuration file viewers use `ScrollArea` with constrained max-height instead of unconstrained overflow
+- **Reusable EditableConfigFile component**: Consistent edit UX for any YAML config file with Edit/Save/Cancel workflow and error feedback
+
 ## [2.0.0-2 Alpha] - 2026-02-20
 
 ### Added
