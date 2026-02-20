@@ -170,6 +170,23 @@ export const users = {
       body: JSON.stringify({ role }),
     }),
 };
+
+// ─── LDAP Configuration ─────────────────────────────────────
+
+export const ldap = {
+  getConfig: () => fetchJSON<any>('/auth/ldap/config'),
+  saveConfig: (data: any) =>
+    fetchJSON<any>('/auth/ldap/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testConnection: (data: any) =>
+    fetchJSON<any>('/auth/ldap/test', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getStatus: () => fetchJSON<any>('/auth/status'),
+};
 // ─── Configuration ──────────────────────────────────────────
 
 export const config = {
