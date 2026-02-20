@@ -57,6 +57,7 @@ fi
 echo "[4/5] Fixing permissions..."
 chown -R puppet:puppet "${APP_DIR}"
 chmod 600 "${APP_DIR}/config/.env"
+chmod 755 "${APP_DIR}/scripts/enc.py" 2>/dev/null || true
 chmod 755 "${APP_DIR}/frontend/dist/" 2>/dev/null || true
 find "${APP_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null || true
 find "${APP_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
