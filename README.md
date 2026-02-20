@@ -209,12 +209,15 @@ This is a **major release** introducing enterprise authentication:
 - New **"Change auth source"** action button per user in the user table
 - Source column shows colored badges indicating local vs LDAP authentication
 
+### 🔢 Centralized Version Management
+The application version is defined in a single file (`VERSION`) at the repository root. All backend, frontend, installer, and documentation references read from this file automatically — there is no version string to maintain anywhere else.
+
 ### Previous Releases (1.4.x)
 - **1.4.8**: Fixed Run Puppet button (uses `bolt command run` instead of missing task)
 - **1.4.7**: Resolved all Dependabot security alerts; upgraded Python 3.9 → 3.11
 - **1.4.6**: Vite security update (4.x → 5.4.21)
 - **1.4.5**: Ghost user prevention (username whitespace stripping)
-- **1.4.4**: Centralized version management
+- **1.4.4**: Initial centralized version management
 - **1.4.3**: User deletion bug fix; comprehensive security headers
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).

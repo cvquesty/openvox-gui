@@ -1,0 +1,5 @@
+# VERSION is the single source of truth for the application version.
+# It is a build-managed file — updated by CI/build processes, not manually.
+# It can be edited with a text editor if needed, but is generally intended
+# to be incremented only by automated build or AI processes.
+VERSION linguist-generated=true

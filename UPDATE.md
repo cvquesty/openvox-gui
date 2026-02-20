@@ -483,8 +483,7 @@ Examples:
 - Prevents undeletable users caused by trailing spaces in usernames
 
 **Version 2.0.0-1 Alpha**
-- Centralized version management — single source of truth, no more version drift
-- New `scripts/bump-version.sh` for atomic version updates
+- Centralized version management — single `VERSION` file as source of truth
 - New `/api/version` public endpoint
 - Fixed login page showing wrong version (v1.3.0 vs v1.4.3)
 
