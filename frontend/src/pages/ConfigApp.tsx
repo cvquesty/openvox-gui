@@ -881,8 +881,8 @@ export function ConfigAppPage() {
         <Tabs.List>
           <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>Application Settings</Tabs.Tab>
           <Tabs.Tab value="services" leftSection={<IconServer size={16} />}>Services</Tabs.Tab>
-          <Tabs.Tab value="auth" leftSection={<IconPlugConnected size={16} />}>Auth Settings</Tabs.Tab>
           <Tabs.Tab value="users" leftSection={<IconUsers size={16} />}>User Manager</Tabs.Tab>
+          <Tabs.Tab value="auth" leftSection={<IconPlugConnected size={16} />}>Auth Settings</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings" pt="md"><ApplicationTab onSwitchToServices={() => setActiveTab('services')} /></Tabs.Panel>
         <Tabs.Panel value="services" pt="md"><ServicesTab /></Tabs.Panel>
