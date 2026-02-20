@@ -5,6 +5,18 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-1 Alpha] - 2026-02-20
+
+### Fixed
+- **PQL Console**: Removed two invalid example queries that always threw errors:
+  - `fact-names {}` — not a valid PQL entity (fact-names is a REST endpoint, not a PQL query target)
+  - `nodes { report_timestamp < "2 hours ago" }` — PuppetDB PQL requires ISO 8601 timestamps, not relative time strings
+- **PQL Console error handling**: PuppetDB 400 errors now show the actual human-readable error message (e.g. `'2 hours ago' is not a valid timestamp value`) instead of an opaque HTTP client error
+- **PQL Console error display**: Errors now show a clean text message with a helpful hint instead of a raw JSON dump
+
+### Added
+- **PQL Console**: New valid example queries — "Nodes by oldest report", "Nodes with catalog errors", "Service resources"
+
 ## [2.0.0] - 2026-02-20
 
 ### Added — LDAP / Active Directory Split Authentication

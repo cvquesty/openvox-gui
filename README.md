@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 2.0.0** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 2.0.0-1 Alpha** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 

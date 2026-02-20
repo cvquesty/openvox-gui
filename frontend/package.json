@@ -1,7 +1,8 @@
 {
   "name": "openvox-gui",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.1-alpha",
+  "displayVersion": "2.0.0-1 Alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
