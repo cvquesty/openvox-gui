@@ -612,82 +612,163 @@ function ExecutionHistoryTab() {
 /* ═══════════════════════════════════════════════════════════════
    TAB 6: CONFIGURATION
    ═══════════════════════════════════════════════════════════════ */
+function EditableConfigFile({ label, description, fileKey, path, content, placeholder, onSaved }: {
+  label: string;
+  description: string;
+  fileKey: string;
+  path: string | null;
+  content: string | null;
+  placeholder: string;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState(content || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await bolt.saveConfig(fileKey, editContent);
+      notifications.show({ title: `${label} Saved`, message: `${label} saved successfully`, color: 'green' });
+      setEditing(false);
+      onSaved();
+    } catch (err: any) {
+      let msg = err.message || 'Save failed';
+      const jsonMatch = msg.match(/"detail"\s*:\s*"([^"]*)"/);
+      if (jsonMatch) msg = jsonMatch[1];
+      notifications.show({ title: 'Save Failed', message: msg, color: 'red' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditContent(content || '');
+    setEditing(false);
+  };
+
+  return (
+    <Card withBorder shadow="sm">
+      <Group justify="space-between" mb="xs">
+        <div>
+          <Text fw={700}>{label}</Text>
+          <Text size="xs" c="dimmed">{description}</Text>
+        </div>
+        {!editing ? (
+          <Button variant="light" size="xs" onClick={() => { setEditContent(content || placeholder); setEditing(true); }}>
+            Edit
+          </Button>
+        ) : (
+          <Group gap="xs">
+            <Button variant="subtle" size="xs" color="gray" onClick={handleCancel}>Cancel</Button>
+            <Button size="xs" color="green" onClick={handleSave} loading={saving}>Save</Button>
+          </Group>
+        )}
+      </Group>
+      {path && (
+        <Group gap="sm" mb="sm">
+          <Text size="xs" c="dimmed">Path:</Text>
+          <Code style={{ fontSize: 11 }}>{path}</Code>
+        </Group>
+      )}
+      {editing ? (
+        <Textarea
+          value={editContent}
+          onChange={(e) => setEditContent(e.currentTarget.value)}
+          autosize
+          minRows={8}
+          maxRows={24}
+          styles={{ input: { fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace', fontSize: 12 } }}
+        />
+      ) : content ? (
+        <ScrollArea style={{ maxHeight: 400 }}>
+          <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+            {content}
+          </Code>
+        </ScrollArea>
+      ) : (
+        <Alert variant="light" color="yellow">
+          <Text size="sm">No {label} found. Click Edit to create one.</Text>
+        </Alert>
+      )}
+    </Card>
+  );
+}
+
 function ConfigTab() {
   const [cfg, setCfg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadConfig = useCallback(() => {
+    setLoading(true);
     bolt.getConfig().then(setCfg).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadConfig(); }, []);
 
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
 
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Bolt configuration files control transport settings, inventory, and project defaults.
+        Bolt configuration files control transport settings, inventory, and project defaults. Edit the YAML files directly and save.
       </Alert>
 
-      <Card withBorder shadow="sm">
-        <Text fw={700} mb="sm">bolt-project.yaml</Text>
-        {cfg?.config?.path ? (
-          <>
-            <Group gap="sm" mb="sm">
-              <Text size="sm" c="dimmed">Path:</Text>
-              <Code>{cfg.config.path}</Code>
-            </Group>
-            <Code block style={{ fontSize: 12, maxHeight: 300, overflow: 'auto' }}>
-              {cfg.config.content || '(empty)'}
-            </Code>
-          </>
-        ) : (
-          <Alert variant="light" color="yellow">
-            <Text size="sm">No bolt-project.yaml found.</Text>
-            <Text size="xs" c="dimmed" mt="xs">
-              Create one at <Code>/etc/puppetlabs/bolt/bolt-project.yaml</Code> or
-              <Code>~/.puppetlabs/bolt/bolt-project.yaml</Code>
-            </Text>
-          </Alert>
-        )}
-      </Card>
+      <EditableConfigFile
+        label="bolt-project.yaml"
+        description="Project settings, module paths, and default options for Bolt operations."
+        fileKey="config"
+        path={cfg?.config?.path}
+        content={cfg?.config?.content}
+        onSaved={loadConfig}
+        placeholder={`---\n# Bolt project configuration\nname: openvox\nmodulepath:\n  - /etc/puppetlabs/code/modules\n  - /etc/puppetlabs/code/environments/production/modules\n`}
+      />
 
-      <Card withBorder shadow="sm">
-        <Text fw={700} mb="sm">inventory.yaml</Text>
-        {cfg?.inventory?.path ? (
-          <>
-            <Group gap="sm" mb="sm">
-              <Text size="sm" c="dimmed">Path:</Text>
-              <Code>{cfg.inventory.path}</Code>
-            </Group>
-            <Code block style={{ fontSize: 12, maxHeight: 300, overflow: 'auto' }}>
-              {cfg.inventory.content || '(empty)'}
+      <EditableConfigFile
+        label="inventory.yaml"
+        description="Target nodes, groups, connection settings (SSH/WinRM), and transport configuration."
+        fileKey="inventory"
+        path={cfg?.inventory?.path}
+        content={cfg?.inventory?.content}
+        onSaved={loadConfig}
+        placeholder={`---\n# Bolt inventory\ngroups:\n  - name: local\n    targets:\n      - localhost\n    config:\n      transport: local\n  - name: webservers\n    targets:\n      - web01.example.com\n    config:\n      transport: ssh\n      ssh:\n        user: root\n        host-key-check: false\n`}
+      />
+
+      {/* Debug Log (read-only) */}
+      {cfg?.debug_log?.content && (
+        <Card withBorder shadow="sm">
+          <Group justify="space-between" mb="xs">
+            <div>
+              <Text fw={700}>bolt-debug.log</Text>
+              <Text size="xs" c="dimmed">Most recent Bolt debug output — useful for troubleshooting.</Text>
+            </div>
+            {cfg?.debug_log?.path && <Code style={{ fontSize: 11 }}>{cfg.debug_log.path}</Code>}
+          </Group>
+          <ScrollArea style={{ maxHeight: 300 }}>
+            <Code block style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>
+              {cfg.debug_log.content}
             </Code>
-          </>
-        ) : (
-          <Alert variant="light" color="yellow">
-            <Text size="sm">No inventory.yaml found.</Text>
-            <Text size="xs" c="dimmed" mt="xs">
-              Create one to define your target nodes and connection settings.
-            </Text>
-            <Code block mt="xs" style={{ fontSize: 11 }}>
-{`# Example inventory.yaml
-groups:
-  - name: webservers
-    targets:
-      - web01.example.com
-      - web02.example.com
-    config:
-      transport: ssh
-      ssh:
-        user: root
-        host-key-check: false
-  - name: databases
-    targets:
-      - db01.example.com`}
+          </ScrollArea>
+        </Card>
+      )}
+
+      {/* Last Rerun (read-only) */}
+      {cfg?.rerun?.content && (
+        <Card withBorder shadow="sm">
+          <Group justify="space-between" mb="xs">
+            <div>
+              <Text fw={700}>.rerun.json</Text>
+              <Text size="xs" c="dimmed">Last Bolt command that was executed — used by <Code style={{ fontSize: 11 }}>bolt plan run --rerun</Code>.</Text>
+            </div>
+            {cfg?.rerun?.path && <Code style={{ fontSize: 11 }}>{cfg.rerun.path}</Code>}
+          </Group>
+          <ScrollArea style={{ maxHeight: 200 }}>
+            <Code block style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>
+              {cfg.rerun.content}
             </Code>
-          </Alert>
-        )}
-      </Card>
+          </ScrollArea>
+        </Card>
+      )}
     </Stack>
   );
 }

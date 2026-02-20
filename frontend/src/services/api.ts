@@ -144,6 +144,11 @@ export const bolt = {
   getPlans: () => fetchJSON<any>('/bolt/plans'),
   getInventory: () => fetchJSON<any>('/bolt/inventory'),
   getConfig: () => fetchJSON<any>('/bolt/config'),
+  saveConfig: (file: string, content: string) =>
+    fetchJSON<any>('/bolt/config', {
+      method: 'PUT',
+      body: JSON.stringify({ file, content }),
+    }),
   runCommand: (data: { command: string; targets: string; format?: string; run_as?: string }) =>
     fetchJSON<any>('/bolt/run/command', { method: 'POST', body: JSON.stringify(data) }),
   runTask: (data: { task: string; targets: string; params?: any; format?: string; run_as?: string }) =>

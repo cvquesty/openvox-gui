@@ -321,37 +321,92 @@ async def run_plan(
 
 # ─── Configuration ────────────────────────────────────────
 
+BOLT_CONFIG_SEARCH = [
+    Path("/etc/puppetlabs/bolt"),
+    Path("/opt/puppetlabs/bolt"),
+    Path.home() / ".puppetlabs" / "bolt",
+]
+
+
+def _find_bolt_file(filename: str) -> Optional[Path]:
+    """Find a Bolt config file in standard locations."""
+    for d in BOLT_CONFIG_SEARCH:
+        p = d / filename
+        if p.exists():
+            return p
+    return None
+
+
 @router.get("/config")
 async def get_config():
-    """Read bolt-project.yaml and inventory.yaml."""
-    config_paths = [
-        Path("/opt/puppetlabs/bolt/bolt-project.yaml"),
-        Path("/etc/puppetlabs/bolt/bolt-project.yaml"),
-        Path.home() / ".puppetlabs" / "bolt" / "bolt-project.yaml",
-    ]
-    inventory_paths = [
-        Path("/opt/puppetlabs/bolt/inventory.yaml"),
-        Path("/etc/puppetlabs/bolt/inventory.yaml"),
-        Path.home() / ".puppetlabs" / "bolt" / "inventory.yaml",
-    ]
-
-    config_content = None
-    config_path = None
-    for p in config_paths:
-        if p.exists():
-            config_content = p.read_text()
-            config_path = str(p)
-            break
-
-    inventory_content = None
-    inventory_path = None
-    for p in inventory_paths:
-        if p.exists():
-            inventory_content = p.read_text()
-            inventory_path = str(p)
-            break
-
-    return {
-        "config": {"path": config_path, "content": config_content},
-        "inventory": {"path": inventory_path, "content": inventory_content},
+    """Read all Bolt configuration files."""
+    files = {
+        "config": "bolt-project.yaml",
+        "inventory": "inventory.yaml",
+        "debug_log": "bolt-debug.log",
+        "rerun": ".rerun.json",
     }
+    result = {}
+    for key, filename in files.items():
+        found = _find_bolt_file(filename)
+        if found:
+            try:
+                content = found.read_text()
+            except Exception as e:
+                content = f"(error reading file: {e})"
+            result[key] = {"path": str(found), "content": content}
+        else:
+            result[key] = {"path": None, "content": None}
+    return result
+
+
+class SaveBoltConfigRequest(BaseModel):
+    file: str  # "config" or "inventory"
+    content: str
+
+
+@router.put("/config")
+async def save_config(req: SaveBoltConfigRequest):
+    """Save a Bolt configuration file (bolt-project.yaml or inventory.yaml)."""
+    allowed = {
+        "config": "bolt-project.yaml",
+        "inventory": "inventory.yaml",
+    }
+    if req.file not in allowed:
+        raise HTTPException(status_code=400, detail=f"Cannot edit '{req.file}'. Only bolt-project.yaml and inventory.yaml are editable.")
+
+    filename = allowed[req.file]
+    found = _find_bolt_file(filename)
+
+    if not found:
+        # Create in the default location
+        default_dir = Path("/etc/puppetlabs/bolt")
+        if not default_dir.exists():
+            default_dir.mkdir(parents=True, exist_ok=True)
+        found = default_dir / filename
+
+    # Validate YAML syntax before saving
+    try:
+        import yaml
+        yaml.safe_load(req.content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML syntax: {e}")
+
+    # Backup existing file
+    backup = found.with_suffix(found.suffix + ".bak")
+    if found.exists():
+        try:
+            import shutil
+            shutil.copy2(str(found), str(backup))
+        except Exception:
+            pass
+
+    # Write new content
+    try:
+        found.write_text(req.content)
+        logger.info(f"Bolt config file saved: {found}")
+        return {"status": "ok", "path": str(found), "message": f"{filename} saved successfully"}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail=f"Permission denied writing to {found}. The service may need sudo access.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save {filename}: {e}")
