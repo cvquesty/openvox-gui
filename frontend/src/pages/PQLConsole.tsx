@@ -150,7 +150,14 @@ export function PQLConsolePage() {
       setResults(r);
       setHistory((prev) => [query.trim(), ...prev.filter((h) => h !== query.trim())].slice(0, 20));
     } catch (e: any) {
-      setError(e.message);
+      // Parse error message to extract a human-readable PuppetDB error
+      let msg = e.message || 'Unknown error';
+      // Try to extract the detail from JSON error responses like: API Error 400: {"detail":"..."}
+      const jsonMatch = msg.match(/\{[^]*"detail"\s*:\s*"([^"]*)"/);
+      if (jsonMatch) {
+        msg = jsonMatch[1];
+      }
+      setError(msg);
     }
     setRunning(false);
   };
@@ -244,7 +251,8 @@ export function PQLConsolePage() {
 
       {error && (
         <Alert color="red" title="Query Error" withCloseButton onClose={() => setError(null)}>
-          <Code block style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{error}</Code>
+          <Text size="sm" mb="xs">{error}</Text>
+          <Text size="xs" c="dimmed">Check the PQL syntax and try again. PuppetDB requires valid PQL entity names and ISO 8601 timestamps (relative time strings like "2 hours ago" are not supported).</Text>
         </Alert>
       )}
 
