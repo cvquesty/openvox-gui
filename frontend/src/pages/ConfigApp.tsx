@@ -9,6 +9,7 @@ import {
   IconSettings, IconUsers, IconPlus, IconTrash, IconKey, IconShield,
   IconEdit, IconDeviceFloppy, IconX, IconRefresh, IconServer,
   IconPlugConnected, IconTestPipe, IconLock, IconWorld,
+  IconSwitchHorizontal,
 } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { config, users, ldap } from '../services/api';
@@ -638,6 +639,7 @@ function UserManagerTab() {
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<string>('viewer');
+  const [newAuthSource, setNewAuthSource] = useState<string>('ldap');
   const [addLoading, setAddLoading] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pwUser, setPwUser] = useState('');
@@ -647,6 +649,10 @@ function UserManagerTab() {
   const [roleUser, setRoleUser] = useState('');
   const [roleValue, setRoleValue] = useState<string>('viewer');
   const [roleLoading, setRoleLoading] = useState(false);
+  const [authSrcOpen, setAuthSrcOpen] = useState(false);
+  const [authSrcUser, setAuthSrcUser] = useState('');
+  const [authSrcValue, setAuthSrcValue] = useState<string>('ldap');
+  const [authSrcLoading, setAuthSrcLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true); setError(null);
@@ -660,12 +666,13 @@ function UserManagerTab() {
   useState(() => { loadUsers(); });
 
   const handleAddUser = async () => {
-    if (!newUsername || !newPassword) return;
+    if (!newUsername) return;
+    if (newAuthSource === 'local' && !newPassword) return;
     setAddLoading(true);
     try {
-      await users.create({ username: newUsername, password: newPassword, role: newRole });
-      notifications.show({ title: 'User Created', message: `User '${newUsername}' created with role '${newRole}'`, color: 'green' });
-      setNewUsername(''); setNewPassword(''); setNewRole('viewer'); loadUsers();
+      await users.create({ username: newUsername, password: newPassword, role: newRole, auth_source: newAuthSource });
+      notifications.show({ title: 'User Created', message: `User '${newUsername}' created (${newAuthSource}, role: ${newRole})`, color: 'green' });
+      setNewUsername(''); setNewPassword(''); setNewRole('viewer'); setNewAuthSource('ldap'); loadUsers();
     } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
     finally { setAddLoading(false); }
   };
@@ -699,6 +706,16 @@ function UserManagerTab() {
     finally { setRoleLoading(false); }
   };
 
+  const handleChangeAuthSource = async () => {
+    setAuthSrcLoading(true);
+    try {
+      await users.changeAuthSource(authSrcUser, authSrcValue);
+      notifications.show({ title: 'Auth Source Changed', message: `'${authSrcUser}' now authenticates via ${authSrcValue.toUpperCase()}`, color: 'green' });
+      setAuthSrcOpen(false); loadUsers();
+    } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
+    finally { setAuthSrcLoading(false); }
+  };
+
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
@@ -712,15 +729,15 @@ function UserManagerTab() {
           <Badge color={appData?.auth_backend === 'none' ? 'yellow' : 'green'} size="lg">{appData?.auth_backend || 'none'}</Badge>
         </Group>
         <Text size="xs" c="dimmed" mt="sm">
-          Split authentication is active when LDAP is enabled. Users can authenticate via LDAP (corporate credentials)
-          or local accounts (service accounts, break-glass). Roles are always managed locally.
+          Each user can authenticate via LDAP (corporate credentials) or local accounts (service accounts, break-glass).
+          The authentication source is selectable per user. Roles are always managed locally.
         </Text>
       </Card>
 
       {/* LDAP Configuration */}
       <LdapConfigPanel />
 
-      {/* Add Local User */}
+      {/* Add User */}
       <Grid align="flex-start">
         {!isFormal && (
           <Grid.Col span={{ base: 12, md: 6 }}>
@@ -730,21 +747,29 @@ function UserManagerTab() {
         <Grid.Col span={{ base: 12, md: isFormal ? 12 : 6 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Group gap="sm" mb="md">
-              <IconLock size={18} />
-              <Title order={4}>Add Local User</Title>
+              <IconPlus size={18} />
+              <Title order={4}>Add User</Title>
             </Group>
             <Text size="xs" c="dimmed" mb="sm">
-              Create a local account. Use for service accounts, break-glass access, or when LDAP is not available.
+              Create a new user. LDAP users authenticate with their directory credentials. Local users use a password stored in this application.
             </Text>
             <Stack gap="sm">
               <TextInput label="Username" placeholder="Enter username" value={newUsername} onChange={(e) => setNewUsername(e.currentTarget.value)} />
-              <PasswordInput label="Password" placeholder="Enter password" value={newPassword} onChange={(e) => setNewPassword(e.currentTarget.value)} />
+              <Select label="Authentication Source" description="LDAP users authenticate with corporate credentials. Local users use a stored password."
+                data={[
+                  { value: 'ldap', label: 'LDAP / Active Directory' },
+                  { value: 'local', label: 'Local' },
+                ]} value={newAuthSource} onChange={(v) => { setNewAuthSource(v || 'ldap'); if (v === 'ldap') setNewPassword(''); }} />
+              <Collapse in={newAuthSource === 'local'}>
+                <PasswordInput label="Password" placeholder="Enter password" value={newPassword} onChange={(e) => setNewPassword(e.currentTarget.value)} />
+              </Collapse>
               <Select label="Role" data={[
                 { value: 'admin', label: 'Admin \u2014 Full access' },
                 { value: 'operator', label: 'Operator \u2014 Deploy & manage' },
                 { value: 'viewer', label: 'Viewer \u2014 Read only' },
               ]} value={newRole} onChange={(v) => setNewRole(v || 'viewer')} />
-              <Button leftSection={<IconPlus size={16} />} onClick={handleAddUser} loading={addLoading} disabled={!newUsername || !newPassword}>Create User</Button>
+              <Button leftSection={<IconPlus size={16} />} onClick={handleAddUser} loading={addLoading}
+                disabled={!newUsername || (newAuthSource === 'local' && !newPassword)}>Create User</Button>
             </Stack>
           </Card>
         </Grid.Col>
@@ -786,6 +811,11 @@ function UserManagerTab() {
                         </ActionIcon>
                       </Tooltip>
                     )}
+                    <Tooltip label="Change auth source">
+                      <ActionIcon variant="subtle" color="grape" onClick={() => { setAuthSrcUser(u.username); setAuthSrcValue(u.auth_source || 'local'); setAuthSrcOpen(true); }}>
+                        <IconSwitchHorizontal size={16} />
+                      </ActionIcon>
+                    </Tooltip>
                     <Tooltip label="Change role"><ActionIcon variant="subtle" color="orange" onClick={() => { setRoleUser(u.username); setRoleValue(u.role); setRoleOpen(true); }}><IconShield size={16} /></ActionIcon></Tooltip>
                     {u.username !== currentUser?.username && (<Tooltip label="Delete user"><ActionIcon variant="subtle" color="red" onClick={() => handleDeleteUser(u.username)}><IconTrash size={16} /></ActionIcon></Tooltip>)}
                   </Group>
@@ -811,6 +841,21 @@ function UserManagerTab() {
             { value: 'viewer', label: 'Viewer \u2014 Read only' },
           ]} value={roleValue} onChange={(v) => setRoleValue(v || 'viewer')} />
           <Button onClick={handleChangeRole} loading={roleLoading} fullWidth>Update Role</Button>
+        </Stack>
+      </Modal>
+      <Modal opened={authSrcOpen} onClose={() => setAuthSrcOpen(false)} title={`Change Auth Source \u2014 ${authSrcUser}`} centered>
+        <Stack>
+          <Select label="Authentication Source" description="LDAP: credentials validated against your directory server. Local: password stored in this application."
+            data={[
+              { value: 'ldap', label: 'LDAP / Active Directory' },
+              { value: 'local', label: 'Local' },
+            ]} value={authSrcValue} onChange={(v) => setAuthSrcValue(v || 'ldap')} />
+          {authSrcValue === 'ldap' && (
+            <Alert variant="light" color="blue" title="Note">
+              Switching to LDAP will invalidate this user's local password. They will need to authenticate using their LDAP/AD credentials.
+            </Alert>
+          )}
+          <Button onClick={handleChangeAuthSource} loading={authSrcLoading} fullWidth>Update Auth Source</Button>
         </Stack>
       </Modal>
     </Stack>

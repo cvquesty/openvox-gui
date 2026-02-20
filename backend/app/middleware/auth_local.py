@@ -84,23 +84,27 @@ async def verify_password(username: str, password: str) -> bool:
         return _verify_password_hash(password, user.password_hash)
 
 
-async def add_user(username: str, password: str, role: str = "viewer"):
-    """Add a user to the database."""
+async def add_user(username: str, password: str, role: str = "viewer", auth_source: str = "local"):
+    """Add a user to the database with a specified authentication source."""
     username = username.strip()
     if not username:
         raise ValueError("Username cannot be empty")
+    if auth_source not in ("local", "ldap"):
+        raise ValueError(f"Invalid auth_source: {auth_source}")
     async with async_session() as session:
         existing = await session.execute(select(User).where(User.username == username))
         if existing.scalar_one_or_none():
             raise ValueError(f"User '{username}' already exists")
+        from ..middleware.auth_ldap import LDAP_PASSWORD_PLACEHOLDER
         user = User(
             username=username,
-            password_hash=_hash_password(password),
+            password_hash=_hash_password(password) if auth_source == "local" else LDAP_PASSWORD_PLACEHOLDER,
             role=role,
+            auth_source=auth_source,
         )
         session.add(user)
         await session.commit()
-    logger.info(f"User '{username}' added with role '{role}'")
+    logger.info(f"User '{username}' added with role '{role}', auth_source '{auth_source}'")
 
 
 async def remove_user(username: str) -> bool:
@@ -172,6 +176,35 @@ async def get_user_role(username: str) -> str:
         result = await session.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
         return user.role if user else "viewer"
+
+
+async def get_user_auth_source(username: str) -> str:
+    """Get a user's authentication source from the database."""
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.username == username))
+        user = result.scalar_one_or_none()
+        return (getattr(user, "auth_source", "local") or "local") if user else "local"
+
+
+async def change_auth_source(username: str, auth_source: str) -> bool:
+    """Change a user's authentication source (local or ldap)."""
+    if auth_source not in ("local", "ldap"):
+        raise ValueError(f"Invalid auth_source: {auth_source}")
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.username == username))
+        user = result.scalar_one_or_none()
+        if user is None:
+            return False
+        old_source = getattr(user, "auth_source", "local") or "local"
+        user.auth_source = auth_source
+        # When switching to LDAP, invalidate the local password hash
+        if auth_source == "ldap" and old_source == "local":
+            from ..middleware.auth_ldap import LDAP_PASSWORD_PLACEHOLDER
+            user.password_hash = LDAP_PASSWORD_PLACEHOLDER
+        user.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+    logger.info(f"Auth source changed for user '{username}' from '{old_source}' to '{auth_source}'")
+    return True
 
 
 # ─── Migration from htpasswd flat files ─────────────────────

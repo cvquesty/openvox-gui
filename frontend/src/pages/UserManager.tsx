@@ -2,11 +2,12 @@ import { useState, useCallback } from 'react';
 import {
   Title, Stack, Card, Table, Group, Button, TextInput, PasswordInput,
   Select, ActionIcon, Badge, Alert, Modal, Text, Tooltip, Loader, Center,
-  Grid,
+  Grid, Collapse,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconPlus, IconTrash, IconKey, IconShield, IconUsers, IconLock, IconWorld,
+  IconSwitchHorizontal,
 } from '@tabler/icons-react';
 import { users } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
@@ -271,10 +272,11 @@ export function UserManagerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Add user modal
+  // Add user form
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<string>('viewer');
+  const [newAuthSource, setNewAuthSource] = useState<string>('ldap');
   const [addLoading, setAddLoading] = useState(false);
 
   // Change password modal
@@ -288,6 +290,12 @@ export function UserManagerPage() {
   const [roleUser, setRoleUser] = useState('');
   const [roleValue, setRoleValue] = useState<string>('viewer');
   const [roleLoading, setRoleLoading] = useState(false);
+
+  // Change auth source modal
+  const [authSrcOpen, setAuthSrcOpen] = useState(false);
+  const [authSrcUser, setAuthSrcUser] = useState('');
+  const [authSrcValue, setAuthSrcValue] = useState<string>('ldap');
+  const [authSrcLoading, setAuthSrcLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -306,14 +314,16 @@ export function UserManagerPage() {
   useState(() => { loadUsers(); });
 
   const handleAddUser = async () => {
-    if (!newUsername || !newPassword) return;
+    if (!newUsername) return;
+    if (newAuthSource === 'local' && !newPassword) return;
     setAddLoading(true);
     try {
-      await users.create({ username: newUsername, password: newPassword, role: newRole });
-      notifications.show({ title: 'User Created', message: `User '${newUsername}' created with role '${newRole}'`, color: 'green' });
+      await users.create({ username: newUsername, password: newPassword, role: newRole, auth_source: newAuthSource });
+      notifications.show({ title: 'User Created', message: `User '${newUsername}' created (${newAuthSource}, role: ${newRole})`, color: 'green' });
       setNewUsername('');
       setNewPassword('');
       setNewRole('viewer');
+      setNewAuthSource('ldap');
       loadUsers();
     } catch (err: any) {
       notifications.show({ title: 'Error', message: err.message, color: 'red' });
@@ -363,6 +373,20 @@ export function UserManagerPage() {
     }
   };
 
+  const handleChangeAuthSource = async () => {
+    setAuthSrcLoading(true);
+    try {
+      await users.changeAuthSource(authSrcUser, authSrcValue);
+      notifications.show({ title: 'Auth Source Changed', message: `'${authSrcUser}' now authenticates via ${authSrcValue.toUpperCase()}`, color: 'green' });
+      setAuthSrcOpen(false);
+      loadUsers();
+    } catch (err: any) {
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    } finally {
+      setAuthSrcLoading(false);
+    }
+  };
+
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
@@ -394,12 +418,24 @@ export function UserManagerPage() {
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.currentTarget.value)}
                 />
-                <PasswordInput
-                  label="Password"
-                  placeholder="Enter password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.currentTarget.value)}
+                <Select
+                  label="Authentication Source"
+                  description="LDAP users authenticate with corporate credentials. Local users use a password stored in this application."
+                  data={[
+                    { value: 'ldap', label: 'LDAP / Active Directory' },
+                    { value: 'local', label: 'Local' },
+                  ]}
+                  value={newAuthSource}
+                  onChange={(v) => { setNewAuthSource(v || 'ldap'); if (v === 'ldap') setNewPassword(''); }}
                 />
+                <Collapse in={newAuthSource === 'local'}>
+                  <PasswordInput
+                    label="Password"
+                    placeholder="Enter password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.currentTarget.value)}
+                  />
+                </Collapse>
                 <Select
                   label="Role"
                   data={[
@@ -414,7 +450,7 @@ export function UserManagerPage() {
                   leftSection={<IconPlus size={16} />}
                   onClick={handleAddUser}
                   loading={addLoading}
-                  disabled={!newUsername || !newPassword}
+                  disabled={!newUsername || (newAuthSource === 'local' && !newPassword)}
                 >
                   Create User
                 </Button>
@@ -469,6 +505,15 @@ export function UserManagerPage() {
                         </ActionIcon>
                       </Tooltip>
                     )}
+                    <Tooltip label="Change auth source">
+                      <ActionIcon
+                        variant="subtle"
+                        color="grape"
+                        onClick={() => { setAuthSrcUser(u.username); setAuthSrcValue(u.auth_source || 'local'); setAuthSrcOpen(true); }}
+                      >
+                        <IconSwitchHorizontal size={16} />
+                      </ActionIcon>
+                    </Tooltip>
                     <Tooltip label="Change role">
                       <ActionIcon
                         variant="subtle"
@@ -522,6 +567,28 @@ export function UserManagerPage() {
             { value: 'viewer', label: 'Viewer \u2014 Read only' },
           ]} value={roleValue} onChange={(v) => setRoleValue(v || 'viewer')} />
           <Button onClick={handleChangeRole} loading={roleLoading} fullWidth>Update Role</Button>
+        </Stack>
+      </Modal>
+
+      {/* Change Auth Source Modal */}
+      <Modal opened={authSrcOpen} onClose={() => setAuthSrcOpen(false)} title={`Change Auth Source \u2014 ${authSrcUser}`} centered>
+        <Stack>
+          <Select
+            label="Authentication Source"
+            description="LDAP: credentials validated against your directory server. Local: password stored in this application."
+            data={[
+              { value: 'ldap', label: 'LDAP / Active Directory' },
+              { value: 'local', label: 'Local' },
+            ]}
+            value={authSrcValue}
+            onChange={(v) => setAuthSrcValue(v || 'ldap')}
+          />
+          {authSrcValue === 'ldap' && (
+            <Alert variant="light" color="blue" title="Note">
+              Switching to LDAP will invalidate this user's local password. They will need to authenticate using their LDAP/AD credentials.
+            </Alert>
+          )}
+          <Button onClick={handleChangeAuthSource} loading={authSrcLoading} fullWidth>Update Auth Source</Button>
         </Stack>
       </Modal>
     </Stack>

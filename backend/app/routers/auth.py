@@ -14,7 +14,7 @@ from ..config import settings
 from ..middleware.auth_local import (
     verify_password, create_token, verify_token,
     add_user, remove_user, list_users, change_password, change_role,
-    get_user_role,
+    get_user_role, get_user_auth_source, change_auth_source,
 )
 from ..middleware.auth_ldap import (
     ldap_login, get_ldap_config, save_ldap_config, test_ldap_connection,
@@ -43,8 +43,13 @@ class ChangeRoleRequest(BaseModel):
 
 class AddUserRequest(BaseModel):
     username: str
-    password: str
+    password: str = ""
     role: str = "viewer"
+    auth_source: str = "ldap"
+
+
+class ChangeAuthSourceRequest(BaseModel):
+    auth_source: str
 
 
 class LdapConfigRequest(BaseModel):
@@ -126,15 +131,35 @@ async def login(request: Request, login_request: LoginRequest):
     login_username = login_request.username.strip()
     login_password = login_request.password
 
-    # ── Split authentication: try LDAP first, then local ──
+    # ── Per-user auth source routing ──
+    # Look up the user's configured auth_source to decide how to authenticate.
+    # If the user doesn't exist yet (new LDAP user), default to LDAP when enabled.
+    user_auth_source = await get_user_auth_source(login_username)
     ldap_cfg = await get_ldap_config()
+    ldap_enabled = ldap_cfg and ldap_cfg.enabled
+
+    # Determine effective auth method for this login attempt
+    # - Known user with auth_source='ldap' → authenticate via LDAP
+    # - Known user with auth_source='local' → authenticate via local DB
+    # - Unknown user + LDAP enabled → try LDAP (auto-provision on success)
+    # - Unknown user + LDAP disabled → try local (will fail if not found)
     ldap_result = None
 
-    if ldap_cfg and ldap_cfg.enabled:
+    if user_auth_source == "ldap" and ldap_enabled:
+        # User is configured for LDAP authentication
         try:
             ldap_result = await ldap_login(login_username, login_password)
         except Exception as e:
-            logger.warning(f"LDAP authentication error (falling back to local): {e}")
+            logger.warning(f"LDAP authentication error for '{login_username}': {e}")
+    elif user_auth_source == "local":
+        # User is explicitly configured for local authentication — skip LDAP
+        pass
+    elif ldap_enabled:
+        # Unknown user — try LDAP for auto-provisioning
+        try:
+            ldap_result = await ldap_login(login_username, login_password)
+        except Exception as e:
+            logger.warning(f"LDAP authentication error for new user '{login_username}': {e}")
 
     if ldap_result:
         # LDAP authentication succeeded
@@ -155,7 +180,7 @@ async def login(request: Request, login_request: LoginRequest):
         logger.info(f"User '{login_username}' authenticated via LDAP (role: {ldap_result['role']})")
         return response
 
-    # ── Local authentication fallback ──
+    # ── Local authentication ──
     if not await verify_password(login_username, login_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
@@ -204,7 +229,7 @@ async def get_users(request: Request):
 
 @router.post("/users")
 async def create_user(data: AddUserRequest, request: Request):
-    """Create a new local user (admin only)."""
+    """Create a new user (admin only). Auth source can be 'local' or 'ldap'."""
     user = getattr(request.state, "user", None)
     if not user or user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -213,9 +238,13 @@ async def create_user(data: AddUserRequest, request: Request):
         raise HTTPException(status_code=400, detail="Username cannot be empty")
     if data.role not in ("admin", "operator", "viewer"):
         raise HTTPException(status_code=400, detail="Role must be admin, operator, or viewer")
+    if data.auth_source not in ("local", "ldap"):
+        raise HTTPException(status_code=400, detail="Auth source must be 'local' or 'ldap'")
+    if data.auth_source == "local" and not data.password:
+        raise HTTPException(status_code=400, detail="Password is required for local users")
     try:
-        await add_user(username, data.password, data.role)
-        return {"status": "ok", "message": f"User '{username}' created with role '{data.role}'"}
+        await add_user(username, data.password, data.role, data.auth_source)
+        return {"status": "ok", "message": f"User '{username}' created with role '{data.role}', auth source '{data.auth_source}'"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -258,6 +287,22 @@ async def update_role(username: str, data: ChangeRoleRequest, request: Request):
         if not await change_role(username, data.role):
             raise HTTPException(status_code=404, detail="User not found")
         return {"status": "ok", "message": f"Role updated to '{data.role}' for '{username}'"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/users/{username}/auth-source")
+async def update_auth_source(username: str, data: ChangeAuthSourceRequest, request: Request):
+    """Change a user's authentication source (admin only). Options: 'local' or 'ldap'."""
+    user = getattr(request.state, "user", None)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if data.auth_source not in ("local", "ldap"):
+        raise HTTPException(status_code=400, detail="Auth source must be 'local' or 'ldap'")
+    try:
+        if not await change_auth_source(username, data.auth_source):
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"status": "ok", "message": f"Auth source updated to '{data.auth_source}' for '{username}'"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

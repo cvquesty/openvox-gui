@@ -155,7 +155,7 @@ export const bolt = {
 
 export const users = {
   list: () => fetchJSON<any[]>('/auth/users'),
-  create: (data: { username: string; password: string; role: string }) =>
+  create: (data: { username: string; password: string; role: string; auth_source?: string }) =>
     fetchJSON<any>('/auth/users', { method: 'POST', body: JSON.stringify(data) }),
   remove: (username: string) =>
     fetchJSON<any>(`/auth/users/${username}`, { method: 'DELETE' }),
@@ -168,6 +168,11 @@ export const users = {
     fetchJSON<any>(`/auth/users/${username}/role`, {
       method: 'PUT',
       body: JSON.stringify({ role }),
+    }),
+  changeAuthSource: (username: string, authSource: string) =>
+    fetchJSON<any>(`/auth/users/${username}/auth-source`, {
+      method: 'PUT',
+      body: JSON.stringify({ auth_source: authSource }),
     }),
 };
 
