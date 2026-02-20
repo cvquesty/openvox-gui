@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 2.0.0-1 Alpha**
+**OpenVox GUI Version 2.0.0-2 Alpha**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -224,7 +224,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"2.0.0-1 Alpha"}` if everything is working.
+You should see `{"status":"ok","version":"2.0.0-2 Alpha"}` if everything is working.
 
 ---
 
@@ -247,12 +247,19 @@ You should see `{"status":"ok","version":"2.0.0-1 Alpha"}` if everything is work
    - Change the admin password
 
 2. **Add more users if needed:**
-   ```bash
-   cd /opt/openvox-gui
-   sudo ./scripts/manage_user.py add john --role operator
-   ```
+   - Go to **Settings** → **User Manager** to create users via the web interface
+   - Choose **LDAP** or **Local** as the authentication source for each user
+   - Or use the CLI:
+     ```bash
+     cd /opt/openvox-gui
+     sudo ./scripts/manage_user.py add john --role operator
+     ```
 
-3. **Configure your firewall** (if not done automatically):
+3. **Set up LDAP authentication** (optional):
+   - Go to **Settings** → **Auth Settings** to connect to your LDAP/Active Directory server
+   - See the [LDAP / Active Directory Guide](docs/LDAP.md) for detailed setup instructions
+
+4. **Configure your firewall** (if not done automatically):
    ```bash
    # For Red Hat/CentOS:
    sudo firewall-cmd --permanent --add-port=4567/tcp

@@ -5,6 +5,18 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-2 Alpha] - 2026-02-20
+
+### Added
+- **LDAP Documentation**: New comprehensive [LDAP / Active Directory Guide](docs/LDAP.md) covering setup, configuration reference, directory server presets (OpenLDAP, 389 DS, Active Directory), per-user auth source management, group-to-role mapping, AD UPN mode, connection testing, troubleshooting, and security considerations
+- **Single-file version management**: Application version is now declared in a single `VERSION` file at the repo root — backend, frontend, installer, and all documentation read from it automatically; no manual edits needed anywhere else when the version changes
+
+### Changed
+- **Version architecture**: `backend/app/__init__.py` reads `VERSION` at import time; `vite.config.ts` reads it at build time; `install.sh` and `update_remote.sh` read it at runtime; `bump-version.sh` propagates to `package.json` and doc headers automatically
+- **bump-version.sh**: Reframed as internal build/CI automation (not user-facing); quiet output for machine consumption
+- **README.md**: Updated documentation links to include LDAP guide; removed references to non-existent docs
+- **INSTALL.md**: Added LDAP setup as a post-installation step with link to the LDAP guide
+
 ## [2.0.0-1 Alpha] - 2026-02-20
 
 ### Fixed

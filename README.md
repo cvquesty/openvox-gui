@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 2.0.0-1 Alpha** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 2.0.0-2 Alpha** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -46,9 +46,8 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 
 - **[Installation Guide](INSTALL.md)** - Step-by-step guide for new installations
 - **[Update Guide](UPDATE.md)** - How to update to newer versions
+- **[LDAP / Active Directory Guide](docs/LDAP.md)** - Configure enterprise authentication
 - **[Troubleshooting](TROUBLESHOOTING.md)** - Solutions to common problems
-- **[Configuration](docs/CONFIGURATION.md)** - Detailed configuration options
-- **[API Reference](docs/API.md)** - For developers who want to integrate
 
 ## ✨ Main Features
 
