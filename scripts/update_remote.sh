@@ -20,8 +20,8 @@ set -e  # Exit on error
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Read version from the single source of truth (backend/__init__.py)
-APP_VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$REPO_ROOT/backend/app/__init__.py" 2>/dev/null || echo "unknown")
+# Read version from the single source of truth (VERSION file)
+APP_VERSION=$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo "unknown")
 
 REMOTE_HOST="10.0.100.225"
 REMOTE_USER="jsheets"

@@ -1,14 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import pkg from './package.json';
+import fs from 'fs';
 
-// Inject the version from package.json as a build-time constant.
-// Access it in code via: import.meta.env.VITE_APP_VERSION
+// Read version from the root VERSION file (single source of truth).
+// This is injected as a build-time constant accessible via `__APP_VERSION__`.
+const appVersion = fs.readFileSync(path.resolve(__dirname, '../VERSION'), 'utf-8').trim();
+
 export default defineConfig({
   plugins: [react()],
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.displayVersion || pkg.version),
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
   resolve: {
     alias: {
