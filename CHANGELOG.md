@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [2.2.0-Release] - 2026-02-25
+
+**Production release** — complete OpenVox rebranding with scrollability and UI polish.
+
+### Changed
+- **Full Puppet-to-OpenVox rebranding**: Every user-visible label, description, notification, and page title across the entire application now uses OpenVox product names (OpenVox Server, OpenVoxDB, OpenBolt). Sidebar navigation, config file groups, settings labels, SVG captions, error messages, and installation instructions all updated. Literal CLI commands and filesystem paths correctly retain `puppet` where that is the on-disk name.
+- **Sidebar**: "PuppetDB Explorer" → "OpenVoxDB Explorer", "Puppet Configuration" → "OpenVox Configuration"
+- **Settings**: "PuppetServer Host/Port" → "OpenVox Server Host/Port", "PuppetDB Host/Port" → "OpenVox DB Host/Port", "Puppet Infrastructure" → "OpenVox Infrastructure"
+- **Code Deployment**: "Restart Puppet Services" → "Restart OpenVox Services"
+- **Node Detail**: "Run Puppet" → "Run OpenVox", "Puppet Version" → "OpenVox Version"
+- **Orchestration**: "Puppet Bolt" → "OpenBolt" throughout, package names → `openbolt`
+- **Login page**: "Puppet infrastructure" → "OpenVox infrastructure"
+
+### Fixed
+- **PQL Console results scrolling**: Results pane now uses fixed viewport-based height so results scroll when they exceed the display area
+- **Fact Explorer results scrolling**: Overall results table uses fixed viewport height. Per-cell values in the Value column now scroll individually when content exceeds 200px — fixed the `PrettyJson` component to use `h=` instead of `maxHeight=` on its ScrollArea, and plain text values use native `overflow: auto`
+- **CONTRIBUTING.md typos**: Fixed "Str" → "Star", capitalization, spacing
+
 ## [2.1.2] - 2026-02-25
 
 ### Changed
