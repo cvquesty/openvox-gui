@@ -478,10 +478,17 @@ function LdapConfigPanel() {
         <Grid.Col span={{ base: 12, md: 8 }}>
           <TextInput
             label="Server URL"
-            description="LDAP server address. Use ldaps:// for SSL."
+            description="LDAP server address. Use ldaps:// for SSL (port 636)."
             placeholder="ldap://ldap.example.com:389"
             value={form.server_url}
-            onChange={(e) => updateField('server_url', e.currentTarget.value)}
+            onChange={(e) => {
+              const url = e.currentTarget.value;
+              updateField('server_url', url);
+              // Auto-toggle SSL when user types ldaps://
+              if (url.toLowerCase().startsWith('ldaps://') && !form.use_ssl) {
+                updateField('use_ssl', true);
+              }
+            }}
           />
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
@@ -606,6 +613,13 @@ function LdapConfigPanel() {
       {testResult && (
         <Alert mt="md" color={testResult.success ? 'green' : 'red'} title={testResult.success ? 'Connection Successful' : 'Connection Failed'} withCloseButton onClose={() => setTestResult(null)}>
           <Text size="sm">{testResult.message}</Text>
+          {testResult.hints && testResult.hints.length > 0 && (
+            <Stack gap={4} mt="xs">
+              {testResult.hints.map((hint: string, i: number) => (
+                <Text key={i} size="xs" c="yellow">💡 {hint}</Text>
+              ))}
+            </Stack>
+          )}
           {testResult.user_base_dn_valid === false && <Text size="xs" c="orange" mt="xs">⚠ {testResult.user_base_dn_warning}</Text>}
           {testResult.group_base_dn_valid === false && <Text size="xs" c="orange" mt="xs">⚠ {testResult.group_base_dn_warning}</Text>}
           {testResult.user_base_dn_valid === true && <Text size="xs" c="green" mt="xs">✓ User Base DN is valid</Text>}

@@ -64,17 +64,26 @@ async def save_ldap_config(cfg_data: dict) -> LdapConfig:
 
 def _build_ldap_connection(cfg: LdapConfig):
     """
-    Build and return an ldap3 Connection object (unbound) from config.
+    Build and return an ldap3 Server object from config.
+
+    Auto-detects SSL from the ldaps:// URL scheme so connections work
+    even when the use_ssl checkbox isn't explicitly toggled.
 
     Uses ldap3 library which is pure-Python and cross-platform
     (works on Linux, macOS, Windows without system ldap libs).
     """
     import ldap3
-    from ldap3 import Server, Connection, Tls, SUBTREE
+    from ldap3 import Server, Tls
     import ssl as ssl_module
 
+    # Auto-detect SSL from URL scheme — ldaps:// always means SSL,
+    # regardless of whether the use_ssl checkbox was toggled.
+    use_ssl = cfg.use_ssl
+    if cfg.server_url.lower().startswith("ldaps://"):
+        use_ssl = True
+
     tls = None
-    if cfg.use_ssl or cfg.use_starttls:
+    if use_ssl or cfg.use_starttls:
         tls_kwargs: Dict[str, Any] = {}
         if not cfg.ssl_verify:
             tls_kwargs["validate"] = ssl_module.CERT_NONE
@@ -86,7 +95,7 @@ def _build_ldap_connection(cfg: LdapConfig):
 
     server = Server(
         cfg.server_url,
-        use_ssl=cfg.use_ssl,
+        use_ssl=use_ssl,
         tls=tls,
         connect_timeout=cfg.connection_timeout,
     )
@@ -392,9 +401,29 @@ async def test_ldap_connection(cfg_data: dict) -> Dict[str, Any]:
         return result
 
     except Exception as e:
+        error_str = str(e)
+        message = f"Connection failed: {error_str}"
+
+        # Add actionable hints for common SSL errors
+        hints = []
+        lower_err = error_str.lower()
+        if "certificate verify failed" in lower_err:
+            hints.append("The server's SSL certificate could not be verified. "
+                         "Disable 'Verify SSL Certificate' for self-signed certs.")
+        if "wrong version number" in lower_err:
+            hints.append("SSL protocol mismatch. If using port 389, try STARTTLS "
+                         "instead of SSL. If using port 636, ensure 'Use SSL' is enabled.")
+        if "connection refused" in lower_err:
+            hints.append("The server refused the connection. Check that the port is "
+                         "correct and the LDAP service is running.")
+        if "timed out" in lower_err or "timeout" in lower_err:
+            hints.append("Connection timed out. Check network/firewall rules between "
+                         "this server and the LDAP server.")
+
         return {
             "success": False,
-            "message": f"Connection failed: {str(e)}",
+            "message": message,
+            "hints": hints if hints else None,
         }
 
 

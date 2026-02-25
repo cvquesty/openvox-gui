@@ -5,6 +5,16 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1.2-Alpha] - 2026-02-25
+
+### Fixed
+- **LDAPS port 636 connection failure**: `_build_ldap_connection` only created a TLS configuration object when the `use_ssl` checkbox was toggled. If the user entered an `ldaps://` URL without checking the box, ldap3 would attempt SSL using Python's default context which validates certificates — failing on self-signed or internally-signed Windows AD certs even with "Verify SSL Certificate" unchecked. The backend now auto-detects SSL from the `ldaps://` URL scheme and creates the proper `CERT_NONE` TLS config regardless of the checkbox state.
+- **LDAP connection test error diagnostics**: SSL failures previously returned a raw Python exception with no guidance. The test endpoint now returns actionable hints for common errors (certificate verify failed, wrong SSL version, connection refused, timeouts).
+
+### Changed
+- **Frontend LDAP URL auto-detect**: Typing `ldaps://` in the Server URL field now automatically toggles the "Use SSL (LDAPS)" switch on, preventing the mismatch that caused the bug.
+- **Frontend test result hints**: Connection test failures now display contextual troubleshooting tips (💡) below the error message.
+
 ## [2.0.1.1-Alpha] - 2026-02-25
 
 ### Fixed
