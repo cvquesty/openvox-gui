@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 2.1.0** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 2.1.1** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
 A user-friendly web interface for managing your OpenVox infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
