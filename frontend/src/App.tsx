@@ -69,7 +69,7 @@ function AppRoutes() {
           {/* Orchestration */}
           <Route path="/orchestration" element={<OrchestrationPage />} />
 
-          {/* PuppetDB Exploration */}
+          {/* OpenVoxDB Exploration */}
           <Route path="/pql" element={<PQLConsolePage />} />
           <Route path="/facts" element={<FactExplorerPage />} />
           <Route path="/resources" element={<ResourceExplorerPage />} />

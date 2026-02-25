@@ -89,7 +89,7 @@ export const deploy = {
 // ─── ENC ────────────────────────────────────────────────────
 
 export const enc = {
-  // Available classes from Puppet modules
+  // Available classes from OpenVox modules
   getAvailableClasses: (env?: string) =>
     fetchJSON<any>(`/enc/available-classes${env ? '?environment=' + env : ''}`),
 
@@ -223,7 +223,7 @@ export const config = {
       method: 'PUT',
       body: JSON.stringify({ key, value }),
     }),
-  // Puppet lookup
+  // OpenVox lookup
   lookup: (key: string, node?: string, environment?: string) =>
     fetchJSON<any>('/config/lookup', {
       method: 'POST',

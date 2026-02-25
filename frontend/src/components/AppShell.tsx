@@ -185,7 +185,7 @@ export function AppShellLayout() {
           {renderNavGroup('Code Deployment', deployNav)}
           {renderNavGroup('Node Classifier', encNav)}
           {renderNavGroup('Orchestration', orchNav)}
-          {renderNavGroup('PuppetDB Explorer', explorerNav)}
+          {renderNavGroup('OpenVoxDB Explorer', explorerNav)}
           {renderNavGroup('Infrastructure', infraNav)}
           {renderNavGroup('Settings', configNav)}
         </MantineAppShell.Section>

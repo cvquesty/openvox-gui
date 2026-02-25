@@ -255,7 +255,7 @@ export function CodeDeploymentPage() {
     setRestartingStack(true);
     try {
       await config.restartPuppetStack();
-      notifications.show({ title: 'Puppet Services Restarted', message: 'PuppetDB, PuppetServer, and Puppet agent restarted successfully', color: 'green' });
+      notifications.show({ title: 'OpenVox Services Restarted', message: 'OpenVoxDB, OpenVox Server, and OpenVox agent restarted successfully', color: 'green' });
     } catch (e: any) {
       notifications.show({ title: 'Restart Failed', message: e.message, color: 'red' });
     } finally {
@@ -376,7 +376,7 @@ export function CodeDeploymentPage() {
                 onClick={handleRestartPuppetStack}
                 fullWidth
               >
-                Restart All Puppet Services
+                Restart All OpenVox Services
               </Button>
             </Card>
           </Stack>

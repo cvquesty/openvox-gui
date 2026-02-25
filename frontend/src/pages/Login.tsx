@@ -43,7 +43,7 @@ export function LoginPage() {
         <Stack align="center" mb="lg">
           <img src={isFormal ? "/openvox-logo.svg" : "/openvox-logo-orange.svg"} alt="OpenVox" style={{ height: 72 }} />
           <Title order={2}>{appName}</Title>
-          <Text size="sm" c="dimmed">Sign in to manage your Puppet infrastructure</Text>
+          <Text size="sm" c="dimmed">Sign in to manage your OpenVox infrastructure</Text>
         </Stack>
 
         <form onSubmit={handleSubmit}>

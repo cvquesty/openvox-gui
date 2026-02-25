@@ -132,11 +132,11 @@ export function NodeDetailPage() {
       setPuppetResult(r);
       // Puppet exit codes: 0 = no changes, 2 = changes applied successfully, anything else = error
       if (r.returncode === 0) {
-        notifications.show({ title: 'Puppet Run Complete', message: `No changes needed on ${certname}`, color: 'green' });
+        notifications.show({ title: 'OpenVox Run Complete', message: `No changes needed on ${certname}`, color: 'green' });
       } else if (r.returncode === 2) {
-        notifications.show({ title: 'Puppet Run Complete', message: `Changes applied successfully on ${certname}`, color: 'green' });
+        notifications.show({ title: 'OpenVox Run Complete', message: `Changes applied successfully on ${certname}`, color: 'green' });
       } else {
-        notifications.show({ title: 'Puppet Run Failed', message: `Agent run failed with exit code ${r.returncode}`, color: 'red' });
+        notifications.show({ title: 'OpenVox Run Failed', message: `Agent run failed with exit code ${r.returncode}`, color: 'red' });
       }
     } catch (e: any) {
       notifications.show({ title: 'Error', message: e.message, color: 'red' });
@@ -161,7 +161,7 @@ export function NodeDetailPage() {
           leftSection={runningPuppet ? <Loader size={14} color="white" /> : <IconPlayerPlay size={14} />}
           color="green" size="sm" variant="outline"
           onClick={handleRunPuppet} loading={runningPuppet}>
-          Run Puppet
+          Run OpenVox
         </Button>
       </Group>
 
@@ -264,7 +264,7 @@ export function NodeDetailPage() {
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Time</Table.Th>
                   <Table.Th>Environment</Table.Th>
-                  <Table.Th>Puppet Version</Table.Th>
+                  <Table.Th>OpenVox Version</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>

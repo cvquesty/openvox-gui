@@ -245,12 +245,12 @@ function ServicesTab() {
   return (
     <Stack>
       <Alert variant="light" color="blue">
-        Manage all services in the OpenVox ecosystem. Restart individual services or the entire Puppet stack in the correct dependency order.
+        Manage all services in the OpenVox ecosystem. Restart individual services or the entire OpenVox stack in the correct dependency order.
       </Alert>
 
-      {/* Puppet Infrastructure Services */}
+      {/* OpenVox Infrastructure Services */}
       <Card withBorder shadow="sm" padding="md">
-        <Text fw={700} mb="sm">Puppet Infrastructure</Text>
+        <Text fw={700} mb="sm">OpenVox Infrastructure</Text>
         <Stack gap="xs">
           {puppetServices.map((svc: any) => (
             <Card key={svc.service} withBorder padding="sm">

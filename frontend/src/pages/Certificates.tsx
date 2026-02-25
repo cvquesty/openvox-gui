@@ -217,7 +217,7 @@ export function CertificatesPage() {
       )}
 
       <Alert variant="light" color="blue">
-        Manage Puppet CA certificates. Sign pending requests, revoke compromised certs,
+        Manage OpenVox CA certificates. Sign pending requests, revoke compromised certs,
         or clean removed nodes. This interfaces with <Code>puppetserver ca</Code>.
       </Alert>
 

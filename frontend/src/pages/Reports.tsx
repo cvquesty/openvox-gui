@@ -242,7 +242,7 @@ function ReportOScope() {
         The Report-O-Scope 9000
       </text>
       <text x="250" y="283" textAnchor="middle" fill="#556677" fontSize="9" fontFamily="monospace">
-        cataloging puppet runs so you don&#39;t have to
+        cataloging openvox runs so you don&#39;t have to
       </text>
     </svg>
   );
@@ -309,7 +309,7 @@ export function ReportsPage() {
               <Table.Th>Environment</Table.Th>
               <Table.Th>Start Time</Table.Th>
               <Table.Th>End Time</Table.Th>
-              <Table.Th>Puppet Version</Table.Th>
+              <Table.Th>OpenVox Version</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>

@@ -180,7 +180,7 @@ export function PQLConsolePage() {
       </Group>
 
       <Alert variant="light" color="blue">
-        Execute <Text span fw={700}>Puppet Query Language</Text> queries directly against PuppetDB.
+        Execute <Text span fw={700}>PQL</Text> queries directly against OpenVoxDB.
         PQL provides full access to nodes, facts, resources, reports, and events.
       </Alert>
 
@@ -252,7 +252,7 @@ export function PQLConsolePage() {
       {error && (
         <Alert color="red" title="Query Error" withCloseButton onClose={() => setError(null)}>
           <Text size="sm" mb="xs">{error}</Text>
-          <Text size="xs" c="dimmed">Check the PQL syntax and try again. PuppetDB requires valid PQL entity names and ISO 8601 timestamps (relative time strings like "2 hours ago" are not supported).</Text>
+          <Text size="xs" c="dimmed">Check the PQL syntax and try again. OpenVoxDB requires valid PQL entity names and ISO 8601 timestamps (relative time strings like "2 hours ago" are not supported).</Text>
         </Alert>
       )}
 

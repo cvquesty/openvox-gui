@@ -12,7 +12,7 @@ export function ConfigPuppetDBPage() {
 
   return (
     <Stack>
-      <Title order={2}>PuppetDB Configuration</Title>
+      <Title order={2}>OpenVoxDB Configuration</Title>
 
       {data && Object.entries(data).map(([section, values]: [string, any]) => (
         <Card key={section} withBorder shadow="sm">
@@ -32,7 +32,7 @@ export function ConfigPuppetDBPage() {
 
       {data && Object.keys(data).length === 0 && (
         <Alert color="yellow">
-          No PuppetDB configuration files found. PuppetDB may be using default settings.
+          No OpenVoxDB configuration files found. OpenVoxDB may be using default settings.
         </Alert>
       )}
     </Stack>

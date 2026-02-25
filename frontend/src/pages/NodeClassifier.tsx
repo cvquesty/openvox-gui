@@ -451,11 +451,11 @@ function EnvironmentsTab() {
       const encNames = new Set(encEnvs.map((e: any) => e.name));
       const missing = puppetNames.filter((n: string) => !encNames.has(n));
       for (const name of missing) {
-        await enc.createEnvironment({ name, description: 'Puppet environment (auto-discovered)', classes: {}, parameters: {} });
+        await enc.createEnvironment({ name, description: 'OpenVox environment (auto-discovered)', classes: {}, parameters: {} });
       }
       if (missing.length > 0) {
         setEnvs(await enc.listEnvironments());
-        notifications.show({ title: 'Environments Synced', message: `Added ${missing.length} from Puppet: ${missing.join(', ')}`, color: 'blue' });
+        notifications.show({ title: 'Environments Synced', message: `Added ${missing.length} from OpenVox: ${missing.join(', ')}`, color: 'blue' });
       } else {
         setEnvs(encEnvs);
       }
@@ -784,7 +784,7 @@ function NodesTab() {
       {unclassified.length > 0 && (
         <Card withBorder shadow="sm">
           <Text fw={700} mb="sm">Unclassified Nodes ({unclassified.length})</Text>
-          <Text size="xs" c="dimmed" mb="sm">Known to PuppetDB but not yet classified. Click to classify.</Text>
+          <Text size="xs" c="dimmed" mb="sm">Known to OpenVoxDB but not yet classified. Click to classify.</Text>
           <Group gap="xs" wrap="wrap">
             {unclassified.map((cn) => (
               <Badge key={cn} variant="outline" color="gray" size="sm" style={{ cursor: 'pointer' }}
@@ -908,7 +908,7 @@ function LookupTab() {
             </Grid.Col>
           </Grid>
           <Divider my="md" />
-          <Text fw={600} size="sm" mb="xs">YAML Output (Puppet ENC format)</Text>
+          <Text fw={600} size="sm" mb="xs">YAML Output (OpenVox ENC format)</Text>
           <Code block style={{ fontSize: 12 }}>
             {`---\nenvironment: "${result.environment}"\nclasses:\n${Object.entries(result.classes || {}).map(([cls, params]: [string, any]) =>
               params && Object.keys(params).length > 0

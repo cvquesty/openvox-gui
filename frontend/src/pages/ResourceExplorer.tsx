@@ -113,7 +113,7 @@ function ResourceOMatic() {
 
       {/* Caption */}
       <text x="260" y="195" textAnchor="middle" fill="#8899aa" fontSize="10" fontFamily="monospace">The Resource Sorting Machine</text>
-      <text x="260" y="209" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">cataloging everything puppet manages</text>
+      <text x="260" y="209" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">cataloging everything openvox manages</text>
     </svg>
   );
 }
@@ -169,7 +169,7 @@ export function ResourceExplorerPage() {
       </Group>
 
       <Alert variant="light" color="blue">
-        Search and analyze Puppet resources across your entire fleet. Find which nodes
+        Search and analyze OpenVox resources across your entire fleet. Find which nodes
         have specific packages, services, files, or any other resource type.
       </Alert>
 

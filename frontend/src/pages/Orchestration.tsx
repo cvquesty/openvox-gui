@@ -260,7 +260,7 @@ function BoltOMatic() {
 
       <text x="260" y="268" textAnchor="middle" fill="#8899aa" fontSize="10" fontFamily="monospace">The Orchestration Engine</text>
       <text x="260" y="282" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">lightning-fast task execution across your fleet</text>
-      <text x="260" y="294" textAnchor="middle" fill="#445566" fontSize="6" fontFamily="monospace">(powered by Puppet Bolt)</text>
+      <text x="260" y="294" textAnchor="middle" fill="#445566" fontSize="6" fontFamily="monospace">(powered by OpenBolt)</text>
     </svg>
   );
 }
@@ -292,7 +292,7 @@ function OverviewTab() {
         <Grid.Col span={{ base: 12, md: isFormal ? 12 : 5 }}>
           <Stack>
             <Card withBorder shadow="sm" padding="md">
-              <Text fw={700} mb="sm">Puppet Bolt Status</Text>
+              <Text fw={700} mb="sm">OpenBolt Status</Text>
               <Group gap="sm" mb="md">
                 <Text size="sm" c="dimmed">Installed:</Text>
                 <Badge color={status?.installed ? 'green' : 'red'} size="lg">
@@ -312,9 +312,9 @@ function OverviewTab() {
                 </>
               ) : (
                 <Alert color="yellow" variant="light">
-                  <Text size="sm">Puppet Bolt is not installed on this server.</Text>
+                  <Text size="sm">OpenBolt is not installed on this server.</Text>
                   <Text size="xs" c="dimmed" mt="xs">
-                    Install with: <Code>sudo yum install puppet-bolt</Code> or <Code>sudo apt install puppet-bolt</Code>
+                    Install with: <Code>sudo yum install openbolt</Code> or <Code>sudo apt install openbolt</Code>
                   </Text>
                 </Alert>
               )}
@@ -337,7 +337,7 @@ function OverviewTab() {
                 </Group>
                 <Group gap="xs">
                   <ThemeIcon size="sm" variant="light" color="green"><IconBolt size={12} /></ThemeIcon>
-                  <Text size="sm">Agentless — no Puppet agent required on targets</Text>
+                  <Text size="sm">Agentless — no OpenVox agent required on targets</Text>
                 </Group>
               </Stack>
             </Card>

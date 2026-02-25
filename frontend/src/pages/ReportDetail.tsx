@@ -141,7 +141,7 @@ export function ReportDetailPage() {
             <Text size="sm">{report.end_time ? new Date(report.end_time).toLocaleString() : '—'}</Text>
           </div>
           <div>
-            <Text size="xs" c="dimmed">Puppet Version</Text>
+            <Text size="xs" c="dimmed">OpenVox Version</Text>
             <Text size="sm">{report.puppet_version || '—'}</Text>
           </div>
           <div>
@@ -252,7 +252,7 @@ export function ReportDetailPage() {
                 </Table>
               </ScrollArea>
             ) : (
-              <Stack align="center" p="lg" gap="xs"><Text c="dimmed">No logs available for this report.</Text><Text size="xs" c="dimmed">Puppet agent log_level may be set to "err" which only captures error messages.</Text><Text size="xs" c="dimmed">Set log_level = info in puppet.conf [agent] to capture all run logs.</Text></Stack>
+              <Stack align="center" p="lg" gap="xs"><Text c="dimmed">No logs available for this report.</Text><Text size="xs" c="dimmed">OpenVox agent log_level may be set to "err" which only captures error messages.</Text><Text size="xs" c="dimmed">Set log_level = info in puppet.conf [agent] to capture all run logs.</Text></Stack>
             )}
           </Card>
         </Tabs.Panel>
