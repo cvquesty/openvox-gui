@@ -19,19 +19,17 @@ This guide will walk you through installing OpenVox GUI on your server. Don't wo
 
 ### What You Need
 
+> **Important:** OpenVox GUI must be installed directly **on your OpenVox Server**. It requires local access to configuration files, SSL certificates, and system services to function. Remote installation on a separate host is not currently supported.
+
 Think of these as the ingredients before you start cooking:
 
-1. **A Linux Server** - This is the computer where you'll install OpenVox GUI
+1. **Your OpenVox Server** — This is where you'll install OpenVox GUI
    - Red Hat 8 or newer, CentOS 8 or newer, Ubuntu 20.04 or newer
    - At least 2GB of memory (RAM)
    - About 1GB of free disk space
+   - A working OpenVox Server and OpenVoxDB already installed and running on this machine
 
-2. **Access to Your OpenVox Infrastructure**
-   - You need a working OpenVox Server somewhere on your network
-   - You need a working OpenVoxDB (usually on the same server as OpenVox Server)
-   - The server where you're installing needs to reach these over the network
-
-3. **Administrator Access**
+2. **Administrator Access**
    - You need to be able to run commands with `sudo` (administrator privileges)
    - You'll need to know the root password or have sudo access
 

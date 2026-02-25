@@ -26,7 +26,9 @@ OpenVox GUI is like a dashboard for your car, but for your servers. If you use O
 
 ## 🚀 Quick Start
 
-If you just want to get up and running quickly:
+> **Note:** OpenVox GUI must be installed directly on your OpenVox Server. It requires local access to configuration files, SSL certificates, and services on the server to function.
+
+If you just want to get up and running quickly, log in to your OpenVox Server and run:
 
 ```bash
 # Clone the repository
