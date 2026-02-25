@@ -397,16 +397,16 @@ export function FactExplorerPage() {
                     <Table.Td>
                       <Text fw={500} size="sm">{f.certname}</Text>
                     </Table.Td>
-                    <Table.Td>
-                      <ScrollArea mah={250} offsetScrollbars>
-                        {isJsonLike(f.value) ? (
-                          <PrettyJson data={f.value} maxHeight={230} withBorder={false} />
-                        ) : (
-                          <Text size="sm" style={{ wordBreak: 'break-word' }}>
+                    <Table.Td style={{ maxWidth: 500 }}>
+                      {isJsonLike(f.value) ? (
+                        <PrettyJson data={f.value} maxHeight={200} withBorder={false} />
+                      ) : (
+                        <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                          <Text size="sm" style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                             {f.value === null ? 'null' : String(f.value)}
                           </Text>
-                        )}
-                      </ScrollArea>
+                        </div>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}

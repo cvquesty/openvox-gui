@@ -45,7 +45,7 @@ export function PrettyJson({ data, maxHeight = 400, withBorder = true, compact =
         overflow: 'hidden',
       }}
     >
-      <ScrollArea style={{ maxHeight }} offsetScrollbars>
+      <ScrollArea h={maxHeight} offsetScrollbars>
         <Code
           block
           style={{
