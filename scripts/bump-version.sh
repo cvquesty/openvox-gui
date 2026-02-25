@@ -57,13 +57,14 @@ if [ -f "$PKG" ]; then
     fi
 fi
 
-# ── 3. Documentation headers ────────────────────────────────
+# ── 3. Documentation headers (first 5 lines only to avoid mangling body) ──
 DOCS=("README.md" "INSTALL.md" "UPDATE.md" "TROUBLESHOOTING.md")
 for doc in "${DOCS[@]}"; do
     DOC_PATH="$REPO_ROOT/$doc"
     if [ -f "$DOC_PATH" ]; then
-        sed -i.bak -E "s/\*\*Version [^*]+\*\*/\*\*Version ${NEW_VERSION}\*\*/" "$DOC_PATH"
-        sed -i.bak -E "s/\*\*OpenVox GUI Version [^*]+\*\*/\*\*OpenVox GUI Version ${NEW_VERSION}\*\*/" "$DOC_PATH"
+        # Only replace version strings in the first 5 lines (the doc header)
+        sed -i.bak -E "1,5 s/\*\*Version [^*]+\*\*/\*\*Version ${NEW_VERSION}\*\*/" "$DOC_PATH"
+        sed -i.bak -E "1,5 s/\*\*OpenVox GUI Version [^*]+\*\*/\*\*OpenVox GUI Version ${NEW_VERSION}\*\*/" "$DOC_PATH"
         rm -f "$DOC_PATH.bak"
     fi
 done

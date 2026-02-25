@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 2.0.1.2-Alpha**
+**OpenVox GUI Version 2.0.1.3-Alpha**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -92,7 +92,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"2.0.1.2-Alpha"}
+# {"status":"ok","version":"2.0.1.3-Alpha"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -235,10 +235,17 @@ Options:
 Updates OpenVox GUI on a remote server via SSH:
 
 ```bash
-sudo /opt/openvox-gui/scripts/update_remote.sh server.example.com
+# Specify the target server
+./scripts/update_remote.sh --host server.example.com --user jsheets --yes
+
+# Or set defaults via environment variables
+export OPENVOX_DEPLOY_HOST=server.example.com
+export OPENVOX_DEPLOY_USER=admin
+./scripts/update_remote.sh --yes
 ```
 
-This is useful for updating multiple installations from a central location.
+This is useful for updating installations from a development machine or CI pipeline.
+SSH key-based authentication must be configured for the target server.
 
 ### Auto-Update via Cron
 
@@ -456,63 +463,37 @@ Examples:
 
 ### Recent Versions
 
-**Version 2.0.1.2-Alpha** (Latest)
+**Version 2.0.x (Current Series)**
 - LDAP / Active Directory split authentication
 - Per-user authentication source selection (local or LDAP)
 - Auto-provisioning of LDAP users on first login
 - LDAP group-to-role mapping (Admin, Operator, Viewer)
-- New "Auth Settings" tab in Settings page
-- Enhanced Add User form with auth source selector
+- LDAPS port 636 auto-detection and self-signed cert support
+- Installer bug fixes (directory nesting, missing VERSION file, silent npm errors)
 - **Database migration**: Adds `auth_source` column to `users` table and `ldap_config` table (applied automatically on first start)
 - **New dependency**: `ldap3` Python library (installed automatically via `requirements.txt`)
 
-**Version 2.0.1.2-Alpha**
-- Fixed "Run Puppet" button always returning exit code 1
-- Uses `bolt command run` with `puppet agent -t` instead of missing `puppet_agent::run` task
+**Version 1.4.x**
+- Fixed "Run Puppet" button (uses bolt command run instead of missing task)
+- All Dependabot security alerts resolved
+- Python upgraded from 3.9 to 3.11 on production servers
+- Ghost user prevention (username whitespace stripping)
+- Centralized version management (single VERSION file)
+- User deletion bug fix; comprehensive security headers and rate limiting
 
-**Version 2.0.1.2-Alpha**
-- All Dependabot alerts fully resolved
-- python-multipart 0.0.22 (CVE-2026-24486 HIGH), Vite 6.4.1 + esbuild ≥0.25.0 (GHSA-67mh-4wv8-2f99 MODERATE)
-- Production Python upgraded from 3.9 to 3.11
-
-**Version 2.0.1.2-Alpha**
-- Security update: Vite 4.x → 5.4.21 (CVE-2025-62522 MODERATE, CVE-2025-58751/58752 LOW)
-
-**Version 2.0.1.2-Alpha**
-- Ghost user prevention — usernames are now trimmed of whitespace on creation and login
-- Prevents undeletable users caused by trailing spaces in usernames
-
-**Version 2.0.1.2-Alpha**
-- Centralized version management — single `VERSION` file as source of truth
-- New `/api/version` public endpoint
-- Fixed login page showing wrong version (v1.3.0 vs v1.4.3)
-
-**Version 2.0.1.2-Alpha**
-- Fixed user deletion returning false 404 errors
-
-**Version 2.0.1.2-Alpha**
-- Security update with all Dependabot vulnerabilities addressed
-- Updated all dependencies to latest secure versions
-- Added security headers, rate limiting, and input validation
-
-**Version 2.0.1.2-Alpha**
-- Production-ready release
-- Graceful handling of application updates
-- Improved scrolling throughout the interface
+**Version 1.4.0** (First Production Release)
+- Production-ready release with comprehensive documentation
+- Graceful handling of application updates during deployments
 - Enhanced Fact Explorer with nested fact support
 - Comprehensive CA information panel
-- Many bug fixes and improvements
+- Many bug fixes and stability improvements
 
-**Version 2.0.1.2-Alpha** (Previous Series)
-- Added Certificate Authority management
-- Added Fact and Resource Explorers
-- Improved error handling
-- Theme system (Casual/Formal modes)
-
-**Version 2.0.1.2-Alpha**
-- Added Orchestration (Puppet Bolt)
-- Added Node Classifier
-- Performance improvements
+**Version 0.3.x**
+- Certificate Authority management (sign/revoke/clean)
+- Fact Explorer, Resource Explorer, PQL Console
+- Theme system (Casual dark mode / Formal light mode)
+- Orchestration with Puppet Bolt integration
+- Hierarchical Node Classifier (4-layer deep merge)
 
 See the [full Changelog](CHANGELOG.md) for complete version history.
 

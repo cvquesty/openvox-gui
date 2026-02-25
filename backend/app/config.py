@@ -17,16 +17,16 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
 
     # PuppetServer
-    puppet_server_host: str = "openvox.questy.org"
+    puppet_server_host: str = "localhost"
     puppet_server_port: int = 8140
-    puppet_ssl_cert: str = "/etc/puppetlabs/puppet/ssl/certs/openvox.questy.org.pem"
-    puppet_ssl_key: str = "/etc/puppetlabs/puppet/ssl/private_keys/openvox.questy.org.pem"
+    puppet_ssl_cert: str = "/etc/puppetlabs/puppet/ssl/certs/localhost.pem"
+    puppet_ssl_key: str = "/etc/puppetlabs/puppet/ssl/private_keys/localhost.pem"
     puppet_ssl_ca: str = "/etc/puppetlabs/puppet/ssl/certs/ca.pem"
     puppet_confdir: str = "/etc/puppetlabs/puppet"
     puppet_codedir: str = "/etc/puppetlabs/code"
 
     # PuppetDB
-    puppetdb_host: str = "openvox.questy.org"
+    puppetdb_host: str = "localhost"
     puppetdb_port: int = 8081
     puppetdb_ssl: bool = True
 

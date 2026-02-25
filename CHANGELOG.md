@@ -5,6 +5,18 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1.3-Alpha] - 2026-02-25
+
+### Added
+- **`scripts/update_local.sh`**: New local update script referenced in UPDATE.md but previously missing from the repo. Supports `--skip-backup`, `--force`, `--auto` (for cron), and `--security` flags. Automatically backs up data/config, pulls latest code, updates Python deps, rebuilds frontend, fixes permissions, restarts service, and verifies health.
+
+### Changed
+- **`scripts/update_remote.sh`**: Removed hardcoded server address. Now accepts `--host`, `--user`, and `--name` flags (or `OPENVOX_DEPLOY_HOST`/`OPENVOX_DEPLOY_USER` env vars). Prompts interactively if no host is given. Backward-compatible with positional hostname argument.
+- **`backend/app/config.py`**: Changed default `puppet_server_host` and `puppetdb_host` from `openvox.questy.org` to `localhost` — these are fallback defaults that get overridden by the `.env` file at install time via `hostname -f`.
+- **`nginx.conf`**: Replaced hardcoded hostname with `YOUR_HOSTNAME` placeholder.
+- **`scripts/bump-version.sh`**: Fixed overly greedy regex that replaced ALL bold version strings in docs — now only updates the first 5 lines (the doc header), preventing version history from being mangled on every bump.
+- **`UPDATE.md`**: Rewrote Version History section with proper version ranges instead of repeated current version. Updated remote update script documentation with new flag syntax.
+
 ## [2.0.1.2-Alpha] - 2026-02-25
 
 ### Fixed

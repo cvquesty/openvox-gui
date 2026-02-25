@@ -2,15 +2,17 @@
 ###############################################################################
 # OpenVox GUI Remote Update Script
 #
-# Deploys updates to the production OpenVox GUI server at openvox.questy.org
+# Deploys updates to a remote OpenVox GUI server via SSH.
 #
 # Usage:
-#   ./update_remote.sh                 # Interactive deployment
-#   ./update_remote.sh --yes           # Unattended deployment
+#   ./update_remote.sh                            # Interactive (uses defaults)
+#   ./update_remote.sh --yes                      # Unattended
+#   ./update_remote.sh --host 10.0.0.5            # Specify target host
+#   ./update_remote.sh --host server.example.com --user admin --yes
 #
 # Requirements:
-#   - SSH access to openvox.questy.org (10.0.100.225)
-#   - sudo privileges on remote server
+#   - SSH key-based access to the remote server
+#   - sudo privileges on the remote server
 ###############################################################################
 
 set -e  # Exit on error
@@ -23,9 +25,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Read version from the single source of truth (VERSION file)
 APP_VERSION=$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo "unknown")
 
-REMOTE_HOST="10.0.100.225"
-REMOTE_USER="jsheets"
-REMOTE_NAME="openvox.questy.org"
+# Defaults — override with --host, --user, --name flags
+REMOTE_HOST="${OPENVOX_DEPLOY_HOST:-}"
+REMOTE_USER="${OPENVOX_DEPLOY_USER:-$(whoami)}"
+REMOTE_NAME=""
 INSTALL_DIR="/opt/openvox-gui"
 SERVICE_NAME="openvox-gui"
 
@@ -41,18 +44,63 @@ BOLD='\033[1m'
 # ─── Parse Arguments ─────────────────────────────────────────
 
 UNATTENDED=false
-for arg in "$@"; do
-    case $arg in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         -y|--yes|--unattended)
             UNATTENDED=true
+            shift
+            ;;
+        --host)
+            REMOTE_HOST="$2"
+            shift 2
+            ;;
+        --user)
+            REMOTE_USER="$2"
+            shift 2
+            ;;
+        --name)
+            REMOTE_NAME="$2"
+            shift 2
             ;;
         -h|--help)
-            echo "Usage: $0 [--yes]"
-            echo "  --yes    Run in unattended mode (no prompts)"
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --host HOST    Remote server hostname or IP"
+            echo "  --user USER    SSH username (default: current user)"
+            echo "  --name NAME    Display name for the server (default: same as host)"
+            echo "  --yes          Run in unattended mode (no prompts)"
+            echo "  -h, --help     Show this help"
+            echo ""
+            echo "Environment variables:"
+            echo "  OPENVOX_DEPLOY_HOST   Default remote host"
+            echo "  OPENVOX_DEPLOY_USER   Default SSH user"
             exit 0
+            ;;
+        *)
+            # Positional arg: treat as host for backward compatibility
+            REMOTE_HOST="$1"
+            shift
             ;;
     esac
 done
+
+# If no host specified, prompt or error
+if [ -z "$REMOTE_HOST" ]; then
+    if [ "$UNATTENDED" = true ]; then
+        echo -e "${RED}Error: --host is required in unattended mode.${NC}"
+        echo "  Usage: $0 --host server.example.com --yes"
+        exit 1
+    fi
+    read -rp "Remote host (hostname or IP): " REMOTE_HOST
+    if [ -z "$REMOTE_HOST" ]; then
+        echo "No host specified. Aborting."
+        exit 1
+    fi
+fi
+
+# Default display name to the host
+[ -z "$REMOTE_NAME" ] && REMOTE_NAME="$REMOTE_HOST"
 
 # ─── Helper Functions ─────────────────────────────────────────
 
@@ -177,8 +225,8 @@ fi
 
 log_step "Testing web access"
 
-# Try to access the web interface
-HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "https://${REMOTE_NAME}:8080/api/health" 2>/dev/null || echo "000")
+# Try to access the web interface (try common ports)
+HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "https://${REMOTE_NAME}:4567/health" 2>/dev/null || echo "000")
 
 if [ "$HTTP_CODE" = "200" ]; then
     log_ok "Web interface is responding (HTTP $HTTP_CODE)"
@@ -198,7 +246,7 @@ echo -e "${GREEN}${BOLD}══════════════════�
 echo ""
 echo -e "  ${BOLD}Server:${NC}      ${REMOTE_NAME} (${REMOTE_HOST})"
 echo -e "  ${BOLD}Version:${NC}     ${APP_VERSION}"
-echo -e "  ${BOLD}Access URL:${NC}  https://${REMOTE_NAME}:8080"
+echo -e "  ${BOLD}Access URL:${NC}  https://${REMOTE_NAME}:4567"
 echo ""
 echo -e "  ${BOLD}Remote Commands:${NC}"
 echo -e "    Check status:  ssh ${REMOTE_USER}@${REMOTE_HOST} 'systemctl status ${SERVICE_NAME}'"
