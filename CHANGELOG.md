@@ -5,6 +5,11 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1.6-Alpha] - 2026-02-25
+
+### Changed
+- **LDAP login no longer touches user roles**: The `ldap_login` function previously called `resolve_role_from_groups()` to derive a role from LDAP group membership when auto-provisioning new users. This has been removed — LDAP now handles **authentication only**. Auto-provisioned LDAP users receive a default role of Operator, which can be changed by an admin in the User Manager tab. Existing users' roles are never modified by LDAP login. The `groups` field has been removed from the LDAP login response.
+
 ## [2.0.1.5-Alpha] - 2026-02-25
 
 ### Changed

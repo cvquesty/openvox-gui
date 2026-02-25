@@ -273,10 +273,14 @@ async def ldap_login(username: str, password: str) -> Optional[Dict[str, Any]]:
     Full LDAP login flow:
     1. Load LDAP config
     2. Authenticate against LDAP
-    3. Auto-provision or update local user record
-    4. Return user info with local role
+    3. Auto-provision or look up local user record
+    4. Return user info with locally-managed role
 
-    Returns dict with: username, role, token
+    LDAP handles authentication only. Roles (admin/operator/viewer) are
+    managed exclusively in the User Manager — LDAP never reads or writes
+    the user's role.
+
+    Returns dict with: username, role, auth_source
     Returns None if auth fails.
     """
     cfg = await get_ldap_config()
@@ -284,36 +288,36 @@ async def ldap_login(username: str, password: str) -> Optional[Dict[str, Any]]:
         logger.debug("LDAP authentication not enabled")
         return None
 
-    # Authenticate against LDAP
+    # Authenticate against LDAP (verify credentials only)
     ldap_user = ldap_authenticate_user(cfg, username, password)
     if ldap_user is None:
         return None
 
-    # Determine role from LDAP groups
-    ldap_role = resolve_role_from_groups(cfg, ldap_user.get("groups", []))
+    # Auto-provision or look up local user record.
+    # Roles are NOT derived from LDAP — new users get a default role
+    # that an admin can change later in User Manager.
+    AUTO_PROVISION_ROLE = "operator"
 
-    # Auto-provision or update local user record
     async with async_session() as session:
         result = await session.execute(select(User).where(User.username == username))
         local_user = result.scalar_one_or_none()
 
         if local_user:
-            # User exists locally - use the LOCAL role (admin manages roles locally)
-            # But mark the auth_source as ldap
+            # Existing user — preserve their locally-assigned role
             if local_user.auth_source != "ldap":
                 local_user.auth_source = "ldap"
                 local_user.updated_at = datetime.now(timezone.utc)
             role = local_user.role
         else:
-            # Auto-provision: create local record with LDAP-derived role
+            # New user — auto-provision with default role
             local_user = User(
                 username=username,
                 password_hash=LDAP_PASSWORD_PLACEHOLDER,
-                role=ldap_role,
+                role=AUTO_PROVISION_ROLE,
                 auth_source="ldap",
             )
             session.add(local_user)
-            role = ldap_role
+            role = AUTO_PROVISION_ROLE
             logger.info(f"Auto-provisioned LDAP user '{username}' with role '{role}'")
 
         await session.commit()
@@ -324,7 +328,6 @@ async def ldap_login(username: str, password: str) -> Optional[Dict[str, Any]]:
         "auth_source": "ldap",
         "display_name": ldap_user.get("display_name", username),
         "email": ldap_user.get("email"),
-        "groups": ldap_user.get("groups", []),
     }
 
 
