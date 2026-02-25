@@ -26,9 +26,9 @@ Think of these as the ingredients before you start cooking:
    - At least 2GB of memory (RAM)
    - About 1GB of free disk space
 
-2. **Access to Your Puppet Infrastructure**
-   - You need a working PuppetServer somewhere on your network
-   - You need a working PuppetDB (usually on the same server as PuppetServer)
+2. **Access to Your OpenVox Infrastructure**
+   - You need a working OpenVox Server somewhere on your network
+   - You need a working OpenVoxDB (usually on the same server as OpenVox Server)
    - The server where you're installing needs to reach these over the network
 
 3. **Administrator Access**
@@ -49,8 +49,8 @@ python3 --version
 # Check you have sudo access
 sudo echo "I have sudo access!"
 
-# Check you can reach your PuppetServer (replace puppet.example.com with your server)
-ping -c 2 puppet.example.com
+# Check you can reach your OpenVox Server (replace openvox.example.com with your server)
+ping -c 2 openvox.example.com
 ```
 
 If all these commands work without errors, you're ready to install!
@@ -94,8 +94,8 @@ The installer will ask you some questions. Here's what each one means:
 3. **Application port [4567]:** Which network port to use
    - Just press Enter for 4567 (recommended)
 
-4. **PuppetServer hostname:** The name of your Puppet server
-   - Type the full name like `puppet.yourcompany.com`
+4. **OpenVox Server hostname:** The name of your OpenVox server
+   - Type the full name like `openvox.yourcompany.com`
 
 5. **Admin password:** Password for the web interface
    - Type a secure password (or let it generate one for you)
@@ -191,9 +191,9 @@ INSTALL_DIR="/opt/openvox-gui"
 SERVICE_USER="puppet"
 APP_PORT="4567"
 
-# Your Puppet infrastructure
-PUPPET_SERVER_HOST="puppet.yourcompany.com"    # Change this!
-PUPPETDB_HOST="puppet.yourcompany.com"         # Usually same as PuppetServer
+# Your OpenVox infrastructure
+PUPPET_SERVER_HOST="openvox.yourcompany.com"    # Change this!
+PUPPETDB_HOST="openvox.yourcompany.com"         # Usually same as OpenVox Server
 
 # Authentication
 AUTH_BACKEND="local"
@@ -314,15 +314,15 @@ sudo yum install -y python38
 sudo apt install -y python3.8
 ```
 
-#### Problem: "Cannot connect to PuppetDB"
+#### Problem: "Cannot connect to OpenVoxDB"
 
 **Solution:** Check your network and certificates:
 ```bash
-# Can you reach PuppetDB?
-ping puppetdb.yourcompany.com
+# Can you reach OpenVoxDB?
+ping openvoxdb.yourcompany.com
 
-# Is PuppetDB port open?
-telnet puppetdb.yourcompany.com 8081
+# Is OpenVoxDB port open?
+telnet openvoxdb.yourcompany.com 8081
 
 # Do you have the right SSL certificates?
 ls -la /etc/puppetlabs/puppet/ssl/certs/
@@ -388,7 +388,7 @@ sudo ./install.sh --unattended
 This will:
 - Install to `/opt/openvox-gui`
 - Use port 4567
-- Auto-detect your Puppet server
+- Auto-detect your OpenVox server
 - Generate a random admin password (saved to `/opt/openvox-gui/config/.credentials`)
 
 ### Custom Installation Directory

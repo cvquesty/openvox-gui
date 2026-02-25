@@ -474,7 +474,7 @@ Examples:
 - **New dependency**: `ldap3` Python library (installed automatically via `requirements.txt`)
 
 **Version 1.4.x**
-- Fixed "Run Puppet" button (uses bolt command run instead of missing task)
+- Fixed "Run OpenVox" button (uses bolt command run instead of missing task)
 - All Dependabot security alerts resolved
 - Python upgraded from 3.9 to 3.11 on production servers
 - Ghost user prevention (username whitespace stripping)
@@ -492,7 +492,7 @@ Examples:
 - Certificate Authority management (sign/revoke/clean)
 - Fact Explorer, Resource Explorer, PQL Console
 - Theme system (Casual dark mode / Formal light mode)
-- Orchestration with Puppet Bolt integration
+- Orchestration with Bolt integration
 - Hierarchical Node Classifier (4-layer deep merge)
 
 See the [full Changelog](CHANGELOG.md) for complete version history.

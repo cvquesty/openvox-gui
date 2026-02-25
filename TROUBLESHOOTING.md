@@ -57,11 +57,11 @@ sudo journalctl -u openvox-gui -n 100
 ### 5. Verify Network Connectivity
 
 ```bash
-# Can you reach PuppetDB?
-ping -c 2 puppet.yourcompany.com
+# Can you reach OpenVoxDB?
+ping -c 2 openvox.yourcompany.com
 
 # Is the port accessible?
-telnet puppet.yourcompany.com 8081
+telnet openvox.yourcompany.com 8081
 ```
 
 If these don't fix your problem, continue to the specific sections below.
@@ -252,21 +252,21 @@ To use a real certificate, see the Configuration documentation.
 
 ## Connection Problems
 
-### Problem: "Cannot Connect to PuppetDB" Errors
+### Problem: "Cannot Connect to OpenVoxDB" Errors
 
 **Solutions:**
 
-1. **Verify PuppetDB is running:**
+1. **Verify OpenVoxDB is running:**
    ```bash
-   # On the PuppetDB server:
+   # On the OpenVoxDB server:
    sudo systemctl status puppetdb
    ```
 
 2. **Test connectivity:**
    ```bash
    # From OpenVox GUI server:
-   ping puppetdb.yourcompany.com
-   telnet puppetdb.yourcompany.com 8081
+   ping openvoxdb.yourcompany.com
+   telnet openvoxdb.yourcompany.com 8081
    ```
 
 3. **Check SSL certificates:**
@@ -276,12 +276,12 @@ To use a real certificate, see the Configuration documentation.
    ls -la /etc/puppetlabs/puppet/ssl/private_keys/*.pem
    ```
 
-4. **Test PuppetDB connection manually:**
+4. **Test OpenVoxDB connection manually:**
    ```bash
    curl --cert /etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem \
         --key /etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem \
         --cacert /etc/puppetlabs/puppet/ssl/certs/ca.pem \
-        https://puppetdb.yourcompany.com:8081/pdb/query/v4/nodes
+        https://openvoxdb.yourcompany.com:8081/pdb/query/v4/nodes
    ```
 
 5. **Check configuration:**
@@ -290,13 +290,13 @@ To use a real certificate, see the Configuration documentation.
    # Verify hostname and port are correct
    ```
 
-### Problem: "Cannot Connect to PuppetServer" Errors
+### Problem: "Cannot Connect to OpenVox Server" Errors
 
 **Solutions:**
 
-1. **Verify PuppetServer is running:**
+1. **Verify OpenVox Server is running:**
    ```bash
-   # On the PuppetServer:
+   # On the OpenVox Server:
    sudo systemctl status puppetserver
    ```
 
@@ -307,7 +307,7 @@ To use a real certificate, see the Configuration documentation.
 
 3. **Test connection:**
    ```bash
-   curl -k https://puppet.yourcompany.com:8140/puppet/v3/environments
+   curl -k https://openvox.yourcompany.com:8140/puppet/v3/environments
    ```
 
 ---
@@ -340,7 +340,7 @@ To use a real certificate, see the Configuration documentation.
    # If very large (>100MB), consider cleanup
    ```
 
-4. **Optimize PuppetDB queries:**
+4. **Optimize OpenVoxDB queries:**
    - Reduce the time range for report queries
    - Limit the number of nodes displayed
 
@@ -425,9 +425,9 @@ To use a real certificate, see the Configuration documentation.
 
 **Solutions:**
 
-1. **Verify PuppetDB has data:**
+1. **Verify OpenVoxDB has data:**
    ```bash
-   # Check PuppetDB directly
+   # Check OpenVoxDB directly
    curl -k https://localhost:8081/pdb/query/v4/nodes
    ```
 
@@ -440,9 +440,9 @@ To use a real certificate, see the Configuration documentation.
    sudo ntpdate -s time.nist.gov
    ```
 
-3. **Verify Puppet agents are reporting:**
+3. **Verify OpenVox agents are reporting:**
    ```bash
-   # On a Puppet agent:
+   # On an OpenVox agent:
    sudo puppet agent -t
    ```
 
@@ -450,7 +450,7 @@ To use a real certificate, see the Configuration documentation.
 
 **Solutions:**
 
-1. **Check report processor on PuppetServer:**
+1. **Check report processor on OpenVox Server:**
    ```bash
    grep reports /etc/puppetlabs/puppet/puppet.conf
    # Should include "puppetdb"
@@ -458,11 +458,11 @@ To use a real certificate, see the Configuration documentation.
 
 2. **Verify reports are being stored:**
    ```bash
-   # Query PuppetDB for recent reports
+   # Query OpenVoxDB for recent reports
    curl -k https://localhost:8081/pdb/query/v4/reports?limit=10
    ```
 
-3. **Check report retention settings in PuppetDB**
+3. **Check report retention settings in OpenVoxDB**
 
 ### Problem: Facts Not Showing in Fact Explorer
 
@@ -470,7 +470,7 @@ To use a real certificate, see the Configuration documentation.
 
 1. **Refresh fact cache:**
    ```bash
-   # On Puppet agents:
+   # On OpenVox agents:
    sudo puppet facts upload
    ```
 
@@ -494,7 +494,7 @@ To use a real certificate, see the Configuration documentation.
    # Should allow puppetserver ca commands
    ```
 
-2. **Check Puppet CA service:**
+2. **Check OpenVox CA service:**
    ```bash
    sudo puppetserver ca list --all
    ```
@@ -553,26 +553,26 @@ To use a real certificate, see the Configuration documentation.
    sudo r10k deploy environment -pv
    ```
 
-### Problem: Orchestration (Bolt) Not Working
+### Problem: Orchestration (OpenBolt) Not Working
 
 **Solutions:**
 
-1. **Verify Bolt is installed:**
+1. **Verify OpenBolt is installed:**
    ```bash
    which bolt
    bolt --version
    ```
 
-2. **Install Bolt if missing:**
+2. **Install OpenBolt if missing:**
    ```bash
    # Red Hat/CentOS:
-   sudo yum install puppet-bolt
+   sudo yum install openbolt
    
    # Ubuntu/Debian:
-   sudo apt install puppet-bolt
+   sudo apt install openbolt
    ```
 
-3. **Check Bolt project configuration:**
+3. **Check OpenBolt project configuration:**
    ```bash
    cat /opt/openvox-gui/bolt-project.yaml
    ```
@@ -666,7 +666,7 @@ sudo systemctl restart openvox-gui
 
 ### "SSL: CERTIFICATE_VERIFY_FAILED"
 
-**Cause:** SSL certificate problem with PuppetDB
+**Cause:** SSL certificate problem with OpenVoxDB
 
 **Fix:** Check certificate paths and permissions
 

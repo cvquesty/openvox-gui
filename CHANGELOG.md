@@ -5,6 +5,10 @@ All notable changes to OpenVox GUI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Note:** Earlier entries reference "Puppet" product names (PuppetServer, PuppetDB, Puppet Bolt).
+> As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
+> OpenBolt respectively. Historical entries are preserved as-is for accuracy.
+
 ## [2.1.0] - 2026-02-25
 
 This is the first stable release of the 2.x series, consolidating all Alpha/Beta fixes and improvements since 2.0.0.

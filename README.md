@@ -2,7 +2,7 @@
 
 **Version 2.1.0** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
 
-A user-friendly web interface for managing your Puppet infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
+A user-friendly web interface for managing your OpenVox infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
@@ -11,7 +11,7 @@ A user-friendly web interface for managing your Puppet infrastructure. Think of 
 
 ## 🎯 What is OpenVox GUI?
 
-OpenVox GUI is like a dashboard for your car, but for your servers. If you use Puppet to manage your servers (and if you don't know what Puppet is, think of it as software that keeps all your servers configured correctly), then OpenVox GUI gives you a visual way to:
+OpenVox GUI is like a dashboard for your car, but for your servers. If you use OpenVox to manage your servers (and if you don't know what OpenVox is, think of it as software that keeps all your servers configured correctly), then OpenVox GUI gives you a visual way to:
 
 - **See what's happening** - Which servers are healthy, which ones have problems
 - **Find and fix issues** - Click through to see exactly what went wrong
@@ -122,7 +122,7 @@ You need a Linux server with:
 - **Memory**: At least 2GB RAM (4GB recommended)
 - **Disk Space**: 1GB free space
 - **Python**: Version 3.10 or newer (3.11+ recommended)
-- **Network**: Access to your PuppetServer and PuppetDB
+- **Network**: Access to your OpenVox Server and OpenVoxDB
 
 ### What Gets Installed
 
@@ -217,7 +217,7 @@ For a complete list of changes, see the [Changelog](CHANGELOG.md).
 
 1. **Check the Troubleshooting Guide**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md) has solutions to common problems
 2. **Look at the Logs**: Run `sudo journalctl -u openvox-gui -n 100` to see recent errors
-3. **Check Your Network**: Make sure you can reach PuppetServer and PuppetDB from this server
+3. **Check Your Network**: Make sure you can reach OpenVox Server and OpenVoxDB from this server
 4. **File an Issue**: Visit [GitHub Issues](https://github.com/cvquesty/openvox-gui/issues) to report bugs
 
 ### Community
@@ -238,8 +238,8 @@ See the [LICENSE](LICENSE) file for the legal details.
 
 ## 🙏 Acknowledgments
 
-Built with love for the Puppet community. Special thanks to:
-- The Vox Pupuli community for maintaining Puppet modules
+Built with love for the OpenVox community. Special thanks to:
+- The Vox Pupuli community for maintaining OpenVox modules
 - All contributors who have submitted bugs, suggestions, and code
 - You, for using OpenVox GUI!
 
