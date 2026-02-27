@@ -9,7 +9,7 @@ This guide helps you solve common problems with OpenVox GUI. Think of it as your
 1. [Quick Fixes (Try These First!)](#quick-fixes-try-these-first)
 2. [Login and Access Problems](#login-and-access-problems)
 3. [Service Won't Start](#service-wont-start)
-4. [Connection Problems](#connection-problems)  
+4. [Connection Problems](#connection-problems)
 5. [Performance Issues](#performance-issues)
 6. [Display and UI Problems](#display-and-ui-problems)
 7. [Data and Report Issues](#data-and-report-issues)
@@ -36,6 +36,7 @@ sudo systemctl status openvox-gui
 ```
 
 Look for:
+
 - ✅ Green "active (running)" status
 - ❌ Red "failed" or "inactive" status
 
@@ -73,38 +74,43 @@ If these don't fix your problem, continue to the specific sections below.
 ### Problem: Can't Access the Web Interface
 
 **Symptoms:**
+
 - Browser shows "This site can't be reached"
 - Connection timeout errors
 
 **Solutions:**
 
 1. **Check if the service is running:**
+
    ```bash
    sudo systemctl status openvox-gui
    # Should show "active (running)"
    ```
 
 2. **Check if the port is open:**
+
    ```bash
    # See if something is listening on port 4567
    sudo ss -tlnp | grep 4567
    ```
 
 3. **Check firewall settings:**
+
    ```bash
    # For Red Hat/CentOS:
    sudo firewall-cmd --list-all
-   
+
    # For Ubuntu:
    sudo ufw status
    ```
 
 4. **Open the firewall port if needed:**
+
    ```bash
    # For Red Hat/CentOS:
    sudo firewall-cmd --permanent --add-port=4567/tcp
    sudo firewall-cmd --reload
-   
+
    # For Ubuntu:
    sudo ufw allow 4567/tcp
    ```
@@ -123,14 +129,14 @@ Reset the admin password:
 
 ```bash
 cd /opt/openvox-gui
-sudo ./scripts/manage_user.py passwd admin
+sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py passwd admin
 # Enter new password when prompted
 ```
 
 Or create a new admin user:
 
 ```bash
-sudo ./scripts/manage_user.py add newadmin --role admin
+sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py add newadmin --role admin
 ```
 
 ### Problem: "Invalid Credentials" Error
@@ -140,14 +146,16 @@ sudo ./scripts/manage_user.py add newadmin --role admin
 1. **Check if caps lock is on** (seriously, it happens!)
 
 2. **Verify the username exists:**
+
    ```bash
    cd /opt/openvox-gui
-   sudo ./scripts/manage_user.py list
+   sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
    ```
 
 3. **Reset the password:**
+
    ```bash
-   sudo ./scripts/manage_user.py passwd username
+   sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py passwd username
    ```
 
 4. **Check if authentication is enabled:**
@@ -175,6 +183,7 @@ To use a real certificate, see the Configuration documentation.
 ### Problem: Service Fails to Start
 
 **Symptoms:**
+
 ```
 ● openvox-gui.service - OpenVox GUI
    Loaded: loaded
@@ -184,6 +193,7 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Check for detailed errors:**
+
    ```bash
    sudo journalctl -u openvox-gui -n 100 --no-pager
    ```
@@ -191,26 +201,29 @@ To use a real certificate, see the Configuration documentation.
 2. **Common causes and fixes:**
 
    **Port already in use:**
+
    ```bash
    # Find what's using the port
    sudo ss -tlnp | grep 4567
-   
+
    # Either stop the other service or change OpenVox GUI port
    sudo nano /opt/openvox-gui/config/.env
    # Change APP_PORT=4567 to another port
    ```
 
    **Permission problems:**
+
    ```bash
    # Fix ownership
    sudo chown -R puppet:puppet /opt/openvox-gui
-   
+
    # Fix permissions
    sudo chmod 755 /opt/openvox-gui
    sudo chmod 600 /opt/openvox-gui/config/.env
    ```
 
    **Python dependency issues:**
+
    ```bash
    cd /opt/openvox-gui
    source venv/bin/activate
@@ -231,12 +244,14 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Check for configuration errors:**
+
    ```bash
    sudo nano /opt/openvox-gui/config/.env
    # Verify all settings are correct
    ```
 
 2. **Check SSL certificates exist:**
+
    ```bash
    ls -la /etc/puppetlabs/puppet/ssl/certs/
    # Should show certificate files
@@ -257,12 +272,14 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Verify OpenVoxDB is running:**
+
    ```bash
    # On the OpenVoxDB server:
    sudo systemctl status puppetdb
    ```
 
 2. **Test connectivity:**
+
    ```bash
    # From OpenVox GUI server:
    ping openvoxdb.yourcompany.com
@@ -270,6 +287,7 @@ To use a real certificate, see the Configuration documentation.
    ```
 
 3. **Check SSL certificates:**
+
    ```bash
    # Verify certificates exist
    ls -la /etc/puppetlabs/puppet/ssl/certs/*.pem
@@ -277,6 +295,7 @@ To use a real certificate, see the Configuration documentation.
    ```
 
 4. **Test OpenVoxDB connection manually:**
+
    ```bash
    curl --cert /etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem \
         --key /etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem \
@@ -295,12 +314,14 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Verify OpenVox Server is running:**
+
    ```bash
    # On the OpenVox Server:
    sudo systemctl status puppetserver
    ```
 
 2. **Check configuration:**
+
    ```bash
    grep PUPPET_SERVER /opt/openvox-gui/config/.env
    ```
@@ -319,6 +340,7 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Increase worker processes:**
+
    ```bash
    sudo nano /opt/openvox-gui/config/.env
    # Change UVICORN_WORKERS=2 to 4 or 8
@@ -326,15 +348,17 @@ To use a real certificate, see the Configuration documentation.
    ```
 
 2. **Check system resources:**
+
    ```bash
    # CPU and memory usage
    top
-   
+
    # Disk space
    df -h
    ```
 
 3. **Check database size:**
+
    ```bash
    ls -lh /opt/openvox-gui/data/openvox_gui.db
    # If very large (>100MB), consider cleanup
@@ -349,12 +373,14 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Reduce worker count:**
+
    ```bash
    sudo nano /opt/openvox-gui/config/.env
    # Change UVICORN_WORKERS to 1 or 2
    ```
 
 2. **Restart service to clear memory:**
+
    ```bash
    sudo systemctl restart openvox-gui
    ```
@@ -393,6 +419,7 @@ To use a real certificate, see the Configuration documentation.
    - Look for red error messages
 
 2. **Verify data is being returned:**
+
    ```bash
    curl -k https://localhost:4567/api/dashboard/stats
    ```
@@ -413,7 +440,7 @@ To use a real certificate, see the Configuration documentation.
 2. **Manually set theme:**
    ```javascript
    // In browser console:
-   localStorage.setItem('theme', 'formal');  // or 'casual'
+   localStorage.setItem("theme", "formal"); // or 'casual'
    location.reload();
    ```
 
@@ -426,16 +453,18 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Verify OpenVoxDB has data:**
+
    ```bash
    # Check OpenVoxDB directly
    curl -k https://localhost:8081/pdb/query/v4/nodes
    ```
 
 2. **Check time synchronization:**
+
    ```bash
    # Ensure time is correct
    date
-   
+
    # Sync time if needed
    sudo ntpdate -s time.nist.gov
    ```
@@ -451,12 +480,14 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Check report processor on OpenVox Server:**
+
    ```bash
    grep reports /etc/puppetlabs/puppet/puppet.conf
    # Should include "puppetdb"
    ```
 
 2. **Verify reports are being stored:**
+
    ```bash
    # Query OpenVoxDB for recent reports
    curl -k https://localhost:8081/pdb/query/v4/reports?limit=10
@@ -469,6 +500,7 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Refresh fact cache:**
+
    ```bash
    # On OpenVox agents:
    sudo puppet facts upload
@@ -489,12 +521,14 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Verify sudo permissions:**
+
    ```bash
    sudo cat /etc/sudoers.d/openvox-gui
    # Should allow puppetserver ca commands
    ```
 
 2. **Check OpenVox CA service:**
+
    ```bash
    sudo puppetserver ca list --all
    ```
@@ -509,17 +543,19 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Check certificate dates:**
+
    ```bash
    sudo puppetserver ca list --all
    openssl x509 -in /path/to/cert.pem -noout -dates
    ```
 
 2. **Regenerate expiring certificates:**
+
    ```bash
    # On the agent:
    sudo puppet ssl clean
    sudo puppet agent -t
-   
+
    # On the server:
    sudo puppetserver ca sign --certname node.example.com
    ```
@@ -533,17 +569,20 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Check r10k configuration:**
+
    ```bash
    sudo r10k deploy display
    ```
 
 2. **Verify Git access:**
+
    ```bash
    # Test Git repository access
    git ls-remote https://your-git-repo.com/control-repo.git
    ```
 
 3. **Check sudo permissions:**
+
    ```bash
    grep r10k /etc/sudoers.d/openvox-gui
    ```
@@ -558,16 +597,18 @@ To use a real certificate, see the Configuration documentation.
 **Solutions:**
 
 1. **Verify OpenBolt is installed:**
+
    ```bash
    which bolt
    bolt --version
    ```
 
 2. **Install OpenBolt if missing:**
+
    ```bash
    # Red Hat/CentOS:
    sudo yum install openbolt
-   
+
    # Ubuntu/Debian:
    sudo apt install openbolt
    ```
@@ -687,3 +728,4 @@ sudo systemctl restart openvox-gui
 **Remember:** Most problems have simple solutions. Start with the Quick Fixes, then work through the specific section for your issue. When in doubt, check the logs - they usually tell you exactly what's wrong!
 
 **Still stuck?** Don't hesitate to ask for help on [GitHub Issues](https://github.com/cvquesty/openvox-gui/issues)!
+
