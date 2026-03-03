@@ -47,5 +47,6 @@ SERVICE_GROUP="puppet"
 CONFIGURE_FIREWALL="true"
 CONFIGURE_SELINUX="false"
 
-# Set to "true" if Node.js 18+ is installed and you want to build from source
-BUILD_FRONTEND="false"
+# Build the frontend from source (requires Node.js 18+ and npm).
+# Set to "false" only if you are providing a pre-built frontend/dist/ directory.
+BUILD_FRONTEND="true"

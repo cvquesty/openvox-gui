@@ -123,14 +123,19 @@ Reset the admin password:
 
 ```bash
 cd /opt/openvox-gui
-sudo ./scripts/manage_user.py passwd admin
+source venv/bin/activate
+sudo ./scripts/manage_users.py passwd admin
 # Enter new password when prompted
+deactivate
 ```
 
 Or create a new admin user:
 
 ```bash
-sudo ./scripts/manage_user.py add newadmin --role admin
+cd /opt/openvox-gui
+source venv/bin/activate
+sudo ./scripts/manage_users.py add newadmin --role admin
+deactivate
 ```
 
 ### Problem: "Invalid Credentials" Error
@@ -142,12 +147,17 @@ sudo ./scripts/manage_user.py add newadmin --role admin
 2. **Verify the username exists:**
    ```bash
    cd /opt/openvox-gui
-   sudo ./scripts/manage_user.py list
+   source venv/bin/activate
+   sudo ./scripts/manage_users.py list
+   deactivate
    ```
 
 3. **Reset the password:**
    ```bash
-   sudo ./scripts/manage_user.py passwd username
+   cd /opt/openvox-gui
+   source venv/bin/activate
+   sudo ./scripts/manage_users.py passwd username
+   deactivate
    ```
 
 4. **Check if authentication is enabled:**

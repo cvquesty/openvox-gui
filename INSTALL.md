@@ -250,7 +250,9 @@ You should see `{"status":"ok","version":"2.2.0-Release"}` if everything is work
    - Or use the CLI:
      ```bash
      cd /opt/openvox-gui
-     sudo ./scripts/manage_user.py add john --role operator
+     source venv/bin/activate
+     sudo ./scripts/manage_users.py add john --role operator
+     deactivate
      ```
 
 3. **Set up LDAP authentication** (optional):
