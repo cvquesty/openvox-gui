@@ -9,11 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [Unreleased]
+## [2.2.0-1] - 2026-03-02
+
+**Patch release** — security dependency update, installer fix, documentation corrections, and community PR.
+
+### Security
+- **CVE: Rollup path traversal (GHSA-mw96-cpmx-2vgc)**: Bumped rollup from 4.57.1 to 4.59.0 to resolve Dependabot alert #17 — "Rollup 4 Arbitrary File Write via Path Traversal" (Fixes Dependabot alert #17)
 
 ### Fixed
-- **manage_users.py docs**: Replaced `source venv/bin/activate` + `sudo ./scripts/manage_users.py` pattern with fully-qualified `sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py` across TROUBLESHOOTING.md, README.md, and INSTALL.md — the previous approach was broken because `sudo` does not inherit the user's venv environment (credit: @albatrossflavour, PR #8)
-- **TROUBLESHOOTING.md markdown linting**: Added blank lines between labels/headings and code blocks, removed trailing whitespace, added trailing newline at EOF (credit: @albatrossflavour, PR #8)
+- **Installer: missing frontend/dist directory** (Issue #6): Changed `BUILD_FRONTEND` default from `false` to `true` in `install.sh` and `install.conf.example` so fresh installs build the frontend automatically when Node.js 18+ is present (Closes #6)
+- **Docs: manage_users.py typo** (Issue #7): Fixed `manage_user.py` → `manage_users.py` (plural) across README.md, INSTALL.md, and TROUBLESHOOTING.md (9 occurrences). Also fixed incorrect `delete` subcommand → `remove` in README.md (Closes #7)
+- **Docs: manage_users.py privilege escalation** (PR #8, credit: @albatrossflavour): Replaced broken `source venv/bin/activate` + `sudo ./scripts/manage_users.py` pattern with fully-qualified `sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py` across all 3 doc files — the previous approach did not work because `sudo` creates a new root shell that does not inherit the user's venv environment. The fully-qualified path is portable, reliable, and requires no `sudo -E` environment passthrough (Closes #8)
+- **TROUBLESHOOTING.md markdown linting** (PR #8, credit: @albatrossflavour): Added blank lines between labels/headings and code blocks, removed trailing whitespace, added trailing newline at EOF
+
+### Changed
+- **Docs: local installation requirement**: Added prominent callouts in README.md Quick Start and INSTALL.md prerequisites clarifying that OpenVox GUI requires local installation on the OpenVox Server — remote/separate-host installation is not currently supported
 
 ## [2.2.0-Release] - 2026-02-25
 
