@@ -50,3 +50,16 @@ CONFIGURE_SELINUX="false"
 # Build the frontend from source (requires Node.js 18+ and npm).
 # Set to "false" only if you are providing a pre-built frontend/dist/ directory.
 BUILD_FRONTEND="true"
+
+# ─── Proxy Settings ────────────────────────────────────────────
+# The installer automatically detects proxy settings from the environment
+# (HTTP_PROXY, HTTPS_PROXY, NO_PROXY). These settings override auto-detection.
+# Proxy settings are applied to npm, pip, and the application runtime.
+#
+# Leave blank to auto-detect from environment, or set explicit values:
+#HTTP_PROXY=""
+#HTTPS_PROXY=""
+#NO_PROXY="localhost,127.0.0.1"
+#
+# Set to "true" to disable proxy auto-detection entirely:
+#PROXY_DISABLED="false"

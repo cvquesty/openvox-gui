@@ -64,6 +64,12 @@ CONFIGURE_SELINUX="false"
 BUILD_FRONTEND="true"
 CONFIGURE_BOLT="true"
 
+# Proxy settings (auto-detected from environment if not set in config)
+HTTP_PROXY=""
+HTTPS_PROXY=""
+NO_PROXY=""
+PROXY_DISABLED="false"
+
 SILENT="false"
 CONF_FILE=""
 UNINSTALL="false"
@@ -175,6 +181,89 @@ prompt_yesno() {
     esac
 }
 
+# ─── Proxy Functions ────────────────────────────────────────
+
+detect_proxy() {
+    # Auto-detect proxy settings from environment if not explicitly configured
+    if [ "$PROXY_DISABLED" = "true" ]; then
+        HTTP_PROXY=""
+        HTTPS_PROXY=""
+        NO_PROXY=""
+        return
+    fi
+
+    # Only auto-detect if not already set via config file
+    if [ -z "$HTTP_PROXY" ]; then
+        HTTP_PROXY="${http_proxy:-${HTTP_PROXY:-}}"
+    fi
+    if [ -z "$HTTPS_PROXY" ]; then
+        HTTPS_PROXY="${https_proxy:-${HTTPS_PROXY:-}}"
+    fi
+    if [ -z "$NO_PROXY" ]; then
+        NO_PROXY="${no_proxy:-${NO_PROXY:-localhost,127.0.0.1}}"
+    fi
+}
+
+configure_proxy_env() {
+    # Export proxy environment variables for subprocesses (npm, pip, etc.)
+    if [ -n "$HTTP_PROXY" ]; then
+        export http_proxy="$HTTP_PROXY"
+        export HTTP_PROXY="$HTTP_PROXY"
+    fi
+    if [ -n "$HTTPS_PROXY" ]; then
+        export https_proxy="$HTTPS_PROXY"
+        export HTTPS_PROXY="$HTTPS_PROXY"
+    fi
+    if [ -n "$NO_PROXY" ]; then
+        export no_proxy="$NO_PROXY"
+        export NO_PROXY="$NO_PROXY"
+    fi
+}
+
+configure_npm_proxy() {
+    # Configure npm proxy settings if proxy is enabled
+    if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
+        return 0
+    fi
+
+    log_info "Configuring npm proxy settings..."
+    
+    if [ -n "$HTTP_PROXY" ]; then
+        npm config set proxy "$HTTP_PROXY" 2>/dev/null || true
+    fi
+    if [ -n "$HTTPS_PROXY" ]; then
+        npm config set https-proxy "$HTTPS_PROXY" 2>/dev/null || true
+    fi
+    if [ -n "$NO_PROXY" ]; then
+        npm config set noproxy "$NO_PROXY" 2>/dev/null || true
+    fi
+    
+    log_ok "npm proxy configured"
+}
+
+configure_pip_proxy() {
+    # Configure pip proxy via environment (already set by configure_proxy_env)
+    # pip automatically uses HTTP_PROXY and HTTPS_PROXY environment variables
+    if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
+        return 0
+    fi
+    
+    log_info "pip will use proxy from environment variables"
+}
+
+log_proxy_status() {
+    if [ "$PROXY_DISABLED" = "true" ]; then
+        log_info "Proxy: disabled (PROXY_DISABLED=true)"
+    elif [ -n "$HTTP_PROXY" ] || [ -n "$HTTPS_PROXY" ]; then
+        log_ok "Proxy detected and configured"
+        [ -n "$HTTP_PROXY" ] && log_info "  HTTP_PROXY: $HTTP_PROXY"
+        [ -n "$HTTPS_PROXY" ] && log_info "  HTTPS_PROXY: $HTTPS_PROXY"
+        [ -n "$NO_PROXY" ] && log_info "  NO_PROXY: $NO_PROXY"
+    else
+        log_info "Proxy: none detected"
+    fi
+}
+
 # ─── Parse Arguments ─────────────────────────────────────────
 
 show_help() {
@@ -269,6 +358,12 @@ if [ -n "$CONF_FILE" ]; then
     source "$CONF_FILE"
     SILENT="true"
 fi
+
+# ─── Proxy Detection ────────────────────────────────────────
+# Auto-detect and configure proxy settings (unless explicitly disabled)
+detect_proxy
+configure_proxy_env
+log_proxy_status
 
 # ─── Banner ──────────────────────────────────────────────────
 
@@ -385,6 +480,7 @@ else
     log_ok "Virtual environment already exists"
 fi
 
+configure_pip_proxy
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
 log_ok "Installed Python dependencies"
@@ -404,6 +500,7 @@ if [ "$BUILD_FRONTEND" = "true" ]; then
         else
             log_info "Building frontend with Node.js $(node -v)..."
             cd "${INSTALL_DIR}/frontend"
+            configure_npm_proxy
             if npm install; then
                 log_ok "npm install completed"
             else
@@ -475,6 +572,11 @@ OPENVOX_GUI_AUTH_BACKEND=${AUTH_BACKEND}
 
 # Database
 OPENVOX_GUI_DATABASE_URL=sqlite+aiosqlite:///${INSTALL_DIR}/data/openvox_gui.db
+
+# Proxy Settings (auto-detected during installation)
+OPENVOX_GUI_HTTP_PROXY=${HTTP_PROXY}
+OPENVOX_GUI_HTTPS_PROXY=${HTTPS_PROXY}
+OPENVOX_GUI_NO_PROXY=${NO_PROXY}
 ENVEOF
 log_ok "Generated ${INSTALL_DIR}/config/.env"
 
