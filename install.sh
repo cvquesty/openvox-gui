@@ -191,8 +191,42 @@ prompt_yesno() {
 urlencode() {
     # URL-encode a string (for proxy credentials with special characters)
     local string="$1"
-    python3 -c "import urllib.parse; print(urllib.parse.quote('$string', safe=''))" 2>/dev/null || \
-    printf '%s' "$string" | sed 's/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/:/%3A/g; s/;/%3B/g; s/=/%3D/g; s/?/%3F/g; s/@/%40/g'
+    # Use python3 with proper quoting, or fall back to pure bash
+    if command -v python3 &>/dev/null; then
+        python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$string" 2>/dev/null && return
+    fi
+    # Pure bash fallback - encode common special characters
+    local encoded=""
+    local i char
+    for ((i=0; i<${#string}; i++)); do
+        char="${string:i:1}"
+        case "$char" in
+            [a-zA-Z0-9.~_-]) encoded+="$char" ;;
+            ' ') encoded+="%20" ;;
+            '!') encoded+="%21" ;;
+            '"') encoded+="%22" ;;
+            '#') encoded+="%23" ;;
+            '$') encoded+="%24" ;;
+            '%') encoded+="%25" ;;
+            '&') encoded+="%26" ;;
+            "'") encoded+="%27" ;;
+            '(') encoded+="%28" ;;
+            ')') encoded+="%29" ;;
+            '*') encoded+="%2A" ;;
+            '+') encoded+="%2B" ;;
+            ',') encoded+="%2C" ;;
+            '/') encoded+="%2F" ;;
+            ':') encoded+="%3A" ;;
+            ';') encoded+="%3B" ;;
+            '=') encoded+="%3D" ;;
+            '?') encoded+="%3F" ;;
+            '@') encoded+="%40" ;;
+            '[') encoded+="%5B" ;;
+            ']') encoded+="%5D" ;;
+            *) encoded+="$char" ;;
+        esac
+    done
+    printf '%s' "$encoded"
 }
 
 build_proxy_url() {
@@ -309,6 +343,7 @@ configure_pip_proxy() {
     PIP_PROXY_ARG=""
     
     if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
+        log_info "No proxy configured for pip"
         return 0
     fi
     
@@ -320,8 +355,11 @@ configure_pip_proxy() {
         # Build pip proxy arguments:
         # --proxy: explicit proxy URL with credentials
         # --trusted-host: helps with corporate proxies doing SSL inspection
-        PIP_PROXY_ARG="--proxy $proxy_url --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org"
-        log_info "pip will use proxy: $(mask_proxy_url "$proxy_url")"
+        PIP_PROXY_ARG="--proxy ${proxy_url} --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org"
+        log_info "pip proxy URL: $(mask_proxy_url "$proxy_url")"
+        log_info "pip proxy args configured"
+    else
+        log_warn "Proxy variables set but URL is empty - check PROXY_HOST/PORT settings"
     fi
 }
 
@@ -330,12 +368,18 @@ log_proxy_status() {
         log_info "Proxy: disabled (PROXY_DISABLED=true)"
     elif [ -n "$HTTP_PROXY" ] || [ -n "$HTTPS_PROXY" ]; then
         log_ok "Proxy detected and configured"
+        # Show config source
+        if [ -n "$PROXY_HOST" ]; then
+            log_info "  Source: PROXY_HOST=${PROXY_HOST}:${PROXY_PORT}"
+            [ -n "$PROXY_USER" ] && log_info "  Auth: PROXY_USER=${PROXY_USER} (password set: $([ -n "$PROXY_PASSWORD" ] && echo yes || echo no))"
+        fi
         # Mask credentials in log output for security
         [ -n "$HTTP_PROXY" ] && log_info "  HTTP_PROXY: $(mask_proxy_url "$HTTP_PROXY")"
         [ -n "$HTTPS_PROXY" ] && log_info "  HTTPS_PROXY: $(mask_proxy_url "$HTTPS_PROXY")"
         [ -n "$NO_PROXY" ] && log_info "  NO_PROXY: $NO_PROXY"
     else
         log_info "Proxy: none detected"
+        [ -n "$PROXY_HOST" ] && log_warn "  PROXY_HOST is set but HTTP_PROXY is empty - check build_proxy_url"
     fi
 }
 
