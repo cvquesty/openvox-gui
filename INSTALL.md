@@ -53,6 +53,74 @@ ping -c 2 openvox.example.com
 
 If all these commands work without errors, you're ready to install!
 
+### Network Requirements (Firewalls and Proxies)
+
+The installer needs to download packages from the internet. If your server is behind a **corporate firewall or HTTP proxy**, you'll need to ensure the following endpoints are accessible.
+
+#### Required Endpoints
+
+| Endpoint | Port | Purpose |
+|----------|------|---------|
+| `pypi.org` | 443 | Python package index |
+| `files.pythonhosted.org` | 443 | Python package downloads |
+| `registry.npmjs.org` | 443 | Node.js package registry |
+| `github.com` | 443 | Repository clone (if using git) |
+| `raw.githubusercontent.com` | 443 | GitHub raw file access |
+| `objects.githubusercontent.com` | 443 | GitHub release assets |
+
+> **For enterprise environments:** Request these endpoints be allowlisted in your proxy or firewall before running the installer.
+
+#### Proxy Configuration
+
+If your server uses an HTTP proxy, configure it **before** running the installer:
+
+```bash
+# Set proxy environment variables (adjust URL to your proxy)
+export HTTP_PROXY="http://username:password@proxy.example.com:3128"
+export HTTPS_PROXY="http://username:password@proxy.example.com:3128"
+export http_proxy="$HTTP_PROXY"
+export https_proxy="$HTTPS_PROXY"
+
+# Optional: Skip proxy for local addresses
+export NO_PROXY="localhost,127.0.0.1,.example.com"
+export no_proxy="$NO_PROXY"
+```
+
+> **Important:** The proxy URL must include the scheme (`http://`). A URL like `proxy:3128` will fail — it must be `http://proxy:3128`.
+
+**Common proxy error:**
+```
+ERROR: Could not install packages due to an OSError: Please check proxy URL.
+It is malformed and could be missing the host.
+```
+
+This means your `HTTP_PROXY` or `HTTPS_PROXY` variable is missing the `http://` prefix. Fix it with:
+
+```bash
+# Wrong (missing scheme):
+export HTTPS_PROXY="proxy.example.com:3128"
+
+# Correct (with scheme):
+export HTTPS_PROXY="http://proxy.example.com:3128"
+```
+
+#### Verifying Connectivity
+
+Test that you can reach the required endpoints:
+
+```bash
+# Test PyPI access (Python packages)
+curl -I https://pypi.org/simple/
+
+# Test npm registry (Node.js packages)
+curl -I https://registry.npmjs.org/
+
+# Test GitHub access
+curl -I https://github.com
+```
+
+If any of these fail with connection errors, work with your network team to allowlist the endpoints listed above.
+
 ---
 
 ## Quick Installation (Recommended)
@@ -335,6 +403,26 @@ sudo ss -tlnp | grep 4567
 # Use a different port in your configuration
 APP_PORT="8567"   # Or any free port
 ```
+
+#### Problem: "Could not install packages due to an OSError: Please check proxy URL"
+
+**Solution:** Your proxy environment variable is malformed. It must include `http://`:
+
+```bash
+# Check current proxy settings
+env | grep -i proxy
+
+# Fix: Add http:// prefix if missing
+export HTTP_PROXY="http://your-proxy:3128"
+export HTTPS_PROXY="http://your-proxy:3128"
+export http_proxy="$HTTP_PROXY"
+export https_proxy="$HTTPS_PROXY"
+
+# Then re-run the installer
+sudo -E ./install.sh   # -E preserves environment variables
+```
+
+See [Network Requirements](#network-requirements-firewalls-and-proxies) for full proxy configuration details.
 
 #### Problem: Web interface shows "This site can't be reached"
 
