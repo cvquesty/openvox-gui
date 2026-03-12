@@ -303,13 +303,25 @@ configure_npm_proxy() {
 }
 
 configure_pip_proxy() {
-    # Configure pip proxy via environment (already set by configure_proxy_env)
-    # pip automatically uses HTTP_PROXY and HTTPS_PROXY environment variables
+    # Configure pip proxy - set global variable for use in pip commands
+    # pip needs explicit --proxy for authenticated proxies (env vars often fail for HTTPS)
+    PIP_PROXY_ARG=""
+    
     if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
         return 0
     fi
     
-    log_info "pip will use proxy from environment variables"
+    # Use HTTPS_PROXY for pip (it tunnels through the proxy for PyPI)
+    # Fall back to HTTP_PROXY if HTTPS_PROXY isn't set
+    local proxy_url="${HTTPS_PROXY:-$HTTP_PROXY}"
+    
+    if [ -n "$proxy_url" ]; then
+        # Build pip proxy arguments:
+        # --proxy: explicit proxy URL with credentials
+        # --trusted-host: helps with corporate proxies doing SSL inspection
+        PIP_PROXY_ARG="--proxy $proxy_url --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org"
+        log_info "pip will use proxy: $(mask_proxy_url "$proxy_url")"
+    fi
 }
 
 log_proxy_status() {
@@ -543,8 +555,10 @@ else
 fi
 
 configure_pip_proxy
-"${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
-"${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
+# shellcheck disable=SC2086
+"${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip $PIP_PROXY_ARG
+# shellcheck disable=SC2086
+"${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt" $PIP_PROXY_ARG
 log_ok "Installed Python dependencies"
 
 # ─── Step 5: Frontend ────────────────────────────────────────
