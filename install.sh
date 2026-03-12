@@ -65,6 +65,10 @@ BUILD_FRONTEND="true"
 CONFIGURE_BOLT="true"
 
 # Proxy settings (auto-detected from environment if not set in config)
+PROXY_HOST=""
+PROXY_PORT=""
+PROXY_USER=""
+PROXY_PASSWORD=""
 HTTP_PROXY=""
 HTTPS_PROXY=""
 NO_PROXY=""
@@ -183,6 +187,52 @@ prompt_yesno() {
 
 # ─── Proxy Functions ────────────────────────────────────────
 
+urlencode() {
+    # URL-encode a string (for proxy credentials with special characters)
+    local string="$1"
+    python3 -c "import urllib.parse; print(urllib.parse.quote('$string', safe=''))" 2>/dev/null || \
+    printf '%s' "$string" | sed 's/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/:/%3A/g; s/;/%3B/g; s/=/%3D/g; s/?/%3F/g; s/@/%40/g'
+}
+
+build_proxy_url() {
+    # Build a proxy URL from components, optionally with authentication
+    # Usage: build_proxy_url <scheme> <host> <port> [user] [password]
+    local scheme="${1:-http}"
+    local host="$2"
+    local port="$3"
+    local user="$4"
+    local password="$5"
+
+    if [ -z "$host" ]; then
+        echo ""
+        return
+    fi
+
+    local url="${scheme}://"
+    
+    if [ -n "$user" ]; then
+        local encoded_user encoded_pass
+        encoded_user=$(urlencode "$user")
+        if [ -n "$password" ]; then
+            encoded_pass=$(urlencode "$password")
+            url="${url}${encoded_user}:${encoded_pass}@"
+        else
+            url="${url}${encoded_user}@"
+        fi
+    fi
+
+    url="${url}${host}"
+    [ -n "$port" ] && url="${url}:${port}"
+
+    echo "$url"
+}
+
+mask_proxy_url() {
+    # Mask credentials in proxy URL for logging (show user but hide password)
+    local url="$1"
+    echo "$url" | sed -E 's|(://[^:]+:)[^@]+(@)|\1****\2|'
+}
+
 detect_proxy() {
     # Auto-detect proxy settings from environment if not explicitly configured
     if [ "$PROXY_DISABLED" = "true" ]; then
@@ -192,15 +242,26 @@ detect_proxy() {
         return
     fi
 
-    # Only auto-detect if not already set via config file
+    # Build proxy URLs from PROXY_HOST/PORT/USER/PASSWORD if provided
+    if [ -n "$PROXY_HOST" ]; then
+        local built_http_proxy built_https_proxy
+        built_http_proxy=$(build_proxy_url "http" "$PROXY_HOST" "$PROXY_PORT" "$PROXY_USER" "$PROXY_PASSWORD")
+        built_https_proxy=$(build_proxy_url "http" "$PROXY_HOST" "$PROXY_PORT" "$PROXY_USER" "$PROXY_PASSWORD")
+        
+        # Only use built URLs if HTTP_PROXY/HTTPS_PROXY aren't already set explicitly
+        [ -z "$HTTP_PROXY" ] && HTTP_PROXY="$built_http_proxy"
+        [ -z "$HTTPS_PROXY" ] && HTTPS_PROXY="$built_https_proxy"
+    fi
+
+    # Fall back to environment variables if still not set
     if [ -z "$HTTP_PROXY" ]; then
-        HTTP_PROXY="${http_proxy:-${HTTP_PROXY:-}}"
+        HTTP_PROXY="${http_proxy:-}"
     fi
     if [ -z "$HTTPS_PROXY" ]; then
-        HTTPS_PROXY="${https_proxy:-${HTTPS_PROXY:-}}"
+        HTTPS_PROXY="${https_proxy:-}"
     fi
     if [ -z "$NO_PROXY" ]; then
-        NO_PROXY="${no_proxy:-${NO_PROXY:-localhost,127.0.0.1}}"
+        NO_PROXY="${no_proxy:-localhost,127.0.0.1}"
     fi
 }
 
@@ -256,8 +317,9 @@ log_proxy_status() {
         log_info "Proxy: disabled (PROXY_DISABLED=true)"
     elif [ -n "$HTTP_PROXY" ] || [ -n "$HTTPS_PROXY" ]; then
         log_ok "Proxy detected and configured"
-        [ -n "$HTTP_PROXY" ] && log_info "  HTTP_PROXY: $HTTP_PROXY"
-        [ -n "$HTTPS_PROXY" ] && log_info "  HTTPS_PROXY: $HTTPS_PROXY"
+        # Mask credentials in log output for security
+        [ -n "$HTTP_PROXY" ] && log_info "  HTTP_PROXY: $(mask_proxy_url "$HTTP_PROXY")"
+        [ -n "$HTTPS_PROXY" ] && log_info "  HTTPS_PROXY: $(mask_proxy_url "$HTTPS_PROXY")"
         [ -n "$NO_PROXY" ] && log_info "  NO_PROXY: $NO_PROXY"
     else
         log_info "Proxy: none detected"
