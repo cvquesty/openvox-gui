@@ -7,7 +7,7 @@ venv/
 
 # Node
 frontend/node_modules/
-frontend/dist/
+# Note: frontend/dist/ is tracked - contains pre-built frontend for proxy environments
 
 # Data & Runtime
 data/
