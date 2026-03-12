@@ -62,6 +62,7 @@ SERVICE_GROUP="puppet"
 CONFIGURE_FIREWALL="true"
 CONFIGURE_SELINUX="false"
 BUILD_FRONTEND="true"
+INSTALL_NODEJS="true"
 CONFIGURE_BOLT="true"
 
 # Proxy settings (auto-detected from environment if not set in config)
@@ -565,37 +566,98 @@ log_ok "Installed Python dependencies"
 
 log_step 5 "Frontend"
 
+install_nodejs() {
+    # Install Node.js 18 from system repos
+    log_info "Attempting to install Node.js 18..."
+    
+    # Detect package manager and OS
+    if command -v dnf &>/dev/null; then
+        # RHEL 8+, Rocky, AlmaLinux, Fedora - use dnf modules
+        log_info "Enabling nodejs:18 module..."
+        if dnf module enable nodejs:18 -y 2>/dev/null; then
+            dnf install nodejs npm -y 2>/dev/null && return 0
+        fi
+        # Fallback: try NodeSource repo
+        log_info "Module not available, trying NodeSource repo..."
+        curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - 2>/dev/null
+        dnf install nodejs -y 2>/dev/null && return 0
+    elif command -v yum &>/dev/null; then
+        # RHEL 7, CentOS 7 - use NodeSource
+        log_info "Installing from NodeSource repo..."
+        curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - 2>/dev/null
+        yum install nodejs -y 2>/dev/null && return 0
+    elif command -v apt-get &>/dev/null; then
+        # Debian/Ubuntu - use NodeSource
+        log_info "Installing from NodeSource repo..."
+        curl -fsSL https://deb.nodesource.com/setup_18.x | bash - 2>/dev/null
+        apt-get install nodejs -y 2>/dev/null && return 0
+    fi
+    
+    return 1
+}
+
 if [ "$BUILD_FRONTEND" = "true" ]; then
     FRONTEND_BUILT="false"
-    if ! command -v node &>/dev/null; then
-        log_warn "Node.js not found — checking for pre-built frontend"
-    else
+    NODE_OK="false"
+    
+    # Check if Node.js 18+ is available
+    if command -v node &>/dev/null; then
         NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
-        if [ "$NODE_VERSION" -lt 18 ]; then
-            log_warn "Node.js ${NODE_VERSION} found but v18+ required — checking for pre-built frontend"
+        if [ "$NODE_VERSION" -ge 18 ]; then
+            NODE_OK="true"
+            log_ok "Node.js $(node -v) found"
         else
-            log_info "Building frontend with Node.js $(node -v)..."
-            cd "${INSTALL_DIR}/frontend"
-            configure_npm_proxy
-            if npm install; then
-                log_ok "npm install completed"
-            else
-                log_err "npm install failed — check Node.js version and network connectivity"
-                log_info "You can skip the frontend build and provide a pre-built dist/ directory instead"
-                exit 1
+            log_warn "Node.js v${NODE_VERSION} found but v18+ required"
+        fi
+    else
+        log_warn "Node.js not found"
+    fi
+    
+    # Install Node.js if needed
+    if [ "$NODE_OK" = "false" ]; then
+        if [ "$INSTALL_NODEJS" = "true" ]; then
+            if install_nodejs; then
+                # Verify installation
+                if command -v node &>/dev/null; then
+                    NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
+                    if [ "$NODE_VERSION" -ge 18 ]; then
+                        NODE_OK="true"
+                        log_ok "Node.js $(node -v) installed successfully"
+                    fi
+                fi
             fi
-            if npm run build; then
-                log_ok "Frontend built successfully"
-                FRONTEND_BUILT="true"
-            else
-                log_err "npm run build failed — check the error output above"
-                exit 1
-            fi
+        else
+            log_info "INSTALL_NODEJS=false — skipping automatic Node.js installation"
+        fi
+        
+        if [ "$NODE_OK" = "false" ]; then
+            log_err "Node.js 18+ is required but not available"
+            log_info "Please install Node.js 18+ manually:"
+            log_info "  RHEL/Rocky/Alma 8+: dnf module enable nodejs:18 && dnf install nodejs"
+            log_info "  RHEL/CentOS 7:      curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - && yum install nodejs"
+            log_info "  Ubuntu/Debian:      curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && apt install nodejs"
+            log_info "Or set INSTALL_NODEJS=true in install.conf to install automatically"
+            exit 1
         fi
     fi
-
-    if [ "$FRONTEND_BUILT" = "false" ] && [ ! -d "${INSTALL_DIR}/frontend/dist" ]; then
-        log_err "Frontend build was requested but failed, and no pre-built dist/ exists"
+    
+    # Build frontend
+    log_info "Building frontend with Node.js $(node -v)..."
+    cd "${INSTALL_DIR}/frontend"
+    configure_npm_proxy
+    
+    if npm install; then
+        log_ok "npm install completed"
+    else
+        log_err "npm install failed — check network connectivity and proxy settings"
+        exit 1
+    fi
+    
+    if npm run build; then
+        log_ok "Frontend built successfully"
+        FRONTEND_BUILT="true"
+    else
+        log_err "npm run build failed — check the error output above"
         exit 1
     fi
 fi
@@ -603,7 +665,7 @@ fi
 if [ -d "${INSTALL_DIR}/frontend/dist" ]; then
     log_ok "Frontend dist/ directory present"
 else
-    log_err "No frontend/dist/ found. Either set BUILD_FRONTEND=true with Node.js 18+ or provide a pre-built dist/"
+    log_err "No frontend/dist/ found. Set BUILD_FRONTEND=true to build it."
     exit 1
 fi
 

@@ -1,1 +1,0 @@
-import{j as a,n as o}from"./index-PFZoz7jW.js";const t={changed:"yellow",unchanged:"green",failed:"red",unreported:"gray",noop:"blue",active:"green",inactive:"red",unknown:"gray"};function d({status:e,size:r="sm"}){const n=e||"unknown";return a.jsx(o,{color:t[n]||"gray",variant:"filled",size:r,children:n})}export{d as S};

@@ -47,9 +47,14 @@ SERVICE_GROUP="puppet"
 CONFIGURE_FIREWALL="true"
 CONFIGURE_SELINUX="false"
 
+# ─── Frontend Build Settings ───────────────────────────────────
 # Build the frontend from source (requires Node.js 18+ and npm).
-# Set to "false" only if you are providing a pre-built frontend/dist/ directory.
 BUILD_FRONTEND="true"
+
+# Automatically install Node.js 18 if not present.
+# Uses dnf module (RHEL 8+) or NodeSource repo (RHEL 7, Debian/Ubuntu).
+# Set to "false" if you prefer to install Node.js manually first.
+INSTALL_NODEJS="true"
 
 # ─── Proxy Settings ────────────────────────────────────────────
 # The installer automatically detects proxy settings from the environment
