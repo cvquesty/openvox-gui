@@ -706,6 +706,9 @@ if [ "$BUILD_FRONTEND" = "true" ]; then
     cd "${INSTALL_DIR}/frontend"
     configure_npm_proxy
     
+    # Suppress MaxListenersExceededWarning when using proxy (harmless but noisy)
+    export NODE_OPTIONS="--no-warnings ${NODE_OPTIONS:-}"
+    
     # shellcheck disable=SC2086
     if npm install $NPM_PROXY_ARGS; then
         log_ok "npm install completed"
