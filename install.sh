@@ -317,29 +317,39 @@ configure_proxy_env() {
 }
 
 configure_npm_proxy() {
-    # Configure npm proxy settings if proxy is enabled
+    # Configure npm proxy - set global variable for use in npm commands
+    # Pass proxy directly on command line for reliability with authenticated proxies
+    NPM_PROXY_ARGS=""
+    
     if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
+        log_info "No proxy configured for npm"
         return 0
     fi
 
     log_info "Configuring npm proxy settings..."
     
+    # Build command line arguments for npm
+    local proxy_args=""
     if [ -n "$HTTP_PROXY" ]; then
-        npm config set proxy "$HTTP_PROXY" 2>/dev/null || true
+        proxy_args="--proxy=${HTTP_PROXY}"
     fi
     if [ -n "$HTTPS_PROXY" ]; then
-        npm config set https-proxy "$HTTPS_PROXY" 2>/dev/null || true
+        proxy_args="${proxy_args} --https-proxy=${HTTPS_PROXY}"
     fi
     if [ -n "$NO_PROXY" ]; then
-        npm config set noproxy "$NO_PROXY" 2>/dev/null || true
+        proxy_args="${proxy_args} --noproxy=${NO_PROXY}"
     fi
     
-    # Reduce concurrency to avoid overwhelming proxy and prevent
-    # "MaxListenersExceededWarning" with authenticated proxies
-    npm config set maxsockets 5 2>/dev/null || true
-    npm config set fetch-retries 3 2>/dev/null || true
-    npm config set fetch-retry-mintimeout 10000 2>/dev/null || true
+    # Add concurrency limits to avoid overwhelming proxy
+    proxy_args="${proxy_args} --maxsockets=5 --fetch-retries=3 --fetch-retry-mintimeout=10000"
     
+    NPM_PROXY_ARGS="$proxy_args"
+    
+    # Also set in npm config as backup
+    npm config set proxy "$HTTP_PROXY" 2>/dev/null || true
+    npm config set https-proxy "${HTTPS_PROXY:-$HTTP_PROXY}" 2>/dev/null || true
+    
+    log_info "npm proxy URL: $(mask_proxy_url "${HTTPS_PROXY:-$HTTP_PROXY}")"
     log_ok "npm proxy configured"
 }
 
@@ -696,7 +706,8 @@ if [ "$BUILD_FRONTEND" = "true" ]; then
     cd "${INSTALL_DIR}/frontend"
     configure_npm_proxy
     
-    if npm install; then
+    # shellcheck disable=SC2086
+    if npm install $NPM_PROXY_ARGS; then
         log_ok "npm install completed"
     else
         log_err "npm install failed — check network connectivity and proxy settings"
