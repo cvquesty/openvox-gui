@@ -334,6 +334,12 @@ configure_npm_proxy() {
         npm config set noproxy "$NO_PROXY" 2>/dev/null || true
     fi
     
+    # Reduce concurrency to avoid overwhelming proxy and prevent
+    # "MaxListenersExceededWarning" with authenticated proxies
+    npm config set maxsockets 5 2>/dev/null || true
+    npm config set fetch-retries 3 2>/dev/null || true
+    npm config set fetch-retry-mintimeout 10000 2>/dev/null || true
+    
     log_ok "npm proxy configured"
 }
 
