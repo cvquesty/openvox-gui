@@ -583,7 +583,7 @@ else
 fi
 
 # Copy scripts
-for script in enc.py manage_users.py deploy.sh; do
+for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh; do
     if [ -f "${SCRIPT_DIR}/scripts/${script}" ]; then
         cp "${SCRIPT_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
         chmod +x "${INSTALL_DIR}/scripts/${script}"
@@ -813,7 +813,7 @@ RestartSec=5
 NoNewPrivileges=false
 ProtectSystem=strict
 PrivateTmp=false
-ReadWritePaths=${INSTALL_DIR}/data ${INSTALL_DIR}/logs ${INSTALL_DIR}/config /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp
+ReadWritePaths=${INSTALL_DIR}/data ${INSTALL_DIR}/logs ${INSTALL_DIR}/config /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp /run/sudo
 
 [Install]
 WantedBy=multi-user.target
@@ -823,7 +823,7 @@ log_ok "Installed systemd service unit"
 # Sudoers rules — puppet user needs sudo for r10k and reading PuppetDB configs
 cat > /etc/sudoers.d/openvox-gui << SUDOEOF
 # OpenVox GUI — allow the service user to run r10k deployments
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/puppet/bin/r10k deploy *
+${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh *
 
 # OpenVox GUI — allow reading PuppetDB config files
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*

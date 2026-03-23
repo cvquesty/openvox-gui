@@ -157,7 +157,7 @@ cp "${REPO_DIR}/VERSION" "${INSTALL_DIR}/VERSION"
 log_ok "Deployed VERSION"
 
 # Copy scripts (preserving anything site-specific in scripts/)
-for script in enc.py manage_users.py deploy.sh update_local.sh; do
+for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh; do
     if [ -f "${REPO_DIR}/scripts/${script}" ]; then
         cp "${REPO_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
         chmod +x "${INSTALL_DIR}/scripts/${script}"
@@ -169,6 +169,73 @@ log_ok "Deployed scripts"
 rm -rf "${INSTALL_DIR}/frontend"
 cp -a "${REPO_DIR}/frontend" "${INSTALL_DIR}/"
 log_ok "Deployed frontend source"
+
+# Update systemd service file (substitute INSTALL_DIR, preserve existing user/port)
+SERVICE_USER="puppet"
+SERVICE_GROUP="puppet"
+APP_HOST="0.0.0.0"
+APP_PORT_CFG="${APP_PORT}"
+UVICORN_WORKERS="2"
+if [ -f /etc/systemd/system/openvox-gui.service ]; then
+    UNIT_USER=$(grep "^User=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
+    [ -n "$UNIT_USER" ] && SERVICE_USER="$UNIT_USER"
+    UNIT_GROUP=$(grep "^Group=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
+    [ -n "$UNIT_GROUP" ] && SERVICE_GROUP="$UNIT_GROUP"
+fi
+sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
+    | sed "s|User=puppet|User=${SERVICE_USER}|" \
+    | sed "s|Group=puppet|Group=${SERVICE_GROUP}|" \
+    > /etc/systemd/system/openvox-gui.service
+systemctl daemon-reload
+log_ok "Updated systemd service file"
+
+# Update sudoers rules
+cat > /etc/sudoers.d/openvox-gui << SUDOEOF
+# OpenVox GUI — allow the service user to run r10k deployments
+${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh *
+
+# OpenVox GUI — allow reading PuppetDB config files
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
+
+# OpenVox GUI — allow restarting Puppet services
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart openvox-gui
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
+
+# OpenVox GUI — allow running Puppet Bolt commands
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
+
+# OpenVox GUI -- allow certificate management
+${SERVICE_USER} ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca *
+${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
+
+# OpenVox GUI -- allow puppet lookup
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
+SUDOEOF
+chmod 440 /etc/sudoers.d/openvox-gui
+visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1
+log_ok "Updated sudoers rules"
 
 log_info "Deployed: ${OLD_VERSION} → ${NEW_VERSION}"
 
