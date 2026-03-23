@@ -20,8 +20,8 @@ puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca *
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt *
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/bolt *
 
-# Code deployment via r10k
-puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/puppet/bin/r10k deploy *
+# Code deployment via r10k (wrapper ensures proper environment for git)
+puppet ALL=(ALL) NOPASSWD: /opt/openvox-gui/scripts/r10k-deploy.sh *
 
 # Service management (restart puppet stack)
 puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart puppetserver
