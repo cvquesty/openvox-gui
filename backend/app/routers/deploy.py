@@ -162,7 +162,7 @@ async def run_deployment(deploy: DeployRequest, request: Request):
             raise HTTPException(status_code=403, detail="Admin or operator role required")
 
     try:
-        cmd = ["sudo", "-E", "/opt/puppetlabs/puppet/bin/r10k", "deploy", "environment"]
+        cmd = ["sudo", "/opt/puppetlabs/puppet/bin/r10k", "deploy", "environment"]
         if deploy.environment:
             cmd.append(deploy.environment)
         cmd.extend(["-pv"])
