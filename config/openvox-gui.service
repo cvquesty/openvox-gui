@@ -44,7 +44,7 @@ RestartSec=5
 NoNewPrivileges=false
 ProtectSystem=strict
 PrivateTmp=false
-ReadWritePaths=INSTALL_DIR/data INSTALL_DIR/logs /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp
+ReadWritePaths=INSTALL_DIR/data INSTALL_DIR/logs /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /tmp /run/sudo
 
 [Install]
 WantedBy=multi-user.target
