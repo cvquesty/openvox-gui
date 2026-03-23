@@ -55,35 +55,43 @@ Think of updating like changing the oil in your car - you want to prepare first:
 
 This is the easiest and safest way to update. The update script handles everything for you.
 
-### Step 1: Go to Your Installation Directory
+> **Key concept:** OpenVox GUI uses a *clone-then-deploy* architecture. Your git
+> repository lives in a staging directory (e.g. `~/openvox-gui`), and the running
+> installation lives at `/opt/openvox-gui`. The install directory is **not** a git
+> repo — it is a deployment target. Updates are pulled in the staging repo, then
+> deployed to `/opt`.
+
+### Step 1: Go to Your Source Repository
 
 ```bash
-cd /opt/openvox-gui
+# Go to wherever you originally cloned the repo
+cd ~/openvox-gui
 ```
 
 ### Step 2: Pull the Latest Code
 
 ```bash
 # Get the latest version from GitHub
-sudo git pull origin main
+git pull origin main
 ```
 
 ### Step 3: Run the Update Script
 
 ```bash
-# Run the built-in update script
+# Deploy the updated code to /opt/openvox-gui and restart
 sudo ./scripts/update_local.sh
 ```
 
 ### What the Update Script Does
 
 The script automatically:
-1. ✅ Backs up your current installation
-2. ✅ Preserves your configuration
-3. ✅ Updates Python dependencies
-4. ✅ Rebuilds the frontend if needed
-5. ✅ Restarts the service
-6. ✅ Verifies everything is working
+1. ✅ Backs up your data and configuration from `/opt/openvox-gui`
+2. ✅ Deploys updated backend, frontend, and scripts from the source repo
+3. ✅ Preserves your configuration (`.env`, data, certs)
+4. ✅ Updates Python dependencies
+5. ✅ Rebuilds the frontend
+6. ✅ Restarts the service
+7. ✅ Verifies everything is working
 
 ### Step 4: Verify the Update
 
@@ -131,32 +139,35 @@ sudo cp -r /opt/openvox-gui/frontend $BACKUP_DIR/
 echo "Backup created at: $BACKUP_DIR"
 ```
 
-### Step 3: Get the Latest Code
+### Step 3: Pull Latest Code and Deploy
 
 ```bash
-cd /opt/openvox-gui
+# Go to your source repository (NOT /opt/openvox-gui)
+cd ~/openvox-gui
 
 # Fetch latest changes
-sudo git fetch origin
+git fetch origin
 
 # Check what will change
-sudo git status
+git log HEAD..origin/main --oneline
 
 # Pull the updates
-sudo git pull origin main
+git pull origin main
+
+# Deploy updated files to /opt/openvox-gui
+sudo rm -rf /opt/openvox-gui/backend
+sudo cp -a backend /opt/openvox-gui/
+sudo cp VERSION /opt/openvox-gui/
+sudo rm -rf /opt/openvox-gui/frontend
+sudo cp -a frontend /opt/openvox-gui/
+sudo cp scripts/enc.py scripts/deploy.sh scripts/update_local.sh /opt/openvox-gui/scripts/
 ```
 
 ### Step 4: Update Python Dependencies
 
 ```bash
-# Activate the virtual environment
-source venv/bin/activate
-
-# Update Python packages
-pip install --upgrade -r backend/requirements.txt
-
-# Deactivate virtual environment
-deactivate
+# Update Python packages using the install dir's venv
+sudo /opt/openvox-gui/venv/bin/pip install --upgrade -r /opt/openvox-gui/backend/requirements.txt
 ```
 
 ### Step 5: Update the Frontend (if needed)
@@ -183,22 +194,14 @@ else
 fi
 ```
 
-### Step 6: Update Database Schema (if needed)
-
-```bash
-# Run any database migrations
-cd /opt/openvox-gui/backend
-python -m alembic upgrade head
-```
-
-### Step 7: Fix Permissions
+### Step 6: Fix Permissions
 
 ```bash
 # Ensure correct ownership
 sudo chown -R puppet:puppet /opt/openvox-gui
 ```
 
-### Step 8: Start the Service
+### Step 7: Start the Service
 
 ```bash
 # Start OpenVox GUI
@@ -219,10 +222,12 @@ OpenVox GUI includes several update scripts for different scenarios:
 
 ### Local Update Script
 
-Updates the installation on the current server:
+Run from your source repo to deploy updates to `/opt/openvox-gui`:
 
 ```bash
-sudo /opt/openvox-gui/scripts/update_local.sh
+cd ~/openvox-gui
+git pull origin main
+sudo ./scripts/update_local.sh
 ```
 
 Options:
@@ -249,14 +254,22 @@ SSH key-based authentication must be configured for the target server.
 
 ### Auto-Update via Cron
 
-Set up automatic updates (use with caution):
+Set up automatic updates (use with caution). Since the update script must
+run from the source repo, create a small wrapper:
 
 ```bash
+# Create an update wrapper script
+cat > /usr/local/bin/openvox-gui-update.sh << 'EOF'
+#!/bin/bash
+cd /root/openvox-gui && git pull origin main && ./scripts/update_local.sh --auto
+EOF
+chmod +x /usr/local/bin/openvox-gui-update.sh
+
 # Edit crontab
 sudo crontab -e
 
 # Add this line to update weekly on Sunday at 2 AM
-0 2 * * 0 /opt/openvox-gui/scripts/update_local.sh --auto >> /var/log/openvox-update.log 2>&1
+0 2 * * 0 /usr/local/bin/openvox-gui-update.sh >> /var/log/openvox-update.log 2>&1
 ```
 
 ---
@@ -273,15 +286,13 @@ If you just updated and need to rollback immediately:
 # Stop the service
 sudo systemctl stop openvox-gui
 
-# Go to installation directory
-cd /opt/openvox-gui
+# Restore your backup (created automatically by update_local.sh)
+# Find the latest backup:
+ls /backup/openvox-gui/
 
-# Revert the last git pull
-sudo git reset --hard HEAD~1
-
-# Restore your backup (if you made one)
-sudo cp -r /backup/openvox-gui/data-20240115/* /opt/openvox-gui/data/
-sudo cp -r /backup/openvox-gui/config-20240115/* /opt/openvox-gui/config/
+# Restore data and config from the backup
+sudo cp -r /backup/openvox-gui/TIMESTAMP/data/* /opt/openvox-gui/data/
+sudo cp -r /backup/openvox-gui/TIMESTAMP/config/* /opt/openvox-gui/config/
 
 # Restart the service
 sudo systemctl start openvox-gui
@@ -289,22 +300,20 @@ sudo systemctl start openvox-gui
 
 ### Rollback to Specific Version
 
-To rollback to a specific version:
+To rollback to a specific version, revert the source repo and redeploy:
 
 ```bash
+# Go to your source repo
+cd ~/openvox-gui
+
 # List available versions (tags)
 git tag -l
 
 # Checkout a specific version
-sudo git checkout v1.3.0
+git checkout v1.3.0
 
-# Reinstall dependencies for that version
-source venv/bin/activate
-pip install -r backend/requirements.txt
-deactivate
-
-# Restart service
-sudo systemctl restart openvox-gui
+# Redeploy that version
+sudo ./scripts/update_local.sh --force
 ```
 
 ### Restore from Backup
@@ -334,11 +343,14 @@ sudo systemctl start openvox-gui
 
 ### Common Update Problems
 
-#### Problem: "git pull" shows conflicts
+#### Problem: "git pull" shows conflicts in the source repo
 
-**Solution:** You have local changes that conflict with updates:
+**Solution:** You have local changes in your git repo that conflict with updates:
 
 ```bash
+# Go to your source repo
+cd ~/openvox-gui
+
 # See what files are changed
 git status
 
@@ -533,10 +545,10 @@ OpenVox GUI can notify you when updates are available:
 
 3. **Check Manually:**
    ```bash
-   cd /opt/openvox-gui
+   cd ~/openvox-gui
    git fetch
-   git status
-   # Shows if you're behind the main branch
+   git log HEAD..origin/main --oneline
+   # Shows commits available to pull
    ```
 
 ---
@@ -552,8 +564,8 @@ Security updates are released as needed and should be applied immediately:
 
 2. **Apply security updates immediately:**
    ```bash
-   cd /opt/openvox-gui
-   sudo git pull origin main
+   cd ~/openvox-gui
+   git pull origin main
    sudo ./scripts/update_local.sh --security
    ```
 

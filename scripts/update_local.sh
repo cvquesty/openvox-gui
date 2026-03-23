@@ -2,32 +2,41 @@
 ###############################################################################
 # OpenVox GUI Local Update Script
 #
-# Updates the OpenVox GUI installation on the local server.
-# Pulls the latest code, updates dependencies, rebuilds the frontend,
-# and restarts the service — with automatic backup.
+# Updates an existing OpenVox GUI installation on the local server.
+#
+# Architecture:
+#   - A git repository is cloned somewhere on the server (the "source repo"),
+#     typically ~/openvox-gui or wherever you originally ran 'git clone'.
+#   - The running installation lives at /opt/openvox-gui (the "install dir").
+#     This directory is NOT a git repo — it is a deployment target.
+#   - This script pulls the latest code in the source repo, then deploys
+#     the updated files to the install dir, preserving data and config.
 #
 # Usage:
-#   sudo ./scripts/update_local.sh              # Normal update
-#   sudo ./scripts/update_local.sh --skip-backup # Skip backup step
-#   sudo ./scripts/update_local.sh --force       # Update even if up-to-date
+#   cd ~/openvox-gui                               # your git clone
+#   git pull origin main                           # get latest code
+#   sudo ./scripts/update_local.sh                 # deploy to /opt
+#   sudo ./scripts/update_local.sh --skip-backup   # skip backup step
+#   sudo ./scripts/update_local.sh --force         # update even if up-to-date
 #
 # Requirements:
 #   - Root or sudo privileges
-#   - Git, Python 3.10+, Node.js 18+ (for frontend build)
+#   - Python 3.10+, Node.js 18+ (for frontend build)
 ###############################################################################
 
 set -euo pipefail
 
 # ─── Configuration ─────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="${SCRIPT_DIR%/scripts}"
+REPO_DIR="${SCRIPT_DIR%/scripts}"
+INSTALL_DIR="/opt/openvox-gui"
 BACKUP_BASE="/backup/openvox-gui"
 SERVICE_NAME="openvox-gui"
 
-# Detect app port from .env or default to 4567
+# Detect app port from installed .env or default to 4567
 APP_PORT="4567"
-if [ -f "${APP_DIR}/config/.env" ]; then
-    PORT_LINE=$(grep "^OPENVOX_GUI_APP_PORT=" "${APP_DIR}/config/.env" 2>/dev/null || true)
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    PORT_LINE=$(grep "^OPENVOX_GUI_APP_PORT=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
     if [ -n "$PORT_LINE" ]; then
         APP_PORT="${PORT_LINE#*=}"
     fi
@@ -55,6 +64,9 @@ for arg in "$@"; do
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
+            echo "Run this script from your local git clone of openvox-gui."
+            echo "It deploys updated files to ${INSTALL_DIR}."
+            echo ""
             echo "Options:"
             echo "  --skip-backup   Skip the backup step (not recommended)"
             echo "  --force         Update even if already up-to-date"
@@ -76,22 +88,35 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -d "${APP_DIR}/backend" ]; then
-    echo -e "${RED}Error: ${APP_DIR} does not look like an OpenVox GUI installation.${NC}"
+if [ ! -d "${REPO_DIR}/backend" ]; then
+    echo -e "${RED}Error: ${REPO_DIR} does not look like an OpenVox GUI source repo.${NC}"
     exit 1
 fi
 
-# Read current and available versions
-OLD_VERSION="$(cat "${APP_DIR}/VERSION" 2>/dev/null || echo 'unknown')"
+if [ ! -d "${INSTALL_DIR}" ]; then
+    echo -e "${RED}Error: ${INSTALL_DIR} does not exist. Run install.sh for first-time setup.${NC}"
+    exit 1
+fi
+
+# Read current (installed) and new (repo) versions
+OLD_VERSION="$(cat "${INSTALL_DIR}/VERSION" 2>/dev/null || echo 'unknown')"
+NEW_VERSION="$(cat "${REPO_DIR}/VERSION" 2>/dev/null || echo 'unknown')"
 
 echo ""
 echo -e "${BOLD}╔═══════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║          OpenVox GUI Local Update                     ║${NC}"
 echo -e "${BOLD}╚═══════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  ${BOLD}Install directory:${NC} ${APP_DIR}"
-echo -e "  ${BOLD}Current version:${NC}  ${OLD_VERSION}"
+echo -e "  ${BOLD}Source repo:${NC}      ${REPO_DIR}"
+echo -e "  ${BOLD}Install directory:${NC} ${INSTALL_DIR}"
+echo -e "  ${BOLD}Installed version:${NC} ${OLD_VERSION}"
+echo -e "  ${BOLD}Repo version:${NC}     ${NEW_VERSION}"
 echo ""
+
+if [ "$OLD_VERSION" = "$NEW_VERSION" ] && [ "$FORCE_UPDATE" = "false" ]; then
+    echo -e "${GREEN}Already up-to-date (${OLD_VERSION}).${NC} Use --force to re-apply anyway."
+    exit 0
+fi
 
 TOTAL_STEPS=6
 
@@ -110,50 +135,48 @@ else
     TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
     BACKUP_DIR="${BACKUP_BASE}/${TIMESTAMP}"
     mkdir -p "${BACKUP_DIR}"
-    cp -a "${APP_DIR}/data" "${BACKUP_DIR}/data" 2>/dev/null || true
-    cp -a "${APP_DIR}/config" "${BACKUP_DIR}/config" 2>/dev/null || true
-    cp "${APP_DIR}/VERSION" "${BACKUP_DIR}/VERSION" 2>/dev/null || true
+    cp -a "${INSTALL_DIR}/data" "${BACKUP_DIR}/data" 2>/dev/null || true
+    cp -a "${INSTALL_DIR}/config" "${BACKUP_DIR}/config" 2>/dev/null || true
+    cp "${INSTALL_DIR}/VERSION" "${BACKUP_DIR}/VERSION" 2>/dev/null || true
     log_ok "Backup created at ${BACKUP_DIR}"
 
     # Prune backups older than 30 days
     find "${BACKUP_BASE}" -maxdepth 1 -type d -mtime +30 -exec rm -rf {} \; 2>/dev/null || true
 fi
 
-# ─── Step 2: Pull Latest Code ─────────────────────────────────
-log_step 2 "Pull Latest Code"
+# ─── Step 2: Deploy Updated Files ────────────────────────────
+log_step 2 "Deploy Files from Repo"
 
-if [ -d "${APP_DIR}/.git" ]; then
-    cd "${APP_DIR}"
+# Copy backend (rm-then-copy to avoid stale files)
+rm -rf "${INSTALL_DIR}/backend"
+cp -a "${REPO_DIR}/backend" "${INSTALL_DIR}/"
+log_ok "Deployed backend"
 
-    # Check if there are updates
-    git fetch origin 2>/dev/null
-    LOCAL_HEAD="$(git rev-parse HEAD)"
-    REMOTE_HEAD="$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/development 2>/dev/null || echo '')"
+# Copy VERSION file
+cp "${REPO_DIR}/VERSION" "${INSTALL_DIR}/VERSION"
+log_ok "Deployed VERSION"
 
-    if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ] && [ "$FORCE_UPDATE" = "false" ]; then
-        log_ok "Already up-to-date (${OLD_VERSION})"
-        echo -e "\n${GREEN}No update needed.${NC} Use --force to re-apply anyway."
-        exit 0
+# Copy scripts (preserving anything site-specific in scripts/)
+for script in enc.py manage_users.py deploy.sh update_local.sh; do
+    if [ -f "${REPO_DIR}/scripts/${script}" ]; then
+        cp "${REPO_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
+        chmod +x "${INSTALL_DIR}/scripts/${script}"
     fi
+done
+log_ok "Deployed scripts"
 
-    git pull origin main 2>/dev/null || git pull origin development 2>/dev/null
-    log_ok "Pulled latest code"
-else
-    log_warn "Not a git repository — skipping code pull"
-    if [ "$FORCE_UPDATE" = "false" ]; then
-        log_err "Cannot update without a git repo. Use --force to re-apply dependencies."
-        exit 1
-    fi
-fi
+# Copy frontend source (rm-then-copy to avoid stale files)
+rm -rf "${INSTALL_DIR}/frontend"
+cp -a "${REPO_DIR}/frontend" "${INSTALL_DIR}/"
+log_ok "Deployed frontend source"
 
-NEW_VERSION="$(cat "${APP_DIR}/VERSION" 2>/dev/null || echo 'unknown')"
-log_info "Updating: ${OLD_VERSION} → ${NEW_VERSION}"
+log_info "Deployed: ${OLD_VERSION} → ${NEW_VERSION}"
 
 # ─── Step 3: Update Python Dependencies ───────────────────────
 log_step 3 "Python Dependencies"
 
-"${APP_DIR}/venv/bin/pip" install --quiet --upgrade pip
-"${APP_DIR}/venv/bin/pip" install --quiet -r "${APP_DIR}/backend/requirements.txt"
+"${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
+"${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
 log_ok "Python dependencies updated"
 
 # ─── Step 4: Rebuild Frontend ─────────────────────────────────
@@ -163,13 +186,13 @@ if command -v node &>/dev/null; then
     NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
     if [ "$NODE_VERSION" -ge 18 ]; then
         log_info "Building frontend with Node.js $(node -v)..."
-        cd "${APP_DIR}/frontend"
+        cd "${INSTALL_DIR}/frontend"
         npm install
         npm run build
         # Ensure logos are in dist
         for logo in openvox-logo.svg openvox-logo-orange.svg; do
-            if [ -f "${APP_DIR}/frontend/public/${logo}" ]; then
-                cp "${APP_DIR}/frontend/public/${logo}" "${APP_DIR}/frontend/dist/" 2>/dev/null || true
+            if [ -f "${INSTALL_DIR}/frontend/public/${logo}" ]; then
+                cp "${INSTALL_DIR}/frontend/public/${logo}" "${INSTALL_DIR}/frontend/dist/" 2>/dev/null || true
             fi
         done
         log_ok "Frontend built successfully"
@@ -180,7 +203,7 @@ else
     log_warn "Node.js not found — skipping frontend build"
 fi
 
-if [ ! -d "${APP_DIR}/frontend/dist" ]; then
+if [ ! -d "${INSTALL_DIR}/frontend/dist" ]; then
     log_err "No frontend/dist/ directory. The frontend must be built before the service can run."
     exit 1
 fi
@@ -195,12 +218,12 @@ if [ -f /etc/systemd/system/openvox-gui.service ]; then
     [ -n "$UNIT_USER" ] && SERVICE_USER="$UNIT_USER"
 fi
 
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "${APP_DIR}"
-chmod 600 "${APP_DIR}/config/.env" 2>/dev/null || true
-chmod 755 "${APP_DIR}/scripts/enc.py" 2>/dev/null || true
-chmod 755 "${APP_DIR}/frontend/dist/" 2>/dev/null || true
-find "${APP_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null || true
-find "${APP_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}"
+chmod 600 "${INSTALL_DIR}/config/.env" 2>/dev/null || true
+chmod 755 "${INSTALL_DIR}/scripts/enc.py" 2>/dev/null || true
+chmod 755 "${INSTALL_DIR}/frontend/dist/" 2>/dev/null || true
+find "${INSTALL_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null || true
+find "${INSTALL_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
 log_ok "Permissions fixed (owner: ${SERVICE_USER})"
 
 # ─── Step 6: Restart & Verify ─────────────────────────────────
