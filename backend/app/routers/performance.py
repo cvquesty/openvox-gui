@@ -7,7 +7,12 @@ Pulls detailed metrics from PuppetDB reports to provide:
 - Resource count analysis
 - Node-to-node performance comparison
 - Slowest resources and catalog compilation hotspots
+
+Security note: the /node/{certname} endpoint validates the certname
+against a strict allowlist before interpolating it into PQL queries to
+prevent injection attacks.
 """
+import re
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
@@ -18,6 +23,18 @@ from ..services.puppetdb import puppetdb_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/performance", tags=["performance"])
+
+# Strict pattern for values interpolated into PQL queries (certnames).
+_SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
+
+def _validate_pql_value(value: str, field_name: str) -> str:
+    """Validate that a value is safe to interpolate into a PQL query string."""
+    if not _SAFE_PQL_VALUE.match(value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name}: contains disallowed characters",
+        )
+    return value
 
 # Key timing metrics we extract from each report
 TIMING_KEYS = [
@@ -238,10 +255,13 @@ async def node_performance(
     certname: str,
     limit: int = Query(50, le=200),
 ):
+    """Performance metrics for a specific node.
+
+    Returns detailed timing history for the given node. The certname is
+    validated against a strict allowlist before being interpolated into
+    the PQL query to prevent injection attacks.
     """
-    Performance metrics for a specific node.
-    Returns detailed timing history for the given node.
-    """
+    certname = _validate_pql_value(certname, "certname")
     try:
         reports = await puppetdb_service.get_reports(
             query=f'["=", "certname", "{certname}"]',

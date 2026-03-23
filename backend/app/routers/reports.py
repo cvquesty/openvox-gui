@@ -1,12 +1,43 @@
 """
-Reports API - View Puppet run reports from PuppetDB.
+Reports API — View Puppet run reports stored in PuppetDB.
+
+Provides endpoints for listing reports with optional filters (certname,
+status, environment) and for fetching detailed report data including
+resource events, logs, and performance metrics.
+
+Security note: all filter values are validated against a strict character
+pattern before being interpolated into PQL query strings. This prevents
+PQL injection attacks where an attacker might craft a filter value that
+breaks out of the PQL string literal and injects additional clauses.
 """
+import re
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 from ..services.puppetdb import puppetdb_service
 from ..models.schemas import ReportSummary, ReportDetail
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+# Strict allowlist pattern for values that will be interpolated into PQL
+# query strings. Only alphanumeric characters, dots, hyphens, and
+# underscores are permitted. This covers valid Puppet certnames,
+# environment names, and report status strings.
+_SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
+
+def _validate_pql_value(value: str, field_name: str) -> str:
+    """Validate that a value is safe to interpolate into a PQL query.
+
+    Rejects any value containing characters outside the strict allowlist
+    to prevent PQL injection. For example, a certname like:
+        'webserver1"] or true --'
+    would be rejected because it contains quote characters and spaces.
+    """
+    if not _SAFE_PQL_VALUE.match(value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name}: contains disallowed characters",
+        )
+    return value
 
 
 @router.get("/", response_model=List[ReportSummary])
@@ -17,14 +48,23 @@ async def list_reports(
     limit: int = Query(50, le=200),
     offset: int = Query(0),
 ):
-    """List reports with optional filters."""
+    """List Puppet run reports with optional certname, status, and
+    environment filters.
+
+    All filter values are validated before being interpolated into the
+    PuppetDB PQL query to guard against injection. Results are ordered
+    by receive time (newest first) and paginated via limit/offset.
+    """
     try:
         conditions = []
         if certname:
+            certname = _validate_pql_value(certname, "certname")
             conditions.append(f'["=", "certname", "{certname}"]')
         if status:
+            status = _validate_pql_value(status, "status")
             conditions.append(f'["=", "status", "{status}"]')
         if environment:
+            environment = _validate_pql_value(environment, "environment")
             conditions.append(f'["=", "environment", "{environment}"]')
 
         query = None
@@ -52,6 +92,8 @@ async def list_reports(
             )
             for r in reports
         ]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

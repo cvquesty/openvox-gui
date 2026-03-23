@@ -1,11 +1,23 @@
 """
 PQL Console API — Execute PuppetDB Puppet Query Language queries.
+
+Provides a pass-through endpoint that lets the frontend execute arbitrary
+PQL queries against PuppetDB. This is the "power user" feature — it gives
+operators the full expressiveness of PuppetDB's query language.
+
+Security note: PQL queries are validated using the sanitisation utilities
+in utils/validation.py before being forwarded to PuppetDB. This checks
+for excessive length and patterns that look like SQL injection (even though
+PQL is not SQL, defence-in-depth never hurts). The actual query is
+executed by PuppetDB, which has its own parser and will reject malformed
+queries with a 400 error.
 """
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..services.puppetdb import puppetdb_service
+from ..utils.validation import validate_pql_query
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +31,19 @@ class PQLRequest(BaseModel):
 
 @router.post("/query")
 async def execute_pql(request: PQLRequest):
-    """Execute a raw PQL query against PuppetDB."""
+    """Execute a raw PQL query against PuppetDB.
+
+    The query string is validated for length and suspicious patterns
+    before being forwarded to PuppetDB. PuppetDB itself performs full
+    query parsing and will return a 400 error for malformed PQL.
+    """
+    # Validate the query using the centralised validation utility.
+    # This catches excessively long queries and SQL-injection-like patterns.
+    try:
+        validate_pql_query(request.query)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     try:
         client = await puppetdb_service._get_client()
         params = {"query": request.query, "limit": str(request.limit)}

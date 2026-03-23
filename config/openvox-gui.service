@@ -1,3 +1,28 @@
+# ──────────────────────────────────────────────────────────────
+# OpenVox GUI — systemd service unit file
+#
+# This service runs the OpenVox GUI backend (a Python FastAPI
+# application served by uvicorn) as a long-running daemon under
+# the "puppet" system user. The install script replaces every
+# occurrence of INSTALL_DIR with the actual installation path
+# (typically /opt/openvox-gui).
+#
+# The service is configured to start after the network is up and
+# after PuppetServer and PuppetDB, because the GUI depends on
+# both of those services being available for API queries.
+#
+# Security hardening notes:
+#   - ProtectSystem=strict mounts the filesystem read-only except
+#     for the paths listed in ReadWritePaths. This prevents the
+#     service from accidentally writing outside its designated
+#     data directories.
+#   - NoNewPrivileges=false is required because several operations
+#     (certificate management, Bolt execution, r10k deployment)
+#     use sudo to escalate privileges for specific commands.
+#   - PrivateTmp=false is required because Bolt and r10k create
+#     temporary files that need to be accessible across processes.
+# ──────────────────────────────────────────────────────────────
+
 [Unit]
 Description=OpenVox GUI - Puppet Management Web Interface
 After=network.target puppetserver.service puppetdb.service
@@ -14,7 +39,8 @@ ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
 
-# Security hardening
+# Security hardening — mount the root filesystem read-only and only
+# allow writes to the specific directories that the application needs.
 NoNewPrivileges=false
 ProtectSystem=strict
 PrivateTmp=false

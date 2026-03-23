@@ -115,15 +115,22 @@ async def login(request: Request, login_request: LoginRequest):
     3. This allows local service accounts to coexist with LDAP users
     """
     if settings.auth_backend == "none":
-        # No auth - just return a token for anonymous
+        # No auth — issue a token for the anonymous admin user.
         token = create_token("anonymous", "admin")
         response = JSONResponse(content={
             "token": token,
             "user": {"username": "anonymous", "role": "admin"},
         })
+        # Set the authentication cookie with strict security attributes:
+        #   httponly:  Prevents JavaScript from reading the cookie (XSS mitigation)
+        #   samesite: "strict" blocks the cookie from being sent on cross-site
+        #             requests entirely, providing strong CSRF protection. (Changed
+        #             from "lax" which still sends cookies on top-level navigations.)
+        #   secure:   Ensures the cookie is only sent over HTTPS (disabled in debug
+        #             mode so localhost development works without TLS).
         response.set_cookie(
             key="openvox_token", value=token,
-            httponly=True, samesite="lax", max_age=86400,
+            httponly=True, samesite="strict", max_age=86400,
             secure=not settings.debug
         )
         return response
@@ -174,7 +181,7 @@ async def login(request: Request, login_request: LoginRequest):
         })
         response.set_cookie(
             key="openvox_token", value=token,
-            httponly=True, samesite="lax", max_age=86400,
+            httponly=True, samesite="strict", max_age=86400,
             secure=not settings.debug
         )
         logger.info(f"User '{login_username}' authenticated via LDAP (role: {ldap_result['role']})")
@@ -193,7 +200,7 @@ async def login(request: Request, login_request: LoginRequest):
     })
     response.set_cookie(
         key="openvox_token", value=token,
-        httponly=True, samesite="lax", max_age=86400,
+        httponly=True, samesite="strict", max_age=86400,
         secure=not settings.debug
     )
     return response

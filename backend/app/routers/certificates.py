@@ -1,8 +1,20 @@
 """
 Certificate Authority API — Manage Puppet CA certificates.
+
+Provides endpoints for listing, signing, revoking, and cleaning Puppet
+certificates, as well as inspecting Certificate Authority health (expiry
+dates, CRL status, key sizes, etc.).
+
+All certificate operations are proxied through the `puppetserver ca`
+command-line tool, which enforces its own access controls.
+
+Security note: certname parameters are validated against a strict
+character allowlist before being used in filesystem paths or shell
+commands to prevent path traversal and command injection attacks.
 """
 import asyncio
 import logging
+import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -11,6 +23,30 @@ router = APIRouter(prefix="/api/certificates", tags=["certificates"])
 logger = logging.getLogger(__name__)
 
 PUPPETSERVER_CA = "/opt/puppetlabs/bin/puppetserver"
+
+# Strict pattern for Puppet certificate names (FQDNs). Only alphanumeric
+# characters, dots, and hyphens are allowed — no slashes, no double-dots,
+# no path separators. This prevents path traversal attacks where a
+# crafted certname like "../../etc/shadow" could be used to read
+# arbitrary files from the filesystem.
+_SAFE_CERTNAME = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$')
+
+def _validate_certname(certname: str) -> str:
+    """Validate that a certificate name is safe for use in file paths
+    and shell commands.
+
+    Puppet certificate names are always FQDNs, which can only contain
+    letters, digits, dots, and hyphens. Anything else is rejected to
+    prevent path traversal (e.g., '../../etc/shadow') or command
+    injection through the puppetserver ca subprocess.
+    """
+    if not certname or len(certname) > 253:
+        raise HTTPException(status_code=400, detail="Invalid certname: too short or too long")
+    if '..' in certname or '/' in certname or '\\' in certname:
+        raise HTTPException(status_code=400, detail="Invalid certname: path traversal not allowed")
+    if not _SAFE_CERTNAME.match(certname):
+        raise HTTPException(status_code=400, detail="Invalid certname: contains disallowed characters")
+    return certname
 
 
 async def _run_ca_command(args: List[str], timeout: int = 30) -> dict:
@@ -127,7 +163,12 @@ class CertActionRequest(BaseModel):
 
 @router.post("/sign")
 async def sign_certificate(request: CertActionRequest):
-    """Sign a pending certificate request."""
+    """Sign a pending certificate request.
+
+    Validates the certname to prevent command injection before passing
+    it to the puppetserver ca subprocess.
+    """
+    _validate_certname(request.certname)
     result = await _run_ca_command(["sign", "--certname", request.certname])
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
@@ -137,7 +178,12 @@ async def sign_certificate(request: CertActionRequest):
 
 @router.post("/revoke")
 async def revoke_certificate(request: CertActionRequest):
-    """Revoke a signed certificate."""
+    """Revoke a signed certificate.
+
+    Validates the certname before passing it to the puppetserver ca
+    subprocess to prevent command injection.
+    """
+    _validate_certname(request.certname)
     result = await _run_ca_command(["revoke", "--certname", request.certname])
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
@@ -147,7 +193,12 @@ async def revoke_certificate(request: CertActionRequest):
 
 @router.post("/clean")
 async def clean_certificate(request: CertActionRequest):
-    """Clean (remove) a certificate."""
+    """Clean (remove) a certificate and all associated key material.
+
+    Validates the certname before passing it to the puppetserver ca
+    subprocess to prevent command injection.
+    """
+    _validate_certname(request.certname)
     result = await _run_ca_command(["clean", "--certname", request.certname])
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
@@ -160,7 +211,7 @@ async def get_ca_info():
     """Get information about the Certificate Authority itself."""
     import subprocess
     import re
-    from datetime import datetime
+    from datetime import datetime, timezone
     
     try:
         # Get CA certificate info
@@ -210,7 +261,7 @@ async def get_ca_info():
                 na_date = datetime.strptime(info["not_after"], "%b %d %H:%M:%S %Y %Z")
                 info["valid_until"] = na_date.isoformat()
                 # Calculate days until expiration
-                days_until = (na_date - datetime.utcnow()).days
+                days_until = (na_date - datetime.now(timezone.utc).replace(tzinfo=None)).days
                 info["days_until_expiry"] = days_until
                 info["is_expired"] = days_until < 0
                 info["expires_soon"] = 0 < days_until < 90
@@ -278,12 +329,28 @@ async def get_ca_info():
 
 @router.get("/info/{certname}")
 async def certificate_info(certname: str):
-    """Get detailed info about a specific certificate."""
+    """Get detailed x509 information about a specific signed certificate.
+
+    The certname is validated against a strict allowlist to prevent
+    path traversal attacks — without this check, a request like
+    GET /certificates/info/../../etc/shadow would read arbitrary files.
+    After validation, we also confirm the resolved path stays within the
+    Puppet CA's signed certificate directory as an additional safeguard.
+    """
     import subprocess
+    from pathlib import Path
+
+    certname = _validate_certname(certname)
     try:
-        cert_path = f"/etc/puppetlabs/puppet/ssl/ca/signed/{certname}.pem"
+        # Build the path and verify it stays within the expected directory
+        # as an additional defence-in-depth check beyond the regex validation.
+        ca_signed_dir = Path("/etc/puppetlabs/puppet/ssl/ca/signed")
+        cert_path = (ca_signed_dir / f"{certname}.pem").resolve()
+        if not str(cert_path).startswith(str(ca_signed_dir.resolve())):
+            return {"certname": certname, "error": "Path traversal not allowed"}
+
         result = subprocess.run(
-            ["sudo", "openssl", "x509", "-in", cert_path, "-text", "-noout"],
+            ["sudo", "openssl", "x509", "-in", str(cert_path), "-text", "-noout"],
             capture_output=True, text=True, timeout=10
         )
         if result.returncode != 0:

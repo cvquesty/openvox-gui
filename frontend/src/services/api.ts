@@ -1,8 +1,30 @@
 /**
- * API client for the OpenVox GUI backend.
+ * Centralised API client for the OpenVox GUI backend.
+ *
+ * Every backend call in the frontend goes through this module. It provides
+ * a thin wrapper around the browser's fetch() API that handles:
+ *
+ *   1. Automatic injection of the JWT bearer token from localStorage into
+ *      every request's Authorization header.
+ *   2. Automatic session expiry detection — if the backend responds with
+ *      HTTP 401, the stored token is cleared and the page is reloaded so
+ *      the user sees the login screen.
+ *   3. Consistent error handling — non-2xx responses are converted into
+ *      thrown Error objects with the status code and response body.
+ *   4. Transparent handling of HTTP 204 No Content responses (returned by
+ *      DELETE endpoints), which have no response body to parse as JSON.
+ *
+ * The module is organised into namespaced objects (dashboard, nodes,
+ * reports, etc.) that mirror the backend's router structure, making it
+ * easy to find the client function for any given API endpoint.
  */
 const API_BASE = '/api';
 
+/**
+ * Build the standard headers object for an authenticated API request.
+ * Includes Content-Type: application/json and, if the user is logged in,
+ * the Bearer token read from localStorage.
+ */
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = localStorage.getItem('openvox_token');
@@ -12,13 +34,24 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+/**
+ * Core fetch wrapper used by every API function in this module.
+ *
+ * Prepends the API_BASE path, injects auth headers, and handles error
+ * responses uniformly. If the backend returns 401 (token expired or
+ * invalid), the token is cleared from localStorage and the page is
+ * force-reloaded so the login screen appears — this is the simplest
+ * way to handle session expiry without introducing a complex token
+ * refresh flow.
+ */
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
     headers: getAuthHeaders(),
     ...options,
   });
   if (response.status === 401) {
-    // Token expired or invalid — clear it and reload to show login
+    // Token has expired or been revoked. Clear local state and reload
+    // the page so the user is presented with the login form.
     localStorage.removeItem('openvox_token');
     window.location.reload();
     throw new Error('Session expired. Please log in again.');
@@ -27,6 +60,8 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     const error = await response.text();
     throw new Error(`API Error ${response.status}: ${error}`);
   }
+  // HTTP 204 No Content has no response body — return an empty object
+  // rather than trying to parse undefined JSON.
   if (response.status === 204) return {} as T;
   return response.json();
 }
@@ -297,11 +332,14 @@ export const facts = {
 };
 
 // ─── Resource Explorer ──────────────────────────────────────
+// Searches for Puppet resources by type and optional title using a PQL
+// query against PuppetDB. The type and title are embedded in the query
+// as quoted strings. Results are ordered by certname and capped at 200.
 
 export const resources = {
   search: (type: string, title?: string) => {
-    let q = 'resources { type =  + type + ';
-    if (title) q += ' and title =  + title + ';
+    let q = `resources { type = "${type}"`;
+    if (title) q += ` and title = "${title}"`;
     q += ' order by certname limit 200 }';
     return pql.query(q, 200);
   },

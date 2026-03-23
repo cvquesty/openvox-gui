@@ -162,7 +162,7 @@ async def run_deployment(deploy: DeployRequest, request: Request):
             raise HTTPException(status_code=403, detail="Admin or operator role required")
 
     try:
-        cmd = ["sudo", "/opt/puppetlabs/puppet/bin/r10k", "deploy", "environment"]
+        cmd = ["sudo", "-E", "/opt/puppetlabs/puppet/bin/r10k", "deploy", "environment"]
         if deploy.environment:
             cmd.append(deploy.environment)
         cmd.extend(["-pv"])
@@ -201,13 +201,35 @@ async def run_deployment(deploy: DeployRequest, request: Request):
 
 
 # ─── Deploy History ────────────────────────────────────────
+# Deployment history is persisted as a JSON array in a flat file. We
+# keep the last 100 entries to prevent unbounded growth. Because
+# multiple deployment requests could arrive concurrently (especially
+# if an operator clicks the button twice, or if a CI pipeline fires
+# deployments in parallel), we use a threading lock to serialise
+# read-modify-write cycles on the history file. Without this lock,
+# two concurrent _add_history_entry calls could both read the same
+# state, each append their own entry, and then the second write would
+# silently overwrite the first entry — a classic lost-update race
+# condition.
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 HISTORY_FILE = Path("/opt/openvox-gui/data/deploy_history.json")
 
+# Serialises all read-modify-write access to the deploy history file
+# to prevent lost updates from concurrent deployment requests.
+_history_lock = threading.Lock()
+
+
 def _load_history() -> list:
+    """Load the deployment history from the JSON file on disk.
+
+    Returns an empty list if the file does not exist or cannot be
+    parsed — this is intentionally lenient so that a corrupted history
+    file does not prevent new deployments from being recorded.
+    """
     if HISTORY_FILE.exists():
         try:
             return json.loads(HISTORY_FILE.read_text())
@@ -215,14 +237,28 @@ def _load_history() -> list:
             return []
     return []
 
+
 def _save_history(history: list):
+    """Write the deployment history list to disk as pretty-printed JSON.
+
+    The default=str serialiser handles datetime objects that may appear
+    in the entry dictionaries.
+    """
     HISTORY_FILE.write_text(json.dumps(history, indent=2, default=str))
 
+
 def _add_history_entry(entry: dict):
-    history = _load_history()
-    history.insert(0, entry)
-    history = history[:100]  # Keep last 100
-    _save_history(history)
+    """Atomically append a new deployment entry to the history file.
+
+    Acquires the history lock to prevent lost updates when multiple
+    deployments are triggered concurrently. The history is capped at
+    100 entries to keep the file size bounded.
+    """
+    with _history_lock:
+        history = _load_history()
+        history.insert(0, entry)
+        history = history[:100]
+        _save_history(history)
 
 
 @router.get("/history")

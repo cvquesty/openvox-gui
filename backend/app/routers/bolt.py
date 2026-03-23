@@ -1,6 +1,22 @@
 """
 Bolt API — Puppet Bolt orchestration interface.
-Provides status, task/plan discovery, and execution endpoints.
+
+Provides endpoints for discovering available Bolt tasks and plans,
+executing ad-hoc commands, tasks, and plans on managed nodes, and
+reading/writing Bolt configuration files.
+
+All user-supplied commands are validated through the centralised command
+validation utility (utils/validation.py) which rejects dangerous shell
+patterns like fork bombs, device writes, and chained download commands.
+
+Security considerations:
+  - Commands are executed via subprocess through sudo, so the sudoers
+    configuration on the server must be tightly scoped.
+  - The user-supplied "command" field is passed directly to Bolt's
+    --command flag, not to a shell, so shell metacharacters are not
+    interpreted by the server. However, Bolt itself may execute the
+    command in a shell on the target nodes.
+  - Execution history is recorded in the database for audit purposes.
 """
 import asyncio
 import logging
@@ -17,6 +33,7 @@ from datetime import datetime, timezone
 from ..database import get_db
 from ..models import ExecutionHistory
 from ..dependencies import get_current_user
+from ..utils.validation import validate_command
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
@@ -197,7 +214,19 @@ async def run_command(
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(get_current_user)
 ):
-    """Run an ad-hoc command on targets."""
+    """Run an ad-hoc command on targets.
+
+    The command string is validated through the centralised command
+    validator which rejects dangerous shell patterns (fork bombs,
+    device writes, chained downloads, etc.) before execution.
+    """
+    # Validate the command for dangerous shell patterns before allowing
+    # it to be executed on target nodes via Bolt.
+    try:
+        validate_command(req.command)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
     
     # Create execution history entry
