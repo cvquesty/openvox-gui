@@ -12,7 +12,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -147,9 +147,19 @@ async def get_version():
     return {"version": __version__}
 
 
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """Serve static files from dist root, or fall back to React SPA."""
+@app.api_route("/{full_path:path}", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"])
+async def serve_spa(request: Request, full_path: str):
+    """Serve static files from dist root, or fall back to React SPA.
+
+    API paths that reach this handler are genuine 404s — no matching
+    API route was found. Return a proper JSON 404 instead of serving
+    the SPA shell (which would confuse API clients with a 200 HTML
+    response for GET, or a misleading 405 for other methods).
+    """
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail=f"API endpoint not found: /{full_path}")
+    if request.method not in ("GET", "HEAD"):
+        raise HTTPException(status_code=405, detail="Method Not Allowed")
     # Serve static files (e.g. openvox-logo.svg) directly from dist
     if full_path:
         static_file = (frontend_dist / full_path).resolve()
