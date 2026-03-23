@@ -16,6 +16,13 @@
 #   sudo /opt/openvox-gui/scripts/r10k-deploy.sh -pv    # all environments
 ###############################################################################
 
+# This script runs as root via sudo. Ensure HOME is set correctly
+# so git can find /root/.gitconfig (which may contain proxy settings
+# required to reach GitHub). sudo's env_reset can leave HOME pointing
+# at the invoking user's (puppet's) home directory instead of root's.
+export HOME=/root
+export USER=root
+
 # Source system-wide profile scripts to pick up proxy settings,
 # PATH additions, and any other environment configuration that
 # login shells get but systemd services do not.
