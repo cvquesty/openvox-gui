@@ -14,7 +14,8 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Request
 from passlib.hash import bcrypt
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import InvalidTokenError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,7 +69,7 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         if username is None:
             return None
         return {"user_id": username, "username": username, "name": username, "role": role}
-    except JWTError:
+    except (InvalidTokenError, Exception):
         return None
 
 
