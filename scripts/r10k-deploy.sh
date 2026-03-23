@@ -16,11 +16,11 @@
 #   sudo /opt/openvox-gui/scripts/r10k-deploy.sh -pv    # all environments
 ###############################################################################
 
-set -euo pipefail
-
 # Source system-wide profile scripts to pick up proxy settings,
 # PATH additions, and any other environment configuration that
 # login shells get but systemd services do not.
+# NOTE: no 'set -e' here — profile.d scripts often have commands
+# that return non-zero, which would kill this wrapper silently.
 for f in /etc/profile.d/*.sh; do
     [ -r "$f" ] && . "$f" 2>/dev/null || true
 done
