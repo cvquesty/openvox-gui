@@ -9,6 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [2.3.2] - 2026-03-23
+
+### Fixed
+- **ProtectSystem=strict → true**: The `strict` filesystem lockdown was fundamentally incompatible with a service that orchestrates Puppet agent, Bolt, and r10k — tools that write to `/var/cache/dnf`, `/etc/puppetlabs/puppet/ssl`, `/opt/puppetlabs/puppet/public`, and many other system paths during normal operation. Changed to `ProtectSystem=true` which protects only `/usr` and `/boot` (OS binaries) while allowing management tools to function. The puppet user's Unix permissions and scoped sudoers rules provide the actual access control. This eliminates all "Read-only file system" errors in a single change, replacing the `ReadWritePaths` patchwork that was growing with every new writable path discovery.
+- **Command validation regex blocked all Bolt commands**: An unescaped pipe character (`|`) in the netcat detection pattern (`r'|.*nc\s'`) caused the regex alternation operator to match the empty string — which matches every input. All commands submitted through Bolt (including "Run OpenVox") were rejected with "Command contains potentially dangerous patterns". Fixed to `r'\|.*nc\s'` to match a literal pipe.
+- **r10k deploy from GUI**: Created `r10k-deploy.sh` wrapper script that reconstructs root's full login environment before running r10k. The wrapper sources `/etc/profile`, root's `.bash_profile` and `.bashrc`, and extracts git proxy settings from root's `.gitconfig`. This resolves the "Could not resolve host: github.com" error that occurred because `sudo`'s `env_reset` stripped environment variables needed for DNS resolution and proxy access.
+- **Bolt config save 500 error**: Added `/etc/puppetlabs/bolt` to `ReadWritePaths` (and later absorbed by the `ProtectSystem=true` change) so the service can create and write `bolt-project.yaml` and `inventory.yaml`.
+- **Update script creates required directories**: The update script now creates `/etc/puppetlabs/bolt` before deploying the service file, preventing systemd `NAMESPACE` failures (exit 226) when `ReadWritePaths` references a non-existent directory.
+
+### Added
+- **Run OpenVox output panel**: The Node Detail page now displays Bolt's stdout and stderr inline after clicking "Run OpenVox", with an exit code badge and scrollable output area. Previously, the result was captured but discarded — users only saw a toast notification with no way to diagnose failures.
+- **Key Facts full display**: The Value column in the Key Facts tab now word-wraps naturally. Object values (os, networking, processors) render as pretty-printed JSON in a `Code` block instead of being truncated at 120 characters.
+- **ENC groups in Orchestration targets**: The Run Command and Run Task target selectors now display ENC node groups alongside individual PuppetDB nodes, organized in labeled dropdown sections (📁 Groups, Nodes). Selecting a group name passes it to Bolt as the target.
+
+### Changed
+- **Update scripts deploy system configs**: `update_local.sh` now deploys the systemd service file (with `INSTALL_DIR` substitution) and regenerates the sudoers rules on every update, so fixes to permissions, `ReadWritePaths`, and sudo policies take effect without manual file editing.
+
+## [2.3.1] - 2026-03-23
+
+### Security
+- **CVE-2025-54121** (Starlette, DoS via multipart parsing): Resolved by upgrading FastAPI from 0.115.5 to 0.135.1 which pulls Starlette 1.0.0.
+- **CVE-2025-62727** (Starlette, DoS via HTTP Range headers): Resolved by the same FastAPI upgrade.
+- **CVE-2024-23342** (ecdsa, Minerva timing side-channel attack enabling private key recovery): Eliminated entirely by replacing `python-jose[cryptography]` with `PyJWT[crypto]`. The `ecdsa` library was a transitive dependency of `python-jose` with no planned fix. `PyJWT` uses the `cryptography` library for all cryptographic operations, which is actively maintained and handles ECDSA securely.
+
+### Changed
+- **Major dependency upgrades**: FastAPI 0.115.5 → 0.135.1, Uvicorn 0.32.1 → 0.42.0, httpx 0.27.2 → 0.28.1, Pydantic 2.10.4 → 2.12.5, pydantic-settings 2.6.1 → 2.13.1, SQLAlchemy 2.0.36 → 2.0.48, aiosqlite 0.20.0 → 0.22.1, PyYAML 6.0.2 → 6.0.3, Alembic 1.14.0 → 1.18.4, prometheus-client 0.21.1 → 0.24.1.
+- **JWT library migration**: Replaced `python-jose[cryptography]` 3.5.0 with `PyJWT[crypto]` 2.12.1. The API is nearly identical (`jwt.encode`/`jwt.decode`). `python-jose` is unmaintained; FastAPI themselves have moved to PyJWT.
+- **bcrypt held at 4.2.1**: Not upgraded to 5.0 because `passlib` 1.7.4 is incompatible with bcrypt 5.0's new password length enforcement.
+
+## [2.3.0] - 2026-03-23
+
+### Fixed
+- **405 Method Not Allowed on ENC group/node deletion**: The SPA catch-all route was defined as `@app.get("/{full_path:path}")` (GET-only). When a DELETE request to a valid API endpoint fell through to this route, Starlette matched the path but not the method, returning 405. Changed to `@app.api_route` handling all methods with explicit 404 for unmatched `/api/*` paths and proper SPA serving for non-API requests.
+- **Update process assumed /opt/openvox-gui was a git repo**: The update scripts and documentation incorrectly instructed users to `cd /opt/openvox-gui && git pull`. In reality, the git repository is cloned to a staging directory (e.g. `~/openvox-gui`) and the installer deploys files from there to `/opt/openvox-gui`. Rewrote `update_local.sh`, `deploy.sh`, and `UPDATE.md` to reflect this clone-then-deploy architecture.
+
+### Added
+- **SUDOERS.md**: New guide documenting the exact sudoers configuration required for the GUI, including rules for r10k, Bolt, certificate management, service control, and Puppet lookup.
+- **Comprehensive inline docstrings**: All backend modules (routers, services, middleware, database, dependencies) now have detailed docstrings explaining security decisions, PQL injection prevention, and design rationale.
+
+### Changed
+- **r10k deploy wrapper**: `deploy.py` now calls `r10k-deploy.sh` instead of invoking r10k directly, ensuring proper environment setup regardless of how the service is started.
+- **Sudoers points at wrapper**: The sudoers rule for r10k now references `/opt/openvox-gui/scripts/r10k-deploy.sh` instead of the bare r10k binary.
+
+## [2.2.2] - 2026-03-10 – [2.2.9] - 2026-03-23
+
+### Fixed
+- **Installer proxy support**: Progressive improvements to proxy handling for corporate environments behind HTTP proxies — added programmatic proxy detection from environment variables, explicit `--proxy` flags for pip, improved URL encoding for proxy credentials with special characters, reduced npm concurrency to avoid proxy timeouts, and direct proxy passthrough to npm install.
+- **Installer Node.js auto-install**: The installer now automatically installs Node.js 18 from system repositories (dnf module, apt, or NodeSource) when it's not already present, removing the need for manual pre-installation.
+- **Pre-built frontend fallback**: If Node.js is unavailable or the npm build fails (common in restricted proxy environments), the installer falls back to a pre-built `frontend/dist/` directory shipped with the repository.
+- **Node.js MaxListenersExceededWarning**: Suppressed spurious warning during frontend builds by setting `NODE_OPTIONS=--max-old-space-size=4096`.
+
 ## [2.2.0-1] - 2026-03-02
 
 **Patch release** — security dependency update, installer fix, documentation corrections, and community PR.

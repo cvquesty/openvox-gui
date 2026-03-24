@@ -1,6 +1,6 @@
 # OpenVox GUI
 
-**Version 2.2.0-1** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md)
+**Version 2.3.2** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md) | [Sudoers Configuration](docs/SUDOERS.md)
 
 A user-friendly web interface for managing your OpenVox infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
 
@@ -47,9 +47,11 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 ## 📚 Documentation
 
 - **[Installation Guide](INSTALL.md)** — Step-by-step guide for new installations
-- **[Update Guide](UPDATE.md)** — How to update to newer versions
+- **[Update Guide](UPDATE.md)** — How to update to newer versions (clone-then-deploy architecture)
 - **[LDAP / Active Directory Guide](docs/LDAP.md)** — Configure enterprise authentication
+- **[Sudoers Configuration](docs/SUDOERS.md)** — Required sudo rules for the GUI service
 - **[Troubleshooting](TROUBLESHOOTING.md)** — Solutions to common problems
+- **[Changelog](CHANGELOG.md)** — Complete version history with every change documented
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to the project
 - **[Contributors](CONTRIBUTORS.md)** — People who helped build this project
 
@@ -188,27 +190,26 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 2.1.0
+## 🌟 What's New in Version 2.3
 
-### 🔐 LDAP / Active Directory Authentication
-- **Split authentication**: Authenticate users against LDAP (OpenLDAP, 389 DS, Red Hat Directory Server, or Active Directory) while managing roles locally in the User Manager
-- **Per-user auth source**: Each user can be individually set to authenticate via LDAP or local password — configurable when creating users and changeable at any time
-- **Auto-provisioning**: New LDAP users are created automatically on first login with a default Operator role
-- **LDAPS support**: Auto-detects SSL from `ldaps://` URLs with self-signed certificate support
-- **Quick presets**: One-click configuration templates for OpenLDAP, 389 DS / Red Hat DS, and Active Directory
-- **Connection testing**: Test LDAP connectivity with diagnostic feedback and troubleshooting hints
-- **Backward compatible**: Local accounts continue to work for service accounts and break-glass access
+### 🔒 Security — Zero CVEs
+- All 3 known vulnerabilities resolved: FastAPI upgraded to 0.135.1 (fixes 2 Starlette DoS CVEs), and `python-jose` replaced with `PyJWT[crypto]` to eliminate the unfixable ecdsa timing attack (CVE-2024-23342). `pip-audit` reports zero known vulnerabilities across the entire Python dependency stack.
 
-### 👥 Simplified Role Management
-- User roles (Admin, Operator, Viewer) are managed **exclusively** in the User Manager tab — one place, no confusion
-- LDAP handles authentication only; it has no knowledge of roles
-- New users default to Operator role
+### ⚡ Run OpenVox — See What Happened
+- The "Run OpenVox" button on the Node Detail page now shows Bolt's full stdout and stderr inline, with an exit code badge. Previously you only got a toast notification with no way to diagnose failures.
 
-### 🛠️ Installer Improvements
-- Fixed directory nesting bugs that prevented fresh installations
-- Added missing `VERSION` file copy (required by both backend and frontend)
-- Visible error messages for npm build failures (no more silent errors)
-- New `scripts/update_local.sh` for easy on-server updates with automatic backup
+### 🏷️ Orchestration Groups
+- The Run Command and Run Task target dropdowns now show ENC node groups (📁 webservers, 📁 databases) alongside individual nodes. Select a group to target all its members with one click.
+
+### 🔧 Deployment Architecture Fixed
+- The update process no longer assumes `/opt/openvox-gui` is a git repo. The correct workflow — pull in the staging repo, then deploy to `/opt` — is now enforced by the scripts and documented in UPDATE.md.
+- The update script now deploys the systemd service file and sudoers rules automatically, so system-level fixes take effect without manual file editing.
+
+### 🛡️ ProtectSystem Simplified
+- Replaced `ProtectSystem=strict` (which caused endless "Read-only file system" errors) with `ProtectSystem=true`. The service can now run Puppet agent, Bolt, and r10k without filesystem conflicts. `/usr` and `/boot` remain read-only to protect OS binaries.
+
+### 📋 Key Facts Display
+- Structured facts (os, networking, processors) now display as pretty-printed JSON instead of being truncated at 120 characters. All values word-wrap naturally.
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).
 
