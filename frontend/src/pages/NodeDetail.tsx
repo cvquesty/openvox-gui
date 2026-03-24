@@ -165,6 +165,30 @@ export function NodeDetailPage() {
         </Button>
       </Group>
 
+      {/* Show Run OpenVox output */}
+      {puppetResult && (
+        <Card withBorder shadow="sm" padding="md">
+          <Group justify="space-between" mb="xs">
+            <Text fw={700} size="sm">
+              Run Output {puppetResult.returncode === 0 ? '✅' : puppetResult.returncode === 2 ? '✅' : '❌'}
+            </Text>
+            <Badge color={puppetResult.returncode === 0 || puppetResult.returncode === 2 ? 'green' : 'red'}>
+              Exit {puppetResult.returncode}
+            </Badge>
+          </Group>
+          {puppetResult.output && (
+            <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 400, overflow: 'auto' }}>
+              {puppetResult.output}
+            </Code>
+          )}
+          {puppetResult.error && (
+            <Code block color="red" style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto', marginTop: 8 }}>
+              {puppetResult.error}
+            </Code>
+          )}
+        </Card>
+      )}
+
       <Grid>
         <Grid.Col span={{ base: 12, md: isFormal ? 4 : 3 }}>
           <Stack>
