@@ -15,12 +15,56 @@ commands to prevent path traversal and command injection attacks.
 import asyncio
 import logging
 import re
+import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 
 router = APIRouter(prefix="/api/certificates", tags=["certificates"])
 logger = logging.getLogger(__name__)
+
+# ─── Simple in-memory cache ────────────────────────────────
+# Cache for certificate list and CA info to speed up page loads.
+# Certificate list cache is invalidated on sign/revoke/clean operations.
+_CACHE_TTL_CERTS = 30      # seconds — cert list can change on sign/revoke
+_CACHE_TTL_CA_INFO = 3600  # seconds — CA info rarely changes (1 hour)
+
+_cache_cert_list = None
+_cache_cert_list_time = 0
+_cache_ca_info = None
+_cache_ca_info_time = 0
+
+def _get_cached_cert_list():
+    """Return cached cert list if still valid."""
+    global _cache_cert_list, _cache_cert_list_time
+    if _cache_cert_list and (time.time() - _cache_cert_list_time) < _CACHE_TTL_CERTS:
+        return _cache_cert_list
+    return None
+
+def _set_cached_cert_list(data):
+    """Store cert list in cache."""
+    global _cache_cert_list, _cache_cert_list_time
+    _cache_cert_list = data
+    _cache_cert_list_time = time.time()
+
+def _invalidate_cert_list_cache():
+    """Invalidate cert list cache (call after sign/revoke/clean)."""
+    global _cache_cert_list, _cache_cert_list_time
+    _cache_cert_list = None
+    _cache_cert_list_time = 0
+
+def _get_cached_ca_info():
+    """Return cached CA info if still valid."""
+    global _cache_ca_info, _cache_ca_info_time
+    if _cache_ca_info and (time.time() - _cache_ca_info_time) < _CACHE_TTL_CA_INFO:
+        return _cache_ca_info
+    return None
+
+def _set_cached_ca_info(data):
+    """Store CA info in cache."""
+    global _cache_ca_info, _cache_ca_info_time
+    _cache_ca_info = data
+    _cache_ca_info_time = time.time()
 
 PUPPETSERVER_CA = "/opt/puppetlabs/bin/puppetserver"
 
@@ -112,7 +156,12 @@ def _parse_cert_list(output: str) -> List[dict]:
 
 @router.get("/list")
 async def list_certificates():
-    """List all signed certificates."""
+    """List all signed certificates (cached for speed)."""
+    # Check cache first
+    cached = _get_cached_cert_list()
+    if cached is not None:
+        return cached
+    
     result = await _run_ca_command(["list", "--all"])
     if result["returncode"] != 0:
         # Try alternative: puppet cert list
@@ -154,7 +203,9 @@ async def list_certificates():
             else:
                 signed.append(entry)
     
-    return {"signed": signed, "requested": requested}
+    result = {"signed": signed, "requested": requested}
+    _set_cached_cert_list(result)
+    return result
 
 
 class CertActionRequest(BaseModel):
@@ -172,6 +223,7 @@ async def sign_certificate(request: CertActionRequest):
     result = await _run_ca_command(["sign", "--certname", request.certname])
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
+    _invalidate_cert_list_cache()  # Invalidate cache after mutation
     return {"status": "success", "message": f"Certificate signed for {request.certname}",
             "output": result["stdout"]}
 
@@ -185,6 +237,7 @@ async def revoke_certificate(request: CertActionRequest):
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["revoke", "--certname", request.certname])
+    _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
     return {"status": "success", "message": f"Certificate revoked for {request.certname}",
@@ -200,6 +253,7 @@ async def clean_certificate(request: CertActionRequest):
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["clean", "--certname", request.certname])
+    _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
     return {"status": "success", "message": f"Certificate cleaned for {request.certname}",
@@ -208,10 +262,15 @@ async def clean_certificate(request: CertActionRequest):
 
 @router.get("/ca-info")
 async def get_ca_info():
-    """Get information about the Certificate Authority itself."""
+    """Get information about the Certificate Authority itself (cached for speed)."""
     import re
     import subprocess
     from datetime import datetime, timezone
+    
+    # Check cache first
+    cached = _get_cached_ca_info()
+    if cached is not None:
+        return cached
     
     try:
         # Get CA certificate info (async subprocess to avoid blocking event loop)
@@ -322,7 +381,9 @@ async def get_ca_info():
             info["total_signed"] = 0
             info["total_pending"] = 0
         
-        return {"ca_info": info}
+        result = {"ca_info": info}
+        _set_cached_ca_info(result)
+        return result
         
     except Exception as e:
         logger.error(f"Error getting CA info: {str(e)}")

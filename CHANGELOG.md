@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Reports grouped by node groups**: Reports page now organizes reports by ENC node groups. Each group header shows a status badge: green "Unchanged" (all nodes unchanged), orange "Changed" (any node changed), or red "Failed" (any node failed). Groups are expandable to show individual node reports.
 - **Nav parent click behavior**: Clicking a nav group with children (e.g., Infrastructure, Data) now toggles expand/collapse without navigating. Users click child items to navigate, eliminating blanking between clicks.
 - **CA info async**: Certificate Authority info endpoint (`/certificates/ca-info`) now uses async subprocess (`asyncio.create_subprocess_exec`) instead of blocking `subprocess.run`, eliminating event-loop blocking and speeding up Certificate Authority page load.
+- **Certificate caching**: In-memory cache added for certificate list (30s TTL) and CA info (1h TTL). Cache for cert list is invalidated on sign/revoke/clean operations. This speeds up repeated Certificate Authority page loads.
 
 ## [2.3.2] - 2026-03-23
 
