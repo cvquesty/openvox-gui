@@ -401,6 +401,7 @@ async def list_config_files():
 async def read_config_file(request: ConfigFileReadRequest):
     """Read contents of a configuration file."""
     from pathlib import Path
+    import subprocess
     path = Path(request.path).resolve()
 
     # Security: only allow known Puppet config paths
@@ -421,8 +422,22 @@ async def read_config_file(request: ConfigFileReadRequest):
     if not path.is_file():
         raise HTTPException(status_code=400, detail="Path is not a file")
 
+    def _read_with_sudo(p: Path) -> str:
+        """Read file contents via sudo (for files owned by other users like puppetdb)."""
+        result = subprocess.run(
+            ["sudo", "cat", str(p)],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            raise PermissionError(f"sudo cat failed: {result.stderr}")
+        return result.stdout
+
     try:
-        content = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except PermissionError:
+            # File is owned by another user (e.g., puppetdb) — use sudo
+            content = _read_with_sudo(path)
         return {"path": str(path), "content": content}
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied reading file")
