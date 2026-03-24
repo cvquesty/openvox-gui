@@ -259,9 +259,11 @@ interface GroupedReports {
 
 function getGroupStatus(reports: any[]): 'unchanged' | 'changed' | 'failed' {
   if (reports.length === 0) return 'unchanged';
-  const hasFailed = reports.some(r => r.status === 'failed');
+  // Only consider the last 10 reports (most recent) for badge status
+  const recentReports = reports.slice(0, 10);
+  const hasFailed = recentReports.some(r => r.status === 'failed');
   if (hasFailed) return 'failed';
-  const hasChanged = reports.some(r => r.status === 'changed');
+  const hasChanged = recentReports.some(r => r.status === 'changed');
   if (hasChanged) return 'changed';
   return 'unchanged';
 }
