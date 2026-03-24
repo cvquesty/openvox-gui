@@ -81,6 +81,8 @@ export function AppShellLayout() {
   const { isFormal } = useAppTheme();
   const [activeSessions, setActiveSessions] = useState<any>(null);
   const [appName, setAppName] = useState('OpenVox GUI');
+  // Track which nav groups are expanded (keyed by label)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     config.getAppName().then((data: any) => {
@@ -137,12 +139,26 @@ export function AppShellLayout() {
       );
     }
 
+    // Multi-item groups: clicking parent navigates to first item (Dashboard)
+    // and opens the submenu. Use openGroups state, defaulting to anyActive.
+    const isOpen = openGroups[label] ?? anyActive;
+
+    const handleParentClick = () => {
+      const firstItem = items[0];
+      navigate(firstItem.path);
+      setOpened(false);
+      // Open the submenu when clicking the parent
+      setOpenGroups((prev) => ({ ...prev, [label]: true }));
+    };
+
     return (
       <NavLink
         label={label}
         leftSection={<GroupIcon size={18} />}
         childrenOffset={24}
-        defaultOpened={anyActive}
+        opened={isOpen}
+        onChange={(opened) => setOpenGroups((prev) => ({ ...prev, [label]: opened }))}
+        onClick={handleParentClick}
         variant="filled"
         mb={2}
       >

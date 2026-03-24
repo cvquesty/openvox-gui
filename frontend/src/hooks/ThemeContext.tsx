@@ -9,9 +9,9 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'casual',
+  theme: 'formal',
   setTheme: () => {},
-  isFormal: false,
+  isFormal: true,
 });
 
 export function useAppTheme() {
@@ -21,7 +21,7 @@ export function useAppTheme() {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<AppTheme>(() => {
     const stored = localStorage.getItem('openvox_theme');
-    return (stored === 'formal' ? 'formal' : 'casual') as AppTheme;
+    return (stored === 'casual' ? 'casual' : 'formal') as AppTheme;
   });
 
   const setTheme = (t: AppTheme) => {
