@@ -6,7 +6,7 @@ import {
 import { IconEye } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { dashboard, nodes } from '../services/api';
@@ -238,17 +238,17 @@ export function DashboardPage() {
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Report Trends</Title>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={stats.report_trends}>
+              <AreaChart data={stats.report_trends}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
                   tickFormatter={(v) => v.slice(11) || v} />
                 <YAxis allowDecimals={false} />
                 <ReTooltip />
                 <Legend />
-                <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
-              </LineChart>
+                <Area type="monotone" dataKey="unchanged" stackId="1" stroke="#40c057" fill="#40c057" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="changed" stackId="1" stroke="#fab005" fill="#fab005" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="failed" stackId="1" stroke="#fa5252" fill="#fa5252" fillOpacity={0.6} />
+              </AreaChart>
             </ResponsiveContainer>
           </Card>
         </Grid.Col>
