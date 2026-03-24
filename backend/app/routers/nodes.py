@@ -83,38 +83,81 @@ async def search_packages(
 ):
     """Search for installed packages across the entire fleet.
 
-    Queries PuppetDB's resource catalog for Package resources to find
-    which nodes have a specific package. This uses the universally
-    available 'resources' endpoint (not the PE-only 'packages' endpoint)
-    so it works with all PuppetDB versions including open-source.
+    Uses a two-tier query strategy:
 
-    The query searches for resources of type 'Package' with a matching
-    title (package name). Results include the certname, package title,
-    and the 'ensure' parameter which indicates the installed version.
+    1. PRIMARY: Queries the 'installed_packages' custom structured fact
+       which contains ALL installed system packages (RPM/DEB), collected
+       by the external fact in profiles/facts.d/installed_packages. This
+       covers every package on the system, not just Puppet-managed ones.
+
+    2. FALLBACK: If the custom fact isn't deployed yet, falls back to
+       querying Puppet Package resources from the catalog. This only
+       finds packages explicitly managed in Puppet manifests.
 
     IMPORTANT: This route MUST be defined before /{certname} to prevent
     FastAPI from matching 'packages' as a certname path parameter.
 
     Args:
         name:    Package name to search for (e.g., 'openssl', 'httpd').
-        version: Optional version/ensure filter (exact match).
+                 Supports partial matching against the custom fact.
+        version: Optional version filter (partial match).
         limit:   Maximum number of results (default 200).
     """
     try:
         if not name:
             return []
 
-        name = _validate_pql_value(name, "package name")
+        search_name = name.strip().lower()
 
-        # Query Package resources by title (package name) across all nodes.
-        # The 'ensure' parameter contains the installed version.
-        pql = f'resources {{ type = "Package" and title = "{name}" order by certname limit {limit} }}'
+        # ── Strategy 1: Query the installed_packages custom fact ──────
+        # This fact contains a JSON array of ALL installed packages on
+        # each node, collected by the external fact script. We fetch the
+        # fact for all nodes and filter client-side for the search term.
+        try:
+            fact_results = await puppetdb_service.get_facts(
+                fact_name="installed_packages"
+            )
 
+            if fact_results and len(fact_results) > 0:
+                packages = []
+                for fact in fact_results:
+                    certname = fact.get("certname", "")
+                    pkg_list = fact.get("value", [])
+                    if not isinstance(pkg_list, list):
+                        continue
+                    for pkg in pkg_list:
+                        if not isinstance(pkg, dict):
+                            continue
+                        pkg_name = pkg.get("name", "")
+                        pkg_version = pkg.get("version", "")
+                        pkg_arch = pkg.get("arch", "")
+                        # Partial match on package name
+                        if search_name in pkg_name.lower():
+                            # Apply version filter if specified
+                            if version and version not in pkg_version:
+                                continue
+                            packages.append({
+                                "certname": certname,
+                                "package_name": pkg_name,
+                                "version": pkg_version,
+                                "provider": pkg_arch,
+                            })
+
+                if packages:
+                    # Sort by certname, then package name, and limit results
+                    packages.sort(key=lambda p: (p["certname"], p["package_name"]))
+                    return packages[:limit]
+        except Exception as e:
+            logger.debug(f"Custom fact query failed (falling back to resources): {e}")
+
+        # ── Strategy 2: Fallback to Puppet Package resources ──────────
+        # Only finds packages explicitly managed in Puppet manifests.
+        safe_name = _validate_pql_value(name, "package name")
+        pql = f'resources {{ type = "Package" and title = "{safe_name}" order by certname limit {limit} }}'
         result = await puppetdb_service._query("", params={"query": pql})
         if not isinstance(result, list):
             return []
 
-        # Transform resource results into a package-friendly format
         packages = []
         for r in result:
             params = r.get("parameters", {})
@@ -125,11 +168,8 @@ async def search_packages(
                 "provider": params.get("provider", ""),
             })
 
-        # Apply version filter if specified (post-query since 'ensure'
-        # is inside the parameters JSON, not a top-level PQL field)
         if version:
-            version = _validate_pql_value(version, "version")
-            packages = [p for p in packages if version in p["version"]]
+            packages = [p for p in packages if version in p.get("version", "")]
 
         return packages
     except Exception as e:
