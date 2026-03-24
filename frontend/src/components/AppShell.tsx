@@ -209,7 +209,10 @@ export function AppShellLayout() {
     const isOpen = openGroups[label] ?? false;
 
     const handleParentClick = () => {
-      // Toggle expand/collapse without navigating — users click child items to navigate
+      // Navigate to first child item (e.g., Dashboard for Monitoring) and toggle expand
+      if (items.length > 0) {
+        navigate(items[0].path);
+      }
       setOpenGroups((prev) => ({ ...prev, [label]: !isOpen }));
       setOpened(false);
     };

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader, Center } from '@mantine/core';
 import { AuthProvider, useAuth } from './hooks/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -88,6 +88,9 @@ function AppRoutes() {
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />
           <Route path="/config/app" element={<ConfigAppPage />} />
+
+          {/* Default: redirect any unknown route to Dashboard */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </Suspense>
