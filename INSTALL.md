@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.1.1-6_beta**
+**OpenVox GUI Version 3.1.1-7_beta**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -290,7 +290,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.1.1-6_beta"}` if everything is working.
+You should see `{"status":"ok","version":"3.1.1-7_beta"}` if everything is working.
 
 ---
 
