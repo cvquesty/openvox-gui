@@ -34,9 +34,60 @@ from ..database import get_db
 from ..models import ExecutionHistory
 from ..dependencies import get_current_user
 from ..utils.validation import validate_command
+from ..services.enc import enc_service
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
+
+
+async def resolve_targets(targets: str, db: AsyncSession) -> str:
+    """Resolve a target string to actual certnames for Bolt execution.
+
+    The Orchestration UI sends target values that can be:
+      - A certname (e.g., 'openvox.pdxc-it.twitter.biz') — passed through as-is
+      - 'all' — resolved to a comma-separated list of all PuppetDB-known nodes
+      - An ENC group name (e.g., 'puppetservers') — resolved to the
+        comma-separated certnames of all nodes in that group
+
+    Bolt's --targets flag expects certnames or hostnames, not ENC group names.
+    This function bridges the gap between the GUI's group-based target
+    selection and Bolt's host-based execution model by querying the ENC
+    database to look up group membership.
+
+    Args:
+        targets: The raw target string from the frontend (certname, 'all',
+                 or an ENC group name).
+        db:      The async database session for ENC queries.
+
+    Returns:
+        A comma-separated string of certnames suitable for Bolt's --targets flag.
+        If the input is already a certname (not a group), it is returned unchanged.
+    """
+    # 'all' is handled natively by Bolt when using inventory — pass through
+    if targets == 'all':
+        return targets
+
+    # Check if the target matches an ENC group name. If so, resolve it to
+    # the comma-separated certnames of all nodes in that group.
+    groups = await enc_service.list_groups(db)
+    for group in groups:
+        if group.name.lower() == targets.lower():
+            # Found a matching group — get its member nodes
+            nodes = await enc_service.list_nodes(db)
+            members = []
+            for node in nodes:
+                node_groups = [g.name for g in node.groups]
+                if group.name in node_groups:
+                    members.append(node.certname)
+            if members:
+                logger.info(f"Resolved ENC group '{targets}' to {len(members)} targets: {', '.join(members)}")
+                return ','.join(members)
+            else:
+                logger.warning(f"ENC group '{targets}' exists but has no member nodes")
+                return targets
+
+    # Not a group name — assume it's a certname and pass through to Bolt
+    return targets
 
 BOLT_PATHS = [
     "/opt/puppetlabs/bolt/bin/bolt",
@@ -228,7 +279,12 @@ async def run_command(
         raise HTTPException(status_code=400, detail=str(e))
 
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
-    
+
+    # Resolve ENC group names to actual certnames. When the user selects
+    # a group like 'puppetservers' in the UI, we need to expand it to the
+    # comma-separated list of certnames that Bolt expects.
+    resolved_targets = await resolve_targets(req.targets, db)
+
     # Create execution history entry
     history_entry = ExecutionHistory(
         execution_type="command",
@@ -245,7 +301,7 @@ async def run_command(
     
     # Execute command
     start_time = time.time()
-    args = ["command", "run", req.command, "--targets", req.targets, "--format", fmt]
+    args = ["command", "run", req.command, "--targets", resolved_targets, "--format", fmt]
     if req.run_as:
         args.extend(["--run-as", req.run_as])
     result = await run_bolt_command(args, timeout=300)
@@ -270,7 +326,10 @@ async def run_task(
 ):
     """Run a Bolt task on targets."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
-    
+
+    # Resolve ENC group names to actual certnames for Bolt.
+    resolved_targets = await resolve_targets(req.targets, db)
+
     # Create execution history entry
     history_entry = ExecutionHistory(
         execution_type="task",
@@ -287,7 +346,7 @@ async def run_task(
     
     # Execute task
     start_time = time.time()
-    args = ["task", "run", req.task, "--targets", req.targets, "--format", fmt]
+    args = ["task", "run", req.task, "--targets", resolved_targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     if req.run_as:
