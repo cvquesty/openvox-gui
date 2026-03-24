@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - NodeClassifier.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text, Tabs,

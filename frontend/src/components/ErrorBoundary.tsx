@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ErrorBoundary.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { Alert, Button, Code, Stack, Text, Title, Center, Paper } from '@mantine/core';
 import { IconAlertTriangle, IconReload } from '@tabler/icons-react';

@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - AuthContext.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface User {

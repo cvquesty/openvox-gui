@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - index.ts
+ * 
+ * Component documentation to be expanded.
+ */
 // ─── Dashboard ──────────────────────────────────────────────
 
 export interface NodeStatusCount {

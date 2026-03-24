@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - StatusBadge.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { Badge } from '@mantine/core';
 
 const STATUS_COLORS: Record<string, string> = {

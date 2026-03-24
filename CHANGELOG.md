@@ -9,7 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.1.1-3_beta] - 2026-03-24
+## [3.2.0] - 2026-03-24
+
+### Added
+- **Reports grouped by ENC node groups**: Reports page now organizes reports by ENC node groups. Each group header shows a status badge: green "Unchanged" (all nodes unchanged), orange "Changed" (any node changed), or red "Failed" (any node failed). Groups are expandable to show individual node reports.
+- **Data navigation group**: New "Data" nav group under Code containing Hiera Data Files and Hiera Lookup (moved from OpenVox Configuration).
+- **Comprehensive inline documentation**: All backend Python modules and frontend TypeScript components now have verbose inline comments and docstrings explaining functionality, security decisions, and design rationale.
+
+### Changed
+- **Navigation restructure**: Infrastructure nav group moved under Monitoring as an expandable submenu. Orchestration (previously top-level) is now nested under Infrastructure. Certificate Authority remains the first sub-item under Infrastructure. Navigation now supports nested items via recursive renderNavItem.
+- **Code nav restructure**: Node Classifier moved from standalone nav group into Code as first submenu item. Deployment remains as second submenu item under Code.
+- **Rename Node Classifier**: Nav label and page title changed from "Node Classifier" to "Classification".
+- **Rename OpenVoxDB Explorer**: Nav label changed from "OpenVoxDB Explorer" to "Information". PQL Console, Fact Explorer, Resource Explorer, and Package Inventory remain as sub-items under Information.
+- **Nav collapsed by default**: All left-column menu groups (Monitoring, Code, Information, Settings, etc.) now appear collapsed on initial page load. Users click to expand.
+- **Settings submenu renamed**: "Settings" submenu under Settings main menu renamed to "Application Configuration".
+- **Nav parent click behavior**: Clicking a nav group with children (e.g., Infrastructure, Data) now toggles expand/collapse without navigating. Users click child items to navigate, eliminating blanking between clicks.
+- **CA info async**: Certificate Authority info endpoint (`/certificates/ca-info`) now uses async subprocess (`asyncio.create_subprocess_exec`) instead of blocking `subprocess.run`, eliminating event-loop blocking and speeding up Certificate Authority page load.
+- **Certificate caching**: In-memory cache added for certificate list (30s TTL) and CA info (1h TTL). Cache for cert list is invalidated on sign/revoke/clean operations. This speeds up repeated Certificate Authority page loads.
+- **Version 3.2.0 release**: Full release with all features from 3.1.1 beta series, comprehensive documentation, and inline code comments throughout.
+
+### Fixed
+- **Dashboard on login**: Fixed dashboard not loading properly on initial login.
+- **Monitoring click**: Fixed navigation when clicking Monitoring in sidebar.
+- **Reports badge logic**: Fixed badge grouping to use last 10 reports instead of 20.
+- **Nodes page grouping**: Fixed nodes page to derive grouping from hierarchy.nodes like Reports page.
+
+## [3.1.1-10_beta] - 2026-03-24
 
 ### Changed
 - **Navigation restructure**: Infrastructure nav group moved under Monitoring as an expandable submenu. Orchestration (previously top-level) is now nested under Infrastructure. Certificate Authority remains the first sub-item under Infrastructure. Navigation now supports nested items via recursive renderNavItem.

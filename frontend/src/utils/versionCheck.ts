@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - versionCheck.ts
+ * 
+ * Component documentation to be expanded.
+ */
 import { notifications } from '@mantine/notifications';
 
 // Store the current version from build time

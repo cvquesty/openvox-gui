@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ConfigPuppetDB.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import {
   Title, Card, Loader, Center, Alert, Stack, Text, Code, Table,
 } from '@mantine/core';

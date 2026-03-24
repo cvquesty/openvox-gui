@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - Dashboard.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,

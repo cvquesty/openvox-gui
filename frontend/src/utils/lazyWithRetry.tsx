@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - lazyWithRetry.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { lazy, ComponentType, LazyExoticComponent } from 'react';
 import { isChunkLoadError, handleChunkLoadError } from './versionCheck';
 

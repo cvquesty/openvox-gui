@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - Packages.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState } from 'react';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text,

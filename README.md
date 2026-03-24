@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.1.0--beta-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.2.0-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -214,28 +214,28 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 3.1.0-beta
+## 🌟 What's New in Version 3.2.0
 
-### 🔌 Dynamic Bolt Inventory *(headline feature)*
-- **No more manual `inventory.yaml` editing** — classify nodes in the GUI and Bolt picks them up live. The `openvox_enc` plugin queries the ENC database on every Bolt invocation. ENC groups become Bolt target groups. `bolt command run "uptime" -t webservers` just works.
+### 📊 Reports Page Grouping
+- **Reports organized by ENC node groups** — reports are now grouped by node groups with status badges (green "Unchanged", orange "Changed", red "Failed"). Groups are expandable to show individual node reports.
 
-### 🏷️ ENC Group Targeting
-- Select `📁 webservers` in the Orchestration dropdown → the backend resolves it to member certnames → Bolt runs against all of them. Works for Run Command, Run Task, and Run Plan.
+### 🧭 Navigation Restructuring
+- **Infrastructure moved under Monitoring** — Infrastructure nav group is now a submenu under Monitoring. Orchestration moved under Infrastructure.
+- **Node Classifier renamed to Classification** — now first item under Code nav group.
+- **OpenVoxDB Explorer renamed to Information** — contains PQL Console, Fact Explorer, Resource Explorer, and Package Inventory.
+- **All nav groups collapsed by default** — cleaner initial page load experience.
+- **Data menu added** — new nav group under Code with Hiera Data Files and Hiera Lookup.
 
-### 🗄️ Alembic Database Migrations
-- Full upgrade/downgrade migration framework with SQLite batch mode. Enables safe branch switching between stable and beta without database conflicts. Runs automatically on every deploy.
+### ⚡ Performance Improvements
+- **CA info async** — Certificate Authority info endpoint now uses async subprocess, eliminating event-loop blocking.
+- **Certificate caching** — 30s TTL for certificate list, 1h TTL for CA info. Cache invalidated on sign/revoke/clean operations.
+
+### 🔧 Navigation UX
+- **Nav parent click behavior** — clicking a nav group with children now toggles expand/collapse without navigating.
+- **Reports grouped by node groups** — reports page organizes reports by ENC node groups with status badges.
 
 ### 🔒 Security — Zero CVEs
 - `pip-audit`: 0 known vulnerabilities. FastAPI 0.135.1 (Starlette 1.0.0), PyJWT 2.12.1 (replaced python-jose), all dependencies at latest secure versions.
-
-### ⚡ Run OpenVox Output
-- The Node Detail page shows Bolt's full stdout/stderr inline after clicking "Run OpenVox", with exit code badge.
-
-### 🛡️ ProtectSystem Simplified
-- `ProtectSystem=strict` → `ProtectSystem=true`. No more read-only filesystem errors for Puppet, Bolt, or r10k.
-
-### 🔀 Branch Switching
-- Clean switching between stable and beta branches with a single command. Data and config are preserved.
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).
 

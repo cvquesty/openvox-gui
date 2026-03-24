@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - DataLookup.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { Stack, Title } from '@mantine/core';
 import { LookupTrace } from './ConfigPuppet';
 

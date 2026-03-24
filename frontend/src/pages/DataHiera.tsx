@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - DataHiera.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { Stack, Title } from '@mantine/core';
 import { HieraViewer } from './ConfigPuppet';
 

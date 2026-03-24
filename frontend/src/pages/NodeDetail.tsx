@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - NodeDetail.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {

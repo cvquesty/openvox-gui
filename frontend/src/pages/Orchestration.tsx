@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - Orchestration.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Tabs,

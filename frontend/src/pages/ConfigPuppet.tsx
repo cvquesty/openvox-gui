@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ConfigPuppet.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Code, Table,

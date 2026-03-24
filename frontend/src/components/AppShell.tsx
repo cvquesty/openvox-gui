@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - AppShell.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useEffect, ReactNode } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {

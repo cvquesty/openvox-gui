@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - CodeDeployment.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useRef } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Button, Select, Alert, Table,

@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - FactExplorer.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,

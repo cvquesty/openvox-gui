@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - Reports.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {

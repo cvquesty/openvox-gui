@@ -1,3 +1,18 @@
+/**
+ * OpenVox GUI - React Application Bootstrap
+ * 
+ * Entry point that initializes the React application with:
+ * - MantineProvider for UI components with custom Vox Pupuli theming
+ * - ThemeProvider for Casual/Formal theme switching
+ * - BrowserRouter for client-side routing
+ * - Notifications for toast messages and alerts
+ * 
+ * Theme Configuration:
+ * - vporange: Vox Pupuli Orange (#EC8622) primary color
+ * - Casual: Dark mode with orange accents and animations
+ * - Formal: Light mode with blue accents, professional look
+ */
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MantineProvider, createTheme, MantineColorScheme } from '@mantine/core';

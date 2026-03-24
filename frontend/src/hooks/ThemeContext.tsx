@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ThemeContext.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 export type AppTheme = 'casual' | 'formal';

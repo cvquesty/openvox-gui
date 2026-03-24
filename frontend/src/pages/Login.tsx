@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - Login.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useEffect } from 'react';
 import {
   Center, Card, Title, TextInput, PasswordInput, Button, Alert, Stack,

@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ReportDetail.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Badge,

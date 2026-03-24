@@ -1,3 +1,32 @@
+/**
+ * OpenVox GUI - Main Application Entry Point
+ * 
+ * This is the root React component that sets up the application routing,
+ * authentication context, and code-splitting for all pages.
+ * 
+ * **Architecture:**
+ * - Uses React Router 6 for client-side routing
+ * - Wraps app in AuthProvider for authentication state management
+ * - Uses ErrorBoundary for graceful error handling
+ * - Code-splits all pages via React.lazy with lazyWithRetry for reliability
+ * - Version checker monitors for application updates
+ * 
+ * **Route Structure:**
+ * - /login - Authentication page (public)
+ * - / - Dashboard (protected)
+ * - /nodes - Node list and status (protected)
+ * - /nodes/:certname - Node detail view (protected)
+ * - /reports - Compliance reports (protected)
+ * - /enc - Node Classifier / ENC management (protected)
+ * - /orchestration - Bolt command execution (protected)
+ * - /config/* - Configuration pages (protected)
+ * 
+ * **Security:**
+ * - All routes except /login require authentication
+ * - Unauthenticated users are redirected to /login
+ * - Token is validated on every page load
+ */
+
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader, Center } from '@mantine/core';

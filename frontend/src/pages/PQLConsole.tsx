@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - PQLConsole.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Textarea, Alert, Loader, Center,

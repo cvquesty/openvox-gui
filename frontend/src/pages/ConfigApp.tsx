@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ConfigApp.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Loader, Center, Alert, Card, Stack, Text, Code, Table, Badge, Group,

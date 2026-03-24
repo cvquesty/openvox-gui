@@ -44,28 +44,53 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown events."""
-    # Startup
+    """
+    Application lifecycle manager for startup and shutdown events.
+    
+    This async context manager handles the complete lifecycle of the FastAPI application:
+    
+    **Startup Phase:**
+    1. Logs application name and version for debugging/troubleshooting
+    2. Logs backend service endpoints (PuppetDB, PuppetServer) for verification
+    3. Creates required directories (data_dir, log_dir) if they don't exist
+    4. Initializes the SQLite database via init_db() which creates all tables
+       including users, enc_nodes, enc_groups, execution_history, etc.
+    5. Migrates any legacy htpasswd users to the database (one-time migration)
+       when using local authentication backend
+    
+    **Shutdown Phase:**
+    1. Closes the PuppetDB HTTP client connection pool gracefully
+    2. Logs shutdown completion for audit trail
+    
+    This pattern ensures clean resource management and proper initialization
+    order. The lifespan is tied to the FastAPI app instance and runs once
+    per application start/stop cycle.
+    """
+    # Startup: Log configuration for operational visibility
     logger.info(f"Starting {settings.app_name} v{__version__}")
     logger.info(f"PuppetDB: {settings.puppetdb_host}:{settings.puppetdb_port}")
     logger.info(f"PuppetServer: {settings.puppet_server_host}:{settings.puppet_server_port}")
 
-    # Ensure directories exist
+    # Ensure directories exist - critical for first-run initialization
+    # data_dir stores SQLite database and preferences.json
+    # log_dir stores application logs
     Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
     Path(settings.log_dir).mkdir(parents=True, exist_ok=True)
 
     # Initialize database (creates all tables including active_sessions)
+    # Uses SQLAlchemy async engine with aiosqlite for async SQLite access
     await init_db()
     logger.info("Database initialized")
 
     # Migrate legacy htpasswd users to database (one-time)
+    # This ensures backward compatibility with pre-database authentication
     if settings.auth_backend == "local":
         from .middleware.auth_local import migrate_htpasswd_users
         await migrate_htpasswd_users()
 
-    yield
+    yield  # Application runs here
 
-    # Shutdown
+    # Shutdown: Clean up resources
     await puppetdb_service.close()
     logger.info("Application shutdown complete")
 

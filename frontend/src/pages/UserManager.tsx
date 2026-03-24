@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - UserManager.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useCallback } from 'react';
 import {
   Title, Stack, Card, Table, Group, Button, TextInput, PasswordInput,

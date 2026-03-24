@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - ResourceExplorer.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,

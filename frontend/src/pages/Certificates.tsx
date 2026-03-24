@@ -1,3 +1,8 @@
+/**
+ * OpenVox GUI - Certificates.tsx
+ * 
+ * Component documentation to be expanded.
+ */
 import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
