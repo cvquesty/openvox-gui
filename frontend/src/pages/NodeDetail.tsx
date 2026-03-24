@@ -232,13 +232,11 @@ export function NodeDetailPage() {
                 {keyFacts.map((fact) => (
                   node.facts[fact] !== undefined ? (
                     <Table.Tr key={fact}>
-                      <Table.Td><Text fw={500} size="sm">{fact}</Text></Table.Td>
-                      <Table.Td>
-                        <Text size="sm">
-                          {typeof node.facts[fact] === 'object'
-                            ? JSON.stringify(node.facts[fact]).slice(0, 120)
-                            : String(node.facts[fact])}
-                        </Text>
+                      <Table.Td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}><Text fw={500} size="sm">{fact}</Text></Table.Td>
+                      <Table.Td style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                        {typeof node.facts[fact] === 'object'
+                          ? <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(node.facts[fact], null, 2)}</Code>
+                          : <Text size="sm">{String(node.facts[fact])}</Text>}
                       </Table.Td>
                     </Table.Tr>
                   ) : null
