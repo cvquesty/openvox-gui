@@ -258,6 +258,27 @@ class RunPlanRequest(BaseModel):
     params: Dict[str, Any] = Field(default_factory=dict)
     format: Optional[str] = "human"  # human, json, or rainbow
 
+class FileDownloadRequest(BaseModel):
+    """Request model for downloading files from remote targets via Bolt.
+
+    The source is a path on the remote target(s), and the destination is
+    a local directory on the Bolt controller (this server). Bolt creates
+    subdirectories named after each target under the destination.
+    """
+    source: str       # Remote path on the target (e.g., /etc/hosts)
+    destination: str  # Local directory to save downloaded files
+    targets: str      # Comma-separated certnames, 'all', or ENC group name
+
+
+# ─── Staging directory for file uploads ───────────────────────
+#
+# When users upload files through the GUI for distribution to targets,
+# the files are temporarily stored in this directory. The Bolt 'file
+# upload' command then reads from here and pushes to the targets.
+# The directory is created on first use and cleaned up periodically.
+
+UPLOAD_STAGING_DIR = Path("/opt/openvox-gui/data/bolt-uploads")
+
 
 @router.post("/run/command")
 async def run_command(
@@ -405,6 +426,148 @@ async def run_plan(
     await db.commit()
     
     return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
+
+
+# ─── File Transfer (Upload / Download) ───────────────────
+
+from fastapi import UploadFile, File as FastAPIFile, Form
+
+
+@router.post("/file/upload")
+async def upload_file_to_targets(
+    file: UploadFile = FastAPIFile(..., description="The file to upload to remote targets"),
+    targets: str = Form(..., description="Comma-separated certnames, 'all', or ENC group name"),
+    destination: str = Form(..., description="Remote path where the file should be placed on targets"),
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user),
+):
+    """Upload a file to remote targets via Puppet Bolt.
+
+    Accepts a multipart form upload from the browser, stages the file
+    locally in /opt/openvox-gui/data/bolt-uploads/, resolves any ENC
+    group names to certnames, then executes 'bolt file upload' to
+    distribute the file to all specified targets.
+
+    The staged file is cleaned up after the transfer completes (or
+    fails), regardless of the outcome. The upload result includes
+    Bolt's stdout, stderr, and exit code so the user can see exactly
+    what happened on each target.
+
+    Security: The destination path is validated to prevent path
+    traversal attacks. The uploaded file is stored with a unique
+    name to prevent collisions from concurrent uploads.
+    """
+    import uuid
+
+    # Validate destination path — reject path traversal attempts
+    if ".." in destination or destination.startswith("~"):
+        raise HTTPException(status_code=400, detail="Invalid destination path")
+
+    # Resolve ENC group names to actual certnames for Bolt
+    resolved_targets = await resolve_targets(targets, db)
+
+    # Stage the uploaded file to a temporary location on the server.
+    # Bolt's 'file upload' command reads from the local filesystem,
+    # so we need to save the browser's upload to disk first.
+    UPLOAD_STAGING_DIR.mkdir(parents=True, exist_ok=True)
+    staged_name = f"{uuid.uuid4().hex}_{file.filename}"
+    staged_path = UPLOAD_STAGING_DIR / staged_name
+
+    try:
+        # Write the uploaded file content to the staging directory
+        content = await file.read()
+        staged_path.write_bytes(content)
+        logger.info(f"User '{current_user}' staged file '{file.filename}' "
+                    f"({len(content)} bytes) for upload to {resolved_targets}")
+
+        # Execute Bolt file upload: pushes the staged file to all targets
+        args = ["file", "upload", str(staged_path), destination,
+                "--targets", resolved_targets, "--format", "human"]
+        result = await run_bolt_command(args, timeout=300)
+
+        return {
+            "success": result["returncode"] == 0,
+            "returncode": result["returncode"],
+            "filename": file.filename,
+            "size": len(content),
+            "destination": destination,
+            "targets": resolved_targets,
+            "output": result["stdout"],
+            "error": result["stderr"],
+        }
+    except Exception as e:
+        logger.error(f"File upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+    finally:
+        # Always clean up the staged file to prevent disk space leaks.
+        # This runs whether the upload succeeded or failed.
+        if staged_path.exists():
+            staged_path.unlink()
+
+
+@router.post("/file/download")
+async def download_file_from_targets(
+    req: FileDownloadRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user),
+):
+    """Download a file from remote targets to the Bolt controller via Bolt.
+
+    Executes 'bolt file download <source> <destination> --targets <certnames>'
+    which copies the specified file from each target into subdirectories
+    named after each target under the destination path on this server.
+
+    For example, downloading /etc/hosts from two targets to /tmp/downloads
+    creates:
+      /tmp/downloads/web01.example.com/hosts
+      /tmp/downloads/web02.example.com/hosts
+
+    The destination directory is created automatically if it does not
+    exist. The response includes Bolt's output showing which targets
+    succeeded and which failed.
+    """
+    # Validate paths — reject traversal attempts
+    if ".." in req.source or ".." in req.destination:
+        raise HTTPException(status_code=400, detail="Invalid path — '..' not allowed")
+
+    # Resolve ENC group names to actual certnames for Bolt
+    resolved_targets = await resolve_targets(req.targets, db)
+
+    # Create the destination directory if it doesn't exist
+    dest_path = Path(req.destination)
+    dest_path.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"User '{current_user}' downloading '{req.source}' from "
+                f"{resolved_targets} to {req.destination}")
+
+    # Execute Bolt file download
+    args = ["file", "download", req.source, req.destination,
+            "--targets", resolved_targets, "--format", "human"]
+    result = await run_bolt_command(args, timeout=300)
+
+    # List downloaded files for the response
+    downloaded_files = []
+    if dest_path.exists():
+        for target_dir in sorted(dest_path.iterdir()):
+            if target_dir.is_dir():
+                for f in sorted(target_dir.rglob("*")):
+                    if f.is_file():
+                        downloaded_files.append({
+                            "target": target_dir.name,
+                            "path": str(f.relative_to(dest_path)),
+                            "size": f.stat().st_size,
+                        })
+
+    return {
+        "success": result["returncode"] == 0,
+        "returncode": result["returncode"],
+        "source": req.source,
+        "destination": req.destination,
+        "targets": resolved_targets,
+        "files": downloaded_files,
+        "output": result["stdout"],
+        "error": result["stderr"],
+    }
 
 
 # ─── Configuration ────────────────────────────────────────

@@ -7,7 +7,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconTerminal2, IconListDetails, IconRoute, IconSettings, IconPlayerPlay,
-  IconBolt, IconHistory,
+  IconBolt, IconHistory, IconFileUpload, IconFileDownload, IconFiles, IconUpload, IconX,
 } from '@tabler/icons-react';
 import { bolt, nodes as nodesApi, enc } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -790,6 +790,227 @@ function ConfigTab() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   TAB: FILES (Upload / Download)
+   ═══════════════════════════════════════════════════════════════ */
+function FilesTab() {
+  const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
+  const [encGroups, setEncGroups] = useState<any[]>([]);
+
+  // Upload state
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTargets, setUploadTargets] = useState('');
+  const [uploadDest, setUploadDest] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<any>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  // Download state
+  const [downloadSource, setDownloadSource] = useState('');
+  const [downloadDest, setDownloadDest] = useState('/opt/openvox-gui/data/bolt-downloads');
+  const [downloadTargets, setDownloadTargets] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadResult, setDownloadResult] = useState<any>(null);
+
+  useEffect(() => {
+    nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
+    enc.listGroups().then(setEncGroups).catch(() => {});
+  }, []);
+
+  const targetSelectData = [
+    { group: 'Groups', items: [
+      { value: 'all', label: '🌐 All nodes' },
+      ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
+    ]},
+    { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
+  ];
+
+  // ─── Upload handlers ─────────────────────────────────────
+  const handleFileSelect = (files: FileList | null) => {
+    if (files && files.length > 0) setUploadFile(files[0]);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    handleFileSelect(e.dataTransfer.files);
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile || !uploadTargets || !uploadDest) return;
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const result = await bolt.uploadFile(uploadFile, uploadTargets, uploadDest);
+      setUploadResult(result);
+      if (result.success) {
+        notifications.show({ title: 'Upload Complete', message: `${uploadFile.name} uploaded to ${uploadTargets}`, color: 'green' });
+      } else {
+        notifications.show({ title: 'Upload Failed', message: `Exit code ${result.returncode}`, color: 'red' });
+      }
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+      setUploadResult({ success: false, error: e.message });
+    }
+    setUploading(false);
+  };
+
+  // ─── Download handler ────────────────────────────────────
+  const handleDownload = async () => {
+    if (!downloadSource || !downloadTargets || !downloadDest) return;
+    setDownloading(true);
+    setDownloadResult(null);
+    try {
+      const result = await bolt.downloadFile({
+        source: downloadSource, destination: downloadDest, targets: downloadTargets,
+      });
+      setDownloadResult(result);
+      if (result.success) {
+        notifications.show({ title: 'Download Complete', message: `${result.files?.length || 0} file(s) retrieved`, color: 'green' });
+      } else {
+        notifications.show({ title: 'Download Failed', message: `Exit code ${result.returncode}`, color: 'red' });
+      }
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+      setDownloadResult({ success: false, error: e.message });
+    }
+    setDownloading(false);
+  };
+
+  return (
+    <Stack>
+      <Alert variant="light" color="blue" mb="xs">
+        Transfer files between the OpenVox server and managed nodes using Puppet Bolt.
+        Upload pushes a local file to one or more targets. Download retrieves a remote
+        file from targets to this server.
+      </Alert>
+
+      <Grid>
+        {/* ── Upload Panel ─────────────────────────────────── */}
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Card withBorder shadow="sm" padding="md" h="100%">
+            <Group mb="md">
+              <ThemeIcon size="lg" variant="light" color="green"><IconFileUpload size={20} /></ThemeIcon>
+              <div>
+                <Text fw={700}>Upload File to Targets</Text>
+                <Text size="xs" c="dimmed">Push a file from your browser to remote nodes</Text>
+              </div>
+            </Group>
+            <Stack>
+              {/* Drag & drop zone */}
+              <Box
+                onDragOver={(e: React.DragEvent) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={handleDrop}
+                style={{
+                  border: `2px dashed ${dragActive ? 'var(--mantine-color-green-5)' : 'var(--mantine-color-gray-5)'}`,
+                  borderRadius: 8,
+                  padding: 24,
+                  textAlign: 'center',
+                  backgroundColor: dragActive ? 'var(--mantine-color-green-0)' : 'transparent',
+                  transition: 'all 0.2s',
+                  cursor: 'pointer',
+                }}
+                onClick={() => document.getElementById('file-upload-input')?.click()}
+              >
+                <input
+                  id="file-upload-input"
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleFileSelect(e.target.files)}
+                />
+                <IconUpload size={32} color="var(--mantine-color-dimmed)" style={{ marginBottom: 8 }} />
+                {uploadFile ? (
+                  <Group justify="center" gap="xs">
+                    <Badge color="green" size="lg">{uploadFile.name}</Badge>
+                    <Text size="xs" c="dimmed">({(uploadFile.size / 1024).toFixed(1)} KB)</Text>
+                    <Button variant="subtle" color="red" size="compact-xs"
+                      onClick={(e) => { e.stopPropagation(); setUploadFile(null); }}>
+                      <IconX size={12} />
+                    </Button>
+                  </Group>
+                ) : (
+                  <>
+                    <Text size="sm" c="dimmed">Drag a file here or click to browse</Text>
+                    <Text size="xs" c="dimmed">Any file type, up to 100 MB</Text>
+                  </>
+                )}
+              </Box>
+
+              <Select label="Targets" required searchable data={targetSelectData}
+                value={uploadTargets} onChange={(v) => setUploadTargets(v || '')}
+                placeholder="Select group or node" />
+              <TextInput label="Remote Destination Path" required
+                value={uploadDest} onChange={(e) => setUploadDest(e.currentTarget.value)}
+                placeholder="/tmp/myfile.conf or /etc/myapp/config.yaml" />
+              <Button onClick={handleUpload} loading={uploading}
+                disabled={!uploadFile || !uploadTargets || !uploadDest}
+                leftSection={<IconFileUpload size={16} />} color="green">
+                Upload File
+              </Button>
+
+              {uploadResult && (
+                <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>
+                  {uploadResult.output || uploadResult.error || 'No output'}
+                </Code>
+              )}
+            </Stack>
+          </Card>
+        </Grid.Col>
+
+        {/* ── Download Panel ───────────────────────────────── */}
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Card withBorder shadow="sm" padding="md" h="100%">
+            <Group mb="md">
+              <ThemeIcon size="lg" variant="light" color="blue"><IconFileDownload size={20} /></ThemeIcon>
+              <div>
+                <Text fw={700}>Download File from Targets</Text>
+                <Text size="xs" c="dimmed">Retrieve a file from remote nodes to this server</Text>
+              </div>
+            </Group>
+            <Stack>
+              <TextInput label="Remote Source Path" required
+                value={downloadSource} onChange={(e) => setDownloadSource(e.currentTarget.value)}
+                placeholder="/etc/hosts or /var/log/messages" />
+              <Select label="Targets" required searchable data={targetSelectData}
+                value={downloadTargets} onChange={(v) => setDownloadTargets(v || '')}
+                placeholder="Select group or node" />
+              <TextInput label="Local Destination Directory" required
+                value={downloadDest} onChange={(e) => setDownloadDest(e.currentTarget.value)}
+                placeholder="/opt/openvox-gui/data/bolt-downloads" />
+              <Button onClick={handleDownload} loading={downloading}
+                disabled={!downloadSource || !downloadTargets || !downloadDest}
+                leftSection={<IconFileDownload size={16} />} color="blue">
+                Download File
+              </Button>
+
+              {downloadResult && (
+                <>
+                  <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>
+                    {downloadResult.output || downloadResult.error || 'No output'}
+                  </Code>
+                  {downloadResult.files && downloadResult.files.length > 0 && (
+                    <Card withBorder padding="xs">
+                      <Text size="sm" fw={600} mb="xs">Retrieved Files:</Text>
+                      {downloadResult.files.map((f: any, i: number) => (
+                        <Group key={i} gap="xs">
+                          <Badge variant="outline" size="sm">{f.target}</Badge>
+                          <Text size="xs" style={{ fontFamily: 'monospace' }}>{f.path}</Text>
+                          <Text size="xs" c="dimmed">({(f.size / 1024).toFixed(1)} KB)</Text>
+                        </Group>
+                      ))}
+                    </Card>
+                  )}
+                </>
+              )}
+            </Stack>
+          </Card>
+        </Grid.Col>
+      </Grid>
+    </Stack>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    MAIN PAGE
    ═══════════════════════════════════════════════════════════════ */
 export function OrchestrationPage() {
@@ -803,6 +1024,7 @@ export function OrchestrationPage() {
           <Tabs.Tab value="command" leftSection={<IconTerminal2 size={16} />}>Run Command</Tabs.Tab>
           <Tabs.Tab value="task" leftSection={<IconListDetails size={16} />}>Run Task</Tabs.Tab>
           <Tabs.Tab value="plan" leftSection={<IconRoute size={16} />}>Run Plan</Tabs.Tab>
+          <Tabs.Tab value="files" leftSection={<IconFiles size={16} />}>Files</Tabs.Tab>
           <Tabs.Tab value="history" leftSection={<IconHistory size={16} />}>Execution History</Tabs.Tab>
           <Tabs.Tab value="config" leftSection={<IconSettings size={16} />}>Configuration</Tabs.Tab>
         </Tabs.List>
@@ -811,6 +1033,7 @@ export function OrchestrationPage() {
         <Tabs.Panel value="command" pt="md"><RunCommandTab /></Tabs.Panel>
         <Tabs.Panel value="task" pt="md"><RunTaskTab /></Tabs.Panel>
         <Tabs.Panel value="plan" pt="md"><RunPlanTab /></Tabs.Panel>
+        <Tabs.Panel value="files" pt="md"><FilesTab /></Tabs.Panel>
         <Tabs.Panel value="history" pt="md"><ExecutionHistoryTab /></Tabs.Panel>
         <Tabs.Panel value="config" pt="md"><ConfigTab /></Tabs.Panel>
       </Tabs>

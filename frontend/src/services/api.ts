@@ -199,6 +199,26 @@ export const bolt = {
     fetchJSON<any>('/bolt/run/task', { method: 'POST', body: JSON.stringify(data) }),
   runPlan: (data: { plan: string; params?: any; format?: string }) =>
     fetchJSON<any>('/bolt/run/plan', { method: 'POST', body: JSON.stringify(data) }),
+
+  // File transfer (upload / download)
+  uploadFile: (file: File, targets: string, destination: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('targets', targets);
+    formData.append('destination', destination);
+    const headers: Record<string, string> = {};
+    const token = localStorage.getItem('openvox_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Do NOT set Content-Type — browser sets it with boundary for multipart
+    return fetch(`${API_BASE}/bolt/file/upload`, {
+      method: 'POST', headers, body: formData,
+    }).then(async (r) => {
+      if (!r.ok) throw new Error(`API Error ${r.status}: ${await r.text()}`);
+      return r.json();
+    });
+  },
+  downloadFile: (data: { source: string; destination: string; targets: string }) =>
+    fetchJSON<any>('/bolt/file/download', { method: 'POST', body: JSON.stringify(data) }),
 };
 // ─── Users ──────────────────────────────────────────────────
 
