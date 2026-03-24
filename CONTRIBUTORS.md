@@ -25,3 +25,10 @@ We welcome contributions of all kinds:
 - 🔧 **Code** — Pull requests are welcome
 
 See the project [README](README.md) for setup instructions.
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

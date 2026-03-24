@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 2.3.2**
+**OpenVox GUI Version 3.1.0-beta**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"2.3.2"}
+   # Should return: {"status":"ok","version":"3.1.0-beta"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -726,3 +726,11 @@ sudo systemctl restart openvox-gui
 **Remember:** Most problems have simple solutions. Start with the Quick Fixes, then work through the specific section for your issue. When in doubt, check the logs - they usually tell you exactly what's wrong!
 
 **Still stuck?** Don't hesitate to ask for help on [GitHub Issues](https://github.com/cvquesty/openvox-gui/issues)!
+
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

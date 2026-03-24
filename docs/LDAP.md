@@ -350,3 +350,10 @@ Always maintain at least one local administrator account (like the default `admi
 - Use **LDAPS** (port 636) or **STARTTLS** for encrypted connections to your directory
 - If using self-signed certificates, provide the CA certificate path rather than disabling verification
 - The `ldap3` Python library used by OpenVox GUI is a pure-Python implementation with no system dependencies
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

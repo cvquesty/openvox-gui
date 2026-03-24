@@ -63,3 +63,11 @@ groups:
       - _plugin: openvox_enc
         api_url: 'https://localhost:4567'
 ```
+
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

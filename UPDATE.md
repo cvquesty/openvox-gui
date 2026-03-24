@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 2.3.2**
+**OpenVox GUI Version 3.1.0-beta**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -100,7 +100,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"2.3.2"}
+# {"status":"ok","version":"3.1.0-beta"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -643,3 +643,10 @@ Security updates are released as needed and should be applied immediately:
 **Remember:** Regular updates keep your system secure and running smoothly. When in doubt, backup first and update during a maintenance window!
 
 **Need help?** Check the [Troubleshooting Guide](TROUBLESHOOTING.md) or visit our [GitHub page](https://github.com/cvquesty/openvox-gui).
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

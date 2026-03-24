@@ -1,13 +1,28 @@
-# OpenVox GUI
+<div align="center">
 
-**Version 2.3.2** | [Installation Guide](INSTALL.md) | [Update Guide](UPDATE.md) | [Troubleshooting](TROUBLESHOOTING.md) | [Sudoers Configuration](docs/SUDOERS.md)
+# 🦊 OpenVox GUI
 
-A user-friendly web interface for managing your OpenVox infrastructure. Think of it as a control center for all your servers - you can see what's happening, fix problems, and make changes from one place.
+**A web-based management interface for OpenVox/Puppet infrastructure**
 
-![License](https://img.shields.io/badge/license-Apache%202.0-blue)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![React](https://img.shields.io/badge/react-18-blue)
-![Status](https://img.shields.io/badge/status-production%20ready-green)
+[![Version](https://img.shields.io/badge/version-3.1.0--beta-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://sqlite.org)
+
+[![CVE Status](https://img.shields.io/badge/CVEs-0%20known-brightgreen?style=flat-square)](CHANGELOG.md)
+[![GitHub Stars](https://img.shields.io/github/stars/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/commits/main)
+
+[Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
+
+A user-friendly web interface for managing your OpenVox infrastructure. Think of it as a control center for all your servers — you can see what's happening, fix problems, and make changes from one place.
 
 ## 🎯 What is OpenVox GUI?
 
@@ -82,8 +97,8 @@ Deploy new configurations to your servers:
 Run commands on multiple servers at once:
 - Execute shell commands across your fleet
 - Run pre-built tasks and plans
-- See the output from each server
-- Save commonly used commands
+- **Target ENC groups directly** — select "📁 webservers" instead of individual nodes
+- See the output from each server with ANSI color support
 
 ### 🏷️ Node Classifier
 Control what software and settings each server gets:
@@ -91,6 +106,15 @@ Control what software and settings each server gets:
 - Create groups of servers with similar needs
 - Override settings for individual servers
 - Preview changes before applying them
+- **Groups auto-populate Bolt inventory** — no manual inventory.yaml editing
+
+### 🔌 Dynamic Bolt Inventory *(3.x)*
+Eliminate manual Bolt inventory maintenance:
+- **Classify a node in the GUI → Bolt knows about it immediately**
+- `openvox_enc` Bolt plugin queries the ENC database at runtime
+- ENC groups become Bolt target groups automatically
+- PuppetDB auto-discovery for unclassified nodes
+- One-click inventory sync to `/etc/puppetlabs/bolt/inventory.yaml`
 
 ### 📁 Data Management
 Edit your configuration files directly:
@@ -190,26 +214,28 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 2.3
+## 🌟 What's New in Version 3.1.0-beta
+
+### 🔌 Dynamic Bolt Inventory *(headline feature)*
+- **No more manual `inventory.yaml` editing** — classify nodes in the GUI and Bolt picks them up live. The `openvox_enc` plugin queries the ENC database on every Bolt invocation. ENC groups become Bolt target groups. `bolt command run "uptime" -t webservers` just works.
+
+### 🏷️ ENC Group Targeting
+- Select `📁 webservers` in the Orchestration dropdown → the backend resolves it to member certnames → Bolt runs against all of them. Works for Run Command, Run Task, and Run Plan.
+
+### 🗄️ Alembic Database Migrations
+- Full upgrade/downgrade migration framework with SQLite batch mode. Enables safe branch switching between stable and beta without database conflicts. Runs automatically on every deploy.
 
 ### 🔒 Security — Zero CVEs
-- All 3 known vulnerabilities resolved: FastAPI upgraded to 0.135.1 (fixes 2 Starlette DoS CVEs), and `python-jose` replaced with `PyJWT[crypto]` to eliminate the unfixable ecdsa timing attack (CVE-2024-23342). `pip-audit` reports zero known vulnerabilities across the entire Python dependency stack.
+- `pip-audit`: 0 known vulnerabilities. FastAPI 0.135.1 (Starlette 1.0.0), PyJWT 2.12.1 (replaced python-jose), all dependencies at latest secure versions.
 
-### ⚡ Run OpenVox — See What Happened
-- The "Run OpenVox" button on the Node Detail page now shows Bolt's full stdout and stderr inline, with an exit code badge. Previously you only got a toast notification with no way to diagnose failures.
-
-### 🏷️ Orchestration Groups
-- The Run Command and Run Task target dropdowns now show ENC node groups (📁 webservers, 📁 databases) alongside individual nodes. Select a group to target all its members with one click.
-
-### 🔧 Deployment Architecture Fixed
-- The update process no longer assumes `/opt/openvox-gui` is a git repo. The correct workflow — pull in the staging repo, then deploy to `/opt` — is now enforced by the scripts and documented in UPDATE.md.
-- The update script now deploys the systemd service file and sudoers rules automatically, so system-level fixes take effect without manual file editing.
+### ⚡ Run OpenVox Output
+- The Node Detail page shows Bolt's full stdout/stderr inline after clicking "Run OpenVox", with exit code badge.
 
 ### 🛡️ ProtectSystem Simplified
-- Replaced `ProtectSystem=strict` (which caused endless "Read-only file system" errors) with `ProtectSystem=true`. The service can now run Puppet agent, Bolt, and r10k without filesystem conflicts. `/usr` and `/boot` remain read-only to protect OS binaries.
+- `ProtectSystem=strict` → `ProtectSystem=true`. No more read-only filesystem errors for Puppet, Bolt, or r10k.
 
-### 📋 Key Facts Display
-- Structured facts (os, networking, processors) now display as pretty-printed JSON instead of being truncated at 120 characters. All values word-wrap naturally.
+### 🔀 Branch Switching
+- Clean switching between stable and beta branches with a single command. Data and config are preserved.
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).
 
@@ -247,4 +273,10 @@ Built with love for the OpenVox community. Special thanks to:
 
 ---
 
+<div align="center">
+
 **Ready to get started?** Head over to the [Installation Guide](INSTALL.md) for step-by-step instructions!
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

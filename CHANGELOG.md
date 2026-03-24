@@ -1085,3 +1085,11 @@ First stable release of OpenVox GUI. All core features are complete, tested, and
 - SQLite via SQLAlchemy 2.0 + aiosqlite
 - httpx 0.25 for async PuppetDB SSL communication
 - Apache reverse proxy with SSL (Let's Encrypt)
+
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

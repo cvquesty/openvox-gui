@@ -103,3 +103,11 @@ This happens transparently — migration scripts use standard Alembic operations
 | `alembic/script.py.mako` | Template for new migration files |
 | `alembic/versions/` | Migration scripts (001_baseline, 002_..., etc.) |
 | `alembic/README.md` | This file |
+
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

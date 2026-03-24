@@ -61,3 +61,11 @@ puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 
 5. The install script (`install.sh`) creates this file automatically
    during installation.
+
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>

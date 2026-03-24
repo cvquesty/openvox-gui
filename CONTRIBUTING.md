@@ -23,3 +23,11 @@ We will review the PR and merge it as soon as possible.  It's that simple!
 > - Tweet about the project to get the word out.
 > - Refer to our project in your own project's README.
 > - Mention us at local meetups, on chat boards, Slack Channels, and IRC.
+
+---
+
+<div align="center">
+
+<sub>This document was created with the assistance of AI (Grok, xAI). All technical content has been reviewed and verified by human contributors.</sub>
+
+</div>
