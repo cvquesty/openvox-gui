@@ -12,10 +12,9 @@
 # both of those services being available for API queries.
 #
 # Security hardening notes:
-#   - ProtectSystem=strict mounts the filesystem read-only except
-#     for the paths listed in ReadWritePaths. This prevents the
-#     service from accidentally writing outside its designated
-#     data directories.
+#   - ProtectSystem=true makes /usr and /boot read-only, protecting
+#     OS binaries while allowing the service to manage /etc, /var,
+#     /opt as needed by Puppet, Bolt, and r10k.
 #   - NoNewPrivileges=false is required because several operations
 #     (certificate management, Bolt execution, r10k deployment)
 #     use sudo to escalate privileges for specific commands.
@@ -39,12 +38,15 @@ ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
 
-# Security hardening — mount the root filesystem read-only and only
-# allow writes to the specific directories that the application needs.
+# Security hardening — ProtectSystem=true makes /usr and /boot
+# read-only (protecting OS binaries) while leaving /etc, /var, /opt
+# writable. This is the right balance for a service that orchestrates
+# Puppet agent, Bolt, and r10k — tools that need broad filesystem
+# access to manage the system. The puppet user's Unix permissions and
+# scoped sudoers rules provide the actual access control.
 NoNewPrivileges=false
-ProtectSystem=strict
+ProtectSystem=true
 PrivateTmp=false
-ReadWritePaths=INSTALL_DIR/data INSTALL_DIR/logs /opt/puppetlabs/puppet/cache /opt/puppetlabs/puppet/public /etc/puppetlabs/code/environments /etc/puppetlabs/puppet/ssl /etc/puppetlabs/bolt /tmp /run/sudo
 
 [Install]
 WantedBy=multi-user.target
