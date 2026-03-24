@@ -63,7 +63,7 @@ const monitoringNav: NavItem[] = [
 ];
 
 const codeNav: NavItem[] = [
-  { label: 'Node Classifier', icon: IconHierarchy2, path: '/enc' },
+  { label: 'Classification', icon: IconHierarchy2, path: '/enc' },
   { label: 'Deployment', icon: IconRocket, path: '/deployment' },
 ];
 

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Navigation restructure**: Infrastructure nav group moved under Monitoring as an expandable submenu. Orchestration (previously top-level) is now nested under Infrastructure. Certificate Authority remains the first sub-item under Infrastructure. Navigation now supports nested items via recursive renderNavItem.
 - **Code nav restructure**: Node Classifier moved from standalone nav group into Code as first submenu item. Deployment remains as second submenu item under Code.
+- **Rename Node Classifier**: Nav label and page title changed from "Node Classifier" to "Classification".
 
 ## [2.3.2] - 2026-03-23
 

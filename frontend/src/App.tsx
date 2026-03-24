@@ -64,7 +64,7 @@ function AppRoutes() {
           {/* Code Deployment */}
           <Route path="/deployment" element={<CodeDeploymentPage />} />
 
-          {/* Node Classifier */}
+          {/* Classification */}
           <Route path="/enc" element={<NodeClassifierPage />} />
 
           {/* Orchestration */}

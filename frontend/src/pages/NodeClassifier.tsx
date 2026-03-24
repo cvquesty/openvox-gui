@@ -1008,7 +1008,7 @@ function CommonTab() {
 export function NodeClassifierPage() {
   return (
     <Stack>
-      <Title order={2}>Node Classifier</Title>
+      <Title order={2}>Classification</Title>
       <Tabs defaultValue="nodes" variant="outline">
         <Tabs.List>
           <Tabs.Tab value="nodes" leftSection={<IconServer size={16} />}>Nodes</Tabs.Tab>
