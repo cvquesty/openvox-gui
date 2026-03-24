@@ -245,9 +245,9 @@ export function DashboardPage() {
                 <YAxis allowDecimals={false} />
                 <ReTooltip />
                 <Legend />
-                <Area type="monotone" dataKey="unchanged" stackId="1" stroke="#40c057" fill="#40c057" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="changed" stackId="1" stroke="#fab005" fill="#fab005" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="failed" stackId="1" stroke="#fa5252" fill="#fa5252" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="unchanged" stroke="#40c057" fill="#40c057" fillOpacity={0.25} strokeWidth={2} />
+                <Area type="monotone" dataKey="changed" stroke="#fab005" fill="#fab005" fillOpacity={0.25} strokeWidth={2} />
+                <Area type="monotone" dataKey="failed" stroke="#fa5252" fill="#fa5252" fillOpacity={0.3} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
