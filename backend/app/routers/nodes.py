@@ -83,35 +83,55 @@ async def search_packages(
 ):
     """Search for installed packages across the entire fleet.
 
-    Queries PuppetDB's package inventory using PQL to find which nodes
-    have a specific package installed, optionally filtered by version.
-    Essential for security audits ("which servers have openssl 1.1.1?"),
-    upgrade planning, and compliance checks.
+    Queries PuppetDB's resource catalog for Package resources to find
+    which nodes have a specific package. This uses the universally
+    available 'resources' endpoint (not the PE-only 'packages' endpoint)
+    so it works with all PuppetDB versions including open-source.
+
+    The query searches for resources of type 'Package' with a matching
+    title (package name). Results include the certname, package title,
+    and the 'ensure' parameter which indicates the installed version.
 
     IMPORTANT: This route MUST be defined before /{certname} to prevent
     FastAPI from matching 'packages' as a certname path parameter.
 
     Args:
         name:    Package name to search for (e.g., 'openssl', 'httpd').
-        version: Optional version filter (exact match).
+        version: Optional version/ensure filter (exact match).
         limit:   Maximum number of results (default 200).
     """
     try:
-        conditions = []
-        if name:
-            name = _validate_pql_value(name, "package name")
-            conditions.append(f'package_name = "{name}"')
-        if version:
-            version = _validate_pql_value(version, "version")
-            conditions.append(f'version = "{version}"')
+        if not name:
+            return []
 
-        if conditions:
-            pql = "packages { " + " and ".join(conditions) + f" limit {limit} }}"
-        else:
-            pql = f"packages {{ limit {limit} }}"
+        name = _validate_pql_value(name, "package name")
+
+        # Query Package resources by title (package name) across all nodes.
+        # The 'ensure' parameter contains the installed version.
+        pql = f'resources {{ type = "Package" and title = "{name}" order by certname limit {limit} }}'
 
         result = await puppetdb_service._query("", params={"query": pql})
-        return result if isinstance(result, list) else []
+        if not isinstance(result, list):
+            return []
+
+        # Transform resource results into a package-friendly format
+        packages = []
+        for r in result:
+            params = r.get("parameters", {})
+            packages.append({
+                "certname": r.get("certname", ""),
+                "package_name": r.get("title", ""),
+                "version": params.get("ensure", "present"),
+                "provider": params.get("provider", ""),
+            })
+
+        # Apply version filter if specified (post-query since 'ensure'
+        # is inside the parameters JSON, not a top-level PQL field)
+        if version:
+            version = _validate_pql_value(version, "version")
+            packages = [p for p in packages if version in p["version"]]
+
+        return packages
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
