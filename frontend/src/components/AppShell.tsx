@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppShell as MantineAppShell,
@@ -39,36 +39,45 @@ import { useAppTheme } from '../hooks/ThemeContext';
 import { dashboard, config } from '../services/api';
 import { APP_VERSION } from '../version';
 
-const monitoringNav = [
+// Navigation item type (supports nested sub-items)
+interface NavItem {
+  label: string;
+  icon: any;
+  path: string;
+  children?: NavItem[];
+}
+
+const monitoringNav: NavItem[] = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
   { label: 'Nodes', icon: IconServer, path: '/nodes' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
+  {
+    label: 'Infrastructure',
+    icon: IconCertificate,
+    path: '/certificates',
+    children: [
+      { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
+      { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
+    ],
+  },
 ];
 
-const codeNav = [
+const codeNav: NavItem[] = [
   { label: 'Deployment', icon: IconRocket, path: '/deployment' },
 ];
 
-const encNav = [
+const encNav: NavItem[] = [
   { label: 'Node Classifier', icon: IconHierarchy2, path: '/enc' },
 ];
 
-const orchNav = [
-  { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
-];
-
-const explorerNav = [
+const explorerNav: NavItem[] = [
   { label: 'PQL Console', icon: IconTerminal, path: '/pql' },
   { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
   { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
 ];
 
-const infraNav = [
-  { label: 'Certificates', icon: IconCertificate, path: '/certificates' },
-];
-
-const configNav = [
+const configNav: NavItem[] = [
   { label: 'OpenVox Configuration', icon: IconNetwork, path: '/config/puppet' },
   { label: 'Settings', icon: IconSettings, path: '/config/app' },
 ];
@@ -113,24 +122,79 @@ export function AppShellLayout() {
   const logoSrc = isFormal ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
   const sectionLabelColor = isFormal ? '#868e96' : 'dimmed';
 
-  // Collapsible navigation group — each section rolls up into a parent
-  // NavLink that can be expanded/collapsed. The parent is highlighted
-  // when any child route is active, giving visual context even when
-  // collapsed. Single-item groups navigate directly without expanding.
-  const renderNavGroup = (label: string, icon: any, items: typeof monitoringNav) => {
-    const GroupIcon = icon;
-    const anyActive = items.some((item) =>
-      item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
-    );
+  // Recursive navigation renderer — supports nested children
+  const renderNavItem = (item: NavItem, depth: number = 0): ReactNode => {
+    const ItemIcon = item.icon;
+    const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
+    const hasChildren = item.children && item.children.length > 0;
+    const indent = depth * 20;
 
-    // Single-item groups navigate directly — no expand/collapse needed
-    if (items.length === 1) {
+    if (hasChildren) {
+      const anyChildActive = item.children!.some((c) =>
+        c.path === '/' ? location.pathname === '/' : location.pathname.startsWith(c.path)
+      );
+      const isOpen = openGroups[item.label] ?? anyChildActive;
+
+      const handleClick = () => {
+        navigate(item.path);
+        setOpened(false);
+        setOpenGroups((prev) => ({ ...prev, [item.label]: true }));
+      };
+
+      return (
+        <NavLink
+          key={item.path}
+          label={item.label}
+          leftSection={<ItemIcon size={18} />}
+          childrenOffset={24}
+          opened={isOpen}
+          onChange={(opened) => setOpenGroups((prev) => ({ ...prev, [item.label]: opened }))}
+          onClick={handleClick}
+          variant="filled"
+          mb={1}
+          pl={depth > 0 ? `${indent}px` : undefined}
+        >
+          {item.children!.map((child) => renderNavItem(child, depth + 1))}
+        </NavLink>
+      );
+    }
+
+    // Leaf item — navigate directly
+    return (
+      <NavLink
+        key={item.path}
+        label={item.label}
+        leftSection={<ItemIcon size={depth > 0 ? 16 : 18} />}
+        active={isActive}
+        onClick={() => { navigate(item.path); setOpened(false); }}
+        variant="filled"
+        mb={1}
+        pl={depth > 0 ? `${indent + 4}px` : undefined}
+      />
+    );
+  };
+
+  // Render a top-level nav group (label + items)
+  const renderNavGroup = (label: string, icon: any, items: NavItem[]) => {
+    const GroupIcon = icon;
+    const anyActive = items.some((item) => {
+      if (item.children) {
+        return item.children.some((c) =>
+          c.path === '/' ? location.pathname === '/' : location.pathname.startsWith(c.path)
+        );
+      }
+      return item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
+    });
+
+    // Single-item group without children — render directly
+    if (items.length === 1 && !items[0].children) {
       const item = items[0];
+      const ItemIcon = item.icon;
       return (
         <NavLink
           key={item.path}
           label={label}
-          leftSection={<GroupIcon size={18} />}
+          leftSection={<ItemIcon size={18} />}
           active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
           onClick={() => { navigate(item.path); setOpened(false); }}
           variant="filled"
@@ -139,15 +203,13 @@ export function AppShellLayout() {
       );
     }
 
-    // Multi-item groups: clicking parent navigates to first item (Dashboard)
-    // and opens the submenu. Use openGroups state, defaulting to anyActive.
+    // Multi-item or nested groups
     const isOpen = openGroups[label] ?? anyActive;
 
     const handleParentClick = () => {
       const firstItem = items[0];
       navigate(firstItem.path);
       setOpened(false);
-      // Open the submenu when clicking the parent
       setOpenGroups((prev) => ({ ...prev, [label]: true }));
     };
 
@@ -162,17 +224,7 @@ export function AppShellLayout() {
         variant="filled"
         mb={2}
       >
-        {items.map((item) => (
-          <NavLink
-            key={item.path}
-            label={item.label}
-            leftSection={<item.icon size={16} />}
-            active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
-            onClick={() => { navigate(item.path); setOpened(false); }}
-            variant="filled"
-            mb={1}
-          />
-        ))}
+        {items.map((item) => renderNavItem(item, 0))}
       </NavLink>
     );
   };
@@ -217,9 +269,7 @@ export function AppShellLayout() {
           {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
           {renderNavGroup('Node Classifier', IconHierarchy2, encNav)}
-          {renderNavGroup('Orchestration', IconBolt, orchNav)}
           {renderNavGroup('OpenVoxDB Explorer', IconSearch, explorerNav)}
-          {renderNavGroup('Infrastructure', IconCertificate, infraNav)}
           {renderNavGroup('Settings', IconSettings, configNav)}
         </MantineAppShell.Section>
 
