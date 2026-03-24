@@ -75,6 +75,47 @@ async def list_nodes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/packages")
+async def search_packages(
+    name: str = None,
+    version: str = None,
+    limit: int = 200,
+):
+    """Search for installed packages across the entire fleet.
+
+    Queries PuppetDB's package inventory using PQL to find which nodes
+    have a specific package installed, optionally filtered by version.
+    Essential for security audits ("which servers have openssl 1.1.1?"),
+    upgrade planning, and compliance checks.
+
+    IMPORTANT: This route MUST be defined before /{certname} to prevent
+    FastAPI from matching 'packages' as a certname path parameter.
+
+    Args:
+        name:    Package name to search for (e.g., 'openssl', 'httpd').
+        version: Optional version filter (exact match).
+        limit:   Maximum number of results (default 200).
+    """
+    try:
+        conditions = []
+        if name:
+            name = _validate_pql_value(name, "package name")
+            conditions.append(f'package_name = "{name}"')
+        if version:
+            version = _validate_pql_value(version, "version")
+            conditions.append(f'version = "{version}"')
+
+        if conditions:
+            pql = "packages { " + " and ".join(conditions) + f" limit {limit} }}"
+        else:
+            pql = f"packages {{ limit {limit} }}"
+
+        result = await puppetdb_service._query("", params={"query": pql})
+        return result if isinstance(result, list) else []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{certname}", response_model=NodeDetail)
 async def get_node_detail(certname: str):
     """Get detailed information about a specific node.
@@ -147,55 +188,6 @@ async def get_node_resources(certname: str):
     try:
         resources = await puppetdb_service.get_node_resources(certname)
         return resources
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/packages")
-async def search_packages(
-    name: str = None,
-    version: str = None,
-    limit: int = 200,
-):
-    """Search for installed packages across the entire fleet.
-
-    Queries PuppetDB's packages endpoint to find which nodes have a
-    specific package installed, optionally filtered by version. This
-    is essential for answering questions like "which servers still
-    have openssl 1.1.1?" or "where is httpd installed?"
-
-    The package data comes from the 'package' resource type in each
-    node's catalog, which PuppetDB stores automatically when the
-    Puppet agent manages Package resources.
-
-    Args:
-        name:    Package name to search for (e.g., 'openssl', 'httpd').
-                 Required for meaningful results.
-        version: Optional version filter (exact match).
-        limit:   Maximum number of results (default 200).
-
-    Returns:
-        A list of package objects with certname, package name, version,
-        and provider (yum, apt, etc.).
-    """
-    try:
-        # Build PQL query for package inventory
-        conditions = []
-        if name:
-            name = _validate_pql_value(name, "package name")
-            conditions.append(f'package_name = "{name}"')
-        if version:
-            version = _validate_pql_value(version, "version")
-            conditions.append(f'version = "{version}"')
-
-        if conditions:
-            query = "packages { " + " and ".join(conditions) + f" limit {limit} }}"
-        else:
-            query = f"packages {{ limit {limit} }}"
-
-        # Use the PQL endpoint directly
-        result = await puppetdb_service._query("", params={"query": query})
-        return result if isinstance(result, list) else []
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
