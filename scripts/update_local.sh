@@ -182,6 +182,11 @@ if [ -f /etc/systemd/system/openvox-gui.service ]; then
     UNIT_GROUP=$(grep "^Group=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
     [ -n "$UNIT_GROUP" ] && SERVICE_GROUP="$UNIT_GROUP"
 fi
+# Ensure directories referenced by ReadWritePaths exist (systemd
+# refuses to start the service if any listed path is missing)
+mkdir -p /etc/puppetlabs/bolt
+chown "${SERVICE_USER}:${SERVICE_GROUP}" /etc/puppetlabs/bolt
+
 sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
     | sed "s|User=puppet|User=${SERVICE_USER}|" \
     | sed "s|Group=puppet|Group=${SERVICE_GROUP}|" \
