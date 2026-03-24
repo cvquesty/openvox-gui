@@ -439,3 +439,48 @@ async def save_config(req: SaveBoltConfigRequest):
         raise HTTPException(status_code=403, detail=f"Permission denied writing to {found}. The service may need sudo access.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save {filename}: {e}")
+
+
+@router.post("/inventory/sync")
+async def sync_inventory_from_enc(db: AsyncSession = Depends(get_db)):
+    """
+    Generate Bolt inventory from the ENC hierarchy and write it to disk.
+
+    This replaces the static inventory.yaml with a dynamically generated
+    version that includes:
+    - ENC groups as Bolt groups with their classified node members
+    - A 'puppetdb-all' group using the PuppetDB plugin for auto-discovery
+    - PuppetDB connection config for the dynamic plugin
+
+    The previous inventory.yaml is backed up to inventory.yaml.bak.
+    """
+    from .enc import get_bolt_inventory_yaml
+
+    # Generate YAML from ENC
+    yaml_content = await get_bolt_inventory_yaml(db)
+
+    # Write to the inventory file location
+    inventory_path = _find_bolt_file("inventory.yaml")
+    if not inventory_path:
+        default_dir = Path("/etc/puppetlabs/bolt")
+        default_dir.mkdir(parents=True, exist_ok=True)
+        inventory_path = default_dir / "inventory.yaml"
+
+    # Backup existing
+    if inventory_path.exists():
+        try:
+            import shutil
+            shutil.copy2(str(inventory_path), str(inventory_path.with_suffix(".yaml.bak")))
+        except Exception:
+            pass
+
+    try:
+        inventory_path.write_text(yaml_content)
+        logger.info(f"Bolt inventory synced from ENC: {inventory_path}")
+        return {
+            "status": "ok",
+            "path": str(inventory_path),
+            "message": "Inventory synced from ENC hierarchy",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write inventory: {e}")

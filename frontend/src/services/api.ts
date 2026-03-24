@@ -165,6 +165,12 @@ export const enc = {
 
   // Classify (lookup)
   classify: (certname: string) => fetchJSON<any>(`/enc/classify/${certname}`),
+
+  // Bolt inventory generation (3.x)
+  getBoltInventory: () => fetchJSON<any>('/enc/inventory/bolt'),
+  getBoltInventoryYaml: () =>
+    fetch(`${API_BASE}/enc/inventory/bolt/yaml`, { headers: getAuthHeaders() })
+      .then((r) => r.text()),
 };
 
 
@@ -184,6 +190,9 @@ export const bolt = {
       method: 'PUT',
       body: JSON.stringify({ file, content }),
     }),
+  // Sync inventory from ENC hierarchy (3.x)
+  syncInventoryFromEnc: () =>
+    fetchJSON<any>('/bolt/inventory/sync', { method: 'POST' }),
   runCommand: (data: { command: string; targets: string; format?: string; run_as?: string }) =>
     fetchJSON<any>('/bolt/run/command', { method: 'POST', body: JSON.stringify(data) }),
   runTask: (data: { task: string; targets: string; params?: any; format?: string; run_as?: string }) =>

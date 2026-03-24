@@ -317,3 +317,103 @@ async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(
 async def delete_node(certname: str, db: AsyncSession = Depends(get_db)):
     if not await enc_service.delete_node(db, certname):
         raise HTTPException(status_code=404, detail="Node not found")
+
+
+# ─── Bolt Inventory Generation (3.x feature) ─────────────
+
+@router.get("/inventory/bolt")
+async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
+    """
+    Generate a Bolt-compatible inventory from the ENC hierarchy.
+
+    Returns a version 2 Bolt inventory structure where:
+    - Each ENC group becomes a Bolt group with its member nodes as targets
+    - Ungrouped classified nodes go into an 'ungrouped' group
+    - PuppetDB plugin config is included for dynamic node discovery
+
+    This endpoint powers the Orchestration page's group-based target
+    selection and can also be written to disk as inventory.yaml.
+    """
+    from ..config import settings
+
+    groups = await enc_service.list_groups(db)
+    nodes = await enc_service.list_nodes(db)
+
+    # Build group → members mapping from node memberships
+    group_members: dict = {}
+    ungrouped = []
+
+    for node in nodes:
+        node_groups = [g.name for g in node.groups]
+        if not node_groups:
+            ungrouped.append(node.certname)
+        for gname in node_groups:
+            group_members.setdefault(gname, []).append(node.certname)
+
+    # Build Bolt inventory groups
+    bolt_groups = []
+    for group in groups:
+        bolt_group = {
+            "name": group.name,
+            "targets": group_members.get(group.name, []),
+            "config": {
+                "transport": "ssh",
+                "ssh": {"host-key-check": False},
+            },
+        }
+        if group.description:
+            bolt_group["description"] = group.description
+        bolt_groups.append(bolt_group)
+
+    # Add ungrouped nodes
+    if ungrouped:
+        bolt_groups.append({
+            "name": "ungrouped",
+            "targets": ungrouped,
+            "config": {
+                "transport": "ssh",
+                "ssh": {"host-key-check": False},
+            },
+        })
+
+    # Add a PuppetDB-backed dynamic group for auto-discovery
+    bolt_groups.append({
+        "name": "puppetdb-all",
+        "description": "All nodes known to PuppetDB (auto-discovered)",
+        "targets": [{
+            "_plugin": "puppetdb",
+            "query": "inventory[certname] {}",
+            "target_mapping": {
+                "name": "certname",
+                "config": {
+                    "ssh": {
+                        "host": "facts.networking.fqdn",
+                    },
+                },
+            },
+        }],
+    })
+
+    inventory = {
+        "version": 2,
+        "config": {
+            "transport": "ssh",
+            "ssh": {"host-key-check": False},
+            "puppetdb": {
+                "server_urls": [f"https://{settings.puppetdb_host}:{settings.puppetdb_port}"],
+                "cacert": settings.puppet_ssl_ca,
+                "cert": settings.puppet_ssl_cert,
+                "key": settings.puppet_ssl_key,
+            },
+        },
+        "groups": bolt_groups,
+    }
+
+    return inventory
+
+
+@router.get("/inventory/bolt/yaml", response_class=PlainTextResponse)
+async def get_bolt_inventory_yaml(db: AsyncSession = Depends(get_db)):
+    """Return the Bolt inventory as deployable YAML."""
+    inventory = await get_bolt_inventory(db)
+    return yaml.dump(inventory, default_flow_style=False, sort_keys=False)
