@@ -1,0 +1,25 @@
+{
+  "description": "Resolve Bolt inventory targets from the OpenVox GUI ENC database",
+  "supports_noop": true,
+  "parameters": {
+    "api_url": {
+      "description": "OpenVox GUI API base URL",
+      "type": "String",
+      "default": "https://localhost:4567"
+    },
+    "group": {
+      "description": "Optional: only return targets from this ENC group",
+      "type": "Optional[String]"
+    },
+    "transport": {
+      "description": "Default transport for targets",
+      "type": "String",
+      "default": "ssh"
+    },
+    "ssl_verify": {
+      "description": "Verify SSL certificates when calling the API",
+      "type": "Boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "openvox_enc",
+  "description": "Dynamic Bolt inventory from the OpenVox GUI Node Classifier",
+  "version": "1.0.0",
+  "hooks": {
+    "resolve_reference": {
+      "task": "openvox_enc::resolve_reference"
+    }
+  }
+}

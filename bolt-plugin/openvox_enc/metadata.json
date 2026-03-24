@@ -1,0 +1,15 @@
+{
+  "name": "openvox-openvox_enc",
+  "version": "1.0.0",
+  "author": "OpenVox GUI",
+  "summary": "Bolt inventory plugin that reads targets from the OpenVox GUI ENC database",
+  "license": "Apache-2.0",
+  "source": "https://github.com/cvquesty/openvox-gui",
+  "dependencies": [],
+  "operatingsystem_support": [
+    { "operatingsystem": "RedHat", "operatingsystemrelease": ["8", "9"] },
+    { "operatingsystem": "CentOS", "operatingsystemrelease": ["8", "9"] },
+    { "operatingsystem": "Debian", "operatingsystemrelease": ["11", "12"] },
+    { "operatingsystem": "Ubuntu", "operatingsystemrelease": ["20.04", "22.04"] }
+  ]
+}

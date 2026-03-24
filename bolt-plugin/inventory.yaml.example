@@ -1,0 +1,40 @@
+# ─── OpenVox GUI Dynamic Bolt Inventory ────────────────────────
+#
+# This inventory file reads ALL targets and groups from the OpenVox
+# GUI's Node Classifier database. You never need to edit this file —
+# manage nodes and groups in the GUI, and Bolt picks them up live.
+#
+# Install the openvox_enc plugin module:
+#   cp -r /opt/openvox-gui/bolt-plugin/openvox_enc \
+#         /etc/puppetlabs/bolt/modules/openvox_enc
+#
+# Then replace /etc/puppetlabs/bolt/inventory.yaml with this file.
+# ────────────────────────────────────────────────────────────────
+
+version: 2
+
+config:
+  transport: ssh
+  ssh:
+    host-key-check: false
+    user: bolt
+    private-key: /etc/puppetlabs/bolt/id_bolt
+    run-as: root
+    run-as-command:
+      - sudo
+
+groups:
+  # Static group for the OpenVox server itself (local transport)
+  - name: puppetserver
+    targets:
+      - uri: openvox.pdxc-it.twitter.biz
+        config:
+          transport: local
+
+  # Dynamic groups from the ENC database — resolved live on every
+  # Bolt invocation. Groups and nodes are managed in the GUI's
+  # Node Classifier. No manual maintenance needed.
+  - name: enc
+    targets:
+      - _plugin: openvox_enc
+        api_url: 'https://localhost:4567'
