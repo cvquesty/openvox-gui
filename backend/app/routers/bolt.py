@@ -485,8 +485,11 @@ async def upload_file_to_targets(
         # Execute Bolt file upload: pushes the staged file to all targets.
         # The destination can be a directory (file keeps its name) or a
         # full path (file is renamed on the target).
+        # --run-as root ensures the file can be written to any destination
+        # regardless of the connecting user's permissions on the target.
         args = ["file", "upload", str(staged_path), destination,
-                "--targets", resolved_targets, "--format", "human"]
+                "--targets", resolved_targets, "--run-as", "root",
+                "--format", "human"]
         result = await run_bolt_command(args, timeout=300)
 
         return {
@@ -550,8 +553,12 @@ async def download_file_from_targets(
     # Execute Bolt file download. The destination directory is created
     # by Bolt itself (running as root via sudo), so we don't need to
     # pre-create it. Bolt creates per-target subdirectories automatically.
+    # --run-as root ensures the file can be read from any location on
+    # the target regardless of the connecting user's permissions (e.g.,
+    # reading from /home/otheruser or /root).
     args = ["file", "download", req.source, req.destination,
-            "--targets", resolved_targets, "--format", "human"]
+            "--targets", resolved_targets, "--run-as", "root",
+            "--format", "human"]
     result = await run_bolt_command(args, timeout=300)
 
     # List downloaded files for the response. Bolt creates the files
