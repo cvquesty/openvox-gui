@@ -162,10 +162,17 @@ export function NodesPage() {
   const error = nodesError || hierarchyError;
 
   // Build grouped nodes by node groups
+  // Use hierarchy.nodes (has groups) merged with nodeList (has full details)
   const groupedNodes: GroupedNodes = useMemo(() => {
     if (!nodeList) return {};
 
     const groups: GroupedNodes = {};
+
+    // Build certname → node lookup from nodeList for full details
+    const nodeByCertname: Record<string, NodeSummary> = {};
+    nodeList.forEach((node: NodeSummary) => {
+      nodeByCertname[node.certname] = node;
+    });
 
     // Build group → nodes map from hierarchy
     const groupNodes: Record<string, NodeSummary[]> = {};
@@ -173,20 +180,37 @@ export function NodesPage() {
       groupNodes[group.name] = [];
     });
 
-    // Assign nodes to groups
-    nodeList.forEach((node: NodeSummary) => {
-      const nodeGroups = (node as any).groups || [];
-      if (nodeGroups.length > 0) {
-        nodeGroups.forEach((g: string) => {
-          if (!groupNodes[g]) groupNodes[g] = [];
-          groupNodes[g].push(node);
-        });
-      } else {
-        // Node without explicit group - put in "Ungrouped"
+    // Assign nodes to groups using hierarchy.nodes (same source as Reports page)
+    const hierarchyNodes = hierarchy?.nodes || [];
+    if (hierarchyNodes.length > 0) {
+      hierarchyNodes.forEach((hNode: any) => {
+        const nodeGroups = hNode.groups || [];
+        // Get full node details from nodeList, or use hierarchy node as fallback
+        const fullNode: NodeSummary = nodeByCertname[hNode.certname] || hNode;
+        
+        if (nodeGroups.length > 0) {
+          nodeGroups.forEach((g: string) => {
+            if (!groupNodes[g]) groupNodes[g] = [];
+            // Avoid duplicates
+            if (!groupNodes[g].find((n: NodeSummary) => n.certname === fullNode.certname)) {
+              groupNodes[g].push(fullNode);
+            }
+          });
+        } else {
+          // Node without explicit group - put in "Ungrouped"
+          if (!groupNodes['Ungrouped']) groupNodes['Ungrouped'] = [];
+          if (!groupNodes['Ungrouped'].find((n: NodeSummary) => n.certname === fullNode.certname)) {
+            groupNodes['Ungrouped'].push(fullNode);
+          }
+        }
+      });
+    } else {
+      // Fallback: all nodes ungrouped
+      nodeList.forEach((node: NodeSummary) => {
         if (!groupNodes['Ungrouped']) groupNodes['Ungrouped'] = [];
         groupNodes['Ungrouped'].push(node);
-      }
-    });
+      });
+    }
 
     // If no groups exist, create "All Nodes" group
     if (Object.keys(groupNodes).length === 0) {
