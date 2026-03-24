@@ -168,7 +168,7 @@ def validate_command(command: str, allowed_commands: Optional[List[str]] = None)
         r'`',  # Backticks
         r'&&\s*curl',  # Chained curl commands
         r'&&\s*wget',  # Chained wget commands
-        r'|.*nc\s',  # Netcat pipes
+        r'\|.*nc\s',  # Netcat pipes
     ]
     
     for pattern in dangerous_patterns:
