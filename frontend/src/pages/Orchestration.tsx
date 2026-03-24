@@ -9,7 +9,7 @@ import {
   IconTerminal2, IconListDetails, IconRoute, IconSettings, IconPlayerPlay,
   IconBolt, IconHistory,
 } from '@tabler/icons-react';
-import { bolt, nodes as nodesApi } from '../services/api';
+import { bolt, nodes as nodesApi, enc } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import AnsiToHtml from 'ansi-to-html';
 import { ExecutionHistory } from '../components/ExecutionHistory';
@@ -355,11 +355,13 @@ function RunCommandTab() {
   const [command, setCommand] = useState('');
   const [targets, setTargets] = useState('');
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
+  const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
 
   useEffect(() => {
     nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
+    enc.listGroups().then(setEncGroups).catch(() => {});
   }, []);
 
   const handleRun = async () => {
@@ -401,11 +403,16 @@ function RunCommandTab() {
         <Stack>
           <TextInput label="Command" required value={command} onChange={(e) => setCommand(e.currentTarget.value)}
             placeholder="e.g. uptime, df -h, systemctl status puppet" />
-          <Select label="Targets" required searchable data={[
-            { value: 'all', label: 'All nodes' },
-            ...puppetNodes.map((n) => ({ value: n, label: n })),
-          ]} value={targets} onChange={(v) => setTargets(v || '')}
-            placeholder="Select target nodes" />
+          <Select label="Targets" required searchable
+            data={[
+              { group: 'Groups', items: [
+                { value: 'all', label: '🌐 All nodes' },
+                ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
+              ]},
+              { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
+            ]}
+            value={targets} onChange={(v) => setTargets(v || '')}
+            placeholder="Select a group or node" />
           <Button onClick={handleRun} loading={running} disabled={!command || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">
             Run Command
@@ -423,6 +430,7 @@ function RunCommandTab() {
 function RunTaskTab() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
+  const [encGroups, setEncGroups] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState('');
   const [targets, setTargets] = useState('');
   const [params, setParams] = useState<Array<{ key: string; val: string }>>([]);
@@ -434,9 +442,11 @@ function RunTaskTab() {
     Promise.all([
       bolt.getTasks().catch(() => ({ tasks: [] })),
       nodesApi.list().catch(() => []),
-    ]).then(([t, ns]) => {
+      enc.listGroups().catch(() => []),
+    ]).then(([t, ns, g]) => {
       setTasks(t.tasks || []);
       setPuppetNodes((ns as any[]).map((n: any) => n.certname));
+      setEncGroups(g as any[]);
       setLoading(false);
     });
   }, []);
@@ -488,10 +498,16 @@ function RunTaskTab() {
             value={selectedTask} onChange={(v) => setSelectedTask(v || '')}
             placeholder={tasks.length > 0 ? 'Select a task' : 'No tasks available'}
             nothingFoundMessage="No matching tasks" />
-          <Select label="Targets" required searchable data={[
-            { value: 'all', label: 'All nodes' },
-            ...puppetNodes.map((n) => ({ value: n, label: n })),
-          ]} value={targets} onChange={(v) => setTargets(v || '')} />
+          <Select label="Targets" required searchable
+            data={[
+              { group: 'Groups', items: [
+                { value: 'all', label: '🌐 All nodes' },
+                ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
+              ]},
+              { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
+            ]}
+            value={targets} onChange={(v) => setTargets(v || '')}
+            placeholder="Select a group or node" />
           <div>
             <Group justify="space-between" mb={4}>
               <Text size="sm" fw={500}>Task Parameters</Text>
