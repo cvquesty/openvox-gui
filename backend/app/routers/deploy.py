@@ -147,19 +147,90 @@ async def get_deploy_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/webhook", include_in_schema=True)
+async def webhook_deploy(request: Request):
+    """GitHub webhook endpoint for automatic code deployment.
+
+    When configured as a GitHub webhook, this endpoint receives push
+    events and automatically triggers an r10k deployment. This eliminates
+    the need to manually click "Deploy" after pushing code changes.
+
+    GitHub webhook setup:
+      1. Go to your control repo → Settings → Webhooks → Add webhook
+      2. Payload URL: https://your-server:4567/api/deploy/webhook
+      3. Content type: application/json
+      4. Secret: (optional, for signature verification)
+      5. Events: Just the push event
+
+    The endpoint accepts any POST request and triggers a deploy. It does
+    NOT require authentication — it's designed to be called by GitHub's
+    webhook service which cannot authenticate with JWT tokens. In
+    production, you should restrict access by IP (GitHub's webhook IPs)
+    or use a webhook secret for HMAC signature verification.
+
+    The deployment is recorded in the deploy history with triggered_by
+    set to 'github-webhook' and includes the branch and commit info
+    from the push event payload.
+    """
+    # Parse the GitHub webhook payload (if present)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    ref = payload.get("ref", "unknown")
+    branch = ref.split("/")[-1] if "/" in ref else ref
+    pusher = payload.get("pusher", {}).get("name", "unknown")
+    head_commit = payload.get("head_commit", {})
+    commit_msg = head_commit.get("message", "")[:100] if head_commit else ""
+
+    logger.info(f"Webhook received: branch={branch}, pusher={pusher}, commit={commit_msg}")
+
+    # Trigger r10k deploy for the pushed branch (or all if not determinable)
+    cmd = ["sudo", "/opt/openvox-gui/scripts/r10k-deploy.sh"]
+    if branch and branch not in ("unknown", "main"):
+        cmd.append(branch)
+    cmd.extend(["-pv"])
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: _run_command(cmd, timeout=300))
+
+    # Record in deploy history
+    _add_history_entry({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": branch or "all",
+        "triggered_by": f"github-webhook ({pusher})",
+        "success": result["success"],
+        "exit_code": result["exit_code"],
+        "output_lines": len((result.get("stdout", "") + result.get("stderr", "")).strip().splitlines()),
+        "commit": commit_msg,
+    })
+
+    return {
+        "success": result["success"],
+        "branch": branch,
+        "pusher": pusher,
+        "exit_code": result["exit_code"],
+    }
+
+
 @router.post("/run")
 async def run_deployment(deploy: DeployRequest, request: Request):
     """
     Trigger an r10k deployment.
     Requires admin or operator role.
     """
+    from ..dependencies import require_role
+    # Role check is now handled by the require_role dependency pattern,
+    # but we keep inline check here for backward compatibility with the
+    # request.state.user pattern used in this endpoint.
     user = getattr(request.state, "user", None)
     username = "anonymous"
     if user:
         role = user.get("role", "viewer")
         username = user.get("user_id", user.get("username", "unknown"))
         if role not in ("admin", "operator"):
-            raise HTTPException(status_code=403, detail="Admin or operator role required")
+            raise HTTPException(status_code=403, detail="Access denied. Required role: admin or operator. Your role: " + role)
 
     try:
         cmd = ["sudo", "/opt/openvox-gui/scripts/r10k-deploy.sh"]

@@ -88,6 +88,13 @@ export const nodes = {
   },
   get: (certname: string) => fetchJSON<any>(`/nodes/${certname}`),
   getFacts: (certname: string) => fetchJSON<any[]>(`/nodes/${certname}/facts`),
+  searchPackages: (name?: string, version?: string) => {
+    const qs = new URLSearchParams();
+    if (name) qs.set('name', name);
+    if (version) qs.set('version', version);
+    const query = qs.toString();
+    return fetchJSON<any[]>(`/nodes/packages${query ? '?' + query : ''}`);
+  },
   getResources: (certname: string) => fetchJSON<any[]>(`/nodes/${certname}/resources`),
   getReports: (certname: string, limit = 20) =>
     fetchJSON<any[]>(`/nodes/${certname}/reports?limit=${limit}`),
@@ -219,6 +226,21 @@ export const bolt = {
   },
   downloadFile: (data: { source: string; destination: string; targets: string }) =>
     fetchJSON<any>('/bolt/file/download', { method: 'POST', body: JSON.stringify(data) }),
+  runScript: (file: File, targets: string, args: string = '') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('targets', targets);
+    formData.append('arguments', args);
+    const headers: Record<string, string> = {};
+    const token = localStorage.getItem('openvox_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return fetch(`${API_BASE}/bolt/run/script`, {
+      method: 'POST', headers, body: formData,
+    }).then(async (r) => {
+      if (!r.ok) throw new Error(`API Error ${r.status}: ${await r.text()}`);
+      return r.json();
+    });
+  },
 };
 // ─── Users ──────────────────────────────────────────────────
 

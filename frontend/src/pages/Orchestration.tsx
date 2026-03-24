@@ -10,6 +10,7 @@ import {
   IconBolt, IconHistory, IconFileUpload, IconFileDownload, IconFiles, IconUpload, IconX,
 } from '@tabler/icons-react';
 import { bolt, nodes as nodesApi, enc } from '../services/api';
+import { IconScript } from '@tabler/icons-react';
 import { useAppTheme } from '../hooks/ThemeContext';
 import AnsiToHtml from 'ansi-to-html';
 import { ExecutionHistory } from '../components/ExecutionHistory';
@@ -804,6 +805,14 @@ function FilesTab() {
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Script run state
+  const [scriptFile, setScriptFile] = useState<File | null>(null);
+  const [scriptTargets, setScriptTargets] = useState('');
+  const [scriptArgs, setScriptArgs] = useState('');
+  const [runningScript, setRunningScript] = useState(false);
+  const [scriptResult, setScriptResult] = useState<any>(null);
+  const [scriptDragActive, setScriptDragActive] = useState(false);
+
   // Download state
   const [downloadSource, setDownloadSource] = useState('');
   const [downloadDest, setDownloadDest] = useState('/opt/openvox-gui/data/bolt-downloads');
@@ -876,12 +885,32 @@ function FilesTab() {
     setDownloading(false);
   };
 
+  // ─── Script run handler ───────────────────────────────
+  const handleScriptRun = async () => {
+    if (!scriptFile || !scriptTargets) return;
+    setRunningScript(true);
+    setScriptResult(null);
+    try {
+      const result = await bolt.runScript(scriptFile, scriptTargets, scriptArgs);
+      setScriptResult(result);
+      if (result.success) {
+        notifications.show({ title: 'Script Complete', message: `${scriptFile.name} executed on ${scriptTargets}`, color: 'green' });
+      } else {
+        notifications.show({ title: 'Script Failed', message: `Exit code ${result.returncode}`, color: 'red' });
+      }
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+      setScriptResult({ success: false, error: e.message });
+    }
+    setRunningScript(false);
+  };
+
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Transfer files between the OpenVox server and managed nodes using Puppet Bolt.
-        Upload pushes a local file to one or more targets. Download retrieves a remote
-        file from targets to this server.
+        Transfer files and execute scripts on managed nodes using Puppet Bolt.
+        Upload pushes files, Download retrieves files, and Run Script uploads
+        and executes a script in one step.
       </Alert>
 
       <Grid>
@@ -1006,6 +1035,69 @@ function FilesTab() {
           </Card>
         </Grid.Col>
       </Grid>
+
+      {/* ── Run Script Panel (full width below) ──────────── */}
+      <Card withBorder shadow="sm" padding="md">
+        <Group mb="md">
+          <ThemeIcon size="lg" variant="light" color="violet"><IconPlayerPlay size={20} /></ThemeIcon>
+          <div>
+            <Text fw={700}>Run Script on Targets</Text>
+            <Text size="xs" c="dimmed">Upload a script and execute it on remote nodes in one step — Bolt copies, runs, and cleans up automatically</Text>
+          </div>
+        </Group>
+        <Grid>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Stack>
+              <Box
+                onDragOver={(e: React.DragEvent) => { e.preventDefault(); setScriptDragActive(true); }}
+                onDragLeave={() => setScriptDragActive(false)}
+                onDrop={(e: React.DragEvent) => { e.preventDefault(); setScriptDragActive(false); if (e.dataTransfer.files?.length) setScriptFile(e.dataTransfer.files[0]); }}
+                style={{
+                  border: `2px dashed ${scriptDragActive ? 'var(--mantine-color-violet-5)' : 'var(--mantine-color-gray-5)'}`,
+                  borderRadius: 8, padding: 20, textAlign: 'center',
+                  backgroundColor: scriptDragActive ? 'var(--mantine-color-violet-0)' : 'transparent',
+                  transition: 'all 0.2s', cursor: 'pointer',
+                }}
+                onClick={() => document.getElementById('script-upload-input')?.click()}
+              >
+                <input id="script-upload-input" type="file" style={{ display: 'none' }}
+                  onChange={(e) => { if (e.target.files?.length) setScriptFile(e.target.files[0]); }} />
+                <IconUpload size={28} color="var(--mantine-color-dimmed)" style={{ marginBottom: 4 }} />
+                {scriptFile ? (
+                  <Group justify="center" gap="xs">
+                    <Badge color="violet" size="lg">{scriptFile.name}</Badge>
+                    <Text size="xs" c="dimmed">({(scriptFile.size / 1024).toFixed(1)} KB)</Text>
+                    <Button variant="subtle" color="red" size="compact-xs"
+                      onClick={(e) => { e.stopPropagation(); setScriptFile(null); }}><IconX size={12} /></Button>
+                  </Group>
+                ) : (
+                  <Text size="sm" c="dimmed">Drag a script here or click to browse (.sh, .py, .rb, .ps1)</Text>
+                )}
+              </Box>
+              <Select label="Targets" required searchable data={targetSelectData}
+                value={scriptTargets} onChange={(v) => setScriptTargets(v || '')}
+                placeholder="Select group or node" />
+              <TextInput label="Script Arguments (optional)"
+                value={scriptArgs} onChange={(e) => setScriptArgs(e.currentTarget.value)}
+                placeholder="--flag1 value1 --flag2 value2" />
+              <Button onClick={handleScriptRun} loading={runningScript}
+                disabled={!scriptFile || !scriptTargets}
+                leftSection={<IconPlayerPlay size={16} />} color="violet">
+                Run Script
+              </Button>
+            </Stack>
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            {scriptResult ? (
+              <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflow: 'auto' }}>
+                {scriptResult.output || scriptResult.error || 'No output'}
+              </Code>
+            ) : (
+              <Center h={200}><Text c="dimmed" size="sm">Script output will appear here</Text></Center>
+            )}
+          </Grid.Col>
+        </Grid>
+      </Card>
     </Stack>
   );
 }

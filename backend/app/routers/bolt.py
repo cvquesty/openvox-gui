@@ -600,6 +600,75 @@ async def download_file_from_targets(
     }
 
 
+# ─── Script Execution ─────────────────────────────────────
+
+@router.post("/run/script")
+async def run_script_on_targets(
+    file: UploadFile = FastAPIFile(..., description="The script file to execute on remote targets"),
+    targets: str = Form(..., description="Comma-separated certnames, 'all', or ENC group name"),
+    arguments: str = Form("", description="Arguments to pass to the script (space-separated)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(get_current_user),
+):
+    """Upload and execute a local script on remote targets via Bolt.
+
+    This implements 'bolt script run' — Bolt copies the script to each
+    target's temporary directory, executes it with the specified arguments,
+    and returns the output. The script is cleaned up automatically by Bolt
+    after execution.
+
+    Unlike 'bolt file upload' followed by 'bolt command run', this is a
+    single atomic operation: upload + execute + cleanup in one step. The
+    script can be in any language (bash, python, ruby, powershell) as long
+    as the target has the appropriate interpreter.
+
+    The staged script is cleaned up from the local server after Bolt
+    reads it, regardless of execution outcome.
+    """
+    import uuid
+
+    # Resolve ENC group names to actual certnames for Bolt
+    resolved_targets = await resolve_targets(targets, db)
+
+    # Stage the script to a temporary location
+    UPLOAD_STAGING_DIR.mkdir(parents=True, exist_ok=True)
+    staging_subdir = UPLOAD_STAGING_DIR / uuid.uuid4().hex
+    staging_subdir.mkdir(parents=True, exist_ok=True)
+    staged_path = staging_subdir / file.filename
+
+    try:
+        content = await file.read()
+        staged_path.write_bytes(content)
+        staged_path.chmod(0o755)
+        logger.info(f"User '{current_user}' staged script '{file.filename}' "
+                    f"({len(content)} bytes) for execution on {resolved_targets}")
+
+        # Build bolt script run command
+        args = ["script", "run", str(staged_path),
+                "--targets", resolved_targets, "--run-as", "root",
+                "--format", "human"]
+        if arguments.strip():
+            args.extend(["--", *arguments.strip().split()])
+
+        result = await run_bolt_command(args, timeout=300)
+
+        return {
+            "success": result["returncode"] == 0,
+            "returncode": result["returncode"],
+            "filename": file.filename,
+            "targets": resolved_targets,
+            "output": result["stdout"],
+            "error": result["stderr"],
+        }
+    except Exception as e:
+        logger.error(f"Script execution failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Script execution failed: {e}")
+    finally:
+        if staging_subdir.exists():
+            import shutil as _shutil
+            _shutil.rmtree(staging_subdir, ignore_errors=True)
+
+
 # ─── Configuration ────────────────────────────────────────
 
 BOLT_CONFIG_SEARCH = [

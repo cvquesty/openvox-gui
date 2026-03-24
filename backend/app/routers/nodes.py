@@ -151,6 +151,55 @@ async def get_node_resources(certname: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/packages")
+async def search_packages(
+    name: str = None,
+    version: str = None,
+    limit: int = 200,
+):
+    """Search for installed packages across the entire fleet.
+
+    Queries PuppetDB's packages endpoint to find which nodes have a
+    specific package installed, optionally filtered by version. This
+    is essential for answering questions like "which servers still
+    have openssl 1.1.1?" or "where is httpd installed?"
+
+    The package data comes from the 'package' resource type in each
+    node's catalog, which PuppetDB stores automatically when the
+    Puppet agent manages Package resources.
+
+    Args:
+        name:    Package name to search for (e.g., 'openssl', 'httpd').
+                 Required for meaningful results.
+        version: Optional version filter (exact match).
+        limit:   Maximum number of results (default 200).
+
+    Returns:
+        A list of package objects with certname, package name, version,
+        and provider (yum, apt, etc.).
+    """
+    try:
+        # Build PQL query for package inventory
+        conditions = []
+        if name:
+            name = _validate_pql_value(name, "package name")
+            conditions.append(f'package_name = "{name}"')
+        if version:
+            version = _validate_pql_value(version, "version")
+            conditions.append(f'version = "{version}"')
+
+        if conditions:
+            query = "packages { " + " and ".join(conditions) + f" limit {limit} }}"
+        else:
+            query = f"packages {{ limit {limit} }}"
+
+        # Use the PQL endpoint directly
+        result = await puppetdb_service._query("", params={"query": query})
+        return result if isinstance(result, list) else []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{certname}/reports")
 async def get_node_reports(certname: str, limit: int = 20):
     """Get the most recent Puppet run reports for a specific node.

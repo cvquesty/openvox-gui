@@ -23,6 +23,7 @@ const PQLConsolePage = lazyWithRetry(() => import('./pages/PQLConsole').then(m =
 const CertificatesPage = lazyWithRetry(() => import('./pages/Certificates').then(m => ({ default: m.CertificatesPage })));
 const FactExplorerPage = lazyWithRetry(() => import('./pages/FactExplorer').then(m => ({ default: m.FactExplorerPage })));
 const ResourceExplorerPage = lazyWithRetry(() => import('./pages/ResourceExplorer').then(m => ({ default: m.ResourceExplorerPage })));
+const PackagesPage = lazyWithRetry(() => import('./pages/Packages').then(m => ({ default: m.PackagesPage })));
 
 function PageLoader() {
   return <Center h={400}><Loader size="xl" /></Center>;
@@ -73,6 +74,7 @@ function AppRoutes() {
           <Route path="/pql" element={<PQLConsolePage />} />
           <Route path="/facts" element={<FactExplorerPage />} />
           <Route path="/resources" element={<ResourceExplorerPage />} />
+          <Route path="/packages" element={<PackagesPage />} />
 
           {/* Certificate Authority */}
           <Route path="/certificates" element={<CertificatesPage />} />

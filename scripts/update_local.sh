@@ -252,6 +252,7 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run *
@@ -261,6 +262,7 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file download *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt script run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
 

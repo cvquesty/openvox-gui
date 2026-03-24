@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid, Box,
-  Select,
+  Select, Badge,
 } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -306,9 +306,9 @@ export function ReportsPage() {
             <Table.Tr>
               <Table.Th>Certname</Table.Th>
               <Table.Th>Status</Table.Th>
+              <Table.Th>Type</Table.Th>
               <Table.Th>Environment</Table.Th>
               <Table.Th>Start Time</Table.Th>
-              <Table.Th>End Time</Table.Th>
               <Table.Th>OpenVox Version</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -321,9 +321,17 @@ export function ReportsPage() {
               >
                 <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
                 <Table.Td><StatusBadge status={report.status} /></Table.Td>
+                <Table.Td>
+                  {report.corrective_change ? (
+                    <Badge color="orange" variant="light" size="sm">Corrective</Badge>
+                  ) : report.noop ? (
+                    <Badge color="blue" variant="light" size="sm">Noop</Badge>
+                  ) : (
+                    <Badge color="gray" variant="light" size="sm">Intentional</Badge>
+                  )}
+                </Table.Td>
                 <Table.Td>{report.environment || '—'}</Table.Td>
                 <Table.Td>{report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
-                <Table.Td>{report.end_time ? new Date(report.end_time).toLocaleString() : '—'}</Table.Td>
                 <Table.Td>{report.puppet_version || '—'}</Table.Td>
               </Table.Tr>
             ))}
