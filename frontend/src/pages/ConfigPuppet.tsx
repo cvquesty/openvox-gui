@@ -233,7 +233,7 @@ interface HieraEnv {
   files: HieraFile[];
 }
 
-function HieraViewer() {
+export function HieraViewer() {
   const [envs, setEnvs] = useState<HieraEnv[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -478,7 +478,7 @@ function HieraTron() {
 }
 
 /* ── Hiera Lookup (puppet lookup --explain) ──────────────── */
-function LookupTrace() {
+export function LookupTrace() {
   const { isFormal } = useAppTheme();
   const [key, setKey] = useState('');
   const [node, setNode] = useState('');
@@ -642,28 +642,8 @@ export function ConfigPuppetPage() {
         update your OpenVox code instead.
       </Alert>
 
-      <Tabs defaultValue="files">
-        <Tabs.List>
-          <Tabs.Tab value="files" leftSection={<IconNetwork size={16} />}>Configuration Files</Tabs.Tab>
-          <Tabs.Tab value="hiera" leftSection={<IconPackage size={16} />}>Hiera Data Files</Tabs.Tab>
-          <Tabs.Tab value="lookup" leftSection={<IconSearch size={16} />}>Hiera Lookup</Tabs.Tab>
-        </Tabs.List>
-
-        {/* Configuration Files tab */}
-        <Tabs.Panel value="files" pt="md">
-          <ConfigFileEditor />
-        </Tabs.Panel>
-
-        {/* Hiera tab */}
-        <Tabs.Panel value="hiera" pt="md">
-          <HieraViewer />
-        </Tabs.Panel>
-
-        {/* Hiera Lookup tab */}
-        <Tabs.Panel value="lookup" pt="md">
-          <LookupTrace />
-        </Tabs.Panel>
-      </Tabs>
+      {/* Configuration Files */}
+      <ConfigFileEditor />
     </Stack>
   );
 }

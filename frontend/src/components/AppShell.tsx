@@ -67,6 +67,11 @@ const codeNav: NavItem[] = [
   { label: 'Deployment', icon: IconRocket, path: '/deployment' },
 ];
 
+const dataNav: NavItem[] = [
+  { label: 'Hiera Data Files', icon: IconPackage, path: '/data/hiera' },
+  { label: 'Hiera Lookup', icon: IconSearch, path: '/data/lookup' },
+];
+
 const explorerNav: NavItem[] = [
   { label: 'PQL Console', icon: IconTerminal, path: '/pql' },
   { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
@@ -76,7 +81,7 @@ const explorerNav: NavItem[] = [
 
 const configNav: NavItem[] = [
   { label: 'OpenVox Configuration', icon: IconNetwork, path: '/config/puppet' },
-  { label: 'Settings', icon: IconSettings, path: '/config/app' },
+  { label: 'Application Configuration', icon: IconSettings, path: '/config/app' },
 ];
 
 export function AppShellLayout() {
@@ -265,6 +270,7 @@ export function AppShellLayout() {
         <MantineAppShell.Section grow component={ScrollArea}>
           {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
+          {renderNavGroup('Data', IconPackage, dataNav)}
           {renderNavGroup('Information', IconSearch, explorerNav)}
           {renderNavGroup('Settings', IconSettings, configNav)}
         </MantineAppShell.Section>

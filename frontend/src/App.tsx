@@ -24,6 +24,8 @@ const CertificatesPage = lazyWithRetry(() => import('./pages/Certificates').then
 const FactExplorerPage = lazyWithRetry(() => import('./pages/FactExplorer').then(m => ({ default: m.FactExplorerPage })));
 const ResourceExplorerPage = lazyWithRetry(() => import('./pages/ResourceExplorer').then(m => ({ default: m.ResourceExplorerPage })));
 const PackagesPage = lazyWithRetry(() => import('./pages/Packages').then(m => ({ default: m.PackagesPage })));
+const DataHieraPage = lazyWithRetry(() => import('./pages/DataHiera').then(m => ({ default: m.DataHieraPage })));
+const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m => ({ default: m.DataLookupPage })));
 
 function PageLoader() {
   return <Center h={400}><Loader size="xl" /></Center>;
@@ -75,6 +77,10 @@ function AppRoutes() {
           <Route path="/facts" element={<FactExplorerPage />} />
           <Route path="/resources" element={<ResourceExplorerPage />} />
           <Route path="/packages" element={<PackagesPage />} />
+
+          {/* Data / Hiera */}
+          <Route path="/data/hiera" element={<DataHieraPage />} />
+          <Route path="/data/lookup" element={<DataLookupPage />} />
 
           {/* Certificate Authority */}
           <Route path="/certificates" element={<CertificatesPage />} />
