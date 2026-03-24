@@ -209,22 +209,24 @@ async def clean_certificate(request: CertActionRequest):
 @router.get("/ca-info")
 async def get_ca_info():
     """Get information about the Certificate Authority itself."""
-    import subprocess
     import re
+    import subprocess
     from datetime import datetime, timezone
     
     try:
-        # Get CA certificate info
+        # Get CA certificate info (async subprocess to avoid blocking event loop)
         ca_cert_path = "/etc/puppetlabs/puppet/ssl/ca/ca_crt.pem"
-        result = subprocess.run(
-            ["sudo", "openssl", "x509", "-in", ca_cert_path, "-text", "-noout"],
-            capture_output=True, text=True, timeout=10
+        proc = await asyncio.create_subprocess_exec(
+            "sudo", "openssl", "x509", "-in", ca_cert_path, "-text", "-noout",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
         
-        if result.returncode != 0:
+        if proc.returncode != 0:
             return {"error": "Could not read CA certificate"}
         
-        cert_text = result.stdout
+        cert_text = stdout.decode("utf-8", errors="replace")
         
         # Parse certificate information
         info = {}
