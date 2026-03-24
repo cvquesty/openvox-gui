@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid, Box,
-  Select, Badge,
+  Select, Badge, Collapse, ActionIcon,
 } from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
+import { IconSearch, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
-import { reports } from '../services/api';
+import { reports, enc, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 
@@ -248,27 +248,137 @@ function ReportOScope() {
   );
 }
 
+// ─── Grouped Reports View ──────────────────────────────────
+interface GroupedReports {
+  [groupName: string]: {
+    nodes: string[];
+    reports: any[];
+    status: 'unchanged' | 'changed' | 'failed';
+  };
+}
+
+function getGroupStatus(reports: any[]): 'unchanged' | 'changed' | 'failed' {
+  if (reports.length === 0) return 'unchanged';
+  const hasFailed = reports.some(r => r.status === 'failed');
+  if (hasFailed) return 'failed';
+  const hasChanged = reports.some(r => r.status === 'changed');
+  if (hasChanged) return 'changed';
+  return 'unchanged';
+}
+
+function getStatusBadgeProps(status: 'unchanged' | 'changed' | 'failed') {
+  switch (status) {
+    case 'failed':
+      return { color: 'red', label: 'Failed' };
+    case 'changed':
+      return { color: 'orange', label: 'Changed' };
+    default:
+      return { color: 'green', label: 'Unchanged' };
+  }
+}
+
 export function ReportsPage() {
   const { isFormal } = useAppTheme();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const { data: reportList, loading, error } = useApi(
-    () => reports.list({ status: statusFilter || undefined, limit: 50 }),
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  // Fetch hierarchy (groups and nodes)
+  const { data: hierarchy, loading: hierarchyLoading } = useApi(
+    () => enc.getHierarchy(),
+    []
+  );
+
+  // Fetch reports
+  const { data: reportList, loading: reportsLoading, error } = useApi(
+    () => reports.list({ status: statusFilter || undefined, limit: 100 }),
     [statusFilter]
   );
+
+  const loading = hierarchyLoading || reportsLoading;
+
+  // Build group → nodes mapping and group reports
+  const groupedReports: GroupedReports = useMemo(() => {
+    if (!hierarchy || !reportList) return {};
+
+    const groups: GroupedReports = {};
+
+    // Build group → nodes map from hierarchy
+    const groupNodes: Record<string, string[]> = {};
+    hierarchy.groups?.forEach((group: any) => {
+      groupNodes[group.name] = [];
+    });
+
+    // Assign nodes to groups
+    hierarchy.nodes?.forEach((node: any) => {
+      // Nodes may have groups array (group names) or group_ids
+      const nodeGroups = node.groups || [];
+      if (nodeGroups.length > 0) {
+        nodeGroups.forEach((g: string) => {
+          if (!groupNodes[g]) groupNodes[g] = [];
+          groupNodes[g].push(node.certname);
+        });
+      } else {
+        // Node without explicit group - put in "Ungrouped"
+        if (!groupNodes['Ungrouped']) groupNodes['Ungrouped'] = [];
+        groupNodes['Ungrouped'].push(node.certname);
+      }
+    });
+
+    // If no groups exist, create "All Nodes" group
+    if (Object.keys(groupNodes).length === 0) {
+      groupNodes['All Nodes'] = hierarchy.nodes?.map((n: any) => n.certname) || [];
+    }
+
+    // Group reports by node groups
+    Object.entries(groupNodes).forEach(([groupName, nodeList]) => {
+      const groupReports = reportList.filter((r: any) =>
+        nodeList.includes(r.certname)
+      );
+      groups[groupName] = {
+        nodes: nodeList,
+        reports: groupReports,
+        status: getGroupStatus(groupReports),
+      };
+    });
+
+    return groups;
+  }, [hierarchy, reportList]);
+
+  // Filter groups and reports by search
+  const filteredGroups = useMemo(() => {
+    if (!search) return groupedReports;
+    const searchLower = search.toLowerCase();
+    const filtered: GroupedReports = {};
+    Object.entries(groupedReports).forEach(([groupName, data]) => {
+      const matchingReports = data.reports.filter((r: any) =>
+        r.certname.toLowerCase().includes(searchLower)
+      );
+      if (groupName.toLowerCase().includes(searchLower) || matchingReports.length > 0) {
+        filtered[groupName] = {
+          ...data,
+          reports: matchingReports,
+        };
+      }
+    });
+    return filtered;
+  }, [groupedReports, search]);
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
+  };
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
-  const filtered = reportList?.filter(
-    (r) => r.certname.toLowerCase().includes(search.toLowerCase())
-  ) || [];
+  const groupNames = Object.keys(filteredGroups);
+  const totalReports = Object.values(filteredGroups).reduce((sum, g) => sum + g.reports.length, 0);
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Reports ({filtered.length})</Title>
+        <Title order={2}>Reports ({totalReports})</Title>
         <Group>
           <Select
             placeholder="Filter by status"
@@ -300,49 +410,82 @@ export function ReportsPage() {
         </Card>
       )}
 
-      <Card withBorder shadow="sm">
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Certname</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Environment</Table.Th>
-              <Table.Th>Start Time</Table.Th>
-              <Table.Th>OpenVox Version</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {filtered.map((report) => (
-              <Table.Tr
-                key={report.hash}
-                style={{ cursor: 'pointer' }}
-                onClick={() => navigate(`/reports/${report.hash}`)}
-              >
-                <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
-                <Table.Td><StatusBadge status={report.status} /></Table.Td>
-                <Table.Td>
-                  {report.corrective_change ? (
-                    <Badge color="orange" variant="light" size="sm">Corrective</Badge>
-                  ) : report.noop ? (
-                    <Badge color="blue" variant="light" size="sm">Noop</Badge>
-                  ) : (
-                    <Badge color="gray" variant="light" size="sm">Intentional</Badge>
-                  )}
-                </Table.Td>
-                <Table.Td>{report.environment || '—'}</Table.Td>
-                <Table.Td>{report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
-                <Table.Td>{report.puppet_version || '—'}</Table.Td>
-              </Table.Tr>
-            ))}
-            {filtered.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={6}><Text c="dimmed" ta="center">No reports found</Text></Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </Card>
+      {/* Grouped reports */}
+      {groupNames.length === 0 ? (
+        <Card withBorder shadow="sm">
+          <Text c="dimmed" ta="center">No reports found</Text>
+        </Card>
+      ) : (
+        <Stack gap="md">
+          {groupNames.map((groupName) => {
+            const groupData = filteredGroups[groupName];
+            const { status, reports: groupReports, nodes } = groupData;
+            const badgeProps = getStatusBadgeProps(status);
+            const isExpanded = expandedGroups[groupName] ?? false;
+
+            return (
+              <Card key={groupName} withBorder shadow="sm">
+                <Group justify="space-between" style={{ cursor: 'pointer' }} onClick={() => toggleGroup(groupName)}>
+                  <Group>
+                    <ActionIcon variant="subtle" size="sm">
+                      {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+                    </ActionIcon>
+                    <Text fw={700}>{groupName}</Text>
+                    <Text c="dimmed" size="sm">({nodes.length} node{nodes.length !== 1 ? 's' : ''})</Text>
+                  </Group>
+                  <Badge color={badgeProps.color} variant="filled" size="sm">
+                    {badgeProps.label}
+                  </Badge>
+                </Group>
+                <Collapse in={isExpanded}>
+                  <Table striped highlightOnHover mt="sm">
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Certname</Table.Th>
+                        <Table.Th>Status</Table.Th>
+                        <Table.Th>Type</Table.Th>
+                        <Table.Th>Environment</Table.Th>
+                        <Table.Th>Start Time</Table.Th>
+                        <Table.Th>OpenVox Version</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {groupReports.length === 0 ? (
+                        <Table.Tr>
+                          <Table.Td colSpan={6}><Text c="dimmed" ta="center">No reports for this group</Text></Table.Td>
+                        </Table.Tr>
+                      ) : (
+                        groupReports.map((report: any) => (
+                          <Table.Tr
+                            key={report.hash}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => navigate(`/reports/${report.hash}`)}
+                          >
+                            <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
+                            <Table.Td><StatusBadge status={report.status} /></Table.Td>
+                            <Table.Td>
+                              {report.corrective_change ? (
+                                <Badge color="orange" variant="light" size="sm">Corrective</Badge>
+                              ) : report.noop ? (
+                                <Badge color="blue" variant="light" size="sm">Noop</Badge>
+                              ) : (
+                                <Badge color="gray" variant="light" size="sm">Intentional</Badge>
+                              )}
+                            </Table.Td>
+                            <Table.Td>{report.environment || '—'}</Table.Td>
+                            <Table.Td>{report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
+                            <Table.Td>{report.puppet_version || '—'}</Table.Td>
+                          </Table.Tr>
+                        ))
+                      )}
+                    </Table.Tbody>
+                  </Table>
+                </Collapse>
+              </Card>
+            );
+          })}
+        </Stack>
+      )}
     </Stack>
   );
 }
