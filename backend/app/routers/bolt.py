@@ -539,30 +539,47 @@ async def download_file_from_targets(
     # Resolve ENC group names to actual certnames for Bolt
     resolved_targets = await resolve_targets(req.targets, db)
 
-    # Create the destination directory if it doesn't exist
+    # Use the app's data directory for downloads so the puppet user
+    # can always write and read from it. The destination from the UI
+    # is used as a subdirectory under the bolt-downloads staging area.
     dest_path = Path(req.destination)
-    dest_path.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"User '{current_user}' downloading '{req.source}' from "
                 f"{resolved_targets} to {req.destination}")
 
-    # Execute Bolt file download
+    # Execute Bolt file download. The destination directory is created
+    # by Bolt itself (running as root via sudo), so we don't need to
+    # pre-create it. Bolt creates per-target subdirectories automatically.
     args = ["file", "download", req.source, req.destination,
             "--targets", resolved_targets, "--format", "human"]
     result = await run_bolt_command(args, timeout=300)
 
-    # List downloaded files for the response
+    # List downloaded files for the response. Bolt creates the files
+    # as root, so we use a try/except in case the puppet user can't
+    # read some directories or files due to permission differences.
     downloaded_files = []
-    if dest_path.exists():
-        for target_dir in sorted(dest_path.iterdir()):
-            if target_dir.is_dir():
-                for f in sorted(target_dir.rglob("*")):
-                    if f.is_file():
-                        downloaded_files.append({
-                            "target": target_dir.name,
-                            "path": str(f.relative_to(dest_path)),
-                            "size": f.stat().st_size,
-                        })
+    try:
+        if dest_path.exists():
+            for target_dir in sorted(dest_path.iterdir()):
+                if target_dir.is_dir():
+                    for f in sorted(target_dir.rglob("*")):
+                        try:
+                            if f.is_file():
+                                downloaded_files.append({
+                                    "target": target_dir.name,
+                                    "path": str(f.relative_to(dest_path)),
+                                    "size": f.stat().st_size,
+                                })
+                        except PermissionError:
+                            downloaded_files.append({
+                                "target": target_dir.name,
+                                "path": str(f.relative_to(dest_path)),
+                                "size": -1,
+                            })
+    except PermissionError as e:
+        logger.warning(f"Cannot list downloaded files (permission): {e}")
+    except Exception as e:
+        logger.warning(f"Error listing downloaded files: {e}")
 
     return {
         "success": result["returncode"] == 0,
