@@ -130,7 +130,7 @@ export function AppShellLayout() {
       const anyChildActive = item.children!.some((c) =>
         c.path === '/' ? location.pathname === '/' : location.pathname.startsWith(c.path)
       );
-      const isOpen = openGroups[item.label] ?? anyChildActive;
+      const isOpen = openGroups[item.label] ?? false;
 
       const handleClick = () => {
         navigate(item.path);
@@ -200,8 +200,8 @@ export function AppShellLayout() {
       );
     }
 
-    // Multi-item or nested groups
-    const isOpen = openGroups[label] ?? anyActive;
+    // Multi-item or nested groups — collapsed by default
+    const isOpen = openGroups[label] ?? false;
 
     const handleParentClick = () => {
       const firstItem = items[0];

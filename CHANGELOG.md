@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code nav restructure**: Node Classifier moved from standalone nav group into Code as first submenu item. Deployment remains as second submenu item under Code.
 - **Rename Node Classifier**: Nav label and page title changed from "Node Classifier" to "Classification".
 - **Rename OpenVoxDB Explorer**: Nav label changed from "OpenVoxDB Explorer" to "Information". PQL Console, Fact Explorer, Resource Explorer, and Package Inventory remain as sub-items under Information.
+- **Nav collapsed by default**: All left-column menu groups (Monitoring, Code, Information, Settings, etc.) now appear collapsed on initial page load. Users click to expand.
 
 ## [2.3.2] - 2026-03-23
 
