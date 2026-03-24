@@ -466,12 +466,14 @@ async def upload_file_to_targets(
     # Resolve ENC group names to actual certnames for Bolt
     resolved_targets = await resolve_targets(targets, db)
 
-    # Stage the uploaded file to a temporary location on the server.
-    # Bolt's 'file upload' command reads from the local filesystem,
-    # so we need to save the browser's upload to disk first.
+    # Stage the uploaded file in a unique subdirectory so the original
+    # filename is preserved when Bolt uploads it. Bolt uses the source
+    # filename as the remote filename when the destination is a directory,
+    # so we must use the original name — not a UUID-prefixed one.
     UPLOAD_STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    staged_name = f"{uuid.uuid4().hex}_{file.filename}"
-    staged_path = UPLOAD_STAGING_DIR / staged_name
+    staging_subdir = UPLOAD_STAGING_DIR / uuid.uuid4().hex
+    staging_subdir.mkdir(parents=True, exist_ok=True)
+    staged_path = staging_subdir / file.filename
 
     try:
         # Write the uploaded file content to the staging directory
@@ -480,7 +482,9 @@ async def upload_file_to_targets(
         logger.info(f"User '{current_user}' staged file '{file.filename}' "
                     f"({len(content)} bytes) for upload to {resolved_targets}")
 
-        # Execute Bolt file upload: pushes the staged file to all targets
+        # Execute Bolt file upload: pushes the staged file to all targets.
+        # The destination can be a directory (file keeps its name) or a
+        # full path (file is renamed on the target).
         args = ["file", "upload", str(staged_path), destination,
                 "--targets", resolved_targets, "--format", "human"]
         result = await run_bolt_command(args, timeout=300)
@@ -499,10 +503,12 @@ async def upload_file_to_targets(
         logger.error(f"File upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
     finally:
-        # Always clean up the staged file to prevent disk space leaks.
-        # This runs whether the upload succeeded or failed.
-        if staged_path.exists():
-            staged_path.unlink()
+        # Always clean up the staging subdirectory and its contents to
+        # prevent disk space leaks. shutil.rmtree removes the UUID
+        # subdirectory and the file inside it in one operation.
+        if staging_subdir.exists():
+            import shutil as _shutil
+            _shutil.rmtree(staging_subdir, ignore_errors=True)
 
 
 @router.post("/file/download")
