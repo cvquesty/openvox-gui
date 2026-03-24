@@ -45,8 +45,8 @@ const monitoringNav = [
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
 ];
 
-const deployNav = [
-  { label: 'Code Deployment', icon: IconRocket, path: '/deployment' },
+const codeNav = [
+  { label: 'Deployment', icon: IconRocket, path: '/deployment' },
 ];
 
 const encNav = [
@@ -199,7 +199,7 @@ export function AppShellLayout() {
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
           {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
-          {renderNavGroup('Code Deployment', IconRocket, deployNav)}
+          {renderNavGroup('Code', IconRocket, codeNav)}
           {renderNavGroup('Node Classifier', IconHierarchy2, encNav)}
           {renderNavGroup('Orchestration', IconBolt, orchNav)}
           {renderNavGroup('OpenVoxDB Explorer', IconSearch, explorerNav)}
