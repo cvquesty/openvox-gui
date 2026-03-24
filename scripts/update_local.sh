@@ -278,6 +278,38 @@ log_step 3 "Python Dependencies"
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
 log_ok "Python dependencies updated"
 
+# ─── Step 3b: Database Migrations ────────────────────────────
+# Run Alembic migrations to apply any schema changes introduced by
+# the new version. For existing installations that predate Alembic,
+# 'stamp head' marks the database as current without running any DDL.
+# For new installations, create_all() already created the tables and
+# the baseline migration is a no-op.
+if [ -f "${INSTALL_DIR}/backend/alembic.ini" ]; then
+    cd "${INSTALL_DIR}/backend"
+    # Check if alembic_version table exists (has Alembic been initialized?)
+    HAS_ALEMBIC=$("${INSTALL_DIR}/venv/bin/python" -c "
+import sqlite3, sys
+try:
+    conn = sqlite3.connect('${INSTALL_DIR}/data/openvox_gui.db')
+    conn.execute('SELECT 1 FROM alembic_version LIMIT 1')
+    print('yes')
+except:
+    print('no')
+" 2>/dev/null)
+
+    if [ "$HAS_ALEMBIC" = "yes" ]; then
+        # Database already has Alembic — run any pending migrations
+        "${INSTALL_DIR}/venv/bin/alembic" upgrade head 2>/dev/null
+        log_ok "Database migrations applied"
+    else
+        # First time with Alembic — stamp the baseline without running DDL
+        "${INSTALL_DIR}/venv/bin/alembic" stamp head 2>/dev/null
+        log_ok "Database migration baseline stamped"
+    fi
+else
+    log_info "No alembic.ini found — skipping migrations"
+fi
+
 # ─── Step 4: Rebuild Frontend ─────────────────────────────────
 log_step 4 "Frontend"
 
