@@ -30,6 +30,10 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(username, password);
+      // Always send the user to the Dashboard after login, regardless
+      // of what URL they had bookmarked or were redirected from. The
+      // Dashboard is the starting point for all navigation.
+      window.location.href = '/';
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
