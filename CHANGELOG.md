@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Data menu added**: New "Data" nav group under Code containing Hiera Data Files and Hiera Lookup (moved from OpenVox Configuration).
 - **Settings submenu renamed**: "Settings" submenu under Settings main menu renamed to "Application Configuration".
 - **Reports grouped by node groups**: Reports page now organizes reports by ENC node groups. Each group header shows a status badge: green "Unchanged" (all nodes unchanged), orange "Changed" (any node changed), or red "Failed" (any node failed). Groups are expandable to show individual node reports.
+- **Nav parent click behavior**: Clicking a nav group with children (e.g., Infrastructure, Data) now toggles expand/collapse without navigating. Users click child items to navigate, eliminating blanking between clicks.
 
 ## [2.3.2] - 2026-03-23
 
