@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 2.2.0-1**
+**OpenVox GUI Version 2.3.2**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -100,7 +100,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"2.2.0-1"}
+# {"status":"ok","version":"2.3.2"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -475,15 +475,26 @@ Examples:
 
 ### Recent Versions
 
-**Version 2.0.x (Current Series)**
+**Version 2.3.x (Current Series)**
+- Zero CVEs — all dependencies audited and upgraded (FastAPI 0.135.1, PyJWT 2.12.1)
+- python-jose replaced with PyJWT (eliminates unfixable ecdsa CVE)
+- Run OpenVox output panel on Node Detail page
+- ENC groups in Orchestration target selector
+- r10k deploy wrapper for proper environment reconstruction
+- ProtectSystem=strict → true (eliminates all read-only filesystem errors)
+- Clone-then-deploy update architecture (scripts + documentation)
+- Update scripts now deploy service file and sudoers automatically
+- Command validation regex fix (unblocked all Bolt commands)
+- Comprehensive inline docstrings across all backend modules
+- SUDOERS.md configuration guide
+
+**Version 2.0.x–2.2.x**
 - LDAP / Active Directory split authentication
 - Per-user authentication source selection (local or LDAP)
 - Auto-provisioning of LDAP users on first login
-- LDAP group-to-role mapping (Admin, Operator, Viewer)
-- LDAPS port 636 auto-detection and self-signed cert support
-- Installer bug fixes (directory nesting, missing VERSION file, silent npm errors)
-- **Database migration**: Adds `auth_source` column to `users` table and `ldap_config` table (applied automatically on first start)
-- **New dependency**: `ldap3` Python library (installed automatically via `requirements.txt`)
+- Installer proxy support for corporate environments
+- Node.js auto-installation from system repos
+- Comprehensive security headers and rate limiting
 
 **Version 1.4.x**
 - Fixed "Run OpenVox" button (uses bolt command run instead of missing task)
