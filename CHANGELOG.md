@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.1.1-3_beta] - 2026-03-24
+
+### Changed
+- **Navigation restructure**: Infrastructure nav group moved under Monitoring as an expandable submenu. Orchestration (previously top-level) is now nested under Infrastructure. Certificate Authority remains the first sub-item under Infrastructure. Navigation now supports nested items via recursive renderNavItem.
+
 ## [2.3.2] - 2026-03-23
 
 ### Fixed
