@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text,
-  ActionIcon, Tooltip, Grid,
+  ActionIcon, Tooltip, Grid, Collapse, Badge,
 } from '@mantine/core';
-import { IconSearch, IconEye } from '@tabler/icons-react';
+import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
-import { nodes } from '../services/api';
+import { nodes, enc } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
@@ -143,23 +143,94 @@ function timeAgo(timestamp: string | null): string {
   return `${days}d ago`;
 }
 
+// Grouped nodes interface
+interface GroupedNodes {
+  [groupName: string]: {
+    nodes: NodeSummary[];
+  };
+}
+
 export function NodesPage() {
   const { isFormal } = useAppTheme();
   const [search, setSearch] = useState('');
-  const { data: nodeList, loading, error } = useApi<NodeSummary[]>(nodes.list);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const { data: nodeList, loading: nodesLoading, error: nodesError } = useApi<NodeSummary[]>(nodes.list);
+  const { data: hierarchy, loading: hierarchyLoading, error: hierarchyError } = useApi<any>(() => enc.getHierarchy());
   const navigate = useNavigate();
+
+  const loading = nodesLoading || hierarchyLoading;
+  const error = nodesError || hierarchyError;
+
+  // Build grouped nodes by node groups
+  const groupedNodes: GroupedNodes = useMemo(() => {
+    if (!nodeList) return {};
+
+    const groups: GroupedNodes = {};
+
+    // Build group → nodes map from hierarchy
+    const groupNodes: Record<string, NodeSummary[]> = {};
+    hierarchy?.groups?.forEach((group: any) => {
+      groupNodes[group.name] = [];
+    });
+
+    // Assign nodes to groups
+    nodeList.forEach((node: NodeSummary) => {
+      const nodeGroups = (node as any).groups || [];
+      if (nodeGroups.length > 0) {
+        nodeGroups.forEach((g: string) => {
+          if (!groupNodes[g]) groupNodes[g] = [];
+          groupNodes[g].push(node);
+        });
+      } else {
+        // Node without explicit group - put in "Ungrouped"
+        if (!groupNodes['Ungrouped']) groupNodes['Ungrouped'] = [];
+        groupNodes['Ungrouped'].push(node);
+      }
+    });
+
+    // If no groups exist, create "All Nodes" group
+    if (Object.keys(groupNodes).length === 0) {
+      groupNodes['All Nodes'] = nodeList;
+    }
+
+    // Build grouped nodes
+    Object.entries(groupNodes).forEach(([groupName, nodeArr]) => {
+      groups[groupName] = { nodes: nodeArr };
+    });
+
+    return groups;
+  }, [nodeList, hierarchy]);
+
+  // Filter groups and nodes by search
+  const filteredGroups = useMemo(() => {
+    if (!search) return groupedNodes;
+    const searchLower = search.toLowerCase();
+    const filtered: GroupedNodes = {};
+    Object.entries(groupedNodes).forEach(([groupName, data]) => {
+      const matchingNodes = data.nodes.filter((n) =>
+        n.certname.toLowerCase().includes(searchLower)
+      );
+      if (groupName.toLowerCase().includes(searchLower) || matchingNodes.length > 0) {
+        filtered[groupName] = { nodes: matchingNodes };
+      }
+    });
+    return filtered;
+  }, [groupedNodes, search]);
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
+  };
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
-  const filtered = nodeList?.filter(
-    (n) => n.certname.toLowerCase().includes(search.toLowerCase())
-  ) || [];
+  const groupNames = Object.keys(filteredGroups);
+  const totalNodes = Object.values(filteredGroups).reduce((sum, g) => sum + g.nodes.length, 0);
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Title order={2}>Nodes ({filtered.length})</Title>
+        <Title order={2}>Nodes ({totalNodes})</Title>
         <TextInput
           placeholder="Search nodes..."
           leftSection={<IconSearch size={16} />}
@@ -176,44 +247,77 @@ export function NodesPage() {
         </Card>
       )}
 
-      <Card withBorder shadow="sm">
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Certname</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Environment</Table.Th>
-              <Table.Th>Last Report</Table.Th>
-              <Table.Th>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {filtered.map((node) => (
-              <Table.Tr key={node.certname} style={{ cursor: 'pointer' }}
-                onClick={() => navigate(`/nodes/${node.certname}`)}>
-                <Table.Td>
-                  <Text fw={500}>{node.certname}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <StatusBadge status={node.latest_report_status} />
-                </Table.Td>
-                <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
-                <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
-                <Table.Td>
-                  <Tooltip label="View details">
-                    <ActionIcon variant="subtle" onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/nodes/${node.certname}`);
-                    }}>
-                      <IconEye size={18} />
+      {/* Grouped nodes */}
+      {groupNames.length === 0 ? (
+        <Card withBorder shadow="sm">
+          <Text c="dimmed" ta="center">No nodes found</Text>
+        </Card>
+      ) : (
+        <Stack gap="md">
+          {groupNames.map((groupName) => {
+            const groupData = filteredGroups[groupName];
+            const { nodes: groupNodes } = groupData;
+            const isExpanded = expandedGroups[groupName] ?? false;
+
+            return (
+              <Card key={groupName} withBorder shadow="sm">
+                <Group justify="space-between" style={{ cursor: 'pointer' }} onClick={() => toggleGroup(groupName)}>
+                  <Group>
+                    <ActionIcon variant="subtle" size="sm">
+                      {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
                     </ActionIcon>
-                  </Tooltip>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </Card>
+                    <Text fw={700}>{groupName}</Text>
+                    <Text c="dimmed" size="sm">({groupNodes.length} node{groupNodes.length !== 1 ? 's' : ''})</Text>
+                  </Group>
+                </Group>
+                <Collapse in={isExpanded}>
+                  <Table striped highlightOnHover mt="sm">
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Certname</Table.Th>
+                        <Table.Th>Status</Table.Th>
+                        <Table.Th>Environment</Table.Th>
+                        <Table.Th>Last Report</Table.Th>
+                        <Table.Th>Actions</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {groupNodes.length === 0 ? (
+                        <Table.Tr>
+                          <Table.Td colSpan={5}><Text c="dimmed" ta="center">No nodes for this group</Text></Table.Td>
+                        </Table.Tr>
+                      ) : (
+                        groupNodes.map((node) => (
+                          <Table.Tr
+                            key={node.certname}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => navigate(`/nodes/${node.certname}`)}
+                          >
+                            <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
+                            <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
+                            <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
+                            <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
+                            <Table.Td>
+                              <Tooltip label="View details">
+                                <ActionIcon variant="subtle" onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/nodes/${node.certname}`);
+                                }}>
+                                  <IconEye size={18} />
+                                </ActionIcon>
+                              </Tooltip>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))
+                      )}
+                    </Table.Tbody>
+                  </Table>
+                </Collapse>
+              </Card>
+            );
+          })}
+        </Stack>
+      )}
     </Stack>
   );
 }
