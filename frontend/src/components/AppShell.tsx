@@ -265,7 +265,7 @@ export function AppShellLayout() {
         <MantineAppShell.Section grow component={ScrollArea}>
           {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
-          {renderNavGroup('OpenVoxDB Explorer', IconSearch, explorerNav)}
+          {renderNavGroup('Information', IconSearch, explorerNav)}
           {renderNavGroup('Settings', IconSettings, configNav)}
         </MantineAppShell.Section>
 
