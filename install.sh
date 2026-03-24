@@ -813,7 +813,7 @@ RestartSec=5
 NoNewPrivileges=false
 ProtectSystem=strict
 PrivateTmp=false
-ReadWritePaths=${INSTALL_DIR}/data ${INSTALL_DIR}/logs ${INSTALL_DIR}/config /opt/puppetlabs/puppet/cache /etc/puppetlabs/code/environments /etc/puppetlabs/puppet/ssl /etc/puppetlabs/bolt /tmp /run/sudo
+ReadWritePaths=${INSTALL_DIR}/data ${INSTALL_DIR}/logs ${INSTALL_DIR}/config /opt/puppetlabs/puppet/cache /opt/puppetlabs/puppet/public /etc/puppetlabs/code/environments /etc/puppetlabs/puppet/ssl /etc/puppetlabs/bolt /tmp /run/sudo
 
 [Install]
 WantedBy=multi-user.target
