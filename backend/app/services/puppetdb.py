@@ -75,9 +75,14 @@ class PuppetDBService:
 
     async def _query(self, endpoint: str, query: Optional[str] = None,
                      params: Optional[Dict] = None) -> Any:
-        """Execute a PuppetDB query."""
+        """Execute a PuppetDB query.
+
+        When endpoint is empty, this sends a PQL query to the base
+        /pdb/query/v4 endpoint (no trailing slash — PuppetDB returns
+        404 for the trailing-slash variant).
+        """
         client = await self._get_client()
-        url = f"/pdb/query/v4/{endpoint}"
+        url = f"/pdb/query/v4/{endpoint}".rstrip("/")
         request_params = params or {}
         if query:
             request_params["query"] = query
