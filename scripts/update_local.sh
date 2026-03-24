@@ -102,6 +102,13 @@ fi
 OLD_VERSION="$(cat "${INSTALL_DIR}/VERSION" 2>/dev/null || echo 'unknown')"
 NEW_VERSION="$(cat "${REPO_DIR}/VERSION" 2>/dev/null || echo 'unknown')"
 
+# Detect git branch for display (helps when switching between stable/beta)
+REPO_BRANCH="unknown"
+if [ -d "${REPO_DIR}/.git" ]; then
+    REPO_BRANCH="$(cd "${REPO_DIR}" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+fi
+OLD_BRANCH="$(cat "${INSTALL_DIR}/.deployed-branch" 2>/dev/null || echo 'unknown')"
+
 echo ""
 echo -e "${BOLD}╔═══════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║          OpenVox GUI Local Update                     ║${NC}"
@@ -111,10 +118,14 @@ echo -e "  ${BOLD}Source repo:${NC}      ${REPO_DIR}"
 echo -e "  ${BOLD}Install directory:${NC} ${INSTALL_DIR}"
 echo -e "  ${BOLD}Installed version:${NC} ${OLD_VERSION}"
 echo -e "  ${BOLD}Repo version:${NC}     ${NEW_VERSION}"
+echo -e "  ${BOLD}Repo branch:${NC}      ${REPO_BRANCH}"
+if [ "$OLD_BRANCH" != "unknown" ] && [ "$OLD_BRANCH" != "$REPO_BRANCH" ]; then
+    echo -e "  ${YELLOW}⚠ Branch switch:${NC}  ${OLD_BRANCH} → ${REPO_BRANCH}"
+fi
 echo ""
 
-if [ "$OLD_VERSION" = "$NEW_VERSION" ] && [ "$FORCE_UPDATE" = "false" ]; then
-    echo -e "${GREEN}Already up-to-date (${OLD_VERSION}).${NC} Use --force to re-apply anyway."
+if [ "$OLD_VERSION" = "$NEW_VERSION" ] && [ "$OLD_BRANCH" = "$REPO_BRANCH" ] && [ "$FORCE_UPDATE" = "false" ]; then
+    echo -e "${GREEN}Already up-to-date (${OLD_VERSION} on ${REPO_BRANCH}).${NC} Use --force to re-apply anyway."
     exit 0
 fi
 
@@ -169,6 +180,22 @@ log_ok "Deployed scripts"
 rm -rf "${INSTALL_DIR}/frontend"
 cp -a "${REPO_DIR}/frontend" "${INSTALL_DIR}/"
 log_ok "Deployed frontend source"
+
+# Deploy bolt-plugin if present (3.x feature — absent in 2.x, which is fine)
+if [ -d "${REPO_DIR}/bolt-plugin" ]; then
+    rm -rf "${INSTALL_DIR}/bolt-plugin"
+    cp -a "${REPO_DIR}/bolt-plugin" "${INSTALL_DIR}/"
+    log_ok "Deployed bolt-plugin"
+else
+    # Switching back to 2.x — clean up 3.x artifacts
+    if [ -d "${INSTALL_DIR}/bolt-plugin" ]; then
+        rm -rf "${INSTALL_DIR}/bolt-plugin"
+        log_info "Removed bolt-plugin (not present in this branch)"
+    fi
+fi
+
+# Record which branch was deployed (used for branch-switch detection)
+echo "${REPO_BRANCH}" > "${INSTALL_DIR}/.deployed-branch"
 
 # Update systemd service file (substitute INSTALL_DIR, preserve existing user/port)
 SERVICE_USER="puppet"
@@ -330,9 +357,14 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "  ${BOLD}Previous version:${NC} ${OLD_VERSION}"
 echo -e "  ${BOLD}Current version:${NC}  ${NEW_VERSION}"
+echo -e "  ${BOLD}Branch:${NC}           ${REPO_BRANCH}"
 if [ "$SKIP_BACKUP" != "true" ]; then
     echo -e "  ${BOLD}Backup:${NC}           ${BACKUP_DIR}"
 fi
+echo ""
+echo -e "  ${BOLD}To switch branches:${NC}"
+echo -e "    cd ${REPO_DIR} && git checkout <branch>"
+echo -e "    sudo ./scripts/update_local.sh --force"
 echo ""
 echo -e "  ${BOLD}Service Commands:${NC}"
 echo -e "    sudo systemctl status ${SERVICE_NAME}"
