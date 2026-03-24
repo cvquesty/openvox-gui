@@ -111,25 +111,55 @@ export function AppShellLayout() {
   const logoSrc = isFormal ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
   const sectionLabelColor = isFormal ? '#868e96' : 'dimmed';
 
-  const renderNavGroup = (label: string, items: typeof monitoringNav) => (
-    <>
-      <Divider my="sm" />
-      <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" ml="sm">
-        {label}
-      </Text>
-      {items.map((item) => (
+  // Collapsible navigation group — each section rolls up into a parent
+  // NavLink that can be expanded/collapsed. The parent is highlighted
+  // when any child route is active, giving visual context even when
+  // collapsed. Single-item groups navigate directly without expanding.
+  const renderNavGroup = (label: string, icon: any, items: typeof monitoringNav) => {
+    const GroupIcon = icon;
+    const anyActive = items.some((item) =>
+      item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
+    );
+
+    // Single-item groups navigate directly — no expand/collapse needed
+    if (items.length === 1) {
+      const item = items[0];
+      return (
         <NavLink
           key={item.path}
-          label={item.label}
-          leftSection={<item.icon size={18} />}
+          label={label}
+          leftSection={<GroupIcon size={18} />}
           active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
           onClick={() => { navigate(item.path); setOpened(false); }}
           variant="filled"
           mb={2}
         />
-      ))}
-    </>
-  );
+      );
+    }
+
+    return (
+      <NavLink
+        label={label}
+        leftSection={<GroupIcon size={18} />}
+        childrenOffset={24}
+        defaultOpened={anyActive}
+        variant="filled"
+        mb={2}
+      >
+        {items.map((item) => (
+          <NavLink
+            key={item.path}
+            label={item.label}
+            leftSection={<item.icon size={16} />}
+            active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
+            onClick={() => { navigate(item.path); setOpened(false); }}
+            variant="filled"
+            mb={1}
+          />
+        ))}
+      </NavLink>
+    );
+  };
 
   return (
     <MantineAppShell
@@ -168,27 +198,13 @@ export function AppShellLayout() {
 
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
-          <Text size="xs" fw={700} c={sectionLabelColor} tt="uppercase" mb="xs" mt="xs" ml="sm">
-            Monitoring
-          </Text>
-          {monitoringNav.map((item) => (
-            <NavLink
-              key={item.path}
-              label={item.label}
-              leftSection={<item.icon size={18} />}
-              active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
-              onClick={() => { navigate(item.path); setOpened(false); }}
-              variant="filled"
-              mb={2}
-            />
-          ))}
-
-          {renderNavGroup('Code Deployment', deployNav)}
-          {renderNavGroup('Node Classifier', encNav)}
-          {renderNavGroup('Orchestration', orchNav)}
-          {renderNavGroup('OpenVoxDB Explorer', explorerNav)}
-          {renderNavGroup('Infrastructure', infraNav)}
-          {renderNavGroup('Settings', configNav)}
+          {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
+          {renderNavGroup('Code Deployment', IconRocket, deployNav)}
+          {renderNavGroup('Node Classifier', IconHierarchy2, encNav)}
+          {renderNavGroup('Orchestration', IconBolt, orchNav)}
+          {renderNavGroup('OpenVoxDB Explorer', IconSearch, explorerNav)}
+          {renderNavGroup('Infrastructure', IconCertificate, infraNav)}
+          {renderNavGroup('Settings', IconSettings, configNav)}
         </MantineAppShell.Section>
 
         <MantineAppShell.Section>
