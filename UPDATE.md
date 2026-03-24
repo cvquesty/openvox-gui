@@ -274,6 +274,55 @@ sudo crontab -e
 
 ---
 
+## Branch Switching (Testing Beta Features)
+
+OpenVox GUI supports clean switching between stable and beta branches.
+The update script handles everything — file deployment, Python dependencies,
+database migrations, frontend rebuild, service file, sudoers, and restart.
+
+### Switch to beta (3.x)
+
+```bash
+cd ~/openvox-gui
+git checkout feature/bolt-dynamic-inventory
+sudo ./scripts/update_local.sh --force
+```
+
+### Revert to stable (2.x)
+
+```bash
+cd ~/openvox-gui
+git checkout main
+sudo ./scripts/update_local.sh --force
+```
+
+The `--force` flag ensures the deploy runs even if version numbers match between
+branches. The script displays a warning when it detects a branch switch:
+
+```
+  ⚠ Branch switch: main → feature/bolt-dynamic-inventory
+```
+
+### What happens during a branch switch
+
+| Component | Action |
+|-----------|--------|
+| Backend code | Completely replaced from the new branch |
+| Frontend | Completely replaced and rebuilt |
+| Python dependencies | Reinstalled from the branch's `requirements.txt` |
+| Database migrations | Applied (`upgrade head`) or reverted as needed |
+| Branch-specific files | Deployed if present, removed if absent (e.g., `bolt-plugin/`) |
+| Data and config | **Preserved** — your `.env`, database, and logs are never touched |
+| Service file + sudoers | Updated and reloaded automatically |
+
+### Important notes
+
+- **Data is safe**: Your database, `.env` config, and logs are never deleted during a branch switch. The switch only replaces application code.
+- **Database schema**: If a beta branch adds new database columns, they are applied via Alembic migrations. Reverting to stable leaves the extra columns in place (SQLAlchemy ignores columns it doesn't know about). For a truly clean revert, run `alembic downgrade 001_baseline` before switching branches.
+- **Use `--force`**: Always use the `--force` flag when switching branches. Without it, the script may skip the deploy if the version numbers happen to match.
+
+---
+
 ## Rollback Process
 
 If something goes wrong after an update, you can rollback to the previous version:
