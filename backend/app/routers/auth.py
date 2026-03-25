@@ -59,7 +59,7 @@ class LdapConfigRequest(BaseModel):
     use_starttls: bool = False
     ssl_verify: bool = True
     ssl_ca_cert: Optional[str] = None
-    connection_timeout: int = 10
+    connection_timeout: int = 30
     bind_dn: Optional[str] = None
     bind_password: Optional[str] = None
     user_base_dn: str = "dc=example,dc=com"
@@ -85,7 +85,7 @@ class LdapTestRequest(BaseModel):
     use_starttls: bool = False
     ssl_verify: bool = True
     ssl_ca_cert: Optional[str] = None
-    connection_timeout: int = 10
+    connection_timeout: int = 30
     bind_dn: Optional[str] = None
     bind_password: Optional[str] = None
     user_base_dn: Optional[str] = None

@@ -293,6 +293,14 @@ ldapsearch -x -H ldaps://dc01.corp.example.com:636 \
 
 ## Troubleshooting LDAP
 
+### Connection Timeout
+
+- **Common cause when ldapsearch works but app fails**: The app runs as the `puppet` user (see systemd service), while you may be running ldapsearch as root or another user. Check for differences in DNS resolution (`/etc/hosts`, `resolv.conf`), environment variables (http_proxy, no_proxy), or network namespaces.
+- Verify the **Server URL** in the LDAP config exactly matches the `-H` value used in your ldapsearch command (including protocol, host, port).
+- Increase connection_timeout if network is slow (now defaults to 30s).
+- Check logs with `journalctl -u openvox-gui -n 50` for detailed connection attempts (now includes server_url and full tracebacks).
+- Test manually as puppet user: `sudo -u puppet /opt/openvox-gui/venv/bin/python -c 'from backend.app.middleware.auth_ldap import test_ldap_connection; ...'`
+
 ### Connection Refused
 
 - Verify the LDAP server is running and accepting connections

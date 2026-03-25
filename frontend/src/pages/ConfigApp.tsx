@@ -326,7 +326,7 @@ function LdapConfigPanel() {
     use_starttls: false,
     ssl_verify: true,
     ssl_ca_cert: '',
-    connection_timeout: 10,
+    connection_timeout: 30,
     bind_dn: '',
     bind_password: '',
     user_base_dn: 'dc=example,dc=com',

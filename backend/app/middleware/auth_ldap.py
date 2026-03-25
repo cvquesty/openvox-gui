@@ -72,6 +72,9 @@ def _build_ldap_connection(cfg: LdapConfig):
     Uses ldap3 library which is pure-Python and cross-platform
     (works on Linux, macOS, Windows without system ldap libs).
     """
+    logger.debug(f"Building LDAP connection for server_url={getattr(cfg, 'server_url', 'unknown')} "
+                 f"timeout={getattr(cfg, 'connection_timeout', 30)} use_ssl={getattr(cfg, 'use_ssl', False)}")
+
     import ldap3
     from ldap3 import Server, Tls
     import ssl as ssl_module
@@ -121,6 +124,9 @@ def ldap_authenticate_user(cfg: LdapConfig, username: str, password: str) -> Opt
     Returns dict with keys: dn, username, email, display_name, groups
     Returns None if authentication fails.
     """
+    logger.info(f"Attempting LDAP authentication for user '{username}' using server: {cfg.server_url} "
+                f"(timeout={cfg.connection_timeout}s, bind_dn={cfg.bind_dn})")
+
     import ldap3
     from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES
 
@@ -209,7 +215,7 @@ def ldap_authenticate_user(cfg: LdapConfig, username: str, password: str) -> Opt
         return user_info
 
     except Exception as e:
-        logger.error(f"LDAP authentication error for '{username}': {e}")
+        logger.exception(f"LDAP authentication error for '{username}' using server {getattr(cfg, 'server_url', 'unknown')}: {e}")
         return None
 
 

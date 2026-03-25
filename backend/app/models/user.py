@@ -32,7 +32,7 @@ class LdapConfig(Base):
     use_starttls = Column(Boolean, nullable=False, default=False)
     ssl_verify = Column(Boolean, nullable=False, default=True)
     ssl_ca_cert = Column(String(500), nullable=True)  # Path to CA cert for verification
-    connection_timeout = Column(Integer, nullable=False, default=10)  # seconds
+    connection_timeout = Column(Integer, nullable=False, default=30)  # seconds
 
     # Bind credentials (service account for searching)
     bind_dn = Column(String(500), nullable=True)  # e.g. cn=admin,dc=example,dc=com
