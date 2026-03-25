@@ -292,11 +292,12 @@ Make sure your **Server URL** in the OpenVox GUI is set to exactly: `ldap://ldap
 
 ### Connection Timeout
 
-- **Common cause when ldapsearch works but app fails**: The app runs as the `puppet` user (see systemd service), while you may be running ldapsearch as root or another user. Check for differences in DNS resolution (`/etc/hosts`, `resolv.conf`), environment variables (http_proxy, no_proxy), or network namespaces.
-- Verify the **Server URL** in the LDAP config exactly matches the `-H` value used in your ldapsearch command (including protocol, host, port).
-- Increase connection_timeout if network is slow (now defaults to 30s).
-- Check logs with `journalctl -u openvox-gui -n 50` for detailed connection attempts (now includes server_url and full tracebacks).
-- Test manually as puppet user: `sudo -u puppet /opt/openvox-gui/venv/bin/python -c 'from backend.app.middleware.auth_ldap import test_ldap_connection; ...'`
+- **Common cause when ldapsearch works but app fails**: The app runs as the `puppet` user (see systemd service). Your env has `http_proxy`/`https_proxy` set (to `httpproxy.atlc.twitter.com:3128`). LDAP (direct TCP port 389) is being routed through the proxy, which times out. ldapsearch bypasses it.
+  - Add to `no_proxy` in `/opt/openvox-gui/config/.env`: `,ldap.local.twitter.com,*.local.twitter.com,172.29.*`
+  - Or set `OPENVOX_GUI_NO_PROXY=...` and restart.
+- Set **Server URL** to exactly `ldap://ldap.local.twitter.com:389` (matches your working ldapsearch).
+- Increase `connection_timeout` (now defaults to 30s).
+- Check logs with `journalctl -u openvox-gui -n 50` for the exact URL attempted.
 
 ### Connection Refused
 
