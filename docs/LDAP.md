@@ -275,19 +275,16 @@ The **Test Connection** button on the Auth Settings page will:
 
 ### Manual Testing with ldapsearch
 
-If you need to debug outside the UI:
+If you need to debug outside the UI (example from a working Twitter internal LDAP setup):
 
 ```bash
-# Test basic connectivity (OpenLDAP)
-ldapsearch -x -H ldap://your-server:389 \
-  -D "cn=admin,dc=example,dc=com" \
-  -W -b "ou=people,dc=example,dc=com" "(uid=testuser)"
-
-# Test Active Directory
-ldapsearch -x -H ldaps://dc01.corp.example.com:636 \
-  -D "openvox-svc@corp.example.com" \
-  -W -b "DC=corp,DC=example,DC=com" "(sAMAccountName=testuser)"
+# Working command (replace password)
+ldapsearch -H ldap://ldap.local.twitter.com:389 \
+  -D "uid=it-ldap-agent,cn=users,dc=ods,dc=twitter,dc=corp" \
+  -w YOUR-PASSWORD -b "dc=twitter,dc=corp" "(uid=jsheets)" uid mail displayName
 ```
+
+Make sure your **Server URL** in the OpenVox GUI is set to exactly: `ldap://ldap.local.twitter.com:389`
 
 ---
 
