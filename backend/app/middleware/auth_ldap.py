@@ -82,16 +82,20 @@ def _build_ldap_connection(cfg: LdapConfig):
     if cfg.server_url.lower().startswith("ldaps://"):
         use_ssl = True
 
-    tls = None
+    # Always create Tls object (prevents NoneType private_key_file error in ldap3)
+    tls_kwargs: Dict[str, Any] = {}
     if use_ssl or cfg.use_starttls:
-        tls_kwargs: Dict[str, Any] = {}
+        tls_kwargs["version"] = ssl_module.PROTOCOL_TLSv1_2
+        tls_kwargs["ciphers"] = "ALL:!aNULL:!eNULL:!LOW:!EXP:!RC4:!MD5"
         if not cfg.ssl_verify:
             tls_kwargs["validate"] = ssl_module.CERT_NONE
         else:
             tls_kwargs["validate"] = ssl_module.CERT_REQUIRED
             if cfg.ssl_ca_cert:
                 tls_kwargs["ca_certs_file"] = cfg.ssl_ca_cert
-        tls = Tls(**tls_kwargs)
+    else:
+        tls_kwargs["validate"] = ssl_module.CERT_NONE
+    tls = Tls(**tls_kwargs)
 
     server = Server(
         cfg.server_url,
