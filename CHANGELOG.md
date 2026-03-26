@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.2.1] - 2026-03-25
+
+### Fixed
+- **LDAP troubleshooting**: Added detailed logging of server URL, timeout, and Bind/User Base DN values. Improved error messages and hints for connection timeouts.
+- **Proxy handling**: Expanded default `no_proxy` to cover common internal/corporate networks (including `.local` domains and 172.29.* ranges) to prevent proxies from interfering with direct LDAP connections.
+- **User Base DN**: Clarified in docs that the base must exactly match the directory structure (e.g. including intermediate `dc=ods,...` components). Mismatches were a common cause of "ldapsearch works but app times out".
+- **Version bump and docs**: Updated defaults, frontend, and troubleshooting documentation.
+
 ## [3.2.0] - 2026-03-24
 
 ### Added
