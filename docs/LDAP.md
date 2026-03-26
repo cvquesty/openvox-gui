@@ -275,29 +275,32 @@ The **Test Connection** button on the Auth Settings page will:
 
 ### Manual Testing with ldapsearch
 
-If you need to debug outside the UI (example from a working Twitter internal LDAP setup):
+If you need to debug outside the UI:
 
 ```bash
-# Working command (replace password)
-ldapsearch -H ldap://ldap.local.twitter.com:389 \
-  -D "uid=it-ldap-agent,cn=users,dc=ods,dc=twitter,dc=corp" \
-  -w YOUR-PASSWORD -b "dc=twitter,dc=corp" "(uid=jsheets)" uid mail displayName
+# Example for ODS-style directory (adjust host/base/DN to your environment)
+ldapsearch -H ldap://ldap.example.com:389 \
+  -D "uid=service-agent,cn=users,dc=ods,dc=example,dc=com" \
+  -W -b "dc=ods,dc=example,dc=com" "(uid=testuser)" uid mail displayName
 ```
 
-Make sure your **Server URL** in the OpenVox GUI is set to exactly: `ldap://ldap.local.twitter.com:389`
+The **User Base DN** must exactly match the directory's structure (e.g. include `dc=ods,...` if present). Mismatches often cause timeouts in the app even when ldapsearch succeeds with a different base.
 
 ---
+
+
 
 ## Troubleshooting LDAP
 
 ### Connection Timeout
 
-- **Common cause when ldapsearch works but app fails**: The app runs as the `puppet` user (see systemd service). Your env has `http_proxy`/`https_proxy` set (to `httpproxy.atlc.twitter.com:3128`). LDAP (direct TCP port 389) is being routed through the proxy, which times out. ldapsearch bypasses it.
-  - Add to `no_proxy` in `/opt/openvox-gui/config/.env`: `,ldap.local.twitter.com,*.local.twitter.com,172.29.*`
-  - Or set `OPENVOX_GUI_NO_PROXY=...` and restart.
-- Set **Server URL** to exactly `ldap://ldap.local.twitter.com:389` (matches your working ldapsearch).
+- The app runs as the `puppet` user (see the systemd service). When `http_proxy`/`https_proxy` are configured, LDAP connections (direct TCP on port 389) can be inadvertently routed through the proxy.
+  - Ensure `no_proxy` (or `OPENVOX_GUI_NO_PROXY`) includes your LDAP hostname, domain, and internal IP ranges.
+  - The default `no_proxy` was expanded to cover common corporate/internal patterns.
+- The **User Base DN** must exactly match the directory structure (e.g. include intermediate DCs like `dc=ods,...` if present). Mismatches are a common cause of timeouts.
+- Verify **Server URL** exactly matches your working ldapsearch `-H` value.
 - Increase `connection_timeout` (now defaults to 30s).
-- Check logs with `journalctl -u openvox-gui -n 50` for the exact URL attempted.
+- Check logs (`journalctl -u openvox-gui`) for the exact parameters used.
 
 ### Connection Refused
 
