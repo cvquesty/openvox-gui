@@ -12,7 +12,7 @@ alembic==1.18.4
 passlib[bcrypt]==1.7.4
 PyJWT[crypto]==2.12.1
 bcrypt==4.2.1
-cryptography==46.0.5
+cryptography==46.0.6
 prometheus-client==0.24.1
 python-json-logger==3.2.1
 slowapi==0.1.9
