@@ -678,6 +678,45 @@ async def get_preferences():
     prefs = _load_prefs()
     return {"theme": prefs.get("theme", "casual")}
 
+# ─── SSL Configuration ────────────────────────────────────
+
+@router.get("/ssl")
+async def get_ssl_config():
+    """Get SSL configuration for the GUI (incoming HTTPS)."""
+    ssl_dir = Path("/etc/puppetlabs/puppet/ssl")
+    
+    # Build cert paths from settings (or defaults)
+    cert_path = settings.ssl_cert_path or str(ssl_dir / "certs" / f"{settings.app_host}.pem")
+    key_path = settings.ssl_key_path or str(ssl_dir / "private_keys" / f"{settings.app_host}.pem")
+    
+    # List certificate files on disk (if directory exists)
+    certs_on_disk: List[Dict[str, Any]] = []
+    if ssl_dir.exists():
+        for subdir in ("certs", "private_keys", "ca"):
+            sub = ssl_dir / subdir
+            if sub.exists():
+                for f in sorted(sub.glob("*.pem")):
+                    try:
+                        stat = f.stat()
+                        certs_on_disk.append({
+                            "path": str(f),
+                            "type": subdir,
+                            "size": stat.st_size,
+                            "modified": stat.st_mtime,
+                        })
+                    except Exception:
+                        pass
+    
+    return {
+        "ssl_enabled": settings.ssl_enabled,
+        "cert_path": cert_path,
+        "key_path": key_path,
+        "ca_path": settings.ssl_ca_certs or str(ssl_dir / "certs" / "ca.pem"),
+        "certs_on_disk": certs_on_disk,
+        "ssl_dir": str(ssl_dir),
+    }
+
+
 @router.put("/preferences")
 async def update_preferences(request: Request):
     """Update user preferences."""

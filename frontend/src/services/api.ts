@@ -329,6 +329,8 @@ export const config = {
       method: 'POST',
       body: JSON.stringify({ path, content }),
     }),
+  // SSL configuration
+  getSSL: () => fetchJSON<any>('/config/ssl'),
 };
 
 // ─── PQL Console ────────────────────────────────────────────

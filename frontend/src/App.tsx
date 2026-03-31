@@ -47,6 +47,7 @@ const CodeDeploymentPage = lazyWithRetry(() => import('./pages/CodeDeployment').
 const NodeClassifierPage = lazyWithRetry(() => import('./pages/NodeClassifier').then(m => ({ default: m.NodeClassifierPage })));
 const ConfigPuppetPage = lazyWithRetry(() => import('./pages/ConfigPuppet').then(m => ({ default: m.ConfigPuppetPage })));
 const ConfigAppPage = lazyWithRetry(() => import('./pages/ConfigApp').then(m => ({ default: m.ConfigAppPage })));
+const ConfigSSLPage = lazyWithRetry(() => import('./pages/ConfigSSL').then(m => ({ default: m.ConfigSSLPage })));
 const OrchestrationPage = lazyWithRetry(() => import('./pages/Orchestration').then(m => ({ default: m.OrchestrationPage })));
 const PQLConsolePage = lazyWithRetry(() => import('./pages/PQLConsole').then(m => ({ default: m.PQLConsolePage })));
 const CertificatesPage = lazyWithRetry(() => import('./pages/Certificates').then(m => ({ default: m.CertificatesPage })));
@@ -117,6 +118,7 @@ function AppRoutes() {
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />
           <Route path="/config/app" element={<ConfigAppPage />} />
+          <Route path="/config/ssl" element={<ConfigSSLPage />} />
 
           {/* Default: redirect any unknown route to Dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
