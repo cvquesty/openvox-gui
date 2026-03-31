@@ -28,6 +28,12 @@ PUPPETDB_PORT="8081"
 #PUPPET_SSL_KEY="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
 #PUPPET_SSL_CA="/etc/puppetlabs/puppet/ssl/certs/ca.pem"
 
+# ─── GUI SSL Settings (incoming HTTPS on port 4567) ────────────
+# Enable SSL on the GUI itself using Puppet certs (or custom certs)
+#SSL_ENABLED="false"
+#SSL_CERT_PATH="/etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem"
+#SSL_KEY_PATH="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
+
 # ─── Puppet Directory Settings ───────────────────────────────
 PUPPET_CONFDIR="/etc/puppetlabs/puppet"
 PUPPET_CODEDIR="/etc/puppetlabs/code"

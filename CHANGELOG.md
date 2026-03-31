@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.2.2] - 2026-03-30
+
+### Added
+- **Native SSL support on port 4567**: The GUI can now serve HTTPS directly via uvicorn using `--ssl-certfile` and `--ssl-keyfile` flags. Enable via installer prompt "Enable SSL on port 4567?" or set `OPENVOX_GUI_SSL_ENABLED=true` in `.env`. Defaults to Puppet certs at `/etc/puppetlabs/puppet/ssl/`. No architectural changes — frontend uses relative URLs, internal calls stay localhost.
+
+### Changed
+- **Install script prompts for SSL**: New interactive prompt asks whether to enable SSL on the GUI port, with optional custom cert/key paths. Answer file (`install.conf`) supports `SSL_ENABLED`, `SSL_CERT_PATH`, `SSL_KEY_PATH`.
+- **Systemd service conditional SSL**: `ExecStart` now conditionally adds `--ssl-certfile`/`--ssl-keyfile` when `OPENVOX_GUI_SSL_ENABLED=true`.
+- **Install output shows correct scheme**: Summary now prints `https://` when SSL enabled, `http://` otherwise.
+
 ## [3.2.1] - 2026-03-25
 
 ### Fixed

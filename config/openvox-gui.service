@@ -33,7 +33,10 @@ User=puppet
 Group=puppet
 WorkingDirectory=INSTALL_DIR/backend
 EnvironmentFile=INSTALL_DIR/config/.env
+# SSL disabled (default):
 ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 4567
+# SSL enabled (set OPENVOX_GUI_SSL_ENABLED=true in .env and configure cert paths):
+# ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 4567 --ssl-certfile /etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem --ssl-keyfile /etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5

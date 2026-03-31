@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.1.1-8_beta**
+**OpenVox GUI Version 3.2.2**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -160,10 +160,14 @@ The installer will ask you some questions. Here's what each one means:
 3. **Application port [4567]:** Which network port to use
    - Just press Enter for 4567 (recommended)
 
-4. **OpenVox Server hostname:** The name of your OpenVox server
+4. **Enable SSL on port 4567? [false]:** Whether the GUI serves HTTPS directly
+   - Type `y` to enable SSL using Puppet certs (or custom certs)
+   - Just press Enter to keep HTTP (default)
+
+5. **OpenVox Server hostname:** The name of your OpenVox server
    - Type the full name like `openvox.yourcompany.com`
 
-5. **Admin password:** Password for the web interface
+6. **Admin password:** Password for the web interface
    - Type a secure password (or let it generate one for you)
 
 ### Step 4: Wait for Installation
@@ -290,7 +294,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.1.1-8_beta"}` if everything is working.
+You should see `{"status":"ok","version":"3.2.2"}` if everything is working.
 
 ---
 

@@ -49,6 +49,12 @@ PUPPETDB_PORT="8081"
 PUPPET_SSL_CERT="/etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem"
 PUPPET_SSL_KEY="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
 PUPPET_SSL_CA="/etc/puppetlabs/puppet/ssl/certs/ca.pem"
+
+# SSL for the GUI itself (incoming connections on port 4567)
+SSL_ENABLED="false"
+SSL_CERT_PATH="/etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem"
+SSL_KEY_PATH="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
+
 PUPPET_CONFDIR="/etc/puppetlabs/puppet"
 PUPPET_CODEDIR="/etc/puppetlabs/code"
 
@@ -526,6 +532,14 @@ if [ "$SILENT" != "true" ]; then
     prompt PUPPET_SSL_CA "SSL CA certificate" "$PUPPET_SSL_CA"
     echo
     
+    echo -e "${BOLD}GUI SSL (incoming connections)${NC}"
+    prompt_yesno SSL_ENABLED "Enable SSL on port ${APP_PORT}?" "$SSL_ENABLED"
+    if [ "$SSL_ENABLED" = "true" ]; then
+        prompt SSL_CERT_PATH "SSL certificate path" "$SSL_CERT_PATH"
+        prompt SSL_KEY_PATH "SSL private key path" "$SSL_KEY_PATH"
+    fi
+    echo
+    
     echo -e "${BOLD}Authentication${NC}"
     echo "  Auth backends: none (no login), local (username/password)"
     prompt AUTH_BACKEND "Auth backend" "$AUTH_BACKEND"
@@ -763,6 +777,11 @@ OPENVOX_GUI_PUPPET_SSL_CERT=${PUPPET_SSL_CERT}
 OPENVOX_GUI_PUPPET_SSL_KEY=${PUPPET_SSL_KEY}
 OPENVOX_GUI_PUPPET_SSL_CA=${PUPPET_SSL_CA}
 OPENVOX_GUI_PUPPET_CONFDIR=${PUPPET_CONFDIR}
+
+# GUI SSL (incoming)
+OPENVOX_GUI_SSL_ENABLED=${SSL_ENABLED}
+OPENVOX_GUI_SSL_CERT_PATH=${SSL_CERT_PATH}
+OPENVOX_GUI_SSL_KEY_PATH=${SSL_KEY_PATH}
 OPENVOX_GUI_PUPPET_CODEDIR=${PUPPET_CODEDIR}
 
 # PuppetDB
@@ -792,6 +811,12 @@ fi
 
 log_step 7 "Systemd Service"
 
+# Build uvicorn command with optional SSL flags
+UVICORN_CMD="${INSTALL_DIR}/venv/bin/uvicorn app.main:app --host ${APP_HOST} --port ${APP_PORT} --workers ${UVICORN_WORKERS}"
+if [ "$SSL_ENABLED" = "true" ]; then
+    UVICORN_CMD="${UVICORN_CMD} --ssl-certfile ${SSL_CERT_PATH} --ssl-keyfile ${SSL_KEY_PATH}"
+fi
+
 cat > /etc/systemd/system/openvox-gui.service << SVCEOF
 [Unit]
 Description=OpenVox GUI - Puppet Management Web Interface
@@ -804,7 +829,7 @@ User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
 WorkingDirectory=${INSTALL_DIR}/backend
 EnvironmentFile=${INSTALL_DIR}/config/.env
-ExecStart=${INSTALL_DIR}/venv/bin/uvicorn app.main:app --host ${APP_HOST} --port ${APP_PORT} --workers ${UVICORN_WORKERS}
+ExecStart=${UVICORN_CMD}
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
 RestartSec=5
@@ -1092,9 +1117,14 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║           Installation Complete! 🎉                   ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════╝${NC}"
 echo
-echo -e "  ${BOLD}Application:${NC}    http://$(hostname -f):${APP_PORT}"
-echo -e "  ${BOLD}API Docs:${NC}       http://$(hostname -f):${APP_PORT}/api/docs"
-echo -e "  ${BOLD}Health Check:${NC}   http://$(hostname -f):${APP_PORT}/health"
+if [ "$SSL_ENABLED" = "true" ]; then
+    APP_SCHEME="https"
+else
+    APP_SCHEME="http"
+fi
+echo -e "  ${BOLD}Application:${NC}    ${APP_SCHEME}://$(hostname -f):${APP_PORT}"
+echo -e "  ${BOLD}API Docs:${NC}       ${APP_SCHEME}://$(hostname -f):${APP_PORT}/api/docs"
+echo -e "  ${BOLD}Health Check:${NC}   ${APP_SCHEME}://$(hostname -f):${APP_PORT}/health"
 echo -e "  ${BOLD}Install Dir:${NC}    ${INSTALL_DIR}"
 echo -e "  ${BOLD}Auth Backend:${NC}   ${AUTH_BACKEND}"
 

@@ -85,6 +85,15 @@ class Settings(BaseSettings):
     https_proxy: Optional[str] = None
     no_proxy: str = "localhost,127.0.0.1,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*,*.local,*.local.twitter.com,*.twitter.com,*.corp"
 
+    # ── SSL / TLS for incoming connections ────────────────────
+    # Enable SSL on the uvicorn server itself (not nginx). If enabled,
+    # the app serves HTTPS directly using the provided cert/key paths.
+    # Defaults point to Puppet certs for convenience.
+    ssl_enabled: bool = False
+    ssl_cert_path: Optional[str] = None
+    ssl_key_path: Optional[str] = None
+    ssl_ca_certs: Optional[str] = None  # Optional: for client cert verification (mTLS)
+
     class Config:
         env_prefix = "OPENVOX_GUI_"
         env_file = "/opt/openvox-gui/config/.env"
