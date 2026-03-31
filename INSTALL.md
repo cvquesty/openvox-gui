@@ -338,6 +338,11 @@ You should see `{"status":"ok","version":"3.2.4"}` if everything is working.
    sudo ufw allow 4567/tcp
    ```
 
+5. **Review SSL Configuration** (if using HTTPS):
+   - Go to **Settings** → **Application Configuration** → **SSL Configuration** tab
+   - View configured certificate paths and browse certificates on disk
+   - See instructions for accepting self-signed certs on Mac/Windows
+
 ### Starting and Stopping the Service
 
 ```bash

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.2.4] - 2026-03-31
+
+### Changed
+- **SSL Configuration as Settings tab**: The SSL Configuration page is now a tab inside **Settings → Application Configuration**, positioned to the right of "Auth Settings". The separate Settings nav entry has been removed.
+- **Documentation updated**: INSTALL.md, UPDATE.md now document the SSL prompt during install/update and the SSL Config tab location.
+
+## [3.2.3] - 2026-03-31
+
+### Added
+- **update_local.sh SSL prompt**: During updates, if SSL is not enabled in `.env`, the script prompts: "Enable SSL using Puppet certs? [y/N]". Answering yes updates `.env` and adds `--ssl-certfile`/`--ssl-keyfile` to the systemd service.
+
+### Changed
+- **update_local.sh Step 2**: Auto-adds SSL flags to systemd if `.env` already has `OPENVOX_GUI_SSL_ENABLED=true`.
+
 ## [3.2.2] - 2026-03-30
 
 ### Added

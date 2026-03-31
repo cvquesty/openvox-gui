@@ -36,7 +36,6 @@ import {
   IconUsers,
   IconTerminal,
   IconCertificate,
-  IconLock,
   IconSearch,
   IconPackage,
 } from '@tabler/icons-react';
@@ -88,7 +87,6 @@ const explorerNav: NavItem[] = [
 const configNav: NavItem[] = [
   { label: 'OpenVox Configuration', icon: IconNetwork, path: '/config/puppet' },
   { label: 'Application Configuration', icon: IconSettings, path: '/config/app' },
-  { label: 'SSL Configuration', icon: IconLock, path: '/config/ssl' },
 ];
 
 export function AppShellLayout() {

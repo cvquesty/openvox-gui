@@ -230,6 +230,13 @@ git pull origin main
 sudo ./scripts/update_local.sh
 ```
 
+During update, if SSL is not yet enabled, the script will prompt:
+```
+SSL is not enabled on port 4567.
+  Enable SSL using Puppet certs? [y/N]:
+```
+Answering `y` enables HTTPS via Puppet certificates and restarts the service.
+
 Options:
 - `--skip-backup` - Don't create a backup (not recommended)
 - `--force` - Update even if versions match

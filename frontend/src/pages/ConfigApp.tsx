@@ -21,6 +21,7 @@ import { config, users, ldap } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
+import { ConfigSSLPage } from './ConfigSSL';
 
 /* ────────────────────── Types ────────────────────── */
 interface User {
@@ -844,11 +845,13 @@ export function ConfigAppPage() {
           <Tabs.Tab value="services" leftSection={<IconServer size={16} />}>Services</Tabs.Tab>
           <Tabs.Tab value="users" leftSection={<IconUsers size={16} />}>User Manager</Tabs.Tab>
           <Tabs.Tab value="auth" leftSection={<IconPlugConnected size={16} />}>Auth Settings</Tabs.Tab>
+          <Tabs.Tab value="ssl" leftSection={<IconLock size={16} />}>SSL Configuration</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings" pt="md"><ApplicationTab onSwitchToServices={() => setActiveTab('services')} /></Tabs.Panel>
         <Tabs.Panel value="services" pt="md"><ServicesTab /></Tabs.Panel>
         <Tabs.Panel value="auth" pt="md"><AuthSettingsTab /></Tabs.Panel>
         <Tabs.Panel value="users" pt="md"><UserManagerTab /></Tabs.Panel>
+        <Tabs.Panel value="ssl" pt="md"><ConfigSSLPage /></Tabs.Panel>
       </Tabs>
     </Stack>
   );
