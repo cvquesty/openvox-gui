@@ -331,6 +331,8 @@ export const config = {
     }),
   // SSL configuration
   getSSL: () => fetchJSON<any>('/config/ssl'),
+  updateSSL: (data: { ssl_enabled?: boolean; cert_path?: string; key_path?: string; ca_path?: string }) =>
+    fetchJSON<any>('/config/ssl', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 // ─── PQL Console ────────────────────────────────────────────

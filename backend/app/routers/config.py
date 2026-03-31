@@ -717,6 +717,59 @@ async def get_ssl_config():
     }
 
 
+@router.put("/ssl")
+async def update_ssl_config(request: Request):
+    """Update SSL configuration in the .env file."""
+    body = await request.json()
+    
+    ssl_enabled = body.get("ssl_enabled")
+    cert_path = body.get("cert_path", "")
+    key_path = body.get("key_path", "")
+    ca_path = body.get("ca_path", "")
+    
+    env_path = Path(settings.data_dir).parent / "config" / ".env"
+    
+    if not env_path.exists():
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"detail": ".env file not found"})
+    
+    lines = env_path.read_text().splitlines()
+    
+    def set_env_var(lines: list, var_name: str, value: str) -> list:
+        found = False
+        new_lines = []
+        for line in lines:
+            if line.strip().startswith(var_name + "="):
+                new_lines.append(f'{var_name}="{value}"')
+                found = True
+            else:
+                new_lines.append(line)
+        if not found:
+            new_lines.append(f'{var_name}="{value}"')
+        return new_lines
+    
+    # Update SSL settings
+    if ssl_enabled is not None:
+        lines = set_env_var(lines, "OPENVOX_GUI_SSL_ENABLED", "true" if ssl_enabled else "false")
+    if cert_path:
+        lines = set_env_var(lines, "OPENVOX_GUI_SSL_CERT_PATH", cert_path)
+    if key_path:
+        lines = set_env_var(lines, "OPENVOX_GUI_SSL_KEY_PATH", key_path)
+    if ca_path:
+        lines = set_env_var(lines, "OPENVOX_GUI_SSL_CA_CERTS", ca_path)
+    
+    env_path.write_text("\n".join(lines) + "\n")
+    
+    return {
+        "status": "ok",
+        "message": "SSL configuration updated. Restart the openvox-gui service for changes to take effect.",
+        "ssl_enabled": ssl_enabled,
+        "cert_path": cert_path,
+        "key_path": key_path,
+        "ca_path": ca_path,
+    }
+
+
 @router.put("/preferences")
 async def update_preferences(request: Request):
     """Update user preferences."""
