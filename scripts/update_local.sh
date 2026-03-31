@@ -218,6 +218,25 @@ sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
     | sed "s|User=puppet|User=${SERVICE_USER}|" \
     | sed "s|Group=puppet|Group=${SERVICE_GROUP}|" \
     > /etc/systemd/system/openvox-gui.service
+
+# If SSL is enabled in .env, add SSL flags to ExecStart
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    SSL_LINE=$(grep "^OPENVOX_GUI_SSL_ENABLED=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    if [ "$SSL_LINE" = "OPENVOX_GUI_SSL_ENABLED=true" ]; then
+        SSL_CERT_LINE=$(grep "^OPENVOX_GUI_SSL_CERT_PATH=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+        SSL_KEY_LINE=$(grep "^OPENVOX_GUI_SSL_KEY_PATH=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+        SSL_CERT="${SSL_CERT_LINE#*=}"
+        SSL_KEY="${SSL_KEY_LINE#*=}"
+        if [ -n "$SSL_CERT" ] && [ -n "$SSL_KEY" ]; then
+            # Append SSL flags to ExecStart if not already present
+            CURRENT_EXEC=$(grep "^ExecStart=" /etc/systemd/system/openvox-gui.service 2>/dev/null || true)
+            if [[ "$CURRENT_EXEC" != *"--ssl-certfile"* ]]; then
+                sed -i "s|^ExecStart=\(.*\)$|ExecStart=\1 --ssl-certfile ${SSL_CERT} --ssl-keyfile ${SSL_KEY}|" /etc/systemd/system/openvox-gui.service
+            fi
+        fi
+    fi
+fi
+
 systemctl daemon-reload
 log_ok "Updated systemd service file"
 
@@ -364,6 +383,57 @@ chmod 755 "${INSTALL_DIR}/frontend/dist/" 2>/dev/null || true
 find "${INSTALL_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null || true
 find "${INSTALL_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
 log_ok "Permissions fixed (owner: ${SERVICE_USER})"
+
+# ─── Step 5b: SSL Configuration ──────────────────────────────
+# Check if SSL is enabled in .env; if not, offer to enable it
+SSL_ENABLED="false"
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    SSL_LINE=$(grep "^OPENVOX_GUI_SSL_ENABLED=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    if [ -n "$SSL_LINE" ]; then
+        SSL_ENABLED="${SSL_LINE#*=}"
+    fi
+fi
+
+if [ "$SSL_ENABLED" != "true" ]; then
+    echo ""
+    echo -e "${CYAN}SSL is not enabled on port ${APP_PORT}.${NC}"
+    read -rp "  Enable SSL using Puppet certs? [y/N]: " SSL_ANSWER
+    case "$SSL_ANSWER" in
+        [Yy]*)
+            SSL_ENABLED="true"
+            SSL_CERT_PATH="/etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem"
+            SSL_KEY_PATH="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
+            
+            # Update .env with SSL settings
+            if [ -f "${INSTALL_DIR}/config/.env" ]; then
+                # Remove any existing SSL lines
+                sed -i '/^OPENVOX_GUI_SSL_ENABLED=/d' "${INSTALL_DIR}/config/.env"
+                sed -i '/^OPENVOX_GUI_SSL_CERT_PATH=/d' "${INSTALL_DIR}/config/.env"
+                sed -i '/^OPENVOX_GUI_SSL_KEY_PATH=/d' "${INSTALL_DIR}/config/.env"
+                
+                # Append SSL settings
+                echo "OPENVOX_GUI_SSL_ENABLED=true" >> "${INSTALL_DIR}/config/.env"
+                echo "OPENVOX_GUI_SSL_CERT_PATH=${SSL_CERT_PATH}" >> "${INSTALL_DIR}/config/.env"
+                echo "OPENVOX_GUI_SSL_KEY_PATH=${SSL_KEY_PATH}" >> "${INSTALL_DIR}/config/.env"
+                log_ok "SSL enabled in .env"
+            fi
+            
+            # Regenerate systemd service with SSL flags
+            if [ -f /etc/systemd/system/openvox-gui.service ]; then
+                # Read current ExecStart, append SSL flags if not present
+                CURRENT_EXEC=$(grep "^ExecStart=" /etc/systemd/system/openvox-gui.service 2>/dev/null || true)
+                if [[ "$CURRENT_EXEC" != *"--ssl-certfile"* ]]; then
+                    sed -i "s|^ExecStart=\(.*\)$|ExecStart=\1 --ssl-certfile ${SSL_CERT_PATH} --ssl-keyfile ${SSL_KEY_PATH}|" /etc/systemd/system/openvox-gui.service
+                    systemctl daemon-reload
+                    log_ok "Systemd service updated with SSL flags"
+                fi
+            fi
+            ;;
+        *)
+            log_info "SSL not enabled — keeping HTTP on port ${APP_PORT}"
+            ;;
+    esac
+fi
 
 # ─── Step 6: Restart & Verify ─────────────────────────────────
 log_step 6 "Restart & Verify"
