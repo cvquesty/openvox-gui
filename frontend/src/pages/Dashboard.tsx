@@ -11,7 +11,7 @@ import {
 import { IconEye } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AreaChart, Area, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
+  AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { dashboard, nodes } from '../services/api';
@@ -173,7 +173,8 @@ export function DashboardPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [graphType, setGraphType] = useState<'area' | 'line' | 'plot'>('area');
+  const [graphType, setGraphType] = useState<'area' | 'line' | 'pie'>('area');
+  const [is3D, setIs3D] = useState(false);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -262,55 +263,99 @@ export function DashboardPage() {
                   data={[
                     { label: 'Area', value: 'area' },
                     { label: 'Line', value: 'line' },
-                    { label: 'Plot', value: 'plot' },
+                    { label: 'Pie', value: 'pie' },
+                  ]}
+                />
+                <SegmentedControl
+                  size="xs"
+                  value={is3D ? '3d' : '2d'}
+                  onChange={(v) => setIs3D(v === '3d')}
+                  data={[
+                    { label: '2D', value: '2d' },
+                    { label: '3D', value: '3d' },
                   ]}
                 />
               </Group>
             </Group>
-            <ResponsiveContainer width="100%" height={280}>
-              {graphType === 'area' && (
-                <AreaChart data={nodeTrends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                    tickFormatter={(v) => v.slice(11) || v} />
-                  <YAxis allowDecimals={false} />
-                  <ReTooltip />
-                  <Legend />
-                  <Area type="monotone" dataKey="unchanged" stackId="1" stroke="#40c057" fill="#40c057" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="changed" stackId="1" stroke="#fab005" fill="#fab005" fillOpacity={0.6} />
-                  <Area type="monotone" dataKey="failed" stackId="1" stroke="#fa5252" fill="#fa5252" fillOpacity={0.7} />
-                  <Area type="monotone" dataKey="noop" stackId="1" stroke="#4dabf7" fill="#4dabf7" fillOpacity={0.5} />
-                </AreaChart>
-              )}
-              {graphType === 'line' && (
-                <LineChart data={nodeTrends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                    tickFormatter={(v) => v.slice(11) || v} />
-                  <YAxis allowDecimals={false} />
-                  <ReTooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="noop" stroke="#4dabf7" strokeWidth={2} dot={false} />
-                </LineChart>
-              )}
-              {graphType === 'plot' && (
-                <ScatterChart>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                    tickFormatter={(v) => v.slice(11) || v} />
-                  <YAxis allowDecimals={false} />
-                  <ReTooltip />
-                  <Legend />
-                  <Scatter name="Unchanged" data={nodeTrends} dataKey="unchanged" fill="#40c057" />
-                  <Scatter name="Changed" data={nodeTrends} dataKey="changed" fill="#fab005" />
-                  <Scatter name="Failed" data={nodeTrends} dataKey="failed" fill="#fa5252" />
-                  <Scatter name="Noop" data={nodeTrends} dataKey="noop" fill="#4dabf7" />
-                </ScatterChart>
-              )}
-            </ResponsiveContainer>
+            {graphType === 'pie' ? (
+              (() => {
+                const totals = nodeTrends.reduce(
+                  (acc: any, t: any) => ({
+                    unchanged: acc.unchanged + (t.unchanged || 0),
+                    changed: acc.changed + (t.changed || 0),
+                    failed: acc.failed + (t.failed || 0),
+                    noop: acc.noop + (t.noop || 0),
+                  }),
+                  { unchanged: 0, changed: 0, failed: 0, noop: 0 }
+                );
+                const pieData = [
+                  { name: 'Unchanged', value: totals.unchanged, color: '#40c057' },
+                  { name: 'Changed', value: totals.changed, color: '#fab005' },
+                  { name: 'Failed', value: totals.failed, color: '#fa5252' },
+                  { name: 'Noop', value: totals.noop, color: '#4dabf7' },
+                ].filter(d => d.value > 0);
+                return (
+                  <div style={is3D ? { perspective: 800, perspectiveOrigin: '50% 50%' } : undefined}>
+                    <div style={is3D ? { transform: 'rotateX(45deg)', transformOrigin: 'center center' } : undefined}>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={is3D ? 40 : 0}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {pieData.map((entry, i) => (
+                              <Cell key={i} fill={entry.color} stroke={entry.color} strokeWidth={is3D ? 2 : 1} />
+                            ))}
+                          </Pie>
+                          <ReTooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div style={is3D ? { perspective: 800, perspectiveOrigin: '50% 50%' } : undefined}>
+                <div style={is3D ? { transform: 'rotateX(25deg) rotateY(-5deg)', transformOrigin: 'center bottom', filter: 'drop-shadow(0 8px 6px rgba(0,0,0,0.3))' } : undefined}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    {graphType === 'area' ? (
+                      <AreaChart data={nodeTrends}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                          tickFormatter={(v) => v.slice(11) || v} />
+                        <YAxis allowDecimals={false} />
+                        <ReTooltip />
+                        <Legend />
+                        <Area type="monotone" dataKey="unchanged" stackId="1" stroke="#40c057" fill="#40c057" fillOpacity={0.6} />
+                        <Area type="monotone" dataKey="changed" stackId="1" stroke="#fab005" fill="#fab005" fillOpacity={0.6} />
+                        <Area type="monotone" dataKey="failed" stackId="1" stroke="#fa5252" fill="#fa5252" fillOpacity={0.7} />
+                        <Area type="monotone" dataKey="noop" stackId="1" stroke="#4dabf7" fill="#4dabf7" fillOpacity={0.5} />
+                      </AreaChart>
+                    ) : (
+                      <LineChart data={nodeTrends}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                          tickFormatter={(v) => v.slice(11) || v} />
+                        <YAxis allowDecimals={false} />
+                        <ReTooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="noop" stroke="#4dabf7" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
           </Card>
         </Grid.Col>
       </Grid>
