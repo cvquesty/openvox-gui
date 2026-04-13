@@ -161,10 +161,8 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { data: stats, loading, error, refetch: refetchStats } = useApi<DashboardStats>(dashboard.getStats);
   const { data: nodeList, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
-  const { data: rawNodeTrends = [], refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
-  // Filter trends to only count nodes that are currently active (in nodeList)
-  const activeCertnames = new Set((nodeList || []).map((n: any) => n.certname));
-  const nodeTrends = rawNodeTrends.map((trend: any) => ({
+  const { data: rawNodeTrends, refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
+  const nodeTrends = (rawNodeTrends || []).map((trend: any) => ({
     timestamp: trend.timestamp,
     // Only include counts for nodes that still exist
     unchanged: trend.unchanged || 0,
