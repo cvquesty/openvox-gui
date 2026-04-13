@@ -72,6 +72,7 @@ export const dashboard = {
   getStats: () => fetchJSON<any>('/dashboard/stats'),
   getNodeStatus: () => fetchJSON<any>('/dashboard/node-status'),
   getReportTrends: () => fetchJSON<any[]>('/dashboard/report-trends'),
+  getNodeStatusTrends: () => fetchJSON<any[]>('/dashboard/node-status-trends'),
   getServices: () => fetchJSON<any[]>('/dashboard/services'),
   getActiveSessions: () => fetchJSON<any>('/dashboard/active-sessions'),
 };

@@ -6,12 +6,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  Badge, Tooltip, Table, ActionIcon, Select, Switch,
+  Badge, Tooltip, Table, ActionIcon, Select, Switch, SegmentedControl,
 } from '@mantine/core';
 import { IconEye } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
+  AreaChart, Area, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { dashboard, nodes } from '../services/api';
@@ -161,9 +161,11 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { data: stats, loading, error, refetch: refetchStats } = useApi<DashboardStats>(dashboard.getStats);
   const { data: nodeList, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
+  const { data: nodeTrends = [], refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [graphType, setGraphType] = useState<'area' | 'line' | 'plot'>('area');
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -241,19 +243,65 @@ export function DashboardPage() {
 
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Report Trends</Title>
+            <Group justify="space-between" mb="md">
+              <Title order={4}>Active Node Status Trends</Title>
+              <Group gap="xs">
+                <Text size="xs" c="dimmed">Graph:</Text>
+                <SegmentedControl
+                  size="xs"
+                  value={graphType}
+                  onChange={setGraphType}
+                  data={[
+                    { label: 'Area', value: 'area' },
+                    { label: 'Line', value: 'line' },
+                    { label: 'Plot', value: 'plot' },
+                  ]}
+                />
+              </Group>
+            </Group>
             <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={stats.report_trends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                  tickFormatter={(v) => v.slice(11) || v} />
-                <YAxis allowDecimals={false} />
-                <ReTooltip />
-                <Legend />
-                <Area type="monotone" dataKey="unchanged" stroke="#40c057" fill="#40c057" fillOpacity={0.25} strokeWidth={2} />
-                <Area type="monotone" dataKey="changed" stroke="#fab005" fill="#fab005" fillOpacity={0.25} strokeWidth={2} />
-                <Area type="monotone" dataKey="failed" stroke="#fa5252" fill="#fa5252" fillOpacity={0.3} strokeWidth={2} />
-              </AreaChart>
+              {graphType === 'area' && (
+                <AreaChart data={nodeTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                    tickFormatter={(v) => v.slice(11) || v} />
+                  <YAxis allowDecimals={false} />
+                  <ReTooltip />
+                  <Legend />
+                  <Area type="monotone" dataKey="unchanged" stackId="1" stroke="#40c057" fill="#40c057" fillOpacity={0.6} />
+                  <Area type="monotone" dataKey="changed" stackId="1" stroke="#fab005" fill="#fab005" fillOpacity={0.6} />
+                  <Area type="monotone" dataKey="failed" stackId="1" stroke="#fa5252" fill="#fa5252" fillOpacity={0.7} />
+                  <Area type="monotone" dataKey="noop" stackId="1" stroke="#4dabf7" fill="#4dabf7" fillOpacity={0.5} />
+                </AreaChart>
+              )}
+              {graphType === 'line' && (
+                <LineChart data={nodeTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                    tickFormatter={(v) => v.slice(11) || v} />
+                  <YAxis allowDecimals={false} />
+                  <ReTooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="unchanged" stroke="#40c057" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="changed" stroke="#fab005" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="failed" stroke="#fa5252" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="noop" stroke="#4dabf7" strokeWidth={2} dot={false} />
+                </LineChart>
+              )}
+              {graphType === 'plot' && (
+                <ScatterChart>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
+                    tickFormatter={(v) => v.slice(11) || v} />
+                  <YAxis allowDecimals={false} />
+                  <ReTooltip />
+                  <Legend />
+                  <Scatter name="Unchanged" data={nodeTrends} dataKey="unchanged" fill="#40c057" />
+                  <Scatter name="Changed" data={nodeTrends} dataKey="changed" fill="#fab005" />
+                  <Scatter name="Failed" data={nodeTrends} dataKey="failed" fill="#fa5252" />
+                  <Scatter name="Noop" data={nodeTrends} dataKey="noop" fill="#4dabf7" />
+                </ScatterChart>
+              )}
             </ResponsiveContainer>
           </Card>
         </Grid.Col>
