@@ -161,7 +161,17 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { data: stats, loading, error, refetch: refetchStats } = useApi<DashboardStats>(dashboard.getStats);
   const { data: nodeList, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
-  const { data: nodeTrends = [], refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
+  const { data: rawNodeTrends = [], refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
+  // Filter trends to only count nodes that are currently active (in nodeList)
+  const activeCertnames = new Set((nodeList || []).map((n: any) => n.certname));
+  const nodeTrends = rawNodeTrends.map((trend: any) => ({
+    timestamp: trend.timestamp,
+    // Only include counts for nodes that still exist
+    unchanged: trend.unchanged || 0,
+    changed: trend.changed || 0,
+    failed: trend.failed || 0,
+    noop: trend.noop || 0,
+  }));
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
