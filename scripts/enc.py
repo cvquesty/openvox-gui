@@ -12,14 +12,23 @@ Usage in puppet.conf:
     external_nodes = /opt/openvox-gui/scripts/enc.py
 
 The script expects the certname as the first argument.
+
+Environment variables:
+    OPENVOX_GUI_API_BASE - API base URL (default: https://127.0.0.1:4567)
 """
+import os
 import sys
 import urllib.request
 import urllib.error
-import json
+import ssl
 import yaml
 
-API_BASE = "http://127.0.0.1:4567"
+API_BASE = os.environ.get("OPENVOX_GUI_API_BASE", "https://127.0.0.1:4567")
+
+# SSL context for self-signed certs (service uses Puppet certs)
+SSL_CONTEXT = ssl.create_default_context()
+SSL_CONTEXT.check_hostname = False
+SSL_CONTEXT.verify_mode = ssl.CERT_NONE
 
 
 def classify_node(certname: str) -> str:
@@ -27,7 +36,7 @@ def classify_node(certname: str) -> str:
     url = f"{API_BASE}/api/enc/classify/{certname}/yaml"
     try:
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CONTEXT) as response:
             return response.read().decode('utf-8')
     except urllib.error.HTTPError as e:
         if e.code == 404:

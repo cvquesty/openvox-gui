@@ -803,8 +803,8 @@ log_ok "Generated ${INSTALL_DIR}/config/.env"
 
 # Update ENC script API base URL
 if [ -f "${INSTALL_DIR}/scripts/enc.py" ]; then
-    sed -i "s|API_BASE = .*|API_BASE = \"http://127.0.0.1:${APP_PORT}\"|" "${INSTALL_DIR}/scripts/enc.py"
-    log_ok "Updated ENC script API base URL to port ${APP_PORT}"
+    sed -i "s|API_BASE = .*|API_BASE = \"https://127.0.0.1:${APP_PORT}\"|" "${INSTALL_DIR}/scripts/enc.py"
+    log_ok "Updated ENC script API base URL to https://127.0.0.1:${APP_PORT}"
 fi
 
 # ─── Step 7: Systemd Service ─────────────────────────────────
