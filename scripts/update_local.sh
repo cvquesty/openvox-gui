@@ -442,9 +442,18 @@ systemctl restart "${SERVICE_NAME}"
 log_info "Service restarting..."
 sleep 2
 
+# Use HTTPS when SSL is enabled (uvicorn won't respond to plain HTTP)
+if [ "$SSL_ENABLED" = "true" ]; then
+    HEALTH_URL="https://127.0.0.1:${APP_PORT}/health"
+    CURL_OPTS="-ksf"
+else
+    HEALTH_URL="http://127.0.0.1:${APP_PORT}/health"
+    CURL_OPTS="-sf"
+fi
+
 HEALTH_OK="false"
 for i in $(seq 1 15); do
-    if curl -sf "http://127.0.0.1:${APP_PORT}/health" >/dev/null 2>&1; then
+    if curl $CURL_OPTS "${HEALTH_URL}" >/dev/null 2>&1; then
         HEALTH_OK="true"
         break
     fi
@@ -452,7 +461,7 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" = "true" ]; then
-    HEALTH_RESPONSE=$(curl -sf "http://127.0.0.1:${APP_PORT}/health" 2>/dev/null)
+    HEALTH_RESPONSE=$(curl $CURL_OPTS "${HEALTH_URL}" 2>/dev/null)
     log_ok "Service is healthy — ${HEALTH_RESPONSE}"
 else
     log_err "Service did not become healthy. Check: journalctl -u ${SERVICE_NAME} -n 50"

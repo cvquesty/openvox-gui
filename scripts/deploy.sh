@@ -93,7 +93,17 @@ systemctl restart openvox-gui
 sleep 2
 
 if systemctl is-active --quiet openvox-gui; then
-    HEALTH=$(curl -sf http://127.0.0.1:4567/health 2>/dev/null || echo "unreachable")
+    # Detect SSL to use the correct scheme (uvicorn won't respond to plain HTTP when SSL is on)
+    DEPLOY_SSL="false"
+    if [ -f "${INSTALL_DIR}/config/.env" ]; then
+        DEPLOY_SSL_LINE=$(grep "^OPENVOX_GUI_SSL_ENABLED=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+        [ "$DEPLOY_SSL_LINE" = "OPENVOX_GUI_SSL_ENABLED=true" ] && DEPLOY_SSL="true"
+    fi
+    if [ "$DEPLOY_SSL" = "true" ]; then
+        HEALTH=$(curl -ksf "https://127.0.0.1:4567/health" 2>/dev/null || echo "unreachable")
+    else
+        HEALTH=$(curl -sf "http://127.0.0.1:4567/health" 2>/dev/null || echo "unreachable")
+    fi
     echo ""
     echo "=== Deploy Complete ==="
     echo "Service status: active"
