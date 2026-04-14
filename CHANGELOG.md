@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.0] - 2026-04-14
+
+### Added
+- **Orchestration targets from PuppetDB**: Selecting "All nodes" in the Orchestration UI now queries PuppetDB for every known certname and passes them as explicit `--targets` to Bolt, instead of relying on the static `inventory.yaml`. Falls back gracefully if PuppetDB is unreachable.
+
+### Fixed
+- **Deploy health check SSL**: `update_local.sh` and `deploy.sh` always used `http://` for the post-restart `/health` check. When SSL is enabled, uvicorn only serves HTTPS, so the check silently failed every time — reporting "Service did not become healthy" even though the service was running. Both scripts now detect `OPENVOX_GUI_SSL_ENABLED` and use `https://` with `curl -k`.
+
+### Changed
+- **Dashboard status trends chart**: Green (unchanged) area now renders as a background field (higher fillOpacity, thinner stroke) with orange (changed), red (failed), and blue (noop) superimposed in the foreground with thicker strokes and higher opacity.
+
+## [3.2.7] - 2026-04-07
+
+### Fixed
+- **ENC enc.py HTTPS + SSL context**: Fixed enc.py to properly handle HTTPS URLs with SSL context for PuppetDB connections.
+- **install.sh uses HTTPS**: Installer now uses HTTPS for health check when SSL is enabled.
+
+### Changed
+- **Dashboard graph enhancements**: Improved dashboard trends visualization with node count tracking for active nodes. Replaced scatter plot with pie chart and added 2D/3D toggle. Fixed crash on null trends data.
+
+## [3.2.6] - 2026-04-03
+
+### Changed
+- **SSL Configuration editable**: SSL Configuration page now allows editing certificate paths and SSL settings directly from the UI.
+
+## [3.2.5] - 2026-04-01
+
+### Changed
+- **SSL Configuration as Settings tab**: Moved SSL Configuration from a standalone page to a tab inside Settings > Application Configuration. Updated documentation to reflect the new location.
+
 ## [3.2.4] - 2026-03-31
 
 ### Changed

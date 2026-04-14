@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.2.7**
+**OpenVox GUI Version 3.3.0**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -100,7 +100,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.2.7"}
+# {"status":"ok","version":"3.3.0"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -240,7 +240,6 @@ Answering `y` enables HTTPS via Puppet certificates and restarts the service.
 Options:
 - `--skip-backup` - Don't create a backup (not recommended)
 - `--force` - Update even if versions match
-- `--dev` - Update to development branch instead of main
 
 ### Remote Update Script
 
@@ -531,17 +530,25 @@ Examples:
 
 ### Recent Versions
 
-**Version 2.3.x (Current Series)**
+**Version 3.3.0 (Current)**
+- Orchestration targets resolved from PuppetDB in real-time instead of static inventory
+- Deploy health checks use HTTPS when SSL is enabled (fixes false "not healthy" errors)
+- Dashboard status trends chart layered with green background field
+- Native SSL support on port 4567 with Puppet certs
+- SSL Configuration tab in Application Configuration
+- Dashboard graph enhancements (pie chart, 2D/3D toggle)
+- Reports grouped by ENC node groups
+- Navigation restructuring (Infrastructure under Monitoring, Classification under Code)
+- Certificate caching and async CA info
+- Comprehensive inline docstrings across all backend modules
+
+**Version 2.3.x**
 - Zero CVEs — all dependencies audited and upgraded (FastAPI 0.135.1, PyJWT 2.12.1)
 - python-jose replaced with PyJWT (eliminates unfixable ecdsa CVE)
 - Run OpenVox output panel on Node Detail page
 - ENC groups in Orchestration target selector
 - r10k deploy wrapper for proper environment reconstruction
-- ProtectSystem=strict → true (eliminates all read-only filesystem errors)
 - Clone-then-deploy update architecture (scripts + documentation)
-- Update scripts now deploy service file and sudoers automatically
-- Command validation regex fix (unblocked all Bolt commands)
-- Comprehensive inline docstrings across all backend modules
 - SUDOERS.md configuration guide
 
 **Version 2.0.x–2.2.x**

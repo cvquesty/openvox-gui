@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.2.7**
+**OpenVox GUI Version 3.3.0**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -41,7 +41,7 @@ Let's make sure your server is ready. Run these commands:
 # Check your operating system version
 cat /etc/os-release
 
-# Check Python is installed (need version 3.8 or newer)
+# Check Python is installed (need version 3.10 or newer)
 python3 --version
 
 # Check you have sudo access
@@ -294,7 +294,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.2.7"}` if everything is working.
+You should see `{"status":"ok","version":"3.3.0"}` if everything is working.
 
 ---
 

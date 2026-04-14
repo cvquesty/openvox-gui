@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.2.0-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.0-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -214,28 +214,21 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 3.2.0
+## 🌟 What's New in Version 3.3.0
 
-### 📊 Reports Page Grouping
-- **Reports organized by ENC node groups** — reports are now grouped by node groups with status badges (green "Unchanged", orange "Changed", red "Failed"). Groups are expandable to show individual node reports.
+### ⚡ Orchestration — Live PuppetDB Targets
+- **"All nodes" now resolved from PuppetDB** — selecting "All nodes" in the Orchestration UI queries PuppetDB for every known certname in real-time instead of relying on the static `inventory.yaml` file.
 
-### 🧭 Navigation Restructuring
-- **Infrastructure moved under Monitoring** — Infrastructure nav group is now a submenu under Monitoring. Orchestration moved under Infrastructure.
-- **Node Classifier renamed to Classification** — now first item under Code nav group.
-- **OpenVoxDB Explorer renamed to Information** — contains PQL Console, Fact Explorer, Resource Explorer, and Package Inventory.
-- **All nav groups collapsed by default** — cleaner initial page load experience.
-- **Data menu added** — new nav group under Code with Hiera Data Files and Hiera Lookup.
+### 🔧 Deploy Reliability
+- **SSL-aware health checks** — `update_local.sh` and `deploy.sh` now detect when SSL is enabled and use HTTPS for the post-restart health check. Fixes the false "Service did not become healthy" error.
 
-### ⚡ Performance Improvements
-- **CA info async** — Certificate Authority info endpoint now uses async subprocess, eliminating event-loop blocking.
-- **Certificate caching** — 30s TTL for certificate list, 1h TTL for CA info. Cache invalidated on sign/revoke/clean operations.
+### 📊 Dashboard Enhancements
+- **Status trends chart layered** — green (unchanged) renders as a background field with orange, red, and blue superimposed in the foreground.
+- **Pie chart with 2D/3D toggle** — node status overview now uses a pie chart with a toggle between flat and 3D views.
 
-### 🔧 Navigation UX
-- **Nav parent click behavior** — clicking a nav group with children now toggles expand/collapse without navigating.
-- **Reports grouped by node groups** — reports page organizes reports by ENC node groups with status badges.
-
-### 🔒 Security — Zero CVEs
-- `pip-audit`: 0 known vulnerabilities. FastAPI 0.135.1 (Starlette 1.0.0), PyJWT 2.12.1 (replaced python-jose), all dependencies at latest secure versions.
+### 🔐 Native SSL Support
+- **HTTPS on port 4567** — the GUI can now serve HTTPS directly via uvicorn using Puppet certs. Enable during install or via `update_local.sh`.
+- **SSL Configuration tab** — view and manage SSL settings under Settings > Application Configuration.
 
 For a complete list of changes, see the [Changelog](CHANGELOG.md).
 
