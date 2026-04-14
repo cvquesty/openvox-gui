@@ -35,6 +35,7 @@ from ..models import ExecutionHistory
 from ..dependencies import get_current_user
 from ..utils.validation import validate_command
 from ..services.enc import enc_service
+from ..services.puppetdb import puppetdb_service
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
@@ -63,8 +64,16 @@ async def resolve_targets(targets: str, db: AsyncSession) -> str:
         A comma-separated string of certnames suitable for Bolt's --targets flag.
         If the input is already a certname (not a group), it is returned unchanged.
     """
-    # 'all' is handled natively by Bolt when using inventory — pass through
+    # Resolve 'all' to every node known to PuppetDB
     if targets == 'all':
+        try:
+            nodes = await puppetdb_service.get_nodes()
+            certnames = [n['certname'] for n in nodes if 'certname' in n]
+            if certnames:
+                logger.info(f"Resolved 'all' to {len(certnames)} PuppetDB nodes")
+                return ','.join(certnames)
+        except Exception as e:
+            logger.warning(f"PuppetDB query failed for 'all', falling back to Bolt inventory: {e}")
         return targets
 
     # Check if the target matches an ENC group name. If so, resolve it to
