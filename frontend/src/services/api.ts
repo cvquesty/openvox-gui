@@ -401,15 +401,6 @@ export const resources = {
   },
 };
 
-// ─── Performance ────────────────────────────────────────────
-
-export const performance = {
-  getOverview: (hours?: number) =>
-    fetchJSON<any>('/performance/overview' + (hours ? '?hours=' + hours : '')),
-  getNode: (certname: string) =>
-    fetchJSON<any>('/performance/node/' + certname),
-};
-
 // ─── Execution History ──────────────────────────────────────
 
 export interface ExecutionHistoryEntry {
