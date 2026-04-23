@@ -89,6 +89,7 @@ PUPPET_SERVICE_ENABLE="true"
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 fail() { echo >&2 "openvox-install: $*"; exit 1; }
+warn() { echo >&2 "openvox-install: WARN: $*"; }
 info() { echo "openvox-install: $*"; }
 cmd()  { command -v "$1" >/dev/null 2>&1; }
 

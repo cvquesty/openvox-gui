@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-16] - 2026-04-23
+
+### Fixed
+- **`install.bash` was calling an undefined `warn` function.** Caught when an Ubuntu 24.04 agent install made it past discovery and platform detection, started configuring the apt repo, and then died at `main: line 496: warn: command not found` -- the apt-keyring-fetch fallback path tried to log a non-fatal warning but `warn()` had never been defined alongside `fail()`/`info()`/`cmd()` in the helpers block. The `set -e` at the top of the script then killed the run because `warn` returned non-zero. Added the trivial helper:
+  ```bash
+  warn() { echo >&2 "openvox-install: WARN: $*"; }
+  ```
+
 ## [3.3.5-15] - 2026-04-23
 
 ### Security
