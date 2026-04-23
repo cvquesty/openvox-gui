@@ -192,7 +192,7 @@ a few minutes.
 
 ## The Installer page
 
-`Infrastructure -> Installer` is where day-to-day operators interact
+`Infrastructure -> Agent Install` is where day-to-day operators interact
 with the feature.  It shows three things:
 
 1.  **Install commands** -- the curl/PowerShell one-liners ready to

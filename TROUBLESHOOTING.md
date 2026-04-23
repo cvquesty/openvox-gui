@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.3.5-9**
+**OpenVox GUI Version 3.3.5-10**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.3.5-9"}
+   # Should return: {"status":"ok","version":"3.3.5-10"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -654,7 +654,7 @@ curl -k https://server:8140/packages/install.bash | sudo bash -s -- --server <fq
 
 The local mirror at `/opt/openvox-pkgs/` is empty. Either:
 
-- Click **Sync now** on Infrastructure -> Installer in the GUI
+- Click **Sync now** on Infrastructure -> Agent Install in the GUI
   (admin/operator role required)
 - Or trigger the systemd service from CLI:
   `sudo systemctl start openvox-repo-sync.service`

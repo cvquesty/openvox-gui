@@ -65,7 +65,7 @@ const monitoringNav: NavItem[] = [
 const infrastructureNav: NavItem[] = [
   { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
   { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
-  { label: 'Installer', icon: IconDownload, path: '/installer' },
+  { label: 'Agent Install', icon: IconDownload, path: '/installer' },
 ];
 
 const codeNav: NavItem[] = [

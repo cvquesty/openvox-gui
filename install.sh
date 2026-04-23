@@ -1189,7 +1189,7 @@ if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
         fi
     else
         log_info "Initial sync skipped (RUN_INITIAL_SYNC=false)"
-        log_info "  Trigger from the GUI: Infrastructure -> Installer -> Sync now"
+        log_info "  Trigger from the GUI: Infrastructure -> Agent Install -> Sync now"
         log_info "  Or from CLI:          sudo systemctl start openvox-repo-sync.service"
     fi
 else

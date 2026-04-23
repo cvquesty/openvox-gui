@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-10] - 2026-04-23
+
+### Changed
+- **Nav item renamed: "Installer" -> "Agent Install"** under Infrastructure. The previous label was ambiguous (could be misread as "openvox-gui installer"); "Agent Install" matches the actual purpose -- bootstrapping OpenVox agents on remote hosts. Route (`/installer`), feature name ("OpenVox Agent Installer"), and underlying source files (`Installer.tsx`, `installer.py`) are unchanged so existing bookmarks, code references, and the historical CHANGELOG keep working. Doc references to the menu path ("Infrastructure -> Installer") in README, UPDATE, INSTALLER, TROUBLESHOOTING, and the install/update shell scripts updated to match. Older CHANGELOG entries preserved as-is for historical accuracy.
+
 ## [3.3.5-9] - 2026-04-23
 
 ### Documentation

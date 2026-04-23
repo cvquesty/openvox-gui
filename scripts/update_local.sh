@@ -606,7 +606,7 @@ if [ "$MIRROR_HAS_CONTENT" = "false" ] && \
             ;;
         *)
             log_info "Skipping initial sync (timer will populate at 02:30)"
-            log_info "  Trigger from the GUI:  Infrastructure -> Installer -> Sync now"
+            log_info "  Trigger from the GUI:  Infrastructure -> Agent Install -> Sync now"
             log_info "  Or from CLI:           sudo systemctl start openvox-repo-sync.service"
             ;;
     esac

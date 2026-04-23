@@ -1,7 +1,7 @@
 /**
  * OpenVox GUI - Installer.tsx
  *
- * Lives under Infrastructure -> Installer.  Surfaces the local OpenVox
+ * Lives under Infrastructure -> Agent Install.  Surfaces the local OpenVox
  * package mirror that openvox-gui maintains under /opt/openvox-pkgs/
  * and provides the install commands a fresh agent host should run to
  * bootstrap itself against this puppetserver.

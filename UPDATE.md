@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.3.5-9**
+**OpenVox GUI Version 3.3.5-10**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -79,7 +79,7 @@ will:
 > one-liners will return install.bash correctly but agents will fail
 > at the package-install step until the mirror is populated.
 
-After the upgrade, visit **Infrastructure -> Installer** in the GUI
+After the upgrade, visit **Infrastructure -> Agent Install** in the GUI
 to see the install commands, mirror status, disk usage, and a manual
 "Sync now" button. See [docs/INSTALLER.md](docs/INSTALLER.md) for the
 full feature guide.
@@ -135,7 +135,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.3.5-9"}
+# {"status":"ok","version":"3.3.5-10"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
