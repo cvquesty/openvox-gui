@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-15] - 2026-04-23
+
+### Security
+- **Cleared 3 high-severity npm audit findings** in the frontend dependency tree:
+  - `vite` 6.4.1 -> 6.4.2 -- CVE-2025-... Path Traversal in Optimized Deps `.map` handling ([GHSA-4w7w-66w2-5vf9](https://github.com/advisories/GHSA-4w7w-66w2-5vf9)) and Arbitrary File Read via Vite Dev Server WebSocket ([GHSA-p9ff-h696-f583](https://github.com/advisories/GHSA-p9ff-h696-f583)). Both CVEs only affect `vite serve` (the dev server), not `vite build` (production), so the real-world risk to the deployed openvox-gui was effectively zero. Patched anyway.
+  - `lodash` -> 4.18.1 -- Code Injection via `_.template` imports key names ([GHSA-r5fr-rjxr-66jc](https://github.com/advisories/GHSA-r5fr-rjxr-66jc)) and Prototype Pollution via array-path bypass in `_.unset` and `_.omit` ([GHSA-f23m-r3pf-42rh](https://github.com/advisories/GHSA-f23m-r3pf-42rh)). Transitive dep.
+  - `picomatch` -> 4.0.4 -- Method Injection in POSIX Character Classes ([GHSA-3v7f-55p6-f55p](https://github.com/advisories/GHSA-3v7f-55p6-f55p)) and ReDoS via extglob quantifiers ([GHSA-c2c7-rcm5-vvqj](https://github.com/advisories/GHSA-c2c7-rcm5-vvqj)). Transitive dep.
+- All three were patched non-breaking inside their existing major versions (`npm audit fix` only). No `package.json` manifest changes needed -- the existing `^6.4.1` constraint resolves to 6.4.2 automatically. Production build verified clean.
+
 ## [3.3.5-14] - 2026-04-23
 
 ### Fixed
