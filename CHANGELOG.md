@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-17] - 2026-04-23
+
+### Fixed
+- **Agent install was failing in environments with a corporate proxy.** Apt and yum honour `http_proxy` / `https_proxy` env vars and route ALL HTTPS requests through the configured proxy -- including the localhost-LAN request to the openvox-gui server. The proxy then either demanded authentication the agent didn't have, or did TLS interception that defeated `Verify-Peer=false`/`sslverify=0` (because the cert chain was now the proxy's MITM cert, not the puppetserver's). Fix: `install.bash` now exports `no_proxy` and `NO_PROXY` with the puppetserver FQDN (and the standard localhost entries) appended, preserving any pre-existing `no_proxy` value. Both apt-get and dnf honour these env vars and bypass the proxy for the puppetserver, going direct to the local mirror.
+
+### Notes
+- **Re: cert trust** -- the puppetserver presents a cert signed by Puppet's internal CA, which the agent doesn't trust until the puppet-agent package's first run does `puppet ssl bootstrap`. For the install fetch we sidestep this with `--insecure` curl (keyring fetch), `Acquire::https::Verify-Peer=false` (apt), and `sslverify=0` (yum) -- all already in place. With the no_proxy fix above, the request now goes direct to openvox-gui where these per-invocation flags actually take effect.
+- **Architecture note** -- Puppet Enterprise's installer takes a different approach: it downloads a single tarball of agent packages directly from the master (no yum/apt repo involved), which sidesteps both the proxy and the repo-cert issues entirely. Our approach (mirror upstream voxpupuli + add a local repo file) gives users a working `dnf upgrade openvox-agent` after install, but introduces the proxy/cert complexity. If the no_proxy approach hits more edge cases, switching to PE's tarball-direct approach is on the table.
+
 ## [3.3.5-16] - 2026-04-23
 
 ### Fixed

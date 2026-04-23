@@ -352,6 +352,33 @@ info "Server     : ${PUPPET_SERVER}"
 info "Repo URL   : ${PKG_REPO_URL}"
 info "OpenVox ver: ${OPENVOX_VERSION}"
 
+# ─── Proxy bypass for the puppetserver ──────────────────────────────────────
+#
+# Many corporate networks set http_proxy / https_proxy globally for
+# outbound internet access. Apt/yum then routes EVERY HTTPS request --
+# including the one to our internal puppetserver -- through that
+# proxy. The proxy typically:
+#   * Demands authentication the agent doesn't have, OR
+#   * Has no visibility into the internal network at all, OR
+#   * Does TLS interception with its own MITM cert that defeats the
+#     `Verify-Peer=false` / `sslverify=0` we pass to apt/yum (because
+#     it's now the proxy's cert chain, not the puppetserver's).
+#
+# Fix: append the puppetserver FQDN (and the standard localhost
+# entries) to no_proxy and NO_PROXY for the rest of the script's
+# lifetime. apt-get and dnf both honour these env vars. Long-term,
+# the puppet-agent uses direct connections so this is only needed
+# for the install fetch.
+existing_no_proxy="${no_proxy:-${NO_PROXY:-}}"
+no_proxy_extra="${PUPPET_SERVER},localhost,127.0.0.1"
+if [ -n "$existing_no_proxy" ]; then
+    export no_proxy="${existing_no_proxy},${no_proxy_extra}"
+else
+    export no_proxy="$no_proxy_extra"
+fi
+export NO_PROXY="$no_proxy"
+info "no_proxy   : ${no_proxy}"
+
 # ─── Privilege check ─────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
     fail "This installer must be run as root (try: sudo bash install.bash)"
