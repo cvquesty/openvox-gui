@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-18] - 2026-04-23
+
+### Added
+- **`install.bash` now installs the puppet CA into the agent's system trust store** at install time, so subsequent `apt-get update` / `dnf upgrade openvox-agent` / manual `curl` / browser visits to the puppetserver work normally without `--insecure` / `Verify-Peer=false` / `sslverify=0` band-aids. Mechanism: fetches the CA cert from `https://<server>:8140/puppet-ca/v1/certificate/ca` (using `--insecure` because we don't trust it yet), drops the resulting PEM into the OS-specific trust path, and runs the trust-refresh command:
+  - **Debian/Ubuntu**: `/usr/local/share/ca-certificates/openvox-puppet-ca.crt` + `update-ca-certificates`
+  - **RHEL family**: `/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt` + `update-ca-trust extract`
+- Caught when an Ubuntu 24.04 agent install completed successfully but a follow-up `apt-get update` (without our `Verify-Peer=false` flag) failed with "certificate is NOT trusted, the certificate issuer is unknown". Without the CA in the trust store, post-install package management broke.
+
+### Notes
+- The install-time band-aids (`Acquire::https::Verify-Peer=false`, `sslverify=0`, `--insecure` for the keyring fetch) are kept as fallbacks for the rare case where the CA install itself fails (e.g., the puppetserver's CA endpoint isn't reachable, or `update-ca-certificates` isn't on the path). Both paths cover the same failure mode -- belt-and-suspenders.
+- The CA install is platform-aware. macOS, SUSE, Solaris, AIX etc. would need their own trust-path branches; not added now since none of those are in the supported-agent list yet.
+
 ## [3.3.5-17] - 2026-04-23
 
 ### Fixed

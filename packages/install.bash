@@ -379,6 +379,66 @@ fi
 export NO_PROXY="$no_proxy"
 info "no_proxy   : ${no_proxy}"
 
+# ─── Install the puppet CA into the system trust store ─────────────────────
+#
+# The puppetserver presents a cert signed by Puppet's internal CA.
+# Without that CA in the system trust store, EVERY https request to
+# the puppetserver is untrusted -- not just our install-time apt-get
+# (which we could band-aid with --insecure / Verify-Peer=false), but
+# also future `apt-get update`, `dnf upgrade`, manual curl, browsers,
+# the puppet-agent itself, and so on. We install it once, here, so
+# it's permanently trusted.
+#
+# The puppetserver exposes its CA cert at:
+#   https://<server>:8140/puppet-ca/v1/certificate/ca
+# We fetch it with --insecure (we don't trust it yet) and drop the
+# resulting PEM into the OS-specific trust path:
+#   * Debian/Ubuntu: /usr/local/share/ca-certificates/  +  update-ca-certificates
+#   * RHEL family:   /etc/pki/ca-trust/source/anchors/  +  update-ca-trust extract
+#
+# This function is called BEFORE the repo setup so apt/yum can verify
+# the puppetserver cert normally -- no Verify-Peer=false, no
+# sslverify=0, no [trusted=yes] needed for the GPG fetch either.
+install_puppet_ca_cert() {
+    local ca_url="https://${PUPPET_SERVER}:${PUPPET_SERVER_PORT}/puppet-ca/v1/certificate/ca"
+    local ca_pem
+    ca_pem=$(curl -ksLf "$ca_url" 2>/dev/null) || {
+        warn "Could not fetch puppet CA cert from ${ca_url}"
+        warn "Falling back to insecure HTTPS for the install fetch only."
+        return 1
+    }
+    if ! echo "$ca_pem" | grep -q "BEGIN CERTIFICATE"; then
+        warn "Response from ${ca_url} doesn't look like a PEM cert; skipping trust install."
+        return 1
+    fi
+
+    local ca_path
+    case "$PLATFORM_NAME" in
+        debian|ubuntu)
+            ca_path="/usr/local/share/ca-certificates/openvox-puppet-ca.crt"
+            echo "$ca_pem" > "$ca_path"
+            chmod 0644 "$ca_path"
+            update-ca-certificates >/dev/null 2>&1 || \
+                warn "update-ca-certificates returned non-zero (cert installed but trust store may not have refreshed)"
+            info "Installed puppet CA into ${ca_path}"
+            ;;
+        rhel|amazon)
+            ca_path="/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt"
+            echo "$ca_pem" > "$ca_path"
+            chmod 0644 "$ca_path"
+            (update-ca-trust extract >/dev/null 2>&1 || \
+             update-ca-trust         >/dev/null 2>&1) || \
+                warn "update-ca-trust returned non-zero (cert installed but trust store may not have refreshed)"
+            info "Installed puppet CA into ${ca_path}"
+            ;;
+        *)
+            warn "Don't know how to install a CA cert on platform '${PLATFORM_NAME}'"
+            return 1
+            ;;
+    esac
+    return 0
+}
+
 # ─── Privilege check ─────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
     fail "This installer must be run as root (try: sudo bash install.bash)"
@@ -533,6 +593,16 @@ EOF
         -o Acquire::https::Verify-Peer=false \
         openvox-agent
 }
+
+# Install the puppet CA into the system trust store BEFORE adding the
+# repo so apt/yum can verify the puppetserver cert with the right CA
+# chain. Without this, post-install operations (apt-get update,
+# dnf upgrade openvox-agent, etc.) would fail with "certificate is
+# NOT trusted" until the puppet-agent's first run installed the CA
+# elsewhere -- which is too late to be useful for package management.
+# Failure is non-fatal; the install-time band-aids (Verify-Peer=false,
+# sslverify=0) are still in place as a fallback.
+install_puppet_ca_cert || true
 
 case "$PLATFORM_NAME" in
     rhel)
