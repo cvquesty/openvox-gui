@@ -123,7 +123,15 @@ fi
 [ -z "$PUPPET_SERVER_HOST" ] && PUPPET_SERVER_HOST=$(hostname -f)
 
 # 5b. Ensure the mirror directory tree exists.
-mkdir -p "${PKG_REPO_DIR}"/{redhat,debian,ubuntu,windows,mac}
+# 3.3.5-2 layout: one tree per upstream source (yum, apt, windows, mac)
+# rather than per logical platform. The old per-platform dirs (redhat,
+# debian, ubuntu) are removed if they exist and are empty.
+mkdir -p "${PKG_REPO_DIR}"/{yum,apt,windows,mac}
+for old_dir in redhat debian ubuntu; do
+    if [ -d "${PKG_REPO_DIR}/${old_dir}" ] && [ -z "$(ls -A "${PKG_REPO_DIR}/${old_dir}" 2>/dev/null)" ]; then
+        rmdir "${PKG_REPO_DIR}/${old_dir}"
+    fi
+done
 chmod 0755 "${PKG_REPO_DIR}"
 
 # 5c. Render and install the bootstrap scripts. The placeholder

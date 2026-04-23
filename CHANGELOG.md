@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-2] - 2026-04-23
+
+### Fixed
+- **Installer URL patterns matched to live voxpupuli.org**: Validated `sync-openvox-repo.sh`, `install.bash`, and `install.ps1` against the actual upstream layouts at yum.voxpupuli.org / apt.voxpupuli.org / downloads.voxpupuli.org and corrected several mismatches that would have caused 404s on the first sync:
+  - **yum**: directory layout is `openvox{N}/el/{R}/{arch}/` not `openvox{N}/el-{R}/{arch}/` (slash, not hyphen). Also gained support for amazon, fedora, redhatfips, sles families (yum tree includes them but only `el` is mirrored by default).
+  - **apt**: structure is one shared tree with `dists/{numeric}/openvox{N}/binary-{arch}/` and `pool/openvox{N}/o/{component}/`, NOT per-openvox-version dist trees. Distros use **numeric** names (`debian12`, `ubuntu24.04`) not codenames (`bookworm`, `noble`). Sources line is now `deb <base>/apt/ debian12 openvox8` etc.
+  - **Windows MSIs**: actual path is `windows/openvox{N}/openvox-agent-{ver}-x64.msi`, with the version embedded in the filename. sync now downloads all versions and creates a real-copy `openvox-agent-x64.msi` at a stable URL for install.ps1 (puppetserver mount does not follow symlinks -- verified empirically).
+  - **macOS DMGs**: actual path is `mac/openvox{N}/[<macos-major>/]openvox-agent-{ver}-1.macos.all.{arch}.dmg`. Same "latest copy" trick applied per arch.
+- **GPG key handling**: install.bash now sets `gpgcheck=1` and points to the keyring served from the local mirror (`/yum/GPG-KEY-openvox.pub`), and install.bash's apt path tries to install `openvox-keyring.gpg` to `/etc/apt/trusted.gpg.d/` before falling back to `[trusted=yes]`.
+
+### Changed
+- **Mirror layout under `/opt/openvox-pkgs/`**: replaced per-OS-family dirs (`redhat/`, `debian/`, `ubuntu/`) with per-upstream-source dirs (`yum/`, `apt/`). The apt tree is now a single shared mirror that serves both Debian and Ubuntu (matching upstream). The deploy scripts remove the empty old dirs automatically.
+- **Default OS releases trimmed to "latest two"**: EL=8,9; Debian=12,13; Ubuntu=22.04,24.04. Override via `--el-releases` / `--debian-releases` / `--ubuntu-releases` (numeric for apt -- not codenames).
+- **Installer page breakdown labels updated**: shows `yum (RHEL family)` and `apt (Debian + Ubuntu)` rather than separate redhat/debian/ubuntu rows so the GUI matches the underlying mirror layout.
+- **`docs/INSTALLER.md`**: full rewrite of the mirror layout section with the validated upstream paths and corrected disk-size estimates.
+
+### Notes
+- Old `--platforms redhat|debian|ubuntu` flags still work in `sync-openvox-repo.sh` (they emit a deprecation warning and are translated to `yum|apt`) so any custom cron entries don't break.
+- Test build for openvox.questy.org -- subsumed into 3.4.0 once issues are shaken out.
+
 ## [3.3.5-1] - 2026-04-23
 
 ### Added

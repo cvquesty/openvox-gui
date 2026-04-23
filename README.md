@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.5--1-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.5--2-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -223,7 +223,14 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 3.3.5-1
+## 🌟 What's New in Version 3.3.5-2
+
+### 📥 Agent Installer fixes
+- Validated all installer URL patterns against the live voxpupuli.org and corrected several mismatches that would have produced 404s on the first sync (yum: `el/{R}/`, apt: numeric dist names + shared single tree, Windows MSIs are versioned, latest-copy trick).
+- Mirror layout under `/opt/openvox-pkgs/` simplified to `yum/`, `apt/`, `windows/`, `mac/` (one tree per upstream source rather than per OS family). Old `redhat/`, `debian/`, `ubuntu/` dirs are removed automatically on upgrade.
+- Default OS releases trimmed to "latest two": EL=8,9; Debian=12,13; Ubuntu=22.04,24.04.
+
+## What's New in Version 3.3.5-1
 
 ### 📥 OpenVox Agent Installer
 - **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum/apt/downloads.voxpupuli.org.

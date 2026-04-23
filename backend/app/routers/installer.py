@@ -169,22 +169,33 @@ def _directory_size_bytes(path: Path) -> int:
 
 
 def _platform_summary() -> list[dict]:
-    """Inventory each top-level platform directory.  Used by the
-    Installer page to show "RHEL: 245 RPMs / 1.2 GB" style stats."""
+    """Inventory each top-level mirror directory.  Used by the
+    Installer page to show e.g. "yum: 245 RPMs / 1.2 GB" stats.
+
+    The 3.3.5-2 layout uses one tree per upstream source rather than
+    per logical OS family, so apt covers both Debian and Ubuntu.
+    """
+    # (label-on-page, on-disk subdir, file-extensions-to-count)
+    sections = (
+        ("yum",     "yum",     (".rpm",)),
+        ("apt",     "apt",     (".deb",)),
+        ("windows", "windows", (".msi",)),
+        ("mac",     "mac",     (".dmg", ".pkg")),
+    )
     summary = []
-    for name in ("redhat", "debian", "ubuntu", "windows", "mac"):
-        path = PKG_REPO_DIR / name
+    for label, subdir, exts in sections:
+        path = PKG_REPO_DIR / subdir
         present = path.exists() and path.is_dir()
         size = _directory_size_bytes(path) if present else 0
-        # Count package files, ignoring metadata
         file_count = 0
         if present:
-            for root, _d, files in os.walk(path, followlinks=False):
+            for _root, _d, files in os.walk(path, followlinks=False):
                 for fn in files:
-                    if fn.lower().endswith((".rpm", ".deb", ".msi", ".dmg", ".pkg")):
+                    lower = fn.lower()
+                    if any(lower.endswith(ext) for ext in exts):
                         file_count += 1
         summary.append({
-            "platform": name,
+            "platform": label,
             "present":  present,
             "bytes":    size,
             "packages": file_count,

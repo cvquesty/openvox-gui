@@ -70,17 +70,21 @@ if ($InstallDir) {
     $puppet_bin_dir = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Puppet Labs\Puppet\bin'
 }
 
-# Pick the right MSI based on OS architecture.
+# Pick the right MSI based on OS architecture.  Vox Pupuli only ships
+# x64 MSIs upstream as of 2026; if/when x86 returns we'll add it.
 $arch     = 'x64'
 $msi_name = "openvox-agent-${arch}.msi"
 if ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -match '^32') {
-    $arch     = 'x86'
-    $msi_name = "openvox-agent-${arch}.msi"
+    throw "32-bit Windows is not currently supported by upstream Vox Pupuli MSIs.  See downloads.voxpupuli.org/windows/."
 }
 
-# Mirror paths produced by sync-openvox-repo.sh:
-#   /packages/windows/openvox-agent-x64.msi
-$msi_source = "${PkgRepoUrl}/windows/${msi_name}"
+# Mirror layout produced by sync-openvox-repo.sh (3.3.5-2+):
+#   /packages/windows/openvox{N}/openvox-agent-{ver}-x64.msi   (every version)
+#   /packages/windows/openvox{N}/openvox-agent-x64.msi         (latest copy)
+# install.ps1 always pulls the latest-copy URL so it doesn't have to
+# know which version to ask for.  The puppetserver static-content
+# mount does not follow symlinks, so the sync uses a real copy.
+$msi_source = "${PkgRepoUrl}/windows/openvox${OpenVoxVersion}/${msi_name}"
 $msi_dest   = Join-Path ([System.IO.Path]::GetTempPath()) $msi_name
 
 Write-Verbose "Mirror URL : $msi_source"

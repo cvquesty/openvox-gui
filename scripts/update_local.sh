@@ -474,8 +474,15 @@ if [ -f "${INSTALL_DIR}/config/.env" ]; then
 fi
 [ -z "$PUPPET_SERVER_HOST" ] && PUPPET_SERVER_HOST=$(hostname -f)
 
-# 6b. Create the mirror directory tree (one subdir per platform)
-mkdir -p "${PKG_REPO_DIR}"/{redhat,debian,ubuntu,windows,mac}
+# 6b. Create the mirror directory tree (one subdir per upstream source).
+# 3.3.5-2 layout: yum/, apt/, windows/, mac/. Old per-platform dirs
+# (redhat/, debian/, ubuntu/) are removed if empty.
+mkdir -p "${PKG_REPO_DIR}"/{yum,apt,windows,mac}
+for old_dir in redhat debian ubuntu; do
+    if [ -d "${PKG_REPO_DIR}/${old_dir}" ] && [ -z "$(ls -A "${PKG_REPO_DIR}/${old_dir}" 2>/dev/null)" ]; then
+        rmdir "${PKG_REPO_DIR}/${old_dir}"
+    fi
+done
 chmod 0755 "${PKG_REPO_DIR}"
 log_info "Mirror dir : ${PKG_REPO_DIR}"
 

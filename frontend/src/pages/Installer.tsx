@@ -59,17 +59,29 @@ function formatBytes(n: number): string {
 }
 
 /**
- * Pick a Tabler icon for a platform directory name so the platform
- * breakdown table is scannable at a glance.
+ * Pick a Tabler icon + display label for a mirror directory name so
+ * the breakdown table is scannable at a glance. The 3.3.5-2 layout
+ * uses upstream-source names (yum, apt, windows, mac) rather than
+ * per-OS-family names; the display labels keep the table understandable
+ * to operators who think in OS terms.
  */
 function platformIcon(name: string) {
   switch (name) {
-    case 'redhat':  return <IconBrandRedhat size={18} />;
-    case 'debian':  return <IconBrandDebian size={18} />;
-    case 'ubuntu':  return <IconBrandUbuntu size={18} />;
+    case 'yum':     return <IconBrandRedhat size={18} />;
+    case 'apt':     return <IconBrandDebian size={18} />;
     case 'windows': return <IconBrandWindows size={18} />;
     case 'mac':     return <IconBrandApple size={18} />;
     default:        return <IconFolder size={18} />;
+  }
+}
+
+function platformLabel(name: string): string {
+  switch (name) {
+    case 'yum':     return 'yum (RHEL family)';
+    case 'apt':     return 'apt (Debian + Ubuntu)';
+    case 'windows': return 'windows';
+    case 'mac':     return 'macOS';
+    default:        return name;
   }
 }
 
@@ -401,7 +413,7 @@ export function InstallerPage() {
                     <Table.Td>
                       <Group gap="xs">
                         {platformIcon(p.platform)}
-                        <Text fw={500} tt="capitalize">{p.platform}</Text>
+                        <Text fw={500}>{platformLabel(p.platform)}</Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>

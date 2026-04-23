@@ -53,9 +53,9 @@ There are three problems it solves:
                                        ┌────────────────────────────┐
                                        │                            │
    yum.voxpupuli.org                   │  /opt/openvox-pkgs/        │
-   apt.voxpupuli.org   ───[sync]──>    │    redhat/openvox{7,8}/    │
-   downloads.voxpupuli.org             │    debian/openvox{7,8}/    │
-                                       │    ubuntu/openvox{7,8}/    │
+   apt.voxpupuli.org   ───[sync]──>    │    yum/openvox{7,8}/...    │
+   downloads.voxpupuli.org             │    apt/dists/{debian12,    │
+                                       │             ubuntu24.04}/  │
    (sync-openvox-repo.sh,              │    windows/                │
     nightly via systemd timer          │    mac/                    │
     or on-demand via GUI button)       │    install.bash            │
@@ -93,6 +93,46 @@ There are five moving parts:
 | `openvox-pkgs-webserver.conf` | `/etc/puppetlabs/puppetserver/conf.d/` | Mounts `/packages/*` on port 8140 |
 | `install.bash` | `/opt/openvox-pkgs/` | Linux agent bootstrap |
 | `install.ps1` | `/opt/openvox-pkgs/` | Windows agent bootstrap |
+
+## Mirror layout (3.3.5-2+)
+
+The local mirror under `/opt/openvox-pkgs/` preserves the upstream
+voxpupuli.org tree structure one-for-one rather than reorganising into
+per-OS directories. This keeps the apt pool from being duplicated
+across Debian and Ubuntu, and means agent install scripts use simple
+URL paths that map directly to the upstream documentation.
+
+```
+/opt/openvox-pkgs/
+├── install.bash                     Linux agent bootstrap
+├── install.ps1                      Windows agent bootstrap
+│
+├── yum/                             mirrors yum.voxpupuli.org
+│   ├── GPG-KEY-openvox.pub
+│   ├── openvox{7,8}-release-el-{8,9}.noarch.rpm
+│   └── openvox{7,8}/el/{8,9}/{x86_64,aarch64}/
+│         ├── repodata/
+│         └── openvox-agent-*.rpm, openbolt-*.rpm
+│
+├── apt/                             mirrors apt.voxpupuli.org
+│   ├── GPG-KEY-openvox.pub, openvox-keyring.gpg
+│   ├── openvox{7,8}-release-{debian12,debian13,ubuntu22.04,ubuntu24.04}.deb
+│   ├── dists/{debian12,debian13,ubuntu22.04,ubuntu24.04}/
+│   │     ├── {InRelease,Release,Release.gpg}
+│   │     └── openvox{7,8}/binary-{amd64,arm64}/{Packages,Packages.gz,Release}
+│   └── pool/openvox{7,8}/o/{openvox-agent,openbolt,openvox-server,...}/
+│
+├── windows/openvox{7,8}/
+│   ├── openvox-agent-{ver}-x64.msi      every published version
+│   └── openvox-agent-x64.msi            real copy of the latest stable
+│                                         (puppetserver mount can't follow
+│                                          symlinks, so we copy)
+│
+└── mac/openvox{7,8}/
+    ├── openvox-agent-{ver}-1.macos.all.{x86_64,arm64}.dmg
+    ├── openvox-agent-{x86_64,arm64}.dmg  latest copies per arch
+    └── 13/, 14/, 15/                      per-macOS-major sub-trees
+```
 
 The openvox-gui FastAPI app **also** mounts `/opt/openvox-pkgs/` at
 `/packages/*` on its own port (4567 by default).  This is the
@@ -246,26 +286,31 @@ PowerShell parameters mirror the PE installer:
 
 ## What gets mirrored
 
-By default `sync-openvox-repo.sh` mirrors:
+By default `sync-openvox-repo.sh` mirrors (3.3.5-2 defaults are
+"latest two only" -- expand via flags if you need older OS releases):
 
-| Platform | Versions | Releases | Architectures |
-|----------|----------|----------|---------------|
-| RHEL family (rocky/alma/centos/rhel/oracle) | OpenVox 7, 8 | el-7, el-8, el-9 | x86_64, aarch64 |
-| Debian | OpenVox 7, 8 | bullseye, bookworm, trixie | all (mirrored via dists/) |
-| Ubuntu | OpenVox 7, 8 | focal, jammy, noble | all (mirrored via dists/) |
-| Windows | latest stable | n/a | x64, x86 |
-| macOS | latest stable | n/a | x86_64, arm64 |
+| Source | OpenVox versions | OS releases | Architectures |
+|--------|------------------|-------------|---------------|
+| `yum` (RHEL family: rocky/alma/centos/rhel/oracle) | 7, 8 | el-8, el-9 | x86_64, aarch64 |
+| `apt` Debian | 7, 8 | debian12 (bookworm), debian13 (trixie) | amd64, arm64 |
+| `apt` Ubuntu | 7, 8 | ubuntu22.04 (jammy), ubuntu24.04 (noble) | amd64, arm64 |
+| `windows` | 7, 8 | n/a | x64 |
+| `mac` | 7, 8 | n/a | x86_64, arm64 |
 
 Override via flags or environment variables:
 
 ```bash
 sudo /opt/openvox-gui/scripts/sync-openvox-repo.sh \
-    --platforms redhat,ubuntu \
+    --platforms yum,apt \
     --versions 8 \
     --el-releases 8,9 \
-    --ubuntu-releases jammy,noble \
+    --ubuntu-releases 22.04,24.04 \
+    --debian-releases 12,13 \
     --arches x86_64
 ```
+
+Note that `--ubuntu-releases` and `--debian-releases` take **numeric**
+versions (matching the upstream apt suite names), not codenames.
 
 Persistent overrides go in `/etc/sysconfig/openvox-repo-sync` (RHEL
 family) or `/etc/default/openvox-repo-sync` (Debian/Ubuntu).  The
@@ -277,14 +322,13 @@ systemd unit reads both files via `EnvironmentFile=-`.
 
 A full mirror of every supported platform is roughly:
 
-| Platform | Approx size |
-|----------|-------------|
-| RHEL (el-7,8,9 x86_64+aarch64, openvox 7+8) | 800 MB |
-| Debian (bullseye,bookworm,trixie, openvox 7+8) | 400 MB |
-| Ubuntu (focal,jammy,noble, openvox 7+8) | 400 MB |
+| Source | Approx size |
+|--------|-------------|
+| yum (el-8,9 x86_64+aarch64, openvox 7+8) | 600 MB |
+| apt (debian12,13 + ubuntu22.04,24.04, openvox 7+8) | 500 MB |
 | Windows MSIs | 100 MB |
 | macOS DMGs | 200 MB |
-| **Total** | **~1.9 GB** |
+| **Total** | **~1.4 GB** |
 
 The Installer page shows a "Disk space" widget that warns when the
 filesystem holding `/opt/openvox-pkgs/` is more than 90 % full.
@@ -342,7 +386,7 @@ reject `[trusted=yes]`; if so, install the repo definition `.deb`
 manually first:
 
 ```bash
-sudo dpkg -i /opt/openvox-pkgs/debian/openvox8/openvox8-release-bookworm.deb
+sudo dpkg -i /opt/openvox-pkgs/apt/openvox8-release-debian12.deb
 ```
 
 ### Sync runs but takes hours

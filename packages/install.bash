@@ -161,18 +161,17 @@ detect_platform() {
 
     sanitize_platform_name
 
-    # Trim release to major number for RPM-family distros, full string
-    # (codename in /etc/os-release) used for apt families.
+    # Normalise release to the format the upstream voxpupuli mirror
+    # uses in its directory names (validated 2026-04-23):
+    #   RHEL family     -> major version only ("9", not "9.4")
+    #   Debian          -> major version only ("12", not "12.5") -> dist "debian12"
+    #   Ubuntu          -> full version       ("24.04")           -> dist "ubuntu24.04"
     case "$PLATFORM_NAME" in
-        rhel|amazon|sles)
+        rhel|amazon|sles|debian)
             PLATFORM_RELEASE="$(echo "$PLATFORM_RELEASE" | cut -d. -f1)"
             ;;
-        debian|ubuntu)
-            # /etc/os-release on apt-family distros provides VERSION_CODENAME
-            # (jammy, bookworm, ...).  Fall back to VERSION_ID if missing.
-            if [ -n "${VERSION_CODENAME:-}" ]; then
-                PLATFORM_RELEASE="$VERSION_CODENAME"
-            fi
+        ubuntu)
+            : # leave as-is, e.g. 24.04
             ;;
     esac
 
@@ -198,22 +197,28 @@ fi
 # package manager handles all downstream dependencies (curl, ruby,
 # openssl, etc.) and gives us free upgrade tooling.
 #
-# Naming convention on the mirror, matching what sync-openvox-repo.sh
-# produces:
-#   RHEL family: /packages/redhat/openvox<N>/el-<RELEASE>/<ARCH>/
-#   Debian:      /packages/debian/openvox<N>/dists/<CODENAME>/...
-#   Ubuntu:      /packages/ubuntu/openvox<N>/dists/<CODENAME>/...
+# Mirror layout (validated 2026-04-23 against live voxpupuli.org):
+#   yum.voxpupuli.org/openvox{N}/el/{R}/{arch}/   <- packages + repodata
+#   apt.voxpupuli.org/dists/{numeric}/openvox{N}/binary-{arch}/Packages
+#   apt.voxpupuli.org/pool/openvox{N}/o/{component}/*.deb
+# We mirror those into PKG_REPO_DIR/{yum,apt}/ preserving the upstream
+# layout, so the agent-facing URLs are simply:
+#   /packages/yum/openvox{N}/el/{R}/{arch}/
+#   /packages/apt/   (with suite={dist}, component=openvox{N})
 
 setup_rhel_repo() {
-    local repo_url="${PKG_REPO_URL%/}/redhat/openvox${OPENVOX_VERSION}/el-${PLATFORM_RELEASE}/${PLATFORM_ARCHITECTURE}"
+    local repo_url="${PKG_REPO_URL%/}/yum/openvox${OPENVOX_VERSION}/el/${PLATFORM_RELEASE}/${PLATFORM_ARCHITECTURE}"
     local repo_file="/etc/yum.repos.d/openvox${OPENVOX_VERSION}.repo"
+    local gpg_url="${PKG_REPO_URL%/}/yum/GPG-KEY-openvox.pub"
     info "Configuring yum repository at ${repo_file}"
+    info "  baseurl: ${repo_url}"
     cat > "$repo_file" <<EOF
 [openvox${OPENVOX_VERSION}]
 name=OpenVox ${OPENVOX_VERSION} - el-${PLATFORM_RELEASE}-${PLATFORM_ARCHITECTURE} (local mirror)
 baseurl=${repo_url}
 enabled=1
-gpgcheck=0
+gpgcheck=1
+gpgkey=${gpg_url}
 sslverify=0
 EOF
     if cmd dnf; then
@@ -225,25 +230,47 @@ EOF
     fi
 }
 
+# Compute the apt suite name (matches a directory under apt/dists/).
+# Upstream uses numeric forms: debian12, ubuntu24.04 -- not codenames.
+apt_dist_suite() {
+    case "$PLATFORM_NAME" in
+        debian) echo "debian${PLATFORM_RELEASE}" ;;
+        ubuntu) echo "ubuntu${PLATFORM_RELEASE}" ;;
+    esac
+}
+
 setup_apt_repo() {
-    local family="$1"   # debian or ubuntu
-    local repo_url="${PKG_REPO_URL%/}/${family}/openvox${OPENVOX_VERSION}"
+    local apt_base="${PKG_REPO_URL%/}/apt"
     local list_file="/etc/apt/sources.list.d/openvox${OPENVOX_VERSION}.list"
     local trust_dir="/etc/apt/trusted.gpg.d"
+    local dist
+    dist=$(apt_dist_suite)
+    if [ -z "$dist" ]; then
+        fail "Could not determine apt dist suite for ${PLATFORM_NAME} ${PLATFORM_RELEASE}"
+    fi
 
     info "Configuring apt repository at ${list_file}"
-    # The openvox repos are signed; older apt versions only honour keys
-    # in /etc/apt/trusted.gpg.d, so download the public key and drop
-    # it there.  When the key isn't available we fall back to
-    # `[trusted=yes]` so the install still works on disconnected
-    # internal networks.
+    info "  base   : ${apt_base}"
+    info "  suite  : ${dist}"
+    info "  comp   : openvox${OPENVOX_VERSION}"
+
+    # The openvox repos are signed.  The keyring is published at the
+    # apt-mirror root.  We try to install it into trusted.gpg.d (which
+    # every modern apt honours) and only fall back to `[trusted=yes]`
+    # if the download fails -- which keeps the install working on
+    # disconnected internal networks.
     local trusted_marker="[trusted=yes]"
-    if cmd curl && curl -fsSL --insecure "${repo_url}/openvox-release.gpg" -o "${trust_dir}/openvox${OPENVOX_VERSION}.gpg" 2>/dev/null; then
+    if cmd curl && curl -fsSL --insecure \
+        "${apt_base}/openvox-keyring.gpg" \
+        -o "${trust_dir}/openvox${OPENVOX_VERSION}.gpg" 2>/dev/null; then
         trusted_marker=""
+        info "Installed openvox keyring into ${trust_dir}/"
+    else
+        warn "Could not fetch openvox-keyring.gpg; falling back to [trusted=yes]"
     fi
 
     cat > "$list_file" <<EOF
-deb ${trusted_marker} ${repo_url} ${PLATFORM_RELEASE} main
+deb ${trusted_marker} ${apt_base}/ ${dist} openvox${OPENVOX_VERSION}
 EOF
 
     apt-get update -y -o Acquire::https::Verify-Peer=false || true
@@ -256,11 +283,8 @@ case "$PLATFORM_NAME" in
     rhel)
         setup_rhel_repo
         ;;
-    debian)
-        setup_apt_repo debian
-        ;;
-    ubuntu)
-        setup_apt_repo ubuntu
+    debian|ubuntu)
+        setup_apt_repo
         ;;
     *)
         fail "Platform ${PLATFORM_NAME} ${PLATFORM_RELEASE} is not yet supported by this installer. Currently supported: rhel/centos/rocky/alma, debian, ubuntu."

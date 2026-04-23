@@ -10,25 +10,43 @@
 #
 #   curl -k https://<server-fqdn>:8140/packages/install.bash | sudo bash
 #
-# Layout produced:
+# Layout produced (3.3.5-2+, after the validation against live
+# voxpupuli.org showed the original guesses were wrong):
 #
 #   /opt/openvox-pkgs/
 #     ├── install.bash                 (Linux agent bootstrap)
 #     ├── install.ps1                  (Windows agent bootstrap)
-#     ├── redhat/openvox{7,8}/el-{7,8,9}/{x86_64,aarch64}/
-#     ├── debian/openvox{7,8}/dists/...
-#     ├── ubuntu/openvox{7,8}/dists/...
-#     ├── windows/{openvox-agent-x64.msi, openvox-agent-x86.msi}
-#     ├── mac/{openvox-agent-*.dmg}
-#     └── .last-sync                   (UTC timestamp of last successful sync)
+#     ├── yum/
+#     │   ├── GPG-KEY-openvox.pub
+#     │   ├── openvox{7,8}-release-el-{8,9,10}.noarch.rpm
+#     │   └── openvox{7,8}/el/{8,9,10}/{x86_64,aarch64}/
+#     │         ├── repodata/
+#     │         └── openvox-agent-*.rpm, openbolt-*.rpm
+#     ├── apt/
+#     │   ├── GPG-KEY-openvox.pub
+#     │   ├── openvox-keyring.gpg
+#     │   ├── openvox{7,8}-release-{debian12,debian13,ubuntu22.04,ubuntu24.04}.deb
+#     │   ├── dists/{debian12,debian13,ubuntu22.04,ubuntu24.04}/openvox{7,8}/binary-{amd64,arm64}/
+#     │   │     ├── Packages, Packages.gz, Release
+#     │   │     └── (also dists/<dist>/{InRelease,Release,Release.gpg})
+#     │   └── pool/openvox{7,8}/o/{openvox-agent,openbolt,...}/
+#     ├── windows/openvox{7,8}/
+#     │   ├── openvox-agent-{ver}-x64.msi   (every version mirrored)
+#     │   └── openvox-agent-x64.msi         (real copy of the highest version,
+#     │                                      so install.ps1 has a stable URL)
+#     ├── mac/openvox{7,8}/
+#     │   ├── openvox-agent-{ver}-1.macos.all.{x86_64,arm64}.dmg
+#     │   ├── openvox-agent-{arch}.dmg      (latest copy per arch)
+#     │   └── 13/, 14/, 15/                  (per-macOS-major sub-trees)
+#     └── .last-sync                        (UTC timestamp of last successful sync)
 #
-# The script is designed to be safe to run repeatedly. It uses wget --mirror
-# under the hood, which only re-downloads changed/new files. A run lock
-# prevents two syncs from running concurrently (e.g. cron + manual button).
+# Single-tree apt + single-tree yum match how upstream organises things;
+# the user-facing install URLs become https://<server>:8140/packages/yum/...
+# and .../apt/.... See docs/INSTALLER.md for the full directory layout.
 #
 # Usage:
 #   sudo ./sync-openvox-repo.sh                # Sync everything (defaults)
-#   sudo ./sync-openvox-repo.sh --platforms redhat,ubuntu
+#   sudo ./sync-openvox-repo.sh --platforms yum,apt
 #   sudo ./sync-openvox-repo.sh --versions 8
 #   sudo ./sync-openvox-repo.sh --dry-run      # Show what would happen
 #   sudo ./sync-openvox-repo.sh --quiet        # Suppress wget chatter
@@ -59,12 +77,13 @@ YUM_BASE="${YUM_BASE:-https://yum.voxpupuli.org}"
 APT_BASE="${APT_BASE:-https://apt.voxpupuli.org}"
 DOWNLOADS_BASE="${DOWNLOADS_BASE:-https://downloads.voxpupuli.org}"
 
-# Defaults — can be overridden via CLI flags
-PLATFORMS_DEFAULT="redhat,debian,ubuntu,windows,mac"
+# Defaults reflect "latest two only" as chosen at design time. Override
+# with the matching --flag or in /etc/sysconfig/openvox-repo-sync.
+PLATFORMS_DEFAULT="yum,apt,windows,mac"
 VERSIONS_DEFAULT="7,8"
-EL_RELEASES_DEFAULT="7,8,9"
-DEB_RELEASES_DEFAULT="bullseye,bookworm,trixie"
-UBU_RELEASES_DEFAULT="focal,jammy,noble"
+EL_RELEASES_DEFAULT="8,9"
+DEB_RELEASES_DEFAULT="12,13"
+UBU_RELEASES_DEFAULT="22.04,24.04"
 ARCHES_DEFAULT="x86_64,aarch64"
 
 PLATFORMS="$PLATFORMS_DEFAULT"
@@ -104,7 +123,26 @@ show_help() {
     exit 0
 }
 
-# Run wget with consistent options. Mirrors a remote tree into a local dir.
+# Map an arch from "rpm-style" (x86_64, aarch64) to "deb-style"
+# (amd64, arm64). Used when iterating arches across both repo types.
+deb_arch() {
+    case "$1" in
+        x86_64)  echo amd64 ;;
+        aarch64) echo arm64 ;;
+        *)       echo "$1" ;;
+    esac
+}
+
+# Map openvox arch to mac DMG arch suffix
+mac_arch() {
+    case "$1" in
+        x86_64) echo x86_64 ;;
+        aarch64|arm64) echo arm64 ;;
+        *) echo "$1" ;;
+    esac
+}
+
+# wget wrapper that mirrors a remote tree into a local dir.
 # Args: $1 = remote URL, $2 = local target directory, $3 = optional extra args
 wget_mirror() {
     local url="$1"
@@ -117,7 +155,6 @@ wget_mirror() {
     #   --mirror              : recursive, timestamping, infinite depth
     #   --no-host-directories : don't create per-host folders
     #   --no-parent           : don't ascend to the parent directory
-    #   --cut-dirs            : strip leading path components
     #   --reject              : skip HTML index files (we serve via web later)
     #   -e robots=off         : ignore robots.txt restrictions on archive files
     #   --no-verbose          : compact output (one line per file)
@@ -153,8 +190,22 @@ wget_mirror() {
     return 0
 }
 
-# Strip any number of leading slashes
-strip_lead() { echo "$1" | sed -E 's:/+$::'; }
+# Fetch one specific URL into a destination directory using wget -N
+# (only re-downloads if the remote file is newer).
+fetch_one() {
+    local url="$1"
+    local dest_dir="$2"
+    mkdir -p "$dest_dir"
+    if [ "$DRY_RUN" = "true" ]; then
+        info "DRY-RUN: wget -N -P ${dest_dir} ${url}"
+        return 0
+    fi
+    if [ "$QUIET" = "true" ]; then
+        wget --quiet -N -P "$dest_dir" "$url" 2>/dev/null || return 1
+    else
+        wget -N -P "$dest_dir" "$url" || return 1
+    fi
+}
 
 acquire_lock() {
     if [ -f "$LOCK_FILE" ]; then
@@ -240,135 +291,226 @@ info "  Arches     : ${ARCHES}"
 OVERALL_RESULT="success"
 SYNC_FAILURES=0
 
-# ─── RPM-based platforms (RHEL family) ───────────────────────────────────────
-sync_redhat() {
-    info "Syncing RPM (yum) repositories from ${YUM_BASE}"
-    local v rel arch
+# ─── yum.voxpupuli.org (RHEL family) ─────────────────────────────────────────
+#
+# Upstream layout:
+#   yum.voxpupuli.org/openvox{N}/el/{R}/{arch}/...
+#                                     repodata/
+#                                     openvox-agent-*.rpm
+#                                     openbolt-*.rpm
+#   yum.voxpupuli.org/openvox{N}-release-el-{R}.noarch.rpm
+#   yum.voxpupuli.org/GPG-KEY-openvox.pub
+#
+sync_yum() {
+    info "Syncing yum.voxpupuli.org -> ${PKG_REPO_DIR}/yum/"
+    local v rel arch dest
+
+    # GPG key (single file, root of yum tree)
+    fetch_one "${YUM_BASE}/GPG-KEY-openvox.pub" "${PKG_REPO_DIR}/yum" \
+        || warn "Could not fetch GPG-KEY-openvox.pub"
+
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         for rel in $(echo "$EL_RELEASES" | tr ',' ' '); do
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
-                # Upstream URL pattern: <YUM_BASE>/openvoxN/el-R/ARCH/
-                # We mirror the entire arch tree which contains both packages
-                # and repodata/.
-                local url="${YUM_BASE}/openvox${v}/el-${rel}/${arch}/"
-                local dest="${PKG_REPO_DIR}/redhat/openvox${v}/el-${rel}/${arch}"
-                info "  -> openvox${v}/el-${rel}/${arch}"
+                local url="${YUM_BASE}/openvox${v}/el/${rel}/${arch}/"
+                dest="${PKG_REPO_DIR}/yum/openvox${v}/el/${rel}/${arch}"
+                info "  -> openvox${v}/el/${rel}/${arch}"
                 if ! wget_mirror "$url" "$dest"; then
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
                 fi
             done
-            # Also fetch the repo definition packages (openvox-release rpm)
-            local rel_url="${YUM_BASE}/openvox${v}-release-el-${rel}.noarch.rpm"
-            local rel_dest="${PKG_REPO_DIR}/redhat/openvox${v}"
-            mkdir -p "$rel_dest"
-            if [ "$DRY_RUN" = "true" ]; then
-                info "DRY-RUN: wget -N -P ${rel_dest} ${rel_url}"
-            else
-                wget --quiet -N -P "$rel_dest" "$rel_url" 2>/dev/null || \
-                    warn "Could not fetch ${rel_url} (may not exist for this OS)"
-            fi
+            # Release rpm lives at the root of yum.voxpupuli.org
+            fetch_one \
+                "${YUM_BASE}/openvox${v}-release-el-${rel}.noarch.rpm" \
+                "${PKG_REPO_DIR}/yum" \
+                || warn "Could not fetch openvox${v}-release-el-${rel}.noarch.rpm"
         done
     done
 }
 
-# ─── DEB-based platforms (Debian) ────────────────────────────────────────────
-sync_debian() {
-    info "Syncing DEB (apt) repositories from ${APT_BASE} for Debian"
-    local v rel
+# ─── apt.voxpupuli.org (Debian + Ubuntu, single shared tree) ─────────────────
+#
+# Upstream layout:
+#   apt.voxpupuli.org/dists/{numeric}/openvox{N}/binary-{arch}/Packages*
+#   apt.voxpupuli.org/dists/{numeric}/{Release,InRelease,Release.gpg}
+#   apt.voxpupuli.org/pool/openvox{N}/o/{component}/*.deb
+#   apt.voxpupuli.org/openvox{N}-release-{os-numeric}.deb
+#   apt.voxpupuli.org/{GPG-KEY-openvox.pub,openvox-keyring.gpg}
+#
+# Where {numeric} is e.g. debian12, ubuntu24.04 (NOT codenames).
+#
+sync_apt() {
+    info "Syncing apt.voxpupuli.org -> ${PKG_REPO_DIR}/apt/"
+    local v rel arch deb_a dest dist
+
+    # GPG keys + keyring (single files, root of apt tree)
+    for f in GPG-KEY-openvox.pub openvox-keyring.gpg; do
+        fetch_one "${APT_BASE}/${f}" "${PKG_REPO_DIR}/apt" \
+            || warn "Could not fetch ${f}"
+    done
+
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        # 1. dists/<numeric>/openvox{N}/binary-{arch}/Packages*
+        # 2. dists/<numeric>/{InRelease,Release,Release.gpg}
         for rel in $(echo "$DEB_RELEASES" | tr ',' ' '); do
-            # Mirror the entire dist (dists/<rel>/) and the matching pool/.
-            # apt has a global pool/ shared across dists, so we mirror it once
-            # per openvox version.
-            local dist_url="${APT_BASE}/openvox${v}/dists/${rel}/"
-            local dist_dest="${PKG_REPO_DIR}/debian/openvox${v}/dists/${rel}"
-            info "  -> debian/openvox${v}/dists/${rel}"
-            if ! wget_mirror "$dist_url" "$dist_dest"; then
-                SYNC_FAILURES=$((SYNC_FAILURES + 1))
-            fi
+            dist="debian${rel}"
+            for arch in $(echo "$ARCHES" | tr ',' ' '); do
+                deb_a=$(deb_arch "$arch")
+                local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
+                dest="${PKG_REPO_DIR}/apt/dists/${dist}/openvox${v}/binary-${deb_a}"
+                info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
+                if ! wget_mirror "$url" "$dest"; then
+                    SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                fi
+            done
+            # Release files live at the dist root, not under the component
+            for relfile in InRelease Release Release.gpg; do
+                fetch_one \
+                    "${APT_BASE}/dists/${dist}/${relfile}" \
+                    "${PKG_REPO_DIR}/apt/dists/${dist}" \
+                    || warn "Could not fetch dists/${dist}/${relfile}"
+            done
+            fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
+                "${PKG_REPO_DIR}/apt" \
+                || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
-        # Mirror the pool/ once per openvox major
-        local pool_url="${APT_BASE}/openvox${v}/pool/"
-        local pool_dest="${PKG_REPO_DIR}/debian/openvox${v}/pool"
-        info "  -> debian/openvox${v}/pool"
-        wget_mirror "$pool_url" "$pool_dest" || SYNC_FAILURES=$((SYNC_FAILURES + 1))
+        for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
+            dist="ubuntu${rel}"
+            for arch in $(echo "$ARCHES" | tr ',' ' '); do
+                deb_a=$(deb_arch "$arch")
+                local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
+                dest="${PKG_REPO_DIR}/apt/dists/${dist}/openvox${v}/binary-${deb_a}"
+                info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
+                if ! wget_mirror "$url" "$dest"; then
+                    SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                fi
+            done
+            for relfile in InRelease Release Release.gpg; do
+                fetch_one \
+                    "${APT_BASE}/dists/${dist}/${relfile}" \
+                    "${PKG_REPO_DIR}/apt/dists/${dist}" \
+                    || warn "Could not fetch dists/${dist}/${relfile}"
+            done
+            fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
+                "${PKG_REPO_DIR}/apt" \
+                || warn "Could not fetch openvox${v}-release-${dist}.deb"
+        done
 
-        # Repo definition .deb (openvox-release-<rel>.deb)
-        for rel in $(echo "$DEB_RELEASES" | tr ',' ' '); do
-            local rel_url="${APT_BASE}/openvox${v}-release-${rel}.deb"
-            local rel_dest="${PKG_REPO_DIR}/debian/openvox${v}"
-            mkdir -p "$rel_dest"
-            if [ "$DRY_RUN" = "true" ]; then
-                info "DRY-RUN: wget -N -P ${rel_dest} ${rel_url}"
-            else
-                wget --quiet -N -P "$rel_dest" "$rel_url" 2>/dev/null || true
-            fi
-        done
+        # 3. pool/openvox{N}/ -- one shared pool per openvox version
+        local url="${APT_BASE}/pool/openvox${v}/"
+        dest="${PKG_REPO_DIR}/apt/pool/openvox${v}"
+        info "  -> apt/pool/openvox${v}"
+        if ! wget_mirror "$url" "$dest"; then
+            SYNC_FAILURES=$((SYNC_FAILURES + 1))
+        fi
     done
 }
 
-# ─── DEB-based platforms (Ubuntu) ────────────────────────────────────────────
-sync_ubuntu() {
-    info "Syncing DEB (apt) repositories from ${APT_BASE} for Ubuntu"
-    local v rel
-    for v in $(echo "$VERSIONS" | tr ',' ' '); do
-        for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
-            local dist_url="${APT_BASE}/openvox${v}/dists/${rel}/"
-            local dist_dest="${PKG_REPO_DIR}/ubuntu/openvox${v}/dists/${rel}"
-            info "  -> ubuntu/openvox${v}/dists/${rel}"
-            if ! wget_mirror "$dist_url" "$dist_dest"; then
-                SYNC_FAILURES=$((SYNC_FAILURES + 1))
-            fi
-        done
-        # Pool is shared between Debian/Ubuntu in many Vox Pupuli setups.
-        # We still mirror it under the ubuntu tree so the local repo is
-        # self-contained.
-        local pool_url="${APT_BASE}/openvox${v}/pool/"
-        local pool_dest="${PKG_REPO_DIR}/ubuntu/openvox${v}/pool"
-        info "  -> ubuntu/openvox${v}/pool"
-        wget_mirror "$pool_url" "$pool_dest" || SYNC_FAILURES=$((SYNC_FAILURES + 1))
-
-        for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
-            local rel_url="${APT_BASE}/openvox${v}-release-${rel}.deb"
-            local rel_dest="${PKG_REPO_DIR}/ubuntu/openvox${v}"
-            mkdir -p "$rel_dest"
-            if [ "$DRY_RUN" = "true" ]; then
-                info "DRY-RUN: wget -N -P ${rel_dest} ${rel_url}"
-            else
-                wget --quiet -N -P "$rel_dest" "$rel_url" 2>/dev/null || true
-            fi
-        done
-    done
-}
-
-# ─── Windows MSI mirror ──────────────────────────────────────────────────────
+# ─── downloads.voxpupuli.org/windows/ (MSI installers) ───────────────────────
+#
+# Upstream layout:
+#   downloads.voxpupuli.org/windows/openvox{N}/openvox-agent-{ver}-x64.msi
+#   downloads.voxpupuli.org/windows/openvox{N}/unsigned/...
+#
+# install.ps1 needs a stable URL, so after mirroring we copy the
+# highest-version MSI to "openvox-agent-x64.msi" (a real copy, not a
+# symlink, because the puppetserver static-content mount does not
+# follow symlinks -- verified empirically).
+#
 sync_windows() {
-    info "Syncing Windows MSI installers from ${DOWNLOADS_BASE}/windows/"
-    local url="${DOWNLOADS_BASE}/windows/"
-    local dest="${PKG_REPO_DIR}/windows"
-    if ! wget_mirror "$url" "$dest" "--accept=*.msi,SHA256SUMS"; then
-        SYNC_FAILURES=$((SYNC_FAILURES + 1))
-    fi
+    info "Syncing downloads.voxpupuli.org/windows/ -> ${PKG_REPO_DIR}/windows/"
+    local v dest
+
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        local url="${DOWNLOADS_BASE}/windows/openvox${v}/"
+        dest="${PKG_REPO_DIR}/windows/openvox${v}"
+        info "  -> windows/openvox${v}"
+        if ! wget_mirror "$url" "$dest" "--accept=*.msi,SHA256SUMS"; then
+            SYNC_FAILURES=$((SYNC_FAILURES + 1))
+            continue
+        fi
+
+        # Pick the newest stable (non-rc) MSI and copy it to the
+        # predictable path install.ps1 fetches. Uses a glob loop +
+        # sort -V to avoid the ls-pipe-grep antipattern.
+        if [ "$DRY_RUN" != "true" ]; then
+            local latest=""
+            local f
+            shopt -s nullglob
+            for f in "${dest}"/openvox-agent-*-x64.msi; do
+                [[ "$f" == *-rc* ]] && continue
+                if [ -z "$latest" ] || \
+                   [ "$(printf '%s\n%s\n' "$latest" "$f" | sort -V | tail -n 1)" = "$f" ]; then
+                    latest="$f"
+                fi
+            done
+            shopt -u nullglob
+            if [ -n "$latest" ]; then
+                cp -f "$latest" "${dest}/openvox-agent-x64.msi"
+                info "    latest copy: $(basename "$latest") -> openvox-agent-x64.msi"
+            else
+                warn "No openvox-agent-*-x64.msi found in ${dest}; install.ps1 won't have a stable target"
+            fi
+        fi
+    done
 }
 
-# ─── Mac DMG mirror ──────────────────────────────────────────────────────────
+# ─── downloads.voxpupuli.org/mac/ (DMG installers) ───────────────────────────
+#
+# Upstream layout (a bit irregular):
+#   downloads.voxpupuli.org/mac/openvox{N}/openvox-agent-{ver}-1.macos.all.{arch}.dmg
+#   downloads.voxpupuli.org/mac/openvox{N}/{macos-major}/{arch}/...    (per-major
+#                                                                       subtrees)
+#
+# Same "latest copy" trick as windows for the per-arch DMGs.
+#
 sync_mac() {
-    info "Syncing macOS installers from ${DOWNLOADS_BASE}/mac/"
-    local url="${DOWNLOADS_BASE}/mac/"
-    local dest="${PKG_REPO_DIR}/mac"
-    if ! wget_mirror "$url" "$dest" "--accept=*.dmg,*.pkg,SHA256SUMS"; then
-        SYNC_FAILURES=$((SYNC_FAILURES + 1))
-    fi
+    info "Syncing downloads.voxpupuli.org/mac/ -> ${PKG_REPO_DIR}/mac/"
+    local v dest arch m_arch
+
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        local url="${DOWNLOADS_BASE}/mac/openvox${v}/"
+        dest="${PKG_REPO_DIR}/mac/openvox${v}"
+        info "  -> mac/openvox${v}"
+        if ! wget_mirror "$url" "$dest" "--accept=*.dmg,*.pkg,SHA256SUMS"; then
+            SYNC_FAILURES=$((SYNC_FAILURES + 1))
+            continue
+        fi
+
+        if [ "$DRY_RUN" != "true" ]; then
+            for arch in $(echo "$ARCHES" | tr ',' ' '); do
+                m_arch=$(mac_arch "$arch")
+                local latest=""
+                local f
+                shopt -s nullglob
+                for f in "${dest}"/openvox-agent-*.macos.all."${m_arch}".dmg; do
+                    if [ -z "$latest" ] || \
+                       [ "$(printf '%s\n%s\n' "$latest" "$f" | sort -V | tail -n 1)" = "$f" ]; then
+                        latest="$f"
+                    fi
+                done
+                shopt -u nullglob
+                if [ -n "$latest" ]; then
+                    cp -f "$latest" "${dest}/openvox-agent-${m_arch}.dmg"
+                    info "    latest copy: $(basename "$latest") -> openvox-agent-${m_arch}.dmg"
+                fi
+            done
+        fi
+    done
 }
 
 # ─── Drive each requested platform ───────────────────────────────────────────
 for platform in $(echo "$PLATFORMS" | tr ',' ' '); do
     case "$platform" in
-        redhat)  sync_redhat ;;
-        debian)  sync_debian ;;
-        ubuntu)  sync_ubuntu ;;
+        yum)     sync_yum ;;
+        apt)     sync_apt ;;
         windows) sync_windows ;;
         mac)     sync_mac ;;
+        # Old (3.3.5-1) names mapped to the new names so old configs
+        # in /etc/sysconfig/openvox-repo-sync don't break.
+        redhat)  warn "Platform 'redhat' renamed to 'yum' in 3.3.5-2; treating as yum"; sync_yum ;;
+        debian)  warn "Platform 'debian' merged into 'apt' in 3.3.5-2; treating as apt"; sync_apt ;;
+        ubuntu)  warn "Platform 'ubuntu' merged into 'apt' in 3.3.5-2; treating as apt"; sync_apt ;;
         *)       warn "Unknown platform: ${platform} (skipping)" ;;
     esac
 done
@@ -379,14 +521,12 @@ if [ "$DRY_RUN" != "true" ]; then
         chown -R "$PKG_REPO_OWNER" "$PKG_REPO_DIR" 2>/dev/null || \
             warn "Could not chown ${PKG_REPO_DIR} to ${PKG_REPO_OWNER}"
     fi
-    # Make everything world-readable so PuppetServer (running as the puppet
-    # user) and any other web server can serve them without permission issues.
     chmod -R a+rX "$PKG_REPO_DIR" 2>/dev/null || true
 fi
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 if [ $SYNC_FAILURES -gt 0 ]; then
-    OVERALL_RESULT="partial (${SYNC_FAILURES} platform(s) failed)"
+    OVERALL_RESULT="partial (${SYNC_FAILURES} sub-sync(s) failed)"
     warn "Sync completed with ${SYNC_FAILURES} failure(s)"
 else
     info "Sync completed successfully"

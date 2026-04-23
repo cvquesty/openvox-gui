@@ -1088,11 +1088,14 @@ fi
 log_step 10 "Agent Package Mirror"
 
 if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
-    # 1. Create the mirror directory tree -- one subdir per platform
-    mkdir -p "$PKG_REPO_DIR"/{redhat,debian,ubuntu,windows,mac}
+    # 1. Create the mirror directory tree -- one subdir per platform.
+    # Layout matches what sync-openvox-repo.sh produces (3.3.5-2+):
+    # one tree per upstream source rather than per logical platform,
+    # which avoids duplicating the apt pool across debian/ubuntu trees.
+    mkdir -p "$PKG_REPO_DIR"/{yum,apt,windows,mac}
     chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$PKG_REPO_DIR"
     chmod 0755 "$PKG_REPO_DIR"
-    log_ok "Created ${PKG_REPO_DIR} (with redhat/, debian/, ubuntu/, windows/, mac/)"
+    log_ok "Created ${PKG_REPO_DIR} (with yum/, apt/, windows/, mac/)"
 
     # 2. Drop the rendered install.bash and install.ps1 into the mirror
     # root, substituting the placeholder strings with the values this
