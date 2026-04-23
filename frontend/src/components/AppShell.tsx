@@ -57,16 +57,15 @@ const monitoringNav: NavItem[] = [
   { label: 'Dashboard', icon: IconDashboard, path: '/' },
   { label: 'Nodes', icon: IconServer, path: '/nodes' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
-  {
-    label: 'Infrastructure',
-    icon: IconCertificate,
-    path: '/certificates',
-    children: [
-      { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
-      { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
-      { label: 'Installer', icon: IconDownload, path: '/installer' },
-    ],
-  },
+];
+
+// Infrastructure was promoted from a sub-group of Monitoring to a
+// top-level nav group of its own, parallel to Monitoring / Code /
+// Data / Information / Settings (3.3.5-8+).
+const infrastructureNav: NavItem[] = [
+  { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
+  { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
+  { label: 'Installer', icon: IconDownload, path: '/installer' },
 ];
 
 const codeNav: NavItem[] = [
@@ -278,6 +277,7 @@ export function AppShellLayout() {
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
           {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
+          {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
           {renderNavGroup('Data', IconPackage, dataNav)}
           {renderNavGroup('Information', IconSearch, explorerNav)}
