@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.3.5-8**
+**OpenVox GUI Version 3.3.5-9**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -170,19 +170,36 @@ The installer will ask you some questions. Here's what each one means:
 6. **Admin password:** Password for the web interface
    - Type a secure password (or let it generate one for you)
 
+7. **Configure local agent package mirror? [Y/n]:** *(3.3.5-1+)*
+   - Sets up the OpenVox Agent Installer feature so you can bootstrap
+     fresh agents with `curl https://server:8140/packages/install.bash | sudo bash -s -- --server <server>`
+   - Drops a static-content mount into puppetserver's `conf.d/` so the
+     install scripts are served on port 8140
+   - Installs a systemd timer for nightly mirror sync
+   - See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide
+
+8. **Run initial sync now? [y/N]:** *(only if you said yes to #7)*
+   - Downloads ~1-2 GB of OpenVox packages from voxpupuli.org and takes
+     15-45 minutes
+   - Default is **no** -- the systemd timer will populate the mirror
+     overnight, or you can click "Sync now" later from the Installer page
+
 ### Step 4: Wait for Installation
 
 The installer will show progress like this:
 
 ```
 ▸ Installing OpenVox GUI
-  [1/10] Creating service user...        ✔
-  [2/10] Creating directories...         ✔
-  [3/10] Copying files...                ✔
+  [1/11] Creating service user...           ✔
+  [2/11] Creating directories...            ✔
+  [3/11] Copying files...                   ✔
   ...
+  [10/11] Agent Package Mirror...           ✔
+  [11/11] Initial Setup & Launch...         ✔
 ```
 
-This usually takes 2-5 minutes.
+This usually takes 2-5 minutes (longer if you opted to run the initial
+agent-package sync).
 
 ### Step 5: Access the Web Interface
 
@@ -294,7 +311,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.3.5-8"}` if everything is working.
+You should see `{"status":"ok","version":"3.3.5-9"}` if everything is working.
 
 ---
 

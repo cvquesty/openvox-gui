@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-9] - 2026-04-23
+
+### Documentation
+- **Cumulative documentation refresh** to reflect the current state of the project after eight 3.3.5-x iterations. No code changes -- pure docs.
+  - `README.md` "What's New" consolidated. Each iteration is no longer a separate fix paragraph -- the headline OpenVox Agent Installer feature now reads as a single cumulative description, with the per-iteration fix history pointed at the CHANGELOG.
+  - `docs/INSTALLER.md` rewritten to match the actual current behavior: one-liners now show `bash -s -- --server <fqdn>`, resolution chain documented, troubleshooting section gained entries for the real-world failures we hit (puppetserver-not-restarted 378-byte HTML, `bash: --server: invalid option`, "Could not determine the puppetserver FQDN" error, partial-mirror 404s).
+  - `INSTALL.md` now documents the new `CONFIGURE_PKG_REPO` and `RUN_INITIAL_SYNC` interactive prompts, and shows the 11-step installer progress (was 10).
+  - `TROUBLESHOOTING.md` gained a dedicated "Agent Installer Problems" section with the most common gotchas + pointers into INSTALLER.md.
+
 ## [3.3.5-8] - 2026-04-23
 
 ### Changed

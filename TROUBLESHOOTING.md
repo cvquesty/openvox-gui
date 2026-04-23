@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.3.5-8**
+**OpenVox GUI Version 3.3.5-9**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.3.5-8"}
+   # Should return: {"status":"ok","version":"3.3.5-9"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -615,6 +615,90 @@ To use a real certificate, see the Configuration documentation.
    ```bash
    cat /opt/openvox-gui/bolt-project.yaml
    ```
+
+---
+
+## Agent Installer Problems *(3.3.5-1+)*
+
+For issues specific to the local OpenVox package mirror and the
+`curl ... | sudo bash` agent install workflow, see
+[docs/INSTALLER.md](docs/INSTALLER.md) -- it has the full feature
+guide plus a dedicated troubleshooting section. Quick reference for
+the most common gotchas:
+
+### Problem: `curl https://server:8140/packages/install.bash` returns ~378 bytes of HTML
+
+Puppetserver wasn't restarted after the openvox-gui upgrade dropped
+its static-content mount config. The HTML is puppetserver's default
+"unknown path" page.
+
+```bash
+sudo systemctl restart puppetserver
+sudo systemctl is-active puppetserver
+```
+
+After the restart, the URL should return the install.bash script
+(~17 KB).
+
+### Problem: `bash: --server: invalid option`
+
+You ran the one-liner without `bash -s --` between `bash` and the
+script's arguments. The GUI's published one-liner already includes
+`-s --`; if you typed the command manually, use this form:
+
+```bash
+curl -k https://server:8140/packages/install.bash | sudo bash -s -- --server <fqdn>
+```
+
+### Problem: Installer page shows "Mirror size: 0 B" / "Last sync: never"
+
+The local mirror at `/opt/openvox-pkgs/` is empty. Either:
+
+- Click **Sync now** on Infrastructure -> Installer in the GUI
+  (admin/operator role required)
+- Or trigger the systemd service from CLI:
+  `sudo systemctl start openvox-repo-sync.service`
+- Or just wait for the 02:30 nightly timer
+
+The first sync downloads ~1-2 GB and takes 15-45 minutes.
+
+### Problem: Install script dies with `Could not determine the puppetserver FQDN`
+
+The agent script couldn't resolve a server name from any of its four
+fallback sources. This shouldn't happen with the GUI's published
+one-liner because it always includes `--server` explicitly. If you
+typed the command manually:
+
+```bash
+# Re-run with --server explicit
+curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>
+```
+
+### Problem: Agent install gets through repo setup but `dnf install openvox-agent` fails with 404s
+
+The mirror exists but doesn't have packages for your agent's specific
+OS / architecture. Either:
+
+- The first sync hasn't covered that platform yet (check Installer
+  page -> Per-platform breakdown)
+- Or the platform isn't in the mirror's allowlist (check the systemd
+  unit's environment overrides at `/etc/sysconfig/openvox-repo-sync` or
+  `/etc/default/openvox-repo-sync`)
+
+Re-run the sync limited to your platform:
+
+```bash
+sudo /opt/openvox-gui/scripts/sync-openvox-repo.sh \
+    --platforms yum --el-releases 9 --arches x86_64
+```
+
+### Problem: Sync errors with "A sync is already running"
+
+A previous sync was killed without cleaning up its lock file:
+
+```bash
+sudo rm -f /opt/openvox-pkgs/.sync.lock
+```
 
 ---
 

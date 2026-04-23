@@ -210,29 +210,55 @@ a sync.
 
 ## How the install one-liners work
 
+The Installer page in the GUI publishes a copy-to-clipboard one-liner
+for both Linux and Windows. Both put the puppetserver FQDN into the
+command **explicitly** so the agent never has to guess what server to
+talk to -- whatever hostname the operator points the one-liner at is
+the same hostname the agent gets configured against.
+
 ### Linux
 
 ```bash
-curl -k https://<openvox-gui-server>:8140/packages/install.bash | sudo bash
+curl -k https://<server>:8140/packages/install.bash | sudo bash -s -- --server <server>
 ```
+
+Two things to notice:
+
+- **`bash -s --`** lets operators append their own arguments without
+  bash interpreting them as its own options. Without the `-s --`,
+  appending `--server foo` would die with `bash: --server: invalid
+  option`.
+- **`--server <server>`** is included by the GUI explicitly so the
+  agent knows the puppetserver FQDN even if the server-side render of
+  the placeholder somehow misfires. The GUI fills in the same FQDN
+  twice (once in the URL, once after `--server`) so they always match.
 
 The script:
 
-1.  Detects the platform (RHEL family / Debian / Ubuntu, version,
+1.  Resolves the puppetserver FQDN. Resolution order: `--server` arg
+    -> `PUPPET_SERVER` env var -> server-side rendered placeholder ->
+    `[main] server=` from existing `/etc/puppetlabs/puppet/puppet.conf`.
+2.  Derives `PKG_REPO_URL` from the FQDN as
+    `https://<server>:8140/packages` (override with `--pkg-repo-url`
+    if your mirror lives elsewhere).
+3.  Detects the platform (RHEL family / Debian / Ubuntu, version,
     architecture) by reading `/etc/os-release`.
-2.  Drops a yum/apt repo file pointing at the local mirror:
+4.  Drops a yum/apt repo file pointing at the local mirror:
     -   RHEL: `/etc/yum.repos.d/openvox8.repo`
     -   Debian/Ubuntu: `/etc/apt/sources.list.d/openvox8.list`
-3.  Installs `openvox-agent` via the platform's package manager.
-4.  Sets `server` and `certname` in `/etc/puppetlabs/puppet/puppet.conf`.
-5.  Starts and enables the puppet service.
-6.  Symlinks `puppet`, `facter`, `hiera` into `/usr/local/bin/` for
+    -   APT distro names use **numeric** form: `debian12`, `ubuntu24.04`
+        (matching the upstream apt suite layout).
+5.  Installs `openvox-agent` via the platform's package manager.
+6.  Sets `server` and `certname` in `/etc/puppetlabs/puppet/puppet.conf`.
+7.  Starts and enables the puppet service.
+8.  Symlinks `puppet`, `facter`, `hiera` into `/usr/local/bin/` for
     convenience.
 
-You can pass extra arguments after the pipe:
+You can append extra arguments after the `bash -s --`:
 
 ```bash
-curl -k https://server:8140/packages/install.bash | sudo bash -s -- \
+curl -k https://<server>:8140/packages/install.bash | sudo bash -s -- \
+    --server <server> \
     extension_requests:pp_role=webserver \
     extension_requests:pp_environment=prod \
     --puppet-service-ensure stopped
@@ -242,7 +268,8 @@ Supported argument forms:
 
 | Argument | Effect |
 |----------|--------|
-| `--server <fqdn>` | Override the puppetserver FQDN baked into the script |
+| `--server <fqdn>` | Puppetserver FQDN. Highest priority. |
+| `--pkg-repo-url <url>` | Package mirror base URL. Default: `https://<server>:8140/packages` (rarely needed). |
 | `--version <7\|8>` | Pick OpenVox major version (default: 8) |
 | `--puppet-service-ensure running\|stopped` | Service state after install |
 | `--puppet-service-enable true\|false\|manual` | Service startup mode |
@@ -255,10 +282,17 @@ Supported argument forms:
 ```powershell
 [System.Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; `
 [Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; `
+$url = 'https://<server>:8140/packages/install.ps1'; `
 $wc = New-Object System.Net.WebClient; `
-$wc.DownloadFile('https://<openvox-gui-server>:8140/packages/install.ps1','install.ps1'); `
-.\install.ps1 -v
+$wc.DownloadFile($url, 'install.ps1'); `
+.\install.ps1 -Server ([System.Uri]$url).Host -v
 ```
+
+Same trick as Linux: the puppetserver FQDN is extracted from the
+download URL via `[System.Uri]$url.Host` and passed to install.ps1
+explicitly via `-Server`. install.ps1 can't auto-discover the URL
+after the fact -- it's downloaded to a file before it runs -- so the
+one-liner does the extraction up front.
 
 The script:
 
@@ -348,12 +382,17 @@ Installer page or run `sudo systemctl start openvox-repo-sync.service`.
 Debian families.  Install it with `sudo dnf install wget` or
 `sudo apt install wget`.
 
-### Puppetserver returns 404 for `/packages/install.bash`
+### Puppetserver returns 404 for `/packages/install.bash` (~ 378 bytes of HTML)
 
-Restart puppetserver to pick up the static-content mount config:
+This is the most common post-install gotcha and almost always means
+puppetserver was never restarted after the openvox-gui upgrade
+dropped its static-content mount config. The 378-byte HTML you got
+back is puppetserver's default "unknown path" page.
 
 ```bash
 sudo systemctl restart puppetserver
+# wait 15-30s for it to come back up
+sudo systemctl is-active puppetserver
 ```
 
 If the mount config wasn't installed (you said "no" to
@@ -364,6 +403,54 @@ sudo cp /opt/openvox-gui/config/openvox-pkgs-webserver.conf \
         /etc/puppetlabs/puppetserver/conf.d/
 sudo systemctl restart puppetserver
 ```
+
+To confirm the mount loaded, look for `openvox-pkgs` or
+`static-content` in the puppetserver journal:
+
+```bash
+sudo journalctl -u puppetserver --since "5 minutes ago" --no-pager \
+    | grep -iE 'static-content|openvox-pkgs|webserver'
+```
+
+### `bash: --server: invalid option`
+
+You ran the one-liner without `bash -s --` between `bash` and the
+script's arguments. The `-s --` form is required so bash treats
+trailing tokens as positional args for the script instead of options
+for itself:
+
+```bash
+# WRONG -- bash eats --server itself
+curl -k https://server:8140/packages/install.bash | sudo bash --server foo
+
+# RIGHT -- the GUI's published one-liner already does this
+curl -k https://server:8140/packages/install.bash | sudo bash -s -- --server foo
+```
+
+### `Could not determine the puppetserver FQDN`
+
+Means all four resolution paths failed:
+
+1. `--server` arg / `PUPPET_SERVER` env var (not set)
+2. The `__OPENVOX_PUPPET_SERVER__` placeholder substituted server-side
+   (not rendered)
+3. `[main] server=` from existing `puppet.conf` (not present)
+
+The error message names two workarounds:
+
+- **One-shot fix on the agent**: re-run with `--server <fqdn>`:
+  ```bash
+  curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>
+  ```
+- **Fix on the openvox-gui server**: re-run the deploy so install.bash
+  gets re-rendered with the correct FQDN:
+  ```bash
+  cd ~/openvox-gui && git pull && sudo ./scripts/update_local.sh --force
+  ```
+
+Note that the GUI's published one-liner ALWAYS includes `--server`
+explicitly, so this error only triggers if the operator stripped that
+argument out manually.
 
 ### Agent install fails with "openvox-agent MSI not found"
 

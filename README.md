@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.5--8-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.5--9-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -223,41 +223,45 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in the 3.3.5-x Series
+## What's New in the 3.3.5-x Series
 
-### 📥 OpenVox Agent Installer (NEW FEATURE)
-This release introduces a full PE-style agent bootstrap workflow for OpenVox:
-- **One-line agent install on Linux**: `curl -k https://<server>:8140/packages/install.bash | sudo bash`
-- **One-line agent install on Windows**: PowerShell snippet downloads `install.ps1` from the same server
-- **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum.voxpupuli.org, apt.voxpupuli.org, and downloads.voxpupuli.org
-- **New "Installer" page** under Infrastructure with copy-to-clipboard one-liners, mirror status, disk usage, and a "Sync now" button
-- **Nightly auto-sync** via systemd timer (02:30 with randomised delay)
-- See [docs/INSTALLER.md](docs/INSTALLER.md) for full architecture, configuration, and troubleshooting
+The 3.3.5-x line is a series of test builds that introduce the
+**OpenVox Agent Installer**. Iterations 3.3.5-1 through 3.3.5-8 will
+roll up into the tagged 3.4.0 release.
 
-> ⚠️ **First-run sync takes time.** The first repo sync downloads roughly 1-2 GB of OpenVox packages from voxpupuli.org and can take **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental. Both `install.sh` (fresh install) and `update_local.sh` (upgrade) prompt you to start the initial sync; you can also wait for the 02:30 nightly timer or click "Sync now" in the GUI.
+### OpenVox Agent Installer (the headline feature)
 
-### 🛠️ 3.3.5-5 fixes (current)
-- Agent installer (`install.bash` / `install.ps1`) is now self-configuring at agent runtime. Resolution order: `--server` arg -> env var -> server-side render placeholder -> existing `puppet.conf` (re-install case). `PKG_REPO_URL` is derived from the puppetserver FQDN automatically -- no separate placeholder to break.
-- Failure mode on misconfigured servers is now actionable: if everything fails, the script names both the underlying fix and a one-shot workaround.
+A full PE-style agent bootstrap workflow for OpenVox:
 
-### 🛠️ 3.3.5-4 fixes
-- `update_local.sh` now offers an interactive "Sync now?" prompt on upgrades that introduce the installer feature, so existing installations don't have to wait for the nightly timer.
+- **One-line install on Linux** -- the GUI publishes a copy-to-clipboard command of the form
+  `curl -k https://<server>:8140/packages/install.bash | sudo bash -s -- --server <server>`.
+  The hostname appears once in the URL and once after `--server`, both pulled from the same source so they always match. Operators just paste and run as root.
+- **One-line install on Windows** -- equivalent PowerShell snippet that downloads `install.ps1` and passes the puppetserver FQDN extracted from the URL via `[System.Uri]$url.Host`.
+- **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum.voxpupuli.org, apt.voxpupuli.org, and downloads.voxpupuli.org. Layout: `yum/`, `apt/`, `windows/`, `mac/` -- one tree per upstream source, mirroring the upstream structure 1:1.
+- **PuppetServer mounts `/packages/*` on port 8140** -- the standard puppetserver port that existing firewall rules already permit. Agents reach the mirror without any new firewall holes. The openvox-gui FastAPI app also serves the same content on its own port (4567) as a fallback.
+- **Promoted to top-level "Infrastructure" navigation** -- the new "Installer" page sits alongside Certificate Authority and Orchestration in the left nav, with copy-to-clipboard one-liners, mirror status, per-platform breakdown, disk-usage warning, "Sync now" button (admin/operator only), and a sync-log tail.
+- **Nightly auto-sync** via systemd timer (02:30 + randomised delay). Both `install.sh` (fresh install) and `update_local.sh` (upgrade) offer an interactive "Sync now?" prompt so the mirror is populated before the first agent installs.
+- **Self-configuring agent scripts** -- `install.bash` and `install.ps1` resolve the puppetserver FQDN from `--server` arg / env var, then a server-side rendered placeholder, then an existing `puppet.conf` (re-install case). `PKG_REPO_URL` is derived from the puppetserver FQDN, not a separate placeholder.
 
-### 🛠️ 3.3.5-3 fixes
-- Fixed `sync-openvox-repo.sh` wget double-nesting bug discovered during the live trial sync.
+> **First-run sync takes time.** The first sync downloads roughly **1-2 GB** of OpenVox packages from voxpupuli.org and takes **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental (only changed files). Pick whichever first-sync path fits: the interactive `install.sh` / `update_local.sh` prompt, the **Sync now** button on Infrastructure -> Installer, `sudo systemctl start openvox-repo-sync.service` from the CLI, or just wait for the 02:30 nightly timer.
 
-### 🛠️ 3.3.5-2 fixes
-- Validated all installer URL patterns against live voxpupuli.org and corrected several mismatches that would have produced 404s on the first sync.
-- Mirror layout simplified to `/opt/openvox-pkgs/{yum,apt,windows,mac}/` (one tree per upstream source rather than per OS family).
+See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide -- architecture, mirror layout, CLI options, security considerations, and troubleshooting.
 
-## What's New in Version 3.3.5-1
+### Navigation restructuring (3.3.5-8)
 
-### 📥 OpenVox Agent Installer
-- **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum/apt/downloads.voxpupuli.org.
-- **PE-style install one-liners** for Linux and Windows, served on port 8140 via a puppetserver static-content mount.
-- **Installer page** under Infrastructure with copy-to-clipboard install commands, mirror status, disk usage, and "Sync now" button.
-- **Nightly sync** via systemd timer; manual sync on-demand for admins/operators.
-- See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide.
+The left nav is now: **Monitoring**, **Infrastructure**, **Code**, **Data**, **Information**, **Settings**. Infrastructure was previously a nested sub-group inside Monitoring; it has been promoted to a top-level group of its own.
+
+### Per-iteration history
+
+For the full per-iteration changelog (3.3.5-1 through 3.3.5-8), see [CHANGELOG.md](CHANGELOG.md). Highlights:
+
+- **3.3.5-2** validated installer URLs against live voxpupuli.org and simplified the mirror layout to per-upstream-source trees.
+- **3.3.5-3** fixed a wget double-nesting bug discovered during the first live sync trial.
+- **3.3.5-4** added the interactive "Sync now?" prompt to `update_local.sh`.
+- **3.3.5-5** redesigned the agent scripts to be self-configuring at runtime.
+- **3.3.5-6** corrected the published one-liner to use `bash -s --` so extra args parse correctly.
+- **3.3.5-7** rolled the puppetserver FQDN into the published one-liner explicitly.
+- **3.3.5-8** promoted Infrastructure to a top-level nav group.
 
 ## What's New in Version 3.3.0
 
