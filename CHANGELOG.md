@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-3] - 2026-04-23
+
+### Fixed
+- **sync-openvox-repo.sh wget double-nesting**: Discovered during the live trial sync against openvox.questy.org that wget was producing nested paths like `/opt/openvox-pkgs/yum/openvox8/el/9/x86_64/openvox8/el/9/x86_64/openvox-agent-*.rpm` because `--no-host-directories` strips only the hostname (the URL path is preserved under `--directory-prefix`). Each `sync_*` function now passes the mirror **root** (e.g. `/opt/openvox-pkgs/yum`) as the wget destination and lets the URL path determine the subdirectory layout. Validated by re-running the trial: 42 RPMs landed at the correct path before the test was aborted.
+
 ## [3.3.5-2] - 2026-04-23
 
 ### Fixed

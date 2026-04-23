@@ -143,7 +143,20 @@ mac_arch() {
 }
 
 # wget wrapper that mirrors a remote tree into a local dir.
-# Args: $1 = remote URL, $2 = local target directory, $3 = optional extra args
+# Args: $1 = remote URL, $2 = mirror ROOT (top-level platform dir),
+#       $3 = optional extra args
+#
+# IMPORTANT: $2 is the root of the local mirror tree (e.g.
+# /opt/openvox-pkgs/yum), NOT the per-URL subdirectory.  wget's
+# --no-host-directories strips only the hostname; the rest of the URL
+# path is preserved under --directory-prefix.  So passing the URL's
+# subpath in $2 produces a doubly-nested layout (validated 2026-04-23
+# by an actual sync that produced /opt/openvox-pkgs/yum/openvox8/el/9/
+# x86_64/openvox8/el/9/x86_64/openvox-agent-*.rpm).
+#
+# With this convention, calling
+#   wget_mirror https://yum.voxpupuli.org/openvox8/el/9/x86_64/ /opt/openvox-pkgs/yum
+# correctly produces files at /opt/openvox-pkgs/yum/openvox8/el/9/x86_64/.
 wget_mirror() {
     local url="$1"
     local dest="$2"
@@ -158,9 +171,6 @@ wget_mirror() {
     #   --reject              : skip HTML index files (we serve via web later)
     #   -e robots=off         : ignore robots.txt restrictions on archive files
     #   --no-verbose          : compact output (one line per file)
-    #
-    # We deliberately keep the directory structure under the remote root so
-    # that the local layout mirrors the upstream URL paths.
     local args=(
         --mirror
         --no-host-directories
@@ -303,26 +313,28 @@ SYNC_FAILURES=0
 #
 sync_yum() {
     info "Syncing yum.voxpupuli.org -> ${PKG_REPO_DIR}/yum/"
-    local v rel arch dest
+    local v rel arch
+    local yum_root="${PKG_REPO_DIR}/yum"
 
     # GPG key (single file, root of yum tree)
-    fetch_one "${YUM_BASE}/GPG-KEY-openvox.pub" "${PKG_REPO_DIR}/yum" \
+    fetch_one "${YUM_BASE}/GPG-KEY-openvox.pub" "${yum_root}" \
         || warn "Could not fetch GPG-KEY-openvox.pub"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         for rel in $(echo "$EL_RELEASES" | tr ',' ' '); do
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 local url="${YUM_BASE}/openvox${v}/el/${rel}/${arch}/"
-                dest="${PKG_REPO_DIR}/yum/openvox${v}/el/${rel}/${arch}"
                 info "  -> openvox${v}/el/${rel}/${arch}"
-                if ! wget_mirror "$url" "$dest"; then
+                # Pass the yum root -- wget will recreate openvox${v}/el/${rel}/${arch}/
+                # underneath it because --no-host-directories preserves the URL path.
+                if ! wget_mirror "$url" "$yum_root"; then
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
                 fi
             done
             # Release rpm lives at the root of yum.voxpupuli.org
             fetch_one \
                 "${YUM_BASE}/openvox${v}-release-el-${rel}.noarch.rpm" \
-                "${PKG_REPO_DIR}/yum" \
+                "${yum_root}" \
                 || warn "Could not fetch openvox${v}-release-el-${rel}.noarch.rpm"
         done
     done
@@ -341,11 +353,12 @@ sync_yum() {
 #
 sync_apt() {
     info "Syncing apt.voxpupuli.org -> ${PKG_REPO_DIR}/apt/"
-    local v rel arch deb_a dest dist
+    local v rel arch deb_a dist
+    local apt_root="${PKG_REPO_DIR}/apt"
 
     # GPG keys + keyring (single files, root of apt tree)
     for f in GPG-KEY-openvox.pub openvox-keyring.gpg; do
-        fetch_one "${APT_BASE}/${f}" "${PKG_REPO_DIR}/apt" \
+        fetch_one "${APT_BASE}/${f}" "${apt_root}" \
             || warn "Could not fetch ${f}"
     done
 
@@ -357,9 +370,8 @@ sync_apt() {
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 deb_a=$(deb_arch "$arch")
                 local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
-                dest="${PKG_REPO_DIR}/apt/dists/${dist}/openvox${v}/binary-${deb_a}"
                 info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
-                if ! wget_mirror "$url" "$dest"; then
+                if ! wget_mirror "$url" "$apt_root"; then
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
                 fi
             done
@@ -367,11 +379,11 @@ sync_apt() {
             for relfile in InRelease Release Release.gpg; do
                 fetch_one \
                     "${APT_BASE}/dists/${dist}/${relfile}" \
-                    "${PKG_REPO_DIR}/apt/dists/${dist}" \
+                    "${apt_root}/dists/${dist}" \
                     || warn "Could not fetch dists/${dist}/${relfile}"
             done
             fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
-                "${PKG_REPO_DIR}/apt" \
+                "${apt_root}" \
                 || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
         for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
@@ -379,28 +391,26 @@ sync_apt() {
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 deb_a=$(deb_arch "$arch")
                 local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
-                dest="${PKG_REPO_DIR}/apt/dists/${dist}/openvox${v}/binary-${deb_a}"
                 info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
-                if ! wget_mirror "$url" "$dest"; then
+                if ! wget_mirror "$url" "$apt_root"; then
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
                 fi
             done
             for relfile in InRelease Release Release.gpg; do
                 fetch_one \
                     "${APT_BASE}/dists/${dist}/${relfile}" \
-                    "${PKG_REPO_DIR}/apt/dists/${dist}" \
+                    "${apt_root}/dists/${dist}" \
                     || warn "Could not fetch dists/${dist}/${relfile}"
             done
             fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
-                "${PKG_REPO_DIR}/apt" \
+                "${apt_root}" \
                 || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
 
         # 3. pool/openvox{N}/ -- one shared pool per openvox version
         local url="${APT_BASE}/pool/openvox${v}/"
-        dest="${PKG_REPO_DIR}/apt/pool/openvox${v}"
         info "  -> apt/pool/openvox${v}"
-        if ! wget_mirror "$url" "$dest"; then
+        if ! wget_mirror "$url" "$apt_root"; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
         fi
     done
@@ -419,13 +429,15 @@ sync_apt() {
 #
 sync_windows() {
     info "Syncing downloads.voxpupuli.org/windows/ -> ${PKG_REPO_DIR}/windows/"
+    # Pass downloads root so wget recreates windows/openvox{v}/ underneath
     local v dest
+    local downloads_root="${PKG_REPO_DIR}"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         local url="${DOWNLOADS_BASE}/windows/openvox${v}/"
         dest="${PKG_REPO_DIR}/windows/openvox${v}"
         info "  -> windows/openvox${v}"
-        if ! wget_mirror "$url" "$dest" "--accept=*.msi,SHA256SUMS"; then
+        if ! wget_mirror "$url" "$downloads_root" "--accept=*.msi,SHA256SUMS"; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
             continue
         fi
@@ -466,13 +478,15 @@ sync_windows() {
 #
 sync_mac() {
     info "Syncing downloads.voxpupuli.org/mac/ -> ${PKG_REPO_DIR}/mac/"
+    # Pass downloads root so wget recreates mac/openvox{v}/ underneath
     local v dest arch m_arch
+    local downloads_root="${PKG_REPO_DIR}"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         local url="${DOWNLOADS_BASE}/mac/openvox${v}/"
         dest="${PKG_REPO_DIR}/mac/openvox${v}"
         info "  -> mac/openvox${v}"
-        if ! wget_mirror "$url" "$dest" "--accept=*.dmg,*.pkg,SHA256SUMS"; then
+        if ! wget_mirror "$url" "$downloads_root" "--accept=*.dmg,*.pkg,SHA256SUMS"; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
             continue
         fi
