@@ -23,7 +23,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION="$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo 'unknown')"
-TOTAL_STEPS=10
+TOTAL_STEPS=11
 
 # ─── Terminal Colors ─────────────────────────────────────────
 RED='\033[0;31m'
@@ -70,6 +70,13 @@ CONFIGURE_SELINUX="false"
 BUILD_FRONTEND="true"
 INSTALL_NODEJS="true"
 CONFIGURE_BOLT="true"
+
+# Package mirror / agent installer (3.3.5-1+)
+PKG_REPO_DIR="/opt/openvox-pkgs"
+CONFIGURE_PKG_REPO="true"
+INSTALL_PUPPETSERVER_MOUNT="true"
+ENABLE_REPO_SYNC_TIMER="true"
+RUN_INITIAL_SYNC="false"
 
 # Proxy settings (auto-detected from environment if not set in config)
 PROXY_HOST=""
@@ -554,6 +561,25 @@ if [ "$SILENT" != "true" ]; then
     prompt_yesno BUILD_FRONTEND "Build frontend from source? (requires Node.js 18+)" "$BUILD_FRONTEND"
     prompt_yesno CONFIGURE_BOLT "Install/configure Puppet Bolt for orchestration?" "$CONFIGURE_BOLT"
     echo
+
+    echo -e "${BOLD}Agent Package Mirror (3.3.5-1+)${NC}"
+    echo "  Sets up a local OpenVox package mirror under ${PKG_REPO_DIR} so"
+    echo "  agents can be installed via 'curl ... | sudo bash' without internet"
+    echo "  access. Mirror is populated from yum/apt.voxpupuli.org."
+    prompt_yesno CONFIGURE_PKG_REPO "Configure local agent package mirror?" "$CONFIGURE_PKG_REPO"
+    if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
+        prompt PKG_REPO_DIR "Package mirror directory" "$PKG_REPO_DIR"
+        prompt_yesno INSTALL_PUPPETSERVER_MOUNT \
+            "Install puppetserver static-content mount on port 8140? (recommended)" \
+            "$INSTALL_PUPPETSERVER_MOUNT"
+        prompt_yesno ENABLE_REPO_SYNC_TIMER \
+            "Enable nightly repo sync (systemd timer)?" \
+            "$ENABLE_REPO_SYNC_TIMER"
+        prompt_yesno RUN_INITIAL_SYNC \
+            "Run initial sync now? (downloads several GB; can be done later)" \
+            "$RUN_INITIAL_SYNC"
+    fi
+    echo
 fi
 
 # ─── Step 1: Service User ────────────────────────────────────
@@ -597,13 +623,25 @@ else
 fi
 
 # Copy scripts
-for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh; do
+for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sync-openvox-repo.sh; do
     if [ -f "${SCRIPT_DIR}/scripts/${script}" ]; then
         cp "${SCRIPT_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
         chmod +x "${INSTALL_DIR}/scripts/${script}"
     fi
 done
 log_ok "Copied scripts"
+
+# Copy install.bash / install.ps1 templates so the backend can render
+# them via the /api/installer/script/* endpoint and so install.sh has
+# them ready to drop into the package mirror in Step 10.
+mkdir -p "${INSTALL_DIR}/packages"
+for tmpl in install.bash install.ps1; do
+    if [ -f "${SCRIPT_DIR}/packages/${tmpl}" ]; then
+        cp "${SCRIPT_DIR}/packages/${tmpl}" "${INSTALL_DIR}/packages/${tmpl}"
+        chmod 644 "${INSTALL_DIR}/packages/${tmpl}"
+    fi
+done
+log_ok "Staged agent installer templates"
 
 # Copy frontend source (for building) or pre-built dist — same rm-then-copy
 # pattern to avoid nested directory issues with cp -a.
@@ -887,6 +925,11 @@ ${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
 
 # OpenVox GUI -- allow puppet lookup
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
+
+# OpenVox GUI -- allow triggering the OpenVox package mirror sync from
+# the Installer page. The sync script writes into ${PKG_REPO_DIR} which
+# is owned by root, so it must run with elevated privileges.
+${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/sync-openvox-repo.sh, ${INSTALL_DIR}/scripts/sync-openvox-repo.sh *
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1
@@ -1034,9 +1077,124 @@ else
     log_info "The Orchestration page will show install instructions until Bolt is available."
 fi
 
-# ─── Step 10: Initial Setup & Launch ──────────────────────────
+# ─── Step 10: Agent Package Mirror (3.3.5-1+) ───────────────────────────
+#
+# Sets up a local OpenVox package mirror under ${PKG_REPO_DIR} so
+# agents can be bootstrapped via `curl ... | sudo bash` without internet
+# access. Optionally drops a static-content mount into puppetserver's
+# conf.d/ so agents can reach the mirror on port 8140 (matching the PE
+# "install agents" workflow).
 
-log_step 10 "Initial Setup & Launch"
+log_step 10 "Agent Package Mirror"
+
+if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
+    # 1. Create the mirror directory tree -- one subdir per platform
+    mkdir -p "$PKG_REPO_DIR"/{redhat,debian,ubuntu,windows,mac}
+    chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$PKG_REPO_DIR"
+    chmod 0755 "$PKG_REPO_DIR"
+    log_ok "Created ${PKG_REPO_DIR} (with redhat/, debian/, ubuntu/, windows/, mac/)"
+
+    # 2. Drop the rendered install.bash and install.ps1 into the mirror
+    # root, substituting the placeholder strings with the values this
+    # operator chose. After this, agents that hit
+    # https://${PUPPET_SERVER_HOST}:8140/packages/install.bash get a
+    # script that already knows how to talk to *this* server.
+    if [ -f "${INSTALL_DIR}/packages/install.bash" ]; then
+        sed \
+            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
+            -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
+            -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
+            "${INSTALL_DIR}/packages/install.bash" > "${PKG_REPO_DIR}/install.bash"
+        chmod 0755 "${PKG_REPO_DIR}/install.bash"
+        log_ok "Installed Linux agent installer at ${PKG_REPO_DIR}/install.bash"
+    else
+        log_warn "Source install.bash not found -- skipping"
+    fi
+
+    if [ -f "${INSTALL_DIR}/packages/install.ps1" ]; then
+        sed \
+            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
+            -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
+            -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
+            "${INSTALL_DIR}/packages/install.ps1" > "${PKG_REPO_DIR}/install.ps1"
+        chmod 0644 "${PKG_REPO_DIR}/install.ps1"
+        log_ok "Installed Windows agent installer at ${PKG_REPO_DIR}/install.ps1"
+    else
+        log_warn "Source install.ps1 not found -- skipping"
+    fi
+
+    # 3. Install systemd timer + service for nightly sync. We always
+    # install the units; whether they are enabled depends on
+    # ENABLE_REPO_SYNC_TIMER below.
+    if [ -f "${SCRIPT_DIR}/config/openvox-repo-sync.service" ] && \
+       [ -f "${SCRIPT_DIR}/config/openvox-repo-sync.timer" ]; then
+        cp "${SCRIPT_DIR}/config/openvox-repo-sync.service" /etc/systemd/system/
+        cp "${SCRIPT_DIR}/config/openvox-repo-sync.timer"   /etc/systemd/system/
+        systemctl daemon-reload
+        log_ok "Installed openvox-repo-sync.{service,timer}"
+
+        if [ "$ENABLE_REPO_SYNC_TIMER" = "true" ]; then
+            systemctl enable openvox-repo-sync.timer >/dev/null 2>&1 || true
+            systemctl start  openvox-repo-sync.timer >/dev/null 2>&1 || true
+            log_ok "Enabled nightly repo sync (02:30 + random delay)"
+        else
+            log_info "Nightly sync timer NOT enabled (ENABLE_REPO_SYNC_TIMER=false)"
+            log_info "  Enable later with: sudo systemctl enable --now openvox-repo-sync.timer"
+        fi
+    else
+        log_warn "openvox-repo-sync systemd units not found in source tree"
+    fi
+
+    # 4. Install the puppetserver static-content mount config so that
+    # /packages/* on port 8140 serves directly from ${PKG_REPO_DIR}.
+    # Skip cleanly if puppetserver isn't installed locally -- in that
+    # case the mirror is still reachable via the openvox-gui port.
+    if [ "$INSTALL_PUPPETSERVER_MOUNT" = "true" ]; then
+        PS_CONF_D="/etc/puppetlabs/puppetserver/conf.d"
+        if [ -d "$PS_CONF_D" ]; then
+            if [ -f "${SCRIPT_DIR}/config/openvox-pkgs-webserver.conf" ]; then
+                # If the operator chose a non-default PKG_REPO_DIR, rewrite
+                # the resource path inside the dropped HOCON config.
+                sed "s|/opt/openvox-pkgs|${PKG_REPO_DIR}|g" \
+                    "${SCRIPT_DIR}/config/openvox-pkgs-webserver.conf" \
+                    > "${PS_CONF_D}/openvox-pkgs-webserver.conf"
+                chmod 0644 "${PS_CONF_D}/openvox-pkgs-webserver.conf"
+                log_ok "Installed puppetserver mount: ${PS_CONF_D}/openvox-pkgs-webserver.conf"
+                log_info "  Restart puppetserver to activate: sudo systemctl restart puppetserver"
+            else
+                log_warn "openvox-pkgs-webserver.conf not found in source tree"
+            fi
+        else
+            log_info "puppetserver not installed locally (${PS_CONF_D} missing)"
+            log_info "  Mirror is still reachable via openvox-gui at port ${APP_PORT}"
+        fi
+    fi
+
+    # 5. Make sure the puppet user can read everything
+    chmod -R a+rX "$PKG_REPO_DIR" 2>/dev/null || true
+
+    # 6. Optional initial sync. This can take a long time and download
+    # several GB so default to OFF; operator can run later from the GUI
+    # or systemctl start openvox-repo-sync.service.
+    if [ "$RUN_INITIAL_SYNC" = "true" ]; then
+        log_info "Running initial OpenVox repo sync (this may take a while)..."
+        if "${INSTALL_DIR}/scripts/sync-openvox-repo.sh" --quiet; then
+            log_ok "Initial sync complete"
+        else
+            log_warn "Initial sync reported errors -- check ${PKG_REPO_LOG:-/opt/openvox-gui/logs/repo-sync.log}"
+        fi
+    else
+        log_info "Initial sync skipped (RUN_INITIAL_SYNC=false)"
+        log_info "  Trigger from the GUI: Infrastructure -> Installer -> Sync now"
+        log_info "  Or from CLI:          sudo systemctl start openvox-repo-sync.service"
+    fi
+else
+    log_info "Skipping agent package mirror (CONFIGURE_PKG_REPO=false)"
+fi
+
+# ─── Step 11: Initial Setup & Launch ──────────────────────────
+
+log_step 11 "Initial Setup & Launch"
 
 # Create admin user if using local auth
 if [ "$AUTH_BACKEND" = "local" ]; then
@@ -1146,3 +1304,21 @@ echo -e "    Add to puppet.conf [server] section:"
 echo -e "      node_terminus = exec"
 echo -e "      external_nodes = ${INSTALL_DIR}/scripts/enc.py"
 echo
+
+if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
+    echo -e "  ${BOLD}OpenVox Agent Installer:${NC}"
+    echo -e "    Mirror dir : ${PKG_REPO_DIR}"
+    echo -e "    Linux:      ${BOLD}curl -k https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages/install.bash | sudo bash${NC}"
+    echo -e "    Windows:    Use the one-liner shown on the Installer page"
+    echo -e "    GUI page:   ${APP_SCHEME}://$(hostname -f):${APP_PORT}/installer"
+    if [ "$ENABLE_REPO_SYNC_TIMER" = "true" ] && [ "$RUN_INITIAL_SYNC" != "true" ]; then
+        echo -e "    ${YELLOW}Note: nightly sync timer is enabled but no packages are mirrored yet."
+        echo -e "    Run 'sudo systemctl start openvox-repo-sync.service' to populate the mirror now,"
+        echo -e "    or wait for the nightly sync at 02:30.${NC}"
+    fi
+    if [ "$INSTALL_PUPPETSERVER_MOUNT" = "true" ] && [ -d "/etc/puppetlabs/puppetserver/conf.d" ]; then
+        echo -e "    ${YELLOW}Restart puppetserver to activate the /packages mount on port 8140:"
+        echo -e "      sudo systemctl restart puppetserver${NC}"
+    fi
+    echo
+fi

@@ -1,0 +1,16 @@
+[Unit]
+# Nightly trigger for openvox-repo-sync.service. Runs at 02:30 local
+# time with a 30-minute random delay to avoid hammering yum/apt
+# repositories at the top of the hour.
+Description=Nightly OpenVox repository mirror sync
+Documentation=file:///opt/openvox-gui/docs/INSTALLER.md
+Requires=openvox-repo-sync.service
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=1800
+Persistent=true
+Unit=openvox-repo-sync.service
+
+[Install]
+WantedBy=timers.target

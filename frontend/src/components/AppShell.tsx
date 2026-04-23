@@ -38,6 +38,7 @@ import {
   IconCertificate,
   IconSearch,
   IconPackage,
+  IconDownload,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -63,6 +64,7 @@ const monitoringNav: NavItem[] = [
     children: [
       { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
       { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
+      { label: 'Installer', icon: IconDownload, path: '/installer' },
     ],
   },
 ];

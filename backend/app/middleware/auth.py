@@ -164,6 +164,12 @@ _SKIP_AUTH_PATHS = (
     "/api/version",
     "/api/docs", "/api/redoc", "/openapi.json",
     "/vite.svg",
+    # OpenVox agent installer scripts and the local package mirror.
+    # These must be reachable by Linux/Windows hosts that have no GUI
+    # session (and therefore no JWT) -- they are functionally the same
+    # as the puppetserver static-content mount on port 8140.
+    "/packages",
+    "/api/installer/script",
 )
 
 

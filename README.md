@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.0-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.5--1-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -130,6 +130,15 @@ Manage server certificates (like ID cards for servers):
 - Revoke certificates for decommissioned servers
 - See certificate details and expiration dates
 
+### 📥 Agent Installer *(3.3.5-1+)*
+Bootstrap new OpenVox agents with a single command, the same way Puppet Enterprise does:
+- Local mirror of `yum.voxpupuli.org` / `apt.voxpupuli.org` / `downloads.voxpupuli.org`
+- Linux: `curl -k https://server:8140/packages/install.bash | sudo bash`
+- Windows: PowerShell one-liner with the same shape as PE's installer
+- Nightly auto-sync via systemd timer (or sync on demand from the GUI)
+- Served on port 8140 (the standard puppetserver port -- existing firewall rules already permit the traffic)
+- See [docs/INSTALLER.md](docs/INSTALLER.md) for full details
+
 ### 🔍 Explorers
 Search and explore your infrastructure:
 - **Fact Explorer**: Find servers by their properties (OS, memory, etc.)
@@ -214,7 +223,16 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 3.3.0
+## 🌟 What's New in Version 3.3.5-1
+
+### 📥 OpenVox Agent Installer
+- **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum/apt/downloads.voxpupuli.org.
+- **PE-style install one-liners** for Linux and Windows, served on port 8140 via a puppetserver static-content mount.
+- **Installer page** under Infrastructure with copy-to-clipboard install commands, mirror status, disk usage, and "Sync now" button.
+- **Nightly sync** via systemd timer; manual sync on-demand for admins/operators.
+- See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide.
+
+## What's New in Version 3.3.0
 
 ### ⚡ Orchestration — Live PuppetDB Targets
 - **"All nodes" now resolved from PuppetDB** — selecting "All nodes" in the Orchestration UI queries PuppetDB for every known certname in real-time instead of relying on the static `inventory.yaml` file.

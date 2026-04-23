@@ -1,0 +1,41 @@
+[Unit]
+# Mirrors the OpenVox / Vox Pupuli package repositories into
+# /opt/openvox-pkgs so the openvox-gui server can act as a local
+# package mirror. Triggered by openvox-repo-sync.timer (nightly) or
+# manually via `systemctl start openvox-repo-sync.service` or the
+# Installer page in the GUI.
+Description=OpenVox repository mirror sync
+Documentation=file:///opt/openvox-gui/docs/INSTALLER.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Run as root so wget can write into /opt/openvox-pkgs and chown the
+# resulting tree to the puppet user. The script itself does not need
+# privileged operations beyond filesystem writes.
+User=root
+Group=root
+
+# Path to the sync script. Installed by openvox-gui's install.sh into
+# the install directory's scripts/ subfolder.
+ExecStart=/opt/openvox-gui/scripts/sync-openvox-repo.sh --quiet
+
+# Reasonable timeout: full mirror can take a while on first run.
+# After the initial sync, incremental runs are much faster.
+TimeoutStartSec=2h
+
+# Don't restart on failure -- timer will retry on next schedule
+Restart=no
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+# Environment overrides can be placed in /etc/sysconfig/openvox-repo-sync
+# (RHEL family) or /etc/default/openvox-repo-sync (Debian family).
+EnvironmentFile=-/etc/sysconfig/openvox-repo-sync
+EnvironmentFile=-/etc/default/openvox-repo-sync
+
+[Install]
+WantedBy=multi-user.target

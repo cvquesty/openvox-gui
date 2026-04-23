@@ -129,7 +129,7 @@ if [ "$OLD_VERSION" = "$NEW_VERSION" ] && [ "$OLD_BRANCH" = "$REPO_BRANCH" ] && 
     exit 0
 fi
 
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 
 log_step() { echo -e "\n${BLUE}[$1/${TOTAL_STEPS}]${NC} ${BOLD}$2${NC}"; }
 log_ok()   { echo -e "  ${GREEN}✔${NC} $1"; }
@@ -168,13 +168,29 @@ cp "${REPO_DIR}/VERSION" "${INSTALL_DIR}/VERSION"
 log_ok "Deployed VERSION"
 
 # Copy scripts (preserving anything site-specific in scripts/)
-for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh; do
+for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sync-openvox-repo.sh; do
     if [ -f "${REPO_DIR}/scripts/${script}" ]; then
         cp "${REPO_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
         chmod +x "${INSTALL_DIR}/scripts/${script}"
     fi
 done
 log_ok "Deployed scripts"
+
+# Stage agent installer templates (3.3.5-1+). The actual rendered
+# install.bash / install.ps1 in /opt/openvox-pkgs/ are produced
+# in Step 6b; these copies in INSTALL_DIR/packages/ are what the
+# backend router serves via /api/installer/script/* if the
+# puppetserver mount isn't reachable.
+if [ -d "${REPO_DIR}/packages" ]; then
+    mkdir -p "${INSTALL_DIR}/packages"
+    for tmpl in install.bash install.ps1; do
+        if [ -f "${REPO_DIR}/packages/${tmpl}" ]; then
+            cp "${REPO_DIR}/packages/${tmpl}" "${INSTALL_DIR}/packages/${tmpl}"
+            chmod 0644 "${INSTALL_DIR}/packages/${tmpl}"
+        fi
+    done
+    log_ok "Deployed agent installer templates"
+fi
 
 # Copy frontend source (rm-then-copy to avoid stale files)
 rm -rf "${INSTALL_DIR}/frontend"
@@ -291,6 +307,10 @@ ${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
 
 # OpenVox GUI -- allow puppet lookup
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
+
+# OpenVox GUI -- allow triggering the OpenVox package mirror sync
+# (agent installer feature, 3.3.5-1+).
+${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/sync-openvox-repo.sh, ${INSTALL_DIR}/scripts/sync-openvox-repo.sh *
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1
@@ -435,8 +455,98 @@ if [ "$SSL_ENABLED" != "true" ]; then
     esac
 fi
 
-# ─── Step 6: Restart & Verify ─────────────────────────────────
-log_step 6 "Restart & Verify"
+# ─── Step 6: Agent Installer Feature (3.3.5-1+) ───────────────
+# Idempotent setup of /opt/openvox-pkgs/ and the support pieces
+# (puppetserver mount, systemd timer, rendered install scripts).
+log_step 6 "Agent Installer Feature"
+
+PKG_REPO_DIR="${PKG_REPO_DIR:-/opt/openvox-pkgs}"
+
+# 6a. Pull puppetserver host/port from the deployed .env so the
+# rendered install.bash / install.ps1 know where to point agents.
+PUPPET_SERVER_HOST=""
+PUPPET_SERVER_PORT="8140"
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    PSH_LINE=$(grep "^OPENVOX_GUI_PUPPET_SERVER_HOST=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    PSP_LINE=$(grep "^OPENVOX_GUI_PUPPET_SERVER_PORT=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    [ -n "$PSH_LINE" ] && PUPPET_SERVER_HOST="${PSH_LINE#*=}"
+    [ -n "$PSP_LINE" ] && PUPPET_SERVER_PORT="${PSP_LINE#*=}"
+fi
+[ -z "$PUPPET_SERVER_HOST" ] && PUPPET_SERVER_HOST=$(hostname -f)
+
+# 6b. Create the mirror directory tree (one subdir per platform)
+mkdir -p "${PKG_REPO_DIR}"/{redhat,debian,ubuntu,windows,mac}
+chmod 0755 "${PKG_REPO_DIR}"
+log_info "Mirror dir : ${PKG_REPO_DIR}"
+
+# 6c. Render install.bash / install.ps1 with the right URLs
+for script in install.bash install.ps1; do
+    if [ -f "${INSTALL_DIR}/packages/${script}" ]; then
+        sed \
+            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
+            -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
+            -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
+            "${INSTALL_DIR}/packages/${script}" > "${PKG_REPO_DIR}/${script}"
+        if [ "$script" = "install.bash" ]; then
+            chmod 0755 "${PKG_REPO_DIR}/${script}"
+        else
+            chmod 0644 "${PKG_REPO_DIR}/${script}"
+        fi
+    fi
+done
+log_ok "Rendered install.bash and install.ps1 into ${PKG_REPO_DIR}"
+
+# 6d. Install / refresh the systemd timer + service for nightly sync
+INSTALLED_TIMER="false"
+for unit in openvox-repo-sync.service openvox-repo-sync.timer; do
+    if [ -f "${REPO_DIR}/config/${unit}" ]; then
+        cp "${REPO_DIR}/config/${unit}" "/etc/systemd/system/${unit}"
+        INSTALLED_TIMER="true"
+    fi
+done
+if [ "$INSTALLED_TIMER" = "true" ]; then
+    systemctl daemon-reload 2>/dev/null || true
+    log_ok "Installed openvox-repo-sync.{service,timer}"
+    # Enable on first install only -- preserves operator's choice
+    # to disable the timer on subsequent updates.
+    if ! systemctl is-enabled --quiet openvox-repo-sync.timer 2>/dev/null; then
+        systemctl enable --now openvox-repo-sync.timer >/dev/null 2>&1 || true
+        log_ok "Enabled nightly repo sync (02:30 + random delay)"
+    fi
+fi
+
+# 6e. Drop the puppetserver static-content mount config (only if
+# puppetserver is installed locally). Mirror is also reachable via
+# the openvox-gui port as a fallback.
+PS_CONF_D="/etc/puppetlabs/puppetserver/conf.d"
+RESTART_PUPPETSERVER_HINT="false"
+if [ -d "$PS_CONF_D" ] && [ -f "${REPO_DIR}/config/openvox-pkgs-webserver.conf" ]; then
+    NEW_MOUNT_HASH=$(sed "s|/opt/openvox-pkgs|${PKG_REPO_DIR}|g" \
+        "${REPO_DIR}/config/openvox-pkgs-webserver.conf" | shasum | awk '{print $1}')
+    OLD_MOUNT_HASH="(none)"
+    [ -f "${PS_CONF_D}/openvox-pkgs-webserver.conf" ] && \
+        OLD_MOUNT_HASH=$(shasum "${PS_CONF_D}/openvox-pkgs-webserver.conf" | awk '{print $1}')
+    if [ "$NEW_MOUNT_HASH" != "$OLD_MOUNT_HASH" ]; then
+        sed "s|/opt/openvox-pkgs|${PKG_REPO_DIR}|g" \
+            "${REPO_DIR}/config/openvox-pkgs-webserver.conf" \
+            > "${PS_CONF_D}/openvox-pkgs-webserver.conf"
+        chmod 0644 "${PS_CONF_D}/openvox-pkgs-webserver.conf"
+        log_ok "Installed/updated puppetserver static-content mount"
+        RESTART_PUPPETSERVER_HINT="true"
+    fi
+fi
+
+# 6f. Permissions
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "${PKG_REPO_DIR}" 2>/dev/null || true
+chmod -R a+rX "${PKG_REPO_DIR}" 2>/dev/null || true
+
+if [ "$RESTART_PUPPETSERVER_HINT" = "true" ]; then
+    log_warn "Restart puppetserver to activate /packages on port 8140:"
+    log_info "  sudo systemctl restart puppetserver"
+fi
+
+# ─── Step 7: Restart & Verify ─────────────────────────────────
+log_step 7 "Restart & Verify"
 
 systemctl restart "${SERVICE_NAME}"
 log_info "Service restarting..."

@@ -56,6 +56,7 @@ const ResourceExplorerPage = lazyWithRetry(() => import('./pages/ResourceExplore
 const PackagesPage = lazyWithRetry(() => import('./pages/Packages').then(m => ({ default: m.PackagesPage })));
 const DataHieraPage = lazyWithRetry(() => import('./pages/DataHiera').then(m => ({ default: m.DataHieraPage })));
 const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m => ({ default: m.DataLookupPage })));
+const InstallerPage = lazyWithRetry(() => import('./pages/Installer').then(m => ({ default: m.InstallerPage })));
 
 function PageLoader() {
   return <Center h={400}><Loader size="xl" /></Center>;
@@ -114,6 +115,9 @@ function AppRoutes() {
 
           {/* Certificate Authority */}
           <Route path="/certificates" element={<CertificatesPage />} />
+
+          {/* Installer (agent bootstrap + package mirror) */}
+          <Route path="/installer" element={<InstallerPage />} />
 
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />

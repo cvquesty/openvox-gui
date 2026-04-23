@@ -436,6 +436,67 @@ export interface ExecutionStats {
   avg_duration_ms: number;
 }
 
+// ─── Installer / Package Mirror ─────────────────────────────
+
+export interface InstallerInfo {
+  pkg_repo_url: string;
+  puppet_server: string;
+  puppet_port: number;
+  pkg_repo_dir: string;
+  default_version: string;
+  install_url_linux: string;
+  install_url_win: string;
+  linux_command: string;
+  windows_command: string;
+  last_sync_utc?: string | null;
+  last_sync_result?: string | null;
+  sync_in_progress: boolean;
+  total_bytes: number;
+  platforms: Array<{
+    platform: string;
+    present: boolean;
+    bytes: number;
+    packages: number;
+  }>;
+}
+
+export interface InstallerSyncResult {
+  success: boolean;
+  exit_code: number;
+  output: string[];
+  triggered_by: string;
+}
+
+export interface InstallerDiskInfo {
+  path: string;
+  total: number;
+  used: number;
+  free: number;
+  used_pct: number;
+}
+
+export const installer = {
+  getInfo: () => fetchJSON<InstallerInfo>('/installer/info'),
+  triggerSync: () =>
+    fetchJSON<InstallerSyncResult>('/installer/sync', { method: 'POST' }),
+  getLog: (lines: number = 200) =>
+    fetchJSON<{ path: string; exists: boolean; lines: string[] }>(
+      `/installer/log?lines=${lines}`
+    ),
+  getDiskInfo: () => fetchJSON<InstallerDiskInfo>('/installer/diskinfo'),
+  listFiles: (prefix: string = '') =>
+    fetchJSON<{
+      prefix: string;
+      exists: boolean;
+      entries: Array<{
+        name: string;
+        type: 'file' | 'dir';
+        bytes: number;
+        mtime_utc: string;
+      }>;
+    }>(`/installer/files${prefix ? '?prefix=' + encodeURIComponent(prefix) : ''}`),
+};
+
 export const executionHistory = {
   getHistory: (params?: {
     days?: number;

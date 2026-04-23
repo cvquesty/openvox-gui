@@ -9,6 +9,7 @@ Provides:
 4. Code deployment via r10k integration
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from .routers import certificates as cert_router
 from .routers import auth as auth_router
 from .routers import deploy as deploy_router
 from .routers import execution_history as execution_history_router
+from .routers import installer as installer_router
 from .services.puppetdb import puppetdb_service
 
 # Configure logging
@@ -153,11 +155,33 @@ app.include_router(pql_router.router)
 app.include_router(cert_router.router)
 app.include_router(facts_router.router)
 app.include_router(execution_history_router.router)
+app.include_router(installer_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+# Serve the local OpenVox package mirror at /packages/*.
+#
+# This is the FastAPI-side fallback for the puppetserver static-content
+# mount that install.sh adds to /etc/puppetlabs/puppetserver/conf.d/.
+# Most agents will hit the puppetserver mount on port 8140 (because
+# that's the standard agent port, already permitted through firewalls);
+# this mount on the openvox-gui port (4567 by default) lets operators
+# verify the layout via the browser and gives agents a working URL even
+# if the puppetserver mount hasn't been configured yet.
+#
+# The directory may legitimately not exist yet (first install before
+# the initial sync runs), in which case we simply skip mounting and
+# /packages/* falls through to the SPA 404 handler.
+_pkg_repo_dir = Path(os.environ.get("OPENVOX_GUI_PKG_REPO_DIR", "/opt/openvox-pkgs"))
+if _pkg_repo_dir.exists():
+    # html=False so directory listings are NOT served (we don't want
+    # to leak the full directory structure to anonymous users).
+    # Auto-error responses for missing files are handled by StaticFiles
+    # itself, returning a 404 that flows through to the SPA catch-all.
+    app.mount("/packages", StaticFiles(directory=str(_pkg_repo_dir), html=False), name="packages")
 
 
 @app.get("/health")

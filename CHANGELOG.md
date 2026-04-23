@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-1] - 2026-04-23
+
+### Added
+- **OpenVox Agent Installer (PE-style bootstrap)**: New end-to-end feature for installing OpenVox agents from a single command, modelled on Puppet Enterprise's `install agents` workflow.
+  - **Local package mirror** at `/opt/openvox-pkgs/` populated from `yum.voxpupuli.org`, `apt.voxpupuli.org`, and `downloads.voxpupuli.org`. Subdirectories: `redhat/`, `debian/`, `ubuntu/`, `windows/`, `mac/`. New `scripts/sync-openvox-repo.sh` does the mirroring via `wget --mirror`. Lock file prevents concurrent syncs (cron + manual button collisions).
+  - **Nightly sync** via new `openvox-repo-sync.{service,timer}` systemd units (02:30 + randomized delay). Operator can disable via `ENABLE_REPO_SYNC_TIMER=false` in `install.conf`.
+  - **PuppetServer static-content mount** at `/packages/*` on port 8140 -- new `config/openvox-pkgs-webserver.conf` HOCON drop-in for `/etc/puppetlabs/puppetserver/conf.d/`. Reuses port 8140 so existing firewall rules already permit agent traffic.
+  - **Linux agent installer** (`packages/install.bash`) -- detects platform (RHEL family / Debian / Ubuntu, version, architecture), drops a yum/apt repo file pointing at the local mirror, installs `openvox-agent`, configures `puppet.conf`, and starts the service. Supports the same `<section>:<setting>=<value>` directive syntax as PE's installer.
+  - **Windows agent installer** (`packages/install.ps1`) -- downloads `openvox-agent-{x64,x86}.msi` from the mirror, runs `msiexec`, configures `puppet.conf`, manages the service. PowerShell parameters mirror PE's `-PuppetAgentAccountUser`, `-EnableLongPaths`, etc.
+  - **Backend router** (`backend/app/routers/installer.py`) -- new `/api/installer/{info,sync,log,diskinfo,files,script/*}` endpoints. `/api/installer/script/install.bash` and `/api/installer/script/install.ps1` are unauthenticated (agents have no JWT) and dynamically render the templates with current `puppet_server_host`. `/api/installer/sync` requires admin or operator role.
+  - **FastAPI `/packages/*` mount** -- the openvox-gui app also serves the mirror on its own port (4567 by default) as a fallback for environments where the puppetserver mount isn't configured.
+  - **New "Installer" page** under Infrastructure (`/installer`). Headline feature: copy-to-clipboard one-liners for Linux and Windows, with a tabbed UI showing direct URLs as well. Mirror status panel surfaces last-sync time, total bytes, per-platform breakdown (RHEL / Debian / Ubuntu / Windows / Mac), disk usage with high-water-mark warning, sync log tail, and a "Sync now" button (admins/operators only).
+  - **install.sh enhancements** -- new step 10 "Agent Package Mirror" creates `/opt/openvox-pkgs/`, renders install.bash/install.ps1 with the operator's chosen `PUPPET_SERVER_HOST`, installs the systemd timer, drops the puppetserver mount config, and (optionally) runs an initial sync. New `install.conf` variables: `CONFIGURE_PKG_REPO`, `PKG_REPO_DIR`, `INSTALL_PUPPETSERVER_MOUNT`, `ENABLE_REPO_SYNC_TIMER`, `RUN_INITIAL_SYNC`.
+  - **Sudoers update** -- service user can now `sudo` the sync script via NOPASSWD rule for the GUI's "Sync now" button.
+  - **Documentation** -- new `docs/INSTALLER.md` covers architecture, install, day-to-day operation, security considerations, and troubleshooting.
+
 ## [3.3.0] - 2026-04-14
 
 ### Added

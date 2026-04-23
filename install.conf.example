@@ -85,3 +85,26 @@ INSTALL_NODEJS="true"
 #
 # Set to "true" to disable proxy auto-detection entirely:
 #PROXY_DISABLED="false"
+
+# ─── Agent Package Mirror (3.3.5-1+) ─────────────────────────────
+# Configures a local OpenVox package mirror under PKG_REPO_DIR. The
+# mirror is populated from yum.voxpupuli.org / apt.voxpupuli.org /
+# downloads.voxpupuli.org and exposed at /packages/* on the
+# puppetserver port (8140) so that agents can be installed via
+# `curl ... | sudo bash` on the same port that already permits
+# catalog requests through enterprise firewalls.
+#
+# CONFIGURE_PKG_REPO       Master switch for the whole feature
+# PKG_REPO_DIR             Where to mirror packages (default /opt/openvox-pkgs)
+# INSTALL_PUPPETSERVER_MOUNT  Drop a static-content mount config into
+#                          /etc/puppetlabs/puppetserver/conf.d/ so
+#                          /packages/* is served on port 8140.
+# ENABLE_REPO_SYNC_TIMER   Enable systemd timer for nightly repo sync
+# RUN_INITIAL_SYNC         Run sync-openvox-repo.sh during install.
+#                          Defaults to false because the initial sync
+#                          can download several GB.
+CONFIGURE_PKG_REPO="true"
+PKG_REPO_DIR="/opt/openvox-pkgs"
+INSTALL_PUPPETSERVER_MOUNT="true"
+ENABLE_REPO_SYNC_TIMER="true"
+RUN_INITIAL_SYNC="false"
