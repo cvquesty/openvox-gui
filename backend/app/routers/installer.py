@@ -290,7 +290,11 @@ async def get_installer_info() -> InstallerInfo:
 
     # Linux one-liner mirrors the Puppet Enterprise pattern from
     # https://help.puppet.com/pe/2023.8/topics/installing_agents.htm
-    linux_cmd = f"curl -k {install_url_l} | sudo bash"
+    # The 'bash -s --' is intentional: it lets operators append
+    # extra args (e.g. --server, custom_attributes:foo=bar) to the
+    # one-liner without bash mis-parsing them as its own options.
+    # Works identically when no extra args are passed.
+    linux_cmd = f"curl -k {install_url_l} | sudo bash -s --"
 
     # Windows one-liner: same shape as PE's, but pointed at our mirror.
     win_cmd = (

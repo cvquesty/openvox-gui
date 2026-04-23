@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-6] - 2026-04-23
+
+### Fixed
+- **Installer page one-liner now uses `bash -s --`** so operators can append `--server`/`--version`/`<section>:<key>=<value>` arguments without bash mis-parsing them as its own options. The bare `| sudo bash` worked fine for argument-less invocations, but anyone who tried `| sudo bash --server foo` got `bash: --server: invalid option` because `--server` was treated as a bash option, not a script arg. The new form works identically when no extra args are passed AND lets `bash -s -- --server foo` work as expected. Mirrors PE's published one-liner. Backend `linux_command` field on `/api/installer/info` updated.
+
 ## [3.3.5-5] - 2026-04-23
 
 ### Fixed
