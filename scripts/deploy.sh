@@ -134,13 +134,13 @@ for old_dir in redhat debian ubuntu; do
 done
 chmod 0755 "${PKG_REPO_DIR}"
 
-# 5c. Render and install the bootstrap scripts. The placeholder
-# substitution baked here is what makes 'curl ...| sudo bash' a
-# self-contained one-liner (no per-host edits needed).
+# 5c. Render and install the bootstrap scripts. 3.3.5-5+: only the
+# puppetserver FQDN gets baked in; PKG_REPO_URL is derived from it
+# at agent runtime, so install.bash/install.ps1 stay self-configuring
+# whether or not this render step ever ran.
 for script in install.bash install.ps1; do
     if [ -f "${INSTALL_DIR}/packages/${script}" ]; then
         sed \
-            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/${script}" > "${PKG_REPO_DIR}/${script}"

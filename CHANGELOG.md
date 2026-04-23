@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-5] - 2026-04-23
+
+### Fixed
+- **Agent installer no longer fails when the server-side render didn't run.** The previous design hard-required two placeholders (`__OPENVOX_PKG_REPO_URL__` and `__OPENVOX_PUPPET_SERVER__`) to be substituted on the openvox-gui server before serving install.bash/install.ps1. If the render didn't run -- as happened in the field on production -- the agent script failed with a misleading "PKG_REPO_URL is not set. Either run this script via the openvox-gui or set PKG_REPO_URL in the environment", which falsely implied the agent host needed to run the GUI.
+
+### Changed
+- **`install.bash` and `install.ps1` are now self-configuring** at agent runtime. Resolution order for the puppetserver FQDN:
+  1. `--server <fqdn>` CLI argument (or `-Server` on Windows)
+  2. `PUPPET_SERVER` environment variable
+  3. The `__OPENVOX_PUPPET_SERVER__` placeholder substituted at server-side render time (still the normal "happy path" for `curl ... | sudo bash`)
+  4. **NEW** -- `[main] server=` line read out of `/etc/puppetlabs/puppet/puppet.conf` (or `C:\ProgramData\PuppetLabs\puppet\etc\puppet.conf`) when an agent is being re-installed on a host that's already configured.
+- **`PKG_REPO_URL` is no longer a separate placeholder.** It's *derived* from the puppetserver FQDN as `https://<server>:8140/packages` unless explicitly overridden via the new `--pkg-repo-url` flag (Linux) or `-PkgRepoUrl` parameter (Windows). One less thing to break in the render pipeline.
+- **OPENVOX_VERSION default no longer clobbers env var.** The pre-arg-parsing seed of `OPENVOX_VERSION="$DEFAULT_OPENVOX_VERSION"` previously meant `OPENVOX_VERSION=7 bash install.bash` was silently ignored. Removed; resolution now happens after arg parsing via `${OPENVOX_VERSION:-$DEFAULT_OPENVOX_VERSION}`.
+- **install.sh + deploy.sh + update_local.sh** drop the dead `__OPENVOX_PKG_REPO_URL__` sed substitution. Only the puppetserver FQDN and the default OpenVox major version are rendered server-side now.
+
+### Notes
+- **Failure mode on misconfigured servers is now actionable.** When the server fails to render AND the agent has no existing puppet.conf AND `--server` is not passed, the script dies with a clear error that names both the underlying fix (run `update_local.sh --force` on the openvox-gui server) and a one-shot workaround (re-run with `--server <fqdn>`).
+
 ## [3.3.5-4] - 2026-04-23
 
 ### Added

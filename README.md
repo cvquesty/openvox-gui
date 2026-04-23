@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.5--4-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.5--5-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -236,7 +236,11 @@ This release introduces a full PE-style agent bootstrap workflow for OpenVox:
 
 > ⚠️ **First-run sync takes time.** The first repo sync downloads roughly 1-2 GB of OpenVox packages from voxpupuli.org and can take **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental. Both `install.sh` (fresh install) and `update_local.sh` (upgrade) prompt you to start the initial sync; you can also wait for the 02:30 nightly timer or click "Sync now" in the GUI.
 
-### 🛠️ 3.3.5-4 fixes (current)
+### 🛠️ 3.3.5-5 fixes (current)
+- Agent installer (`install.bash` / `install.ps1`) is now self-configuring at agent runtime. Resolution order: `--server` arg -> env var -> server-side render placeholder -> existing `puppet.conf` (re-install case). `PKG_REPO_URL` is derived from the puppetserver FQDN automatically -- no separate placeholder to break.
+- Failure mode on misconfigured servers is now actionable: if everything fails, the script names both the underlying fix and a one-shot workaround.
+
+### 🛠️ 3.3.5-4 fixes
 - `update_local.sh` now offers an interactive "Sync now?" prompt on upgrades that introduce the installer feature, so existing installations don't have to wait for the nightly timer.
 
 ### 🛠️ 3.3.5-3 fixes

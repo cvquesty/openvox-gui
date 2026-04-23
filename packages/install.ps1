@@ -19,16 +19,23 @@
 # puppetserver static-content mount.
 [CmdletBinding()]
 Param(
-  # Override the default openvox-gui mirror URL.  When the script is
-  # rendered by the openvox-gui backend the placeholder is rewritten
-  # to the local mirror; allow operators to override via -PkgRepoUrl
-  # for testing.
-  [String]$PkgRepoUrl = '__OPENVOX_PKG_REPO_URL__',
-
-  # FQDN of the puppetserver this agent should report to.
+  # FQDN of the puppetserver this agent should report to. Resolution
+  # order (highest priority first):
+  #   1. -Server CLI parameter
+  #   2. The __OPENVOX_PUPPET_SERVER__ placeholder, replaced by the
+  #      openvox-gui server when install.ps1 is installed into
+  #      /opt/openvox-pkgs/install.ps1
+  #   3. The "server" line under [main] in the existing puppet.conf
+  #      (helpful when re-installing on an already-configured host)
   [String]$Server = '__OPENVOX_PUPPET_SERVER__',
 
-  # OpenVox major version (7 or 8).  Default baked in by the GUI.
+  # Override the default openvox-gui mirror URL. Almost never needed:
+  # if not set, it is derived from -Server as
+  # "https://<server>:8140/packages". Useful only when the package
+  # mirror lives on a different host from the puppetserver.
+  [String]$PkgRepoUrl = '',
+
+  # OpenVox major version (7 or 8). Defaults to 8.
   [String]$OpenVoxVersion = '__OPENVOX_DEFAULT_VERSION__',
 
   # Optional MSI tweaks (mirrors PE's PowerShell installer).
@@ -50,17 +57,55 @@ Param(
 
 $ErrorActionPreference = "Stop"
 
-# ─── Sanity-check the placeholders ──────────────────────────────────────────
-# When this script is downloaded via the GUI the placeholders are
-# substituted with real values.  If an operator runs install.ps1
-# without the substitutions (e.g. from a checked-in copy), require
-# them to pass -PkgRepoUrl and -Server explicitly.
-if ($PkgRepoUrl  -like '*__OPENVOX_PKG_REPO_URL__*')  { throw "PkgRepoUrl is unset.  Pass -PkgRepoUrl https://<server>:8140/packages or download install.ps1 via the openvox-gui." }
-if ($Server      -like '*__OPENVOX_PUPPET_SERVER__*') { throw "Server is unset.  Pass -Server <puppetserver-fqdn>." }
-if (-not $OpenVoxVersion -or $OpenVoxVersion -like '*__OPENVOX_DEFAULT_VERSION__*') { $OpenVoxVersion = '8' }
-
 # ─── Constants ──────────────────────────────────────────────────────────────
 $puppet_conf_dir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'PuppetLabs\puppet\etc'
+
+# ─── Resolve $Server / $PkgRepoUrl ──────────────────────────────────────────
+# Treat the unsubstituted placeholder as "not set" so we fall through
+# to the recovery paths instead of failing immediately.
+if ($Server -like '*__OPENVOX_PUPPET_SERVER__*') { $Server = '' }
+
+# Recovery path: re-install on a host that already has puppet.conf.
+# Pull the server= line out of [main]. This makes the script work
+# correctly when a Windows host is being rebuilt and the server is
+# already known locally -- no -Server parameter needed.
+if (-not $Server -and (Test-Path "$puppet_conf_dir\puppet.conf")) {
+    $section = ''
+    foreach ($line in Get-Content "$puppet_conf_dir\puppet.conf") {
+        if ($line -match '^\s*\[(.+)\]\s*$') { $section = $matches[1]; continue }
+        if ($section -in @('', 'main') -and $line -match '^\s*server\s*=\s*(\S+)') {
+            $Server = $matches[1]
+            Write-Verbose "Reusing puppetserver from existing puppet.conf: $Server"
+            break
+        }
+    }
+}
+
+if (-not $Server) {
+    throw @"
+Could not determine the puppetserver FQDN.
+This usually means the openvox-gui that served install.ps1 didn't
+substitute its hostname into the script when it was installed. To
+fix the underlying issue, on the openvox-gui server run:
+    cd ~/openvox-gui && git pull && sudo ./scripts/update_local.sh --force
+As a one-shot workaround, re-run this installer with -Server:
+    .\install.ps1 -Server <puppetserver-fqdn>
+"@
+}
+
+# Default OpenVox version handling (placeholder OR junk -> 8)
+if (-not $OpenVoxVersion -or $OpenVoxVersion -notmatch '^[78]$') {
+    $OpenVoxVersion = '8'
+}
+
+# Derive PkgRepoUrl from $Server unless explicitly set
+if (-not $PkgRepoUrl) {
+    $PkgRepoUrl = "https://${Server}:8140/packages"
+}
+
+Write-Verbose "Server     : $Server"
+Write-Verbose "Repo URL   : $PkgRepoUrl"
+Write-Verbose "OpenVox ver: $OpenVoxVersion"
 $date_time_stamp = (Get-Date -Format s) -replace ':', '-'
 $install_log     = Join-Path ([System.IO.Path]::GetTempPath()) "$date_time_stamp-openvox-install.log"
 

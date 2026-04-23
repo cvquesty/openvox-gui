@@ -20,31 +20,63 @@
 #
 # Supported argument forms:
 #
-#   --server <fqdn>                    Override the puppetserver FQDN
-#   --version <7|8>                    Pick OpenVox major version
-#                                      (default baked in by the server)
+#   --server <fqdn>                    Puppetserver FQDN. Overrides any
+#                                      server-side render and any value
+#                                      pulled from existing puppet.conf.
+#   --pkg-repo-url <url>               Override the package mirror base
+#                                      URL (default: https://<server>:8140/packages)
+#   --version <7|8>                    Pick OpenVox major version (default 8)
 #   --puppet-service-ensure <state>    running | stopped (default: running)
 #   --puppet-service-enable <bool>     true | false (default: true)
 #   <section>:<setting>=<value>        Apply settings to puppet.conf or
 #                                      csr_attributes.yaml at install time
 #
-# This script is shipped via the openvox-gui sync at:
-#   /opt/openvox-pkgs/install.bash
-# and exposed at https://<server>:8140/packages/install.bash via the
-# puppetserver static-content mount installed by openvox-gui.
+# Server-side rendering: when this script is installed at
+# /opt/openvox-pkgs/install.bash by the openvox-gui server, the
+# __OPENVOX_PUPPET_SERVER__ placeholder is substituted with the
+# server's puppetserver FQDN, so agents that "curl ... | sudo bash"
+# get a self-configuring script. If that render fails for any reason,
+# the script falls back to /etc/puppetlabs/puppet/puppet.conf (helpful
+# on re-install) and finally requires --server. PKG_REPO_URL is always
+# *derived* from the puppetserver FQDN unless explicitly overridden --
+# there is no separate PKG_REPO_URL placeholder to break.
 ###############################################################################
 set -u
 set -e
 
-# ─── Tunables baked in at sync time ──────────────────────────────────────────
-# These placeholders are rewritten by the openvox-gui installer (or by
-# the sync script) to point at the correct local repository server and
-# defaults.  See backend/app/routers/installer.py:_render_install_script.
-PKG_REPO_URL="${PKG_REPO_URL:-__OPENVOX_PKG_REPO_URL__}"
+# ─── Configuration ──────────────────────────────────────────────────────────
+#
+# Resolution order for the puppetserver FQDN ($PUPPET_SERVER):
+#   1. --server CLI arg (set during argument parsing below)
+#   2. PUPPET_SERVER environment variable
+#   3. The __OPENVOX_PUPPET_SERVER__ placeholder, which the openvox-gui
+#      server replaces with its puppetserver FQDN when this script is
+#      installed into /opt/openvox-pkgs/install.bash. Agents that
+#      `curl ... | sudo bash` always hit the rendered version, so this
+#      is the path that "just works" in normal operation.
+#   4. The server= line in /etc/puppetlabs/puppet/puppet.conf, when the
+#      agent is being re-installed on a host that's already configured.
+#
+# $PKG_REPO_URL is *derived* from $PUPPET_SERVER unless explicitly set;
+# it is not a separate placeholder. This means the agent only needs to
+# know one piece of information (the server) and the URL falls out of
+# that automatically.
+#
+# Resolution order for the agent install version ($OPENVOX_VERSION):
+#   1. --version CLI arg
+#   2. OPENVOX_VERSION environment variable
+#   3. The __OPENVOX_DEFAULT_VERSION__ placeholder (server-side render)
+#   4. Hard default of 8
+
 PUPPET_SERVER="${PUPPET_SERVER:-__OPENVOX_PUPPET_SERVER__}"
-DEFAULT_OPENVOX_VERSION="${DEFAULT_OPENVOX_VERSION:-__OPENVOX_DEFAULT_VERSION__}"
-DEFAULT_OPENVOX_VERSION="${DEFAULT_OPENVOX_VERSION:-8}"
 PUPPET_SERVER_PORT="${PUPPET_SERVER_PORT:-8140}"
+PKG_REPO_URL="${PKG_REPO_URL:-}"
+
+DEFAULT_OPENVOX_VERSION="${DEFAULT_OPENVOX_VERSION:-__OPENVOX_DEFAULT_VERSION__}"
+case "$DEFAULT_OPENVOX_VERSION" in
+    7|8) ;;                                        # rendered, valid
+    *)   DEFAULT_OPENVOX_VERSION="8" ;;            # placeholder or junk -> default
+esac
 
 # ─── Standard agent paths (created by the openvox-agent package) ────────────
 PUPPET_CONF_DIR="/etc/puppetlabs/puppet"
@@ -65,7 +97,9 @@ cmd()  { command -v "$1" >/dev/null 2>&1; }
 # section:setting=value directives that PE's installer accepts.
 declare -a CSR_ATTR_LINES
 declare -a CSR_EXT_LINES
-OPENVOX_VERSION="$DEFAULT_OPENVOX_VERSION"
+# Don't pre-seed OPENVOX_VERSION here -- the resolution block below
+# handles defaulting via "${OPENVOX_VERSION:-$DEFAULT_OPENVOX_VERSION}"
+# so env vars and --version both work without being clobbered.
 SECTION_REGEX='^(main|server|agent|user|custom_attributes|extension_requests):([^=]+)=(.*)$'
 
 # We collect puppet.conf settings here so we can apply them after the
@@ -78,6 +112,12 @@ while [ $# -gt 0 ]; do
             shift
             PUPPET_SERVER="${1:-}"
             [ -z "$PUPPET_SERVER" ] && fail "--server requires a value"
+            shift
+            ;;
+        --pkg-repo-url)
+            shift
+            PKG_REPO_URL="${1:-}"
+            [ -z "$PKG_REPO_URL" ] && fail "--pkg-repo-url requires a value"
             shift
             ;;
         --version)
@@ -116,13 +156,64 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# ─── Sanity check the repo URL and server name ──────────────────────────────
-if [[ "$PKG_REPO_URL" == *"__OPENVOX_PKG_REPO_URL__"* ]]; then
-    fail "PKG_REPO_URL is not set. Either run this script via the openvox-gui (which substitutes the URL automatically) or set PKG_REPO_URL in the environment."
-fi
+# ─── Resolve PUPPET_SERVER + PKG_REPO_URL ───────────────────────────────────
+#
+# By this point PUPPET_SERVER might be:
+#   * a real FQDN  (rendered server-side, or passed via --server / env var)
+#   * the literal placeholder string  (server-side render didn't run)
+#   * empty                            (env var explicitly cleared)
+#
+# Treat the placeholder as "not set" so we fall through to the recovery
+# paths instead of blowing up immediately.
 if [[ "$PUPPET_SERVER" == *"__OPENVOX_PUPPET_SERVER__"* ]]; then
-    fail "PUPPET_SERVER is not set. Pass --server <fqdn> or set PUPPET_SERVER in the environment."
+    PUPPET_SERVER=""
 fi
+
+# Recovery path 1: re-install on a host that already has puppet.conf.
+# Pull the [main] server= line. This makes "curl ... | bash" work
+# correctly when a host is being rebuilt and the server is already in
+# its config -- no --server flag needed.
+if [ -z "$PUPPET_SERVER" ] && [ -r "${PUPPET_CONF_DIR}/puppet.conf" ]; then
+    EXISTING_SERVER=$(awk -F= '
+        /^[[:space:]]*\[/                              { section=$0; next }
+        /^[[:space:]]*server[[:space:]]*=/ {
+            gsub(/[[:space:]]/, "", $2); print $2; exit
+        }
+    ' "${PUPPET_CONF_DIR}/puppet.conf" 2>/dev/null)
+    if [ -n "$EXISTING_SERVER" ]; then
+        PUPPET_SERVER="$EXISTING_SERVER"
+        info "Reusing puppetserver from existing puppet.conf: ${PUPPET_SERVER}"
+    fi
+fi
+
+# Final resolution check. If we still have nothing, give the operator
+# an actionable error -- the most likely cause + an explicit workaround.
+if [ -z "$PUPPET_SERVER" ]; then
+    fail "Could not determine the puppetserver FQDN.
+  This usually means the openvox-gui that served install.bash didn't
+  substitute its hostname into the script when it was installed. To
+  fix the underlying issue, on the openvox-gui server run:
+      cd ~/openvox-gui && git pull && sudo ./scripts/update_local.sh --force
+  As a one-shot workaround, re-run this installer with --server:
+      curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>"
+fi
+
+# Default OPENVOX_VERSION if user didn't override
+OPENVOX_VERSION="${OPENVOX_VERSION:-$DEFAULT_OPENVOX_VERSION}"
+case "$OPENVOX_VERSION" in
+    7|8) ;;
+    *)   fail "OPENVOX_VERSION must be 7 or 8 (got '${OPENVOX_VERSION}')" ;;
+esac
+
+# Derive PKG_REPO_URL from the puppetserver FQDN unless an explicit
+# override has been provided (rare; only useful if the package mirror
+# lives on a different host from the puppetserver).
+if [ -z "$PKG_REPO_URL" ]; then
+    PKG_REPO_URL="https://${PUPPET_SERVER}:${PUPPET_SERVER_PORT}/packages"
+fi
+info "Server     : ${PUPPET_SERVER}"
+info "Repo URL   : ${PKG_REPO_URL}"
+info "OpenVox ver: ${OPENVOX_VERSION}"
 
 # ─── Privilege check ─────────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then

@@ -1102,9 +1102,11 @@ if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
     # operator chose. After this, agents that hit
     # https://${PUPPET_SERVER_HOST}:8140/packages/install.bash get a
     # script that already knows how to talk to *this* server.
+    # 3.3.5-5+: install.bash/install.ps1 only need __OPENVOX_PUPPET_SERVER__
+    # baked in -- the package mirror URL is derived from the server FQDN
+    # at agent runtime, so PKG_REPO_URL is no longer rendered server-side.
     if [ -f "${INSTALL_DIR}/packages/install.bash" ]; then
         sed \
-            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/install.bash" > "${PKG_REPO_DIR}/install.bash"
@@ -1116,7 +1118,6 @@ if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
 
     if [ -f "${INSTALL_DIR}/packages/install.ps1" ]; then
         sed \
-            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/install.ps1" > "${PKG_REPO_DIR}/install.ps1"

@@ -486,11 +486,13 @@ done
 chmod 0755 "${PKG_REPO_DIR}"
 log_info "Mirror dir : ${PKG_REPO_DIR}"
 
-# 6c. Render install.bash / install.ps1 with the right URLs
+# 6c. Render install.bash / install.ps1. 3.3.5-5+: only the puppetserver
+# FQDN is baked in (and a default OpenVox major version); the package
+# mirror URL is derived from the server FQDN at agent runtime, so the
+# scripts stay self-configuring even if this render step somehow no-ops.
 for script in install.bash install.ps1; do
     if [ -f "${INSTALL_DIR}/packages/${script}" ]; then
         sed \
-            -e "s|__OPENVOX_PKG_REPO_URL__|https://${PUPPET_SERVER_HOST}:${PUPPET_SERVER_PORT}/packages|g" \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/${script}" > "${PKG_REPO_DIR}/${script}"

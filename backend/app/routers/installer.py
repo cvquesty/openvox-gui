@@ -208,6 +208,12 @@ def _render_template(text: str) -> str:
 
     Keeps the substitution table in one place so install.bash and
     install.ps1 share the exact same set of variables.
+
+    3.3.5-5+: ``__OPENVOX_PKG_REPO_URL__`` is no longer rendered --
+    install.bash/install.ps1 derive the package URL from the
+    puppetserver FQDN at agent runtime. We still substitute it here
+    (no-op for current scripts, useful if a stale template exists)
+    for forward compatibility / safety.
     """
     repo_url = _pkg_repo_url()
     server   = _puppet_server_fqdn()
