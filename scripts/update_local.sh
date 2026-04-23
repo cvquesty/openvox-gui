@@ -552,6 +552,64 @@ if [ "$RESTART_PUPPETSERVER_HINT" = "true" ]; then
     log_info "  sudo systemctl restart puppetserver"
 fi
 
+# 6g. First-sync prompt for interactive upgrades (3.3.5-4+)
+#
+# When an existing installation gets upgraded to a release that
+# introduced the agent installer, the local mirror under
+# ${PKG_REPO_DIR} starts out empty.  Without packages mirrored,
+# `curl ... | sudo bash` on a fresh agent host will succeed in
+# fetching install.bash but fail during the actual package install
+# step.  The systemd timer will populate it overnight at 02:30, but
+# operators who want it ready *now* should be offered the choice
+# during the upgrade -- not be forced to discover the empty-mirror
+# state from a failed agent install later.
+#
+# Skipped in --auto / --force mode (cron / unattended security
+# updates) so nightly auto-updates don't surprise operators with
+# multi-GB downloads.
+MIRROR_HAS_CONTENT="false"
+for marker in \
+    "${PKG_REPO_DIR}/yum/openvox8" \
+    "${PKG_REPO_DIR}/yum/openvox7" \
+    "${PKG_REPO_DIR}/apt/dists" \
+    "${PKG_REPO_DIR}/windows/openvox8" \
+    "${PKG_REPO_DIR}/mac/openvox8"; do
+    if [ -d "$marker" ] && [ -n "$(ls -A "$marker" 2>/dev/null)" ]; then
+        MIRROR_HAS_CONTENT="true"
+        break
+    fi
+done
+
+if [ "$MIRROR_HAS_CONTENT" = "false" ] && \
+   [ "$FORCE_UPDATE" != "true" ] && \
+   [ -t 0 ]; then
+    echo ""
+    echo -e "${CYAN}The local OpenVox package mirror at ${PKG_REPO_DIR} is empty.${NC}"
+    echo "  Without it, agents installed via 'curl ... | sudo bash' will"
+    echo "  fail at the package-install step. The first sync downloads"
+    echo "  roughly 1-2 GB and can take 15-45 minutes; subsequent syncs"
+    echo "  are incremental."
+    echo ""
+    echo "  The systemd timer will populate the mirror at 02:30 in any"
+    echo "  case, so this is a 'do you want it ready now?' choice."
+    read -rp "  Run initial sync now? [y/N]: " SYNC_ANSWER
+    case "$SYNC_ANSWER" in
+        [Yy]*)
+            log_info "Running initial OpenVox repo sync (this may take a while)..."
+            if "${INSTALL_DIR}/scripts/sync-openvox-repo.sh" --quiet; then
+                log_ok "Initial sync complete"
+            else
+                log_warn "Initial sync reported errors -- check /opt/openvox-gui/logs/repo-sync.log"
+            fi
+            ;;
+        *)
+            log_info "Skipping initial sync (timer will populate at 02:30)"
+            log_info "  Trigger from the GUI:  Infrastructure -> Installer -> Sync now"
+            log_info "  Or from CLI:           sudo systemctl start openvox-repo-sync.service"
+            ;;
+    esac
+fi
+
 # ─── Step 7: Restart & Verify ─────────────────────────────────
 log_step 7 "Restart & Verify"
 

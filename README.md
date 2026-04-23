@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.5--3-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.5--4-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -223,12 +223,28 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## 🌟 What's New in Version 3.3.5-2
+## 🌟 What's New in the 3.3.5-x Series
 
-### 📥 Agent Installer fixes
-- Validated all installer URL patterns against the live voxpupuli.org and corrected several mismatches that would have produced 404s on the first sync (yum: `el/{R}/`, apt: numeric dist names + shared single tree, Windows MSIs are versioned, latest-copy trick).
-- Mirror layout under `/opt/openvox-pkgs/` simplified to `yum/`, `apt/`, `windows/`, `mac/` (one tree per upstream source rather than per OS family). Old `redhat/`, `debian/`, `ubuntu/` dirs are removed automatically on upgrade.
-- Default OS releases trimmed to "latest two": EL=8,9; Debian=12,13; Ubuntu=22.04,24.04.
+### 📥 OpenVox Agent Installer (NEW FEATURE)
+This release introduces a full PE-style agent bootstrap workflow for OpenVox:
+- **One-line agent install on Linux**: `curl -k https://<server>:8140/packages/install.bash | sudo bash`
+- **One-line agent install on Windows**: PowerShell snippet downloads `install.ps1` from the same server
+- **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum.voxpupuli.org, apt.voxpupuli.org, and downloads.voxpupuli.org
+- **New "Installer" page** under Infrastructure with copy-to-clipboard one-liners, mirror status, disk usage, and a "Sync now" button
+- **Nightly auto-sync** via systemd timer (02:30 with randomised delay)
+- See [docs/INSTALLER.md](docs/INSTALLER.md) for full architecture, configuration, and troubleshooting
+
+> ⚠️ **First-run sync takes time.** The first repo sync downloads roughly 1-2 GB of OpenVox packages from voxpupuli.org and can take **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental. Both `install.sh` (fresh install) and `update_local.sh` (upgrade) prompt you to start the initial sync; you can also wait for the 02:30 nightly timer or click "Sync now" in the GUI.
+
+### 🛠️ 3.3.5-4 fixes (current)
+- `update_local.sh` now offers an interactive "Sync now?" prompt on upgrades that introduce the installer feature, so existing installations don't have to wait for the nightly timer.
+
+### 🛠️ 3.3.5-3 fixes
+- Fixed `sync-openvox-repo.sh` wget double-nesting bug discovered during the live trial sync.
+
+### 🛠️ 3.3.5-2 fixes
+- Validated all installer URL patterns against live voxpupuli.org and corrected several mismatches that would have produced 404s on the first sync.
+- Mirror layout simplified to `/opt/openvox-pkgs/{yum,apt,windows,mac}/` (one tree per upstream source rather than per OS family).
 
 ## What's New in Version 3.3.5-1
 

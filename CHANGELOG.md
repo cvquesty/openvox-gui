@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-4] - 2026-04-23
+
+### Added
+- **Interactive "Sync now?" prompt during `update_local.sh`**: Existing installations that get the agent installer feature for the first time on upgrade are now offered a one-shot prompt to populate the local mirror immediately, instead of having to wait for the 02:30 systemd timer. The prompt is skipped in `--auto`, `--security`, and `--force` modes (cron / unattended security updates) so nightly auto-runs aren't surprised by a multi-GB download. Detects an empty mirror by looking for openvox{7,8} subtrees under `${PKG_REPO_DIR}/{yum,apt,windows,mac}`.
+
+### Notes
+- **Heads-up about first-run sync time** for any operator upgrading to a 3.3.5-x release: this release introduces the new agent installer feature and a local OpenVox package mirror under `/opt/openvox-pkgs/`. The first sync downloads roughly **1-2 GB** from yum.voxpupuli.org / apt.voxpupuli.org / downloads.voxpupuli.org and can take **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental (only changed/new files), and a systemd timer keeps the mirror current overnight at 02:30 with a randomised delay. Operators can pick whichever first-sync path fits their workflow:
+  - The interactive `update_local.sh` prompt (new in 3.3.5-4)
+  - The "Sync now" button on Infrastructure -> Installer in the GUI
+  - `sudo systemctl start openvox-repo-sync.service` from the CLI
+  - Just wait for the 02:30 nightly timer
+
 ## [3.3.5-3] - 2026-04-23
 
 ### Fixed

@@ -576,7 +576,7 @@ if [ "$SILENT" != "true" ]; then
             "Enable nightly repo sync (systemd timer)?" \
             "$ENABLE_REPO_SYNC_TIMER"
         prompt_yesno RUN_INITIAL_SYNC \
-            "Run initial sync now? (downloads several GB; can be done later)" \
+            "Run initial sync now? (downloads ~1-2 GB; takes 15-45 min; can be done later)" \
             "$RUN_INITIAL_SYNC"
     fi
     echo
