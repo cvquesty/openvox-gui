@@ -294,7 +294,15 @@ async def get_installer_info() -> InstallerInfo:
     # TCP state (the curl connection lingers in /proc/net/tcp) plus
     # reverse DNS, so no --server arg is needed -- the URL the operator
     # types IS the server. See packages/install.bash discovery functions.
-    linux_cmd = f"curl -k {install_url_l} | sudo bash"
+    #
+    # --noproxy <fqdn>: bypass any inherited http_proxy/HTTPS_PROXY
+    # for this curl. Most enterprise networks have a corporate proxy
+    # set globally that demands auth or cannot reach internal hosts;
+    # without --noproxy the bootstrap curl fails with "CONNECT tunnel
+    # failed, response 407" before install.bash even runs. install.bash
+    # itself sets no_proxy for apt/yum after it starts (3.3.5-17), but
+    # this curl runs before that.
+    linux_cmd = f"curl -k --noproxy {server} {install_url_l} | sudo bash"
 
     # Windows one-liner. Same shape as PE's, but pointed at our mirror
     # and using the same -Server-from-URL trick the Linux one-liner
@@ -303,12 +311,18 @@ async def get_installer_info() -> InstallerInfo:
     # typed IS the most authoritative source for the server FQDN, so
     # we never have to depend on the server-side render of
     # __OPENVOX_PUPPET_SERVER__ inside install.ps1.
+    # $wc.Proxy = $null bypasses the system-configured proxy so the
+    # bootstrap download works on hosts with a corporate proxy that
+    # would otherwise return 407 Proxy Authentication Required for
+    # internal-network destinations. install.ps1 itself doesn't need
+    # a proxy because it's downloaded to disk and runs locally.
     win_cmd = (
         "[System.Net.ServicePointManager]::SecurityProtocol = "
         "[Net.SecurityProtocolType]::Tls12; "
         "[Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; "
         f"$url = '{install_url_w}'; "
         "$wc = New-Object System.Net.WebClient; "
+        "$wc.Proxy = $null; "
         "$wc.DownloadFile($url, 'install.ps1'); "
         ".\\install.ps1 -Server ([System.Uri]$url).Host -v"
     )

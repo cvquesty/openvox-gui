@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-19] - 2026-04-23
+
+### Fixed
+- **Bootstrap curl failed with `CONNECT tunnel failed, response 407` on hosts behind a corporate proxy.** The `no_proxy` export added in 3.3.5-17 fixes the proxy issue for apt/yum *inside* install.bash, but the `curl` that downloads install.bash itself runs *before* install.bash starts -- it inherits the host's `http_proxy` / `https_proxy` env vars and tries to tunnel through the corporate proxy to reach the puppetserver. The proxy then demands authentication the bare `curl` can't supply (HTTP 407).
+- **Fix**: the GUI's published one-liners now bypass the proxy at the bootstrap level too:
+  - **Linux**: `curl -k --noproxy <fqdn> https://...`. `--noproxy` takes a comma-separated list of hosts that should bypass any proxy; we pass the puppetserver FQDN.
+  - **Windows**: `$wc.Proxy = $null;` between `New-Object System.Net.WebClient` and `DownloadFile`. PowerShell's `WebClient` inherits the system proxy unless explicitly disabled.
+- Both updates are pure GUI-side rendering changes -- the on-disk install.bash and install.ps1 are unchanged. Operators get the new one-liners as soon as they refresh the Installer page.
+
 ## [3.3.5-18] - 2026-04-23
 
 ### Added
