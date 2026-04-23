@@ -129,11 +129,18 @@ discover_remote_ip_via_proc_net_tcp() {
         read -ra fields <<< "$line"
         rem="${fields[2]:-}"
         state="${fields[3]:-}"
-        # We want client-side connections to the target port, in either
-        # ESTABLISHED (curl might still be alive) or TIME_WAIT state.
+        # We want client-side connections to the target port. After
+        # curl exits the connection passes through several states
+        # before fully disappearing -- on RHEL 9 we see state 08
+        # (CLOSE_WAIT) most often. Accept any non-LISTEN state so
+        # we catch the connection regardless of where it is in the
+        # teardown sequence.
+        #   01 ESTABLISHED, 02 SYN_SENT, 03 SYN_RECV, 04 FIN_WAIT1,
+        #   05 FIN_WAIT2,   06 TIME_WAIT, 07 CLOSE,   08 CLOSE_WAIT,
+        #   09 LAST_ACK,    0A LISTEN,    0B CLOSING
         case "$state" in
-            01|06) ;;
-            *) continue ;;
+            0A) continue ;;     # skip LISTEN sockets (server side)
+            *) ;;
         esac
         if [[ "$rem" == *":${target_port_hex}" ]]; then
             hex_ip="${rem%:*}"

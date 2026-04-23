@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-12] - 2026-04-23
+
+### Fixed
+- **`/proc/net/tcp` discovery now matches the real kernel state.** Tested 3.3.5-11's discovery on questy.org and it fell through to the puppet.conf fallback instead of finding the connection. Root cause: I limited the state filter to `01` (ESTABLISHED) and `06` (TIME_WAIT), but on RHEL 9 the actual /proc/net/tcp entry was state `08` (CLOSE_WAIT) -- curl had already done its half-close. Changed the filter to accept any state EXCEPT `0A` (LISTEN, which is server-side); discovery now picks up the connection regardless of where it is in the teardown sequence (CLOSE_WAIT, FIN_WAIT1/2, LAST_ACK, etc.).
+
 ## [3.3.5-11] - 2026-04-23
 
 ### Added
