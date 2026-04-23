@@ -288,26 +288,13 @@ async def get_installer_info() -> InstallerInfo:
     install_url_l = f"{repo_url}/install.bash"
     install_url_w = f"{repo_url}/install.ps1"
 
-    # Linux one-liner. Pattern follows Puppet Enterprise's
+    # Linux one-liner. Same shape as Puppet Enterprise's:
     # https://help.puppet.com/pe/2023.8/topics/installing_agents.htm
-    # but with two changes:
-    #
-    # 1. `bash -s --` instead of bare `bash`, so operators can append
-    #    extra args (--server override, custom_attributes:foo=bar,
-    #    etc.) without bash mis-parsing them as its own options.
-    #
-    # 2. `--server <fqdn>` is included explicitly. This matters because
-    #    install.bash can't auto-discover the URL from the curl process
-    #    after the fact (curl exits before bash starts executing).
-    #    Passing the FQDN explicitly here means whatever hostname the
-    #    operator points curl at IS the hostname the agent gets
-    #    configured to talk to -- no chicken-and-egg, no dependency on
-    #    the server-side render of __OPENVOX_PUPPET_SERVER__ inside
-    #    install.bash. Mirrors the Windows trick of extracting Host
-    #    from the download URL via [System.Uri]$url.Host.
-    linux_cmd = (
-        f"curl -k {install_url_l} | sudo bash -s -- --server {server}"
-    )
+    # The script auto-discovers the puppetserver FQDN from the kernel's
+    # TCP state (the curl connection lingers in /proc/net/tcp) plus
+    # reverse DNS, so no --server arg is needed -- the URL the operator
+    # types IS the server. See packages/install.bash discovery functions.
+    linux_cmd = f"curl -k {install_url_l} | sudo bash"
 
     # Windows one-liner. Same shape as PE's, but pointed at our mirror
     # and using the same -Server-from-URL trick the Linux one-liner

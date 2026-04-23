@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-13] - 2026-04-23
+
+### Changed
+- **Linux one-liner trimmed to `curl -k <url> | sudo bash`** -- no `bash -s -- --server <fqdn>` suffix anymore. Now that 3.3.5-12 has the `/proc/net/tcp` discovery working, the script extracts the puppetserver FQDN from the URL the operator just typed; passing `--server` was redundant noise. The published one-liner is now identical in shape to Puppet Enterprise's.
+
 ## [3.3.5-12] - 2026-04-23
 
 ### Fixed
