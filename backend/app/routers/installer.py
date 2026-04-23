@@ -288,22 +288,42 @@ async def get_installer_info() -> InstallerInfo:
     install_url_l = f"{repo_url}/install.bash"
     install_url_w = f"{repo_url}/install.ps1"
 
-    # Linux one-liner mirrors the Puppet Enterprise pattern from
+    # Linux one-liner. Pattern follows Puppet Enterprise's
     # https://help.puppet.com/pe/2023.8/topics/installing_agents.htm
-    # The 'bash -s --' is intentional: it lets operators append
-    # extra args (e.g. --server, custom_attributes:foo=bar) to the
-    # one-liner without bash mis-parsing them as its own options.
-    # Works identically when no extra args are passed.
-    linux_cmd = f"curl -k {install_url_l} | sudo bash -s --"
+    # but with two changes:
+    #
+    # 1. `bash -s --` instead of bare `bash`, so operators can append
+    #    extra args (--server override, custom_attributes:foo=bar,
+    #    etc.) without bash mis-parsing them as its own options.
+    #
+    # 2. `--server <fqdn>` is included explicitly. This matters because
+    #    install.bash can't auto-discover the URL from the curl process
+    #    after the fact (curl exits before bash starts executing).
+    #    Passing the FQDN explicitly here means whatever hostname the
+    #    operator points curl at IS the hostname the agent gets
+    #    configured to talk to -- no chicken-and-egg, no dependency on
+    #    the server-side render of __OPENVOX_PUPPET_SERVER__ inside
+    #    install.bash. Mirrors the Windows trick of extracting Host
+    #    from the download URL via [System.Uri]$url.Host.
+    linux_cmd = (
+        f"curl -k {install_url_l} | sudo bash -s -- --server {server}"
+    )
 
-    # Windows one-liner: same shape as PE's, but pointed at our mirror.
+    # Windows one-liner. Same shape as PE's, but pointed at our mirror
+    # and using the same -Server-from-URL trick the Linux one-liner
+    # uses: extract the Host from the download URL via [System.Uri]
+    # and pass it to install.ps1 explicitly. The URL the operator
+    # typed IS the most authoritative source for the server FQDN, so
+    # we never have to depend on the server-side render of
+    # __OPENVOX_PUPPET_SERVER__ inside install.ps1.
     win_cmd = (
         "[System.Net.ServicePointManager]::SecurityProtocol = "
         "[Net.SecurityProtocolType]::Tls12; "
         "[Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; "
+        f"$url = '{install_url_w}'; "
         "$wc = New-Object System.Net.WebClient; "
-        f"$wc.DownloadFile('{install_url_w}','install.ps1'); "
-        ".\\install.ps1 -v"
+        "$wc.DownloadFile($url, 'install.ps1'); "
+        ".\\install.ps1 -Server ([System.Uri]$url).Host -v"
     )
 
     status = _read_status_file()

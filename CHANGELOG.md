@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-7] - 2026-04-23
+
+### Changed
+- **Linux one-liner now passes `--server <fqdn>` explicitly**, so whatever hostname the operator points curl at is the same hostname the agent ends up configured to talk to. The GUI extracts the FQDN from its own configured puppetserver name when generating the copy-to-clipboard command, so the operator never has to type it twice. Mirrors the Windows trick of extracting `Host` from the download URL via `[System.Uri]$url.Host`. Eliminates any dependency on `__OPENVOX_PUPPET_SERVER__` being substituted server-side -- the script gets the FQDN directly from the one-liner.
+
+### Removed
+- **Failed `/proc`-based curl-pipe discovery experiment** (introduced and never shipped). The plan was to have install.bash walk `/proc` looking for a sibling curl process and read the URL out of its argv. Verified empirically on RHEL 9 that this race is unwinnable: by the time bash starts executing the script, curl has already finished writing the entire ~17 KB of installer to the pipe and exited. /proc no longer has any record of it. The dead code is gone; comments at the top of install.bash explain why we don't try this.
+
+### Notes
+- Resolution order in install.bash is now: (1) `--server` CLI arg / `PUPPET_SERVER` env var, (2) `__OPENVOX_PUPPET_SERVER__` placeholder substituted server-side, (3) `[main] server=` from existing puppet.conf. With the new one-liner, path (1) is always populated for fresh installs, so paths (2) and (3) are belt-and-suspenders.
+
 ## [3.3.5-6] - 2026-04-23
 
 ### Fixed

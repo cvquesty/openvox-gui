@@ -92,6 +92,30 @@ fail() { echo >&2 "openvox-install: $*"; exit 1; }
 info() { echo "openvox-install: $*"; }
 cmd()  { command -v "$1" >/dev/null 2>&1; }
 
+# ─── Note on auto-discovery from the curl process ───────────────────────────
+#
+# A previous iteration tried to extract the server URL from the curl
+# process that piped this script in (walking /proc for a sibling
+# whose argv contained a /packages/install.bash URL). That approach
+# was abandoned because the race is unwinnable: by the time bash
+# starts executing this script, curl has already finished writing
+# the entire ~17 KB of installer to the pipe and exited. /proc no
+# longer has any record of it (verified empirically on RHEL 9).
+#
+# Instead the operator's intent reaches the script via:
+#   * --server <fqdn> in the one-liner the GUI publishes (the most
+#     authoritative path; the GUI extracts the FQDN from its own
+#     hostname when generating the copy-to-clipboard command, so the
+#     operator never has to type it twice).
+#   * The __OPENVOX_PUPPET_SERVER__ placeholder substituted at
+#     server-side render time (belt-and-suspenders if --server gets
+#     dropped from the one-liner).
+#   * /etc/puppetlabs/puppet/puppet.conf for re-installs.
+#
+# See packages/install.ps1 for the equivalent Windows trick:
+# PowerShell uses [System.Uri]$url.Host to extract the FQDN before
+# install.ps1 ever runs.
+
 # ─── Argument parsing ────────────────────────────────────────────────────────
 # Accept both flag-style overrides (--server, --version) and the
 # section:setting=value directives that PE's installer accepts.
@@ -158,21 +182,30 @@ done
 
 # ─── Resolve PUPPET_SERVER + PKG_REPO_URL ───────────────────────────────────
 #
-# By this point PUPPET_SERVER might be:
-#   * a real FQDN  (rendered server-side, or passed via --server / env var)
-#   * the literal placeholder string  (server-side render didn't run)
-#   * empty                            (env var explicitly cleared)
+# Resolution order (highest priority first):
 #
-# Treat the placeholder as "not set" so we fall through to the recovery
-# paths instead of blowing up immediately.
+#   1. --server CLI arg / PUPPET_SERVER env var
+#      Already in $PUPPET_SERVER if either was provided. The GUI's
+#      published one-liner always passes --server explicitly so that
+#      whatever hostname the operator points curl at is the same
+#      hostname the agent ends up configured to talk to.
+#
+#   2. The __OPENVOX_PUPPET_SERVER__ placeholder substituted at
+#      server-side render time. Used when the operator stripped
+#      --server out of the one-liner.
+#
+#   3. The [main] server= line read from /etc/puppetlabs/puppet/puppet.conf
+#      when the agent is being re-installed on an already-configured host.
+#
+# Treat the unsubstituted placeholder as "not set" so the fallback
+# paths kick in instead of blowing up immediately.
 if [[ "$PUPPET_SERVER" == *"__OPENVOX_PUPPET_SERVER__"* ]]; then
     PUPPET_SERVER=""
 fi
 
-# Recovery path 1: re-install on a host that already has puppet.conf.
-# Pull the [main] server= line. This makes "curl ... | bash" work
-# correctly when a host is being rebuilt and the server is already in
-# its config -- no --server flag needed.
+# Path 3: re-install on a host that already has puppet.conf. Useful
+# when running install.bash from a downloaded file or against a host
+# that's already been configured.
 if [ -z "$PUPPET_SERVER" ] && [ -r "${PUPPET_CONF_DIR}/puppet.conf" ]; then
     EXISTING_SERVER=$(awk -F= '
         /^[[:space:]]*\[/                              { section=$0; next }
@@ -187,15 +220,18 @@ if [ -z "$PUPPET_SERVER" ] && [ -r "${PUPPET_CONF_DIR}/puppet.conf" ]; then
 fi
 
 # Final resolution check. If we still have nothing, give the operator
-# an actionable error -- the most likely cause + an explicit workaround.
+# an actionable error.
 if [ -z "$PUPPET_SERVER" ]; then
     fail "Could not determine the puppetserver FQDN.
-  This usually means the openvox-gui that served install.bash didn't
-  substitute its hostname into the script when it was installed. To
-  fix the underlying issue, on the openvox-gui server run:
-      cd ~/openvox-gui && git pull && sudo ./scripts/update_local.sh --force
-  As a one-shot workaround, re-run this installer with --server:
-      curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>"
+  Tried (in order):
+    1. --server CLI arg / PUPPET_SERVER env var (not set)
+    2. __OPENVOX_PUPPET_SERVER__ placeholder substituted by the
+       openvox-gui server (not rendered)
+    3. server= line in /etc/puppetlabs/puppet/puppet.conf (not present)
+  Workaround: re-run passing --server explicitly:
+    curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>
+  Or, if running from a downloaded file:
+    sudo bash install.bash --server <puppetserver-fqdn>"
 fi
 
 # Default OPENVOX_VERSION if user didn't override
