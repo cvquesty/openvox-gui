@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-14] - 2026-04-23
+
+### Fixed
+- **install.bash placeholder check was clobbering its own substituted value.** Self-inflicted wound discovered on production: the line
+  ```bash
+  if [[ "$PUPPET_SERVER" == *"__OPENVOX_PUPPET_SERVER__"* ]]; then PUPPET_SERVER=""; fi
+  ```
+  was meant to detect an UN-rendered placeholder and clear the var so the fallback paths could fire. But the server-side `sed` render replaces **every** literal `__OPENVOX_PUPPET_SERVER__` in the file -- including the literal in this check. After render, the check became `*"openvox.pdxc-it.twitter.biz"*` which always matches the substituted value, so PUPPET_SERVER was getting set to `openvox.pdxc-it.twitter.biz` and then immediately wiped to `""`. All four resolution paths then failed with the canonical "Could not determine the puppetserver FQDN" error -- on a host where the FQDN was *literally* the rendered value.
+- **Fix**: build the placeholder-marker string at runtime via bash concatenation (`'__OPENVOX''_PUPPET_SERVER__'`) so the literal sequence `__OPENVOX_PUPPET_SERVER__` never appears in the source as a single token. `sed` matches on text in the file; with the literal split, the render leaves it alone. Same fix applied to the literal in the "all paths failed" error message text.
+- **Caught by**: an actual install attempt on `eveng` against production where the error confessed itself ("openvox.pdxc-it.twitter.biz placeholder substituted by the openvox-gui server (not rendered)"). The mangled wording made the bug obvious in retrospect.
+
 ## [3.3.5-13] - 2026-04-23
 
 ### Changed

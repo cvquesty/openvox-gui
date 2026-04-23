@@ -274,9 +274,19 @@ done
 #   4. The [main] server= line read from /etc/puppetlabs/puppet/puppet.conf
 #      when the agent is being re-installed on an already-configured host.
 #
-# Treat the unsubstituted placeholder as "not set" so the fallback
-# paths kick in instead of blowing up immediately.
-if [[ "$PUPPET_SERVER" == *"__OPENVOX_PUPPET_SERVER__"* ]]; then
+# Detect the unsubstituted placeholder. Critically, we build the
+# marker string via runtime concatenation -- the literal
+#   __OPENVOX_PUPPET_SERVER__
+# must NOT appear anywhere in this script outside of the actual
+# default-value position above, because the server-side `sed` render
+# substitutes EVERY occurrence with the puppetserver FQDN. If we wrote
+# the marker as a literal here, the render would turn it into the real
+# FQDN, and this check would falsely match a successful render and
+# clear PUPPET_SERVER -- the exact bug we hit on production in
+# 3.3.5-13. Splitting the literal across the bash concatenation
+# operator keeps `sed` from matching it.
+PLACEHOLDER_MARKER='__OPENVOX''_PUPPET_SERVER__'
+if [[ "$PUPPET_SERVER" == *"${PLACEHOLDER_MARKER}"* ]]; then
     PUPPET_SERVER=""
 fi
 
@@ -306,14 +316,16 @@ if [ -z "$PUPPET_SERVER" ] && [ -r "${PUPPET_CONF_DIR}/puppet.conf" ]; then
 fi
 
 # Final resolution check. If we still have nothing, give the operator
-# an actionable error.
+# an actionable error. Note: ${PLACEHOLDER_MARKER} is used in the text
+# instead of the literal so that the server-side render doesn't mangle
+# this message (see the comment by PLACEHOLDER_MARKER above).
 if [ -z "$PUPPET_SERVER" ]; then
     fail "Could not determine the puppetserver FQDN.
   Tried (in order):
     1. --server CLI arg / PUPPET_SERVER env var (not set)
     2. /proc/net/tcp + reverse DNS of the curl connection (no
        matching connection found, or reverse DNS returned nothing)
-    3. __OPENVOX_PUPPET_SERVER__ placeholder substituted by the
+    3. ${PLACEHOLDER_MARKER} placeholder substituted by the
        openvox-gui server (not rendered)
     4. server= line in /etc/puppetlabs/puppet/puppet.conf (not present)
   Workaround: re-run passing --server explicitly:
