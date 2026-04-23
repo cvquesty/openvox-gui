@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.3.5-10**
+**OpenVox GUI Version 3.3.5-11**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -135,7 +135,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.3.5-10"}
+# {"status":"ok","version":"3.3.5-11"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:

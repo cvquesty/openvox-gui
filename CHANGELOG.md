@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-11] - 2026-04-23
+
+### Added
+- **`install.bash` now auto-discovers the puppetserver FQDN from the kernel's TCP state.** When an agent runs `curl -k https://server:8140/packages/install.bash | sudo bash`, the URL the operator typed IS the source of truth for the server -- and now the script uses it directly. Mechanism: even though curl exits before bash starts executing (proven empirically -- the script is ~17 KB, written to the pipe in microseconds and curl is gone), the kernel keeps the TCP connection in TIME_WAIT for ~60 seconds. install.bash reads the remote IP out of `/proc/net/tcp`, reverse-DNSes it, and uses the resulting FQDN. No `--server` flag needed; no dependency on the server-side render of `__OPENVOX_PUPPET_SERVER__`.
+
+### Changed
+- **install.bash resolution chain reordered**: (1) `--server` arg / env var, (2) `/proc/net/tcp` + reverse DNS (NEW, the user's original design intent), (3) server-side rendered placeholder (belt-and-suspenders), (4) existing `puppet.conf`. The `--server` flag in the GUI's published one-liner is now redundant in the common case but kept as belt-and-suspenders for hosts where reverse DNS doesn't return a usable name.
+- **"All resolution paths failed" error message** updated to name the new path 2.
+
 ## [3.3.5-10] - 2026-04-23
 
 ### Changed

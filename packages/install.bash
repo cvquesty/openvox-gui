@@ -92,29 +92,96 @@ fail() { echo >&2 "openvox-install: $*"; exit 1; }
 info() { echo "openvox-install: $*"; }
 cmd()  { command -v "$1" >/dev/null 2>&1; }
 
-# ─── Note on auto-discovery from the curl process ───────────────────────────
+# ─── Auto-discovery from the kernel's TCP state ─────────────────────────────
 #
-# A previous iteration tried to extract the server URL from the curl
-# process that piped this script in (walking /proc for a sibling
-# whose argv contained a /packages/install.bash URL). That approach
-# was abandoned because the race is unwinnable: by the time bash
-# starts executing this script, curl has already finished writing
-# the entire ~17 KB of installer to the pipe and exited. /proc no
-# longer has any record of it (verified empirically on RHEL 9).
+# When this script is run as
+#   curl -k https://server:8140/packages/install.bash | sudo bash
+# the URL the operator typed IS the source of truth for the
+# puppetserver FQDN. We extract the server from /proc/net/tcp:
+# even though curl exits before bash starts executing (proven
+# empirically: the script is ~17 KB, curl writes it to the pipe in
+# microseconds and exits), the kernel keeps the TCP connection in
+# TIME_WAIT state for ~60 seconds. The remote IP and port are
+# recorded in /proc/net/tcp; we reverse-DNS the IP to recover the
+# hostname.
 #
-# Instead the operator's intent reaches the script via:
-#   * --server <fqdn> in the one-liner the GUI publishes (the most
-#     authoritative path; the GUI extracts the FQDN from its own
-#     hostname when generating the copy-to-clipboard command, so the
-#     operator never has to type it twice).
-#   * The __OPENVOX_PUPPET_SERVER__ placeholder substituted at
-#     server-side render time (belt-and-suspenders if --server gets
-#     dropped from the one-liner).
-#   * /etc/puppetlabs/puppet/puppet.conf for re-installs.
-#
-# See packages/install.ps1 for the equivalent Windows trick:
-# PowerShell uses [System.Uri]$url.Host to extract the FQDN before
-# install.ps1 ever runs.
+# Outputs the remote IP on stdout (as dotted-decimal IPv4) and exits
+# 0 on success; exits 1 on no match. Returns the LAST matching entry
+# so re-runs of the install pick up the most recent connection.
+discover_remote_ip_via_proc_net_tcp() {
+    local target_port="${1:-8140}"
+    local target_port_hex
+    target_port_hex=$(printf "%04X" "$target_port")
+
+    [ -r /proc/net/tcp ] || return 1
+
+    local found_ip="" line state rem hex_ip
+    while IFS= read -r line; do
+        # Skip the header row
+        [[ "$line" == *"local_address"* ]] && continue
+        # /proc/net/tcp columns:
+        #   sl  local_address  rem_address  st  tx_queue:rx_queue ...
+        # Word splitting on whitespace is the WHOLE point here, so
+        # the SC2206 warning would be wrong; use read -ra instead
+        # to be explicit about the splitting.
+        local -a fields
+        # shellcheck disable=SC2086
+        read -ra fields <<< "$line"
+        rem="${fields[2]:-}"
+        state="${fields[3]:-}"
+        # We want client-side connections to the target port, in either
+        # ESTABLISHED (curl might still be alive) or TIME_WAIT state.
+        case "$state" in
+            01|06) ;;
+            *) continue ;;
+        esac
+        if [[ "$rem" == *":${target_port_hex}" ]]; then
+            hex_ip="${rem%:*}"
+            # Linux stores IPv4 in /proc/net/tcp as little-endian hex.
+            # 0100007F -> bytes 7F 00 00 01 -> 127.0.0.1
+            found_ip=$(printf "%d.%d.%d.%d" \
+                "0x${hex_ip:6:2}" "0x${hex_ip:4:2}" \
+                "0x${hex_ip:2:2}" "0x${hex_ip:0:2}")
+        fi
+    done < /proc/net/tcp
+
+    if [ -n "$found_ip" ]; then
+        echo "$found_ip"
+        return 0
+    fi
+    return 1
+}
+
+# Reverse-DNS an IP to a hostname. Tries getent first (uses NSS, so
+# /etc/hosts entries win over DNS), then host(1). Outputs the FQDN
+# on stdout; returns 1 if no name is found.
+reverse_dns_lookup() {
+    local ip="$1"
+    [ -z "$ip" ] && return 1
+
+    local host=""
+    if command -v getent >/dev/null 2>&1; then
+        host=$(getent hosts "$ip" 2>/dev/null | awk '{print $2; exit}')
+    fi
+    if [ -z "$host" ] && command -v host >/dev/null 2>&1; then
+        host=$(host "$ip" 2>/dev/null \
+            | awk '/pointer/ {sub(/\.$/,"",$NF); print $NF; exit}')
+    fi
+    if [ -n "$host" ]; then
+        echo "$host"
+        return 0
+    fi
+    return 1
+}
+
+# Compose the two: read /proc/net/tcp, reverse-DNS the result.
+# Returns the FQDN of the puppetserver the agent just curl'd, or
+# empty + non-zero exit on no match.
+discover_server_from_curl_socket() {
+    local ip
+    ip=$(discover_remote_ip_via_proc_net_tcp "${1:-8140}") || return 1
+    reverse_dns_lookup "$ip"
+}
 
 # ─── Argument parsing ────────────────────────────────────────────────────────
 # Accept both flag-style overrides (--server, --version) and the
@@ -185,16 +252,19 @@ done
 # Resolution order (highest priority first):
 #
 #   1. --server CLI arg / PUPPET_SERVER env var
-#      Already in $PUPPET_SERVER if either was provided. The GUI's
-#      published one-liner always passes --server explicitly so that
-#      whatever hostname the operator points curl at is the same
-#      hostname the agent ends up configured to talk to.
+#      Already in $PUPPET_SERVER if either was provided.
 #
-#   2. The __OPENVOX_PUPPET_SERVER__ placeholder substituted at
-#      server-side render time. Used when the operator stripped
-#      --server out of the one-liner.
+#   2. The kernel's TCP state -- read the remote IP of the curl-to-
+#      port-8140 connection out of /proc/net/tcp (still in TIME_WAIT
+#      from the curl that just downloaded us), then reverse-DNS it.
+#      The URL the operator typed IS the source of truth for the
+#      puppetserver FQDN; this path makes the script use it directly.
 #
-#   3. The [main] server= line read from /etc/puppetlabs/puppet/puppet.conf
+#   3. The __OPENVOX_PUPPET_SERVER__ placeholder substituted at
+#      server-side render time. Belt-and-suspenders for cases where
+#      reverse DNS doesn't return a usable name.
+#
+#   4. The [main] server= line read from /etc/puppetlabs/puppet/puppet.conf
 #      when the agent is being re-installed on an already-configured host.
 #
 # Treat the unsubstituted placeholder as "not set" so the fallback
@@ -203,7 +273,16 @@ if [[ "$PUPPET_SERVER" == *"__OPENVOX_PUPPET_SERVER__"* ]]; then
     PUPPET_SERVER=""
 fi
 
-# Path 3: re-install on a host that already has puppet.conf. Useful
+# Path 2: discover from the kernel's TCP state.
+if [ -z "$PUPPET_SERVER" ]; then
+    DISCOVERED_SERVER=$(discover_server_from_curl_socket "$PUPPET_SERVER_PORT" 2>/dev/null) || true
+    if [ -n "$DISCOVERED_SERVER" ]; then
+        PUPPET_SERVER="$DISCOVERED_SERVER"
+        info "Discovered puppetserver from /proc/net/tcp: ${PUPPET_SERVER}"
+    fi
+fi
+
+# Path 4: re-install on a host that already has puppet.conf. Useful
 # when running install.bash from a downloaded file or against a host
 # that's already been configured.
 if [ -z "$PUPPET_SERVER" ] && [ -r "${PUPPET_CONF_DIR}/puppet.conf" ]; then
@@ -225,9 +304,11 @@ if [ -z "$PUPPET_SERVER" ]; then
     fail "Could not determine the puppetserver FQDN.
   Tried (in order):
     1. --server CLI arg / PUPPET_SERVER env var (not set)
-    2. __OPENVOX_PUPPET_SERVER__ placeholder substituted by the
+    2. /proc/net/tcp + reverse DNS of the curl connection (no
+       matching connection found, or reverse DNS returned nothing)
+    3. __OPENVOX_PUPPET_SERVER__ placeholder substituted by the
        openvox-gui server (not rendered)
-    3. server= line in /etc/puppetlabs/puppet/puppet.conf (not present)
+    4. server= line in /etc/puppetlabs/puppet/puppet.conf (not present)
   Workaround: re-run passing --server explicitly:
     curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>
   Or, if running from a downloaded file:
