@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-22] - 2026-04-24
+
+### Removed
+- **Dead-code cleanup batch from the 3.3.5-21 audit findings.** Eight items, all behavior-preserving:
+  - `frontend/src/components/AppShell.tsx`: removed unused imports (`Divider`, `IconAppWindow`) and unused locals (`sectionLabelColor`, `anyChildActive`, `anyActive`) -- left over from the Infrastructure-promotion + nav rename in 3.3.5-8 / 3.3.5-10.
+  - `frontend/src/pages/Certificates.tsx`: removed unused `Progress` and `Box` imports -- left over from the Pending Requests removal in 3.3.5-20.
+  - `backend/app/routers/certificates.py`: removed `_parse_cert_list` helper (38 lines, never called -- the actual parser is inlined in `list_certificates`). Comment crumb left in its place explaining the move.
+  - `backend/app/routers/installer.py`: removed `SUPPORTED_LINUX_FAMILIES` constant (defined, never referenced; frontend renders platform labels from `info.platforms` instead).
+  - `backend/app/routers/installer.py`: removed dead `__OPENVOX_PKG_REPO_URL__` substitution from `_render_template`. The placeholder was retired in 3.3.5-5 when install.bash/install.ps1 started deriving the repo URL from the FQDN at runtime; the substitution was kept as a "defensive bridge" but had no template referencing it. Docstring updated to record when and why.
+  - `install.sh`: removed `FRONTEND_BUILT` variable (set in two places, never read; the next block checks the `frontend/dist` directory directly).
+  - `scripts/deploy.sh`: corrected step-numbering display from `[1/5]..[5/6]..[6/6]` to `[1/6]..[6/6]`. The early echoes had the wrong denominator left over from when the agent installer step (Step 5) was added in 3.3.5-1.
+  - `packages/install.ps1`: corrected stale comment referring to "ManagePuppetService call below" -- the actual function name is `Set-PuppetService` (cosmetic typo from the PE installer it was modelled on).
+
+### Notes
+- Pure cleanup release; no behavior change. Build + TS check + Python AST + shellcheck all clean.
+- These are 8 of the items flagged during an internal review pass; further follow-up items are tracked separately.
+
 ## [3.3.5-21] - 2026-04-23
 
 ### Documentation

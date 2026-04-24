@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
   Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid,
-  Progress, Box, ThemeIcon,
+  ThemeIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {

@@ -32,3 +32,6 @@ Thumbs.db
 
 # Python virtual environment
 backend/venv/
+
+# Internal audit reports -- never commit to public repo until findings are remediated
+docs/audits/

@@ -13,7 +13,6 @@ import {
   Text,
   Burger,
   ScrollArea,
-  Divider,
   Box,
   Badge,
   ActionIcon,
@@ -26,7 +25,6 @@ import {
   IconServer,
   IconFileReport,
   IconNetwork,
-  IconAppWindow,
   IconSettings,
   IconHierarchy2,
   IconRocket,
@@ -128,8 +126,6 @@ export function AppShellLayout() {
   const navBorder = isFormal ? '1px solid #dee2e6' : 'none';
   const titleColor = isFormal ? '#212529' : undefined;
   const logoSrc = isFormal ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
-  const sectionLabelColor = isFormal ? '#868e96' : 'dimmed';
-
   // Recursive navigation renderer — supports nested children
   const renderNavItem = (item: NavItem, depth: number = 0): ReactNode => {
     const ItemIcon = item.icon;
@@ -138,9 +134,6 @@ export function AppShellLayout() {
     const indent = depth * 20;
 
     if (hasChildren) {
-      const anyChildActive = item.children!.some((c) =>
-        c.path === '/' ? location.pathname === '/' : location.pathname.startsWith(c.path)
-      );
       const isOpen = openGroups[item.label] ?? false;
 
       const handleClick = () => {
@@ -185,14 +178,6 @@ export function AppShellLayout() {
   // Render a top-level nav group (label + items)
   const renderNavGroup = (label: string, icon: any, items: NavItem[]) => {
     const GroupIcon = icon;
-    const anyActive = items.some((item) => {
-      if (item.children) {
-        return item.children.some((c) =>
-          c.path === '/' ? location.pathname === '/' : location.pathname.startsWith(c.path)
-        );
-      }
-      return item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
-    });
 
     // Single-item group without children — render directly
     if (items.length === 1 && !items[0].children) {

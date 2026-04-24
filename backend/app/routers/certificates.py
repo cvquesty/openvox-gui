@@ -114,45 +114,9 @@ async def _run_ca_command(args: List[str], timeout: int = 30) -> dict:
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
 
 
-def _parse_cert_list(output: str) -> List[dict]:
-    """Parse puppetserver ca list output into structured data."""
-    certs = []
-    for line in output.strip().split("\n"):
-        line = line.strip()
-        if not line or line.startswith("Requested") or line.startswith("Signed"):
-            continue
-        # Format: "NAME    (SHA256) FINGERPRINT" or "+ NAME (SHA256) FINGERPRINT"
-        # Or:     "NAME    alt names: ..."
-        parts = line.split()
-        if len(parts) >= 1:
-            name = parts[0].strip('"').strip('+').strip()
-            if not name or name in ('Certificates', 'Requests'):
-                continue
-            fingerprint = ""
-            status = "signed"
-            alt_names = []
-            # Check for unsigned (requested) indicators
-            if '"' in line and '(SHA256)' in line:
-                # Requested cert
-                idx = line.find('"')
-                end = line.find('"', idx + 1)
-                if end > idx:
-                    name = line[idx+1:end]
-            for i, p in enumerate(parts):
-                if p == "(SHA256)":
-                    if i + 1 < len(parts):
-                        fingerprint = parts[i + 1]
-            if line.strip().startswith('+'):
-                status = "signed"
-            certs.append({
-                "name": name,
-                "fingerprint": fingerprint,
-                "status": status,
-                "alt_names": alt_names,
-                "raw": line,
-            })
-    return certs
-
+# NB: an earlier _parse_cert_list helper was deleted in 3.3.5-22 -- it
+# was never called. The single caller (list_certificates below) has its
+# own inline parser at the same place where this helper would have run.
 
 @router.get("/list")
 async def list_certificates():

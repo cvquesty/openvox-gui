@@ -79,9 +79,10 @@ SYNC_SCRIPT  = Path(os.environ.get("OPENVOX_GUI_SYNC_SCRIPT", "/opt/openvox-gui/
 DEFAULT_PUPPETSERVER_PORT = 8140
 DEFAULT_OPENVOX_VERSION   = "8"
 
-# Platforms we ship install scripts for.  Used to render the Installer
-# page's command snippets.
-SUPPORTED_LINUX_FAMILIES = ("rhel", "debian", "ubuntu")
+# NB: a SUPPORTED_LINUX_FAMILIES tuple used to live here. It was never
+# referenced -- the frontend renders platform labels directly from
+# info.platforms, which is per-mirror-tree (yum/apt/windows/mac), not
+# per-OS-family. Removed in 3.3.5-22 dead-code cleanup.
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -206,20 +207,14 @@ def _platform_summary() -> list[dict]:
 def _render_template(text: str) -> str:
     """Substitute the install-script placeholders with live values.
 
-    Keeps the substitution table in one place so install.bash and
-    install.ps1 share the exact same set of variables.
-
-    3.3.5-5+: ``__OPENVOX_PKG_REPO_URL__`` is no longer rendered --
-    install.bash/install.ps1 derive the package URL from the
-    puppetserver FQDN at agent runtime. We still substitute it here
-    (no-op for current scripts, useful if a stale template exists)
-    for forward compatibility / safety.
+    install.bash and install.ps1 share the exact same set of placeholders.
+    The ``__OPENVOX_PKG_REPO_URL__`` placeholder existed in 3.3.5-1 through
+    3.3.5-4 but was removed in 3.3.5-5: install.bash/install.ps1 now
+    derive the package URL from the puppetserver FQDN at agent runtime.
     """
-    repo_url = _pkg_repo_url()
-    server   = _puppet_server_fqdn()
+    server = _puppet_server_fqdn()
     return (
         text
-        .replace("__OPENVOX_PKG_REPO_URL__",     repo_url)
         .replace("__OPENVOX_PUPPET_SERVER__",    server)
         .replace("__OPENVOX_DEFAULT_VERSION__",  DEFAULT_OPENVOX_VERSION)
     )

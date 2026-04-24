@@ -40,7 +40,7 @@ echo "  Source: ${REPO_DIR}"
 echo "  Target: ${INSTALL_DIR}"
 
 # 1. Deploy files from repo to install dir
-echo "[1/5] Deploying files..."
+echo "[1/6] Deploying files..."
 rm -rf "${INSTALL_DIR}/backend"
 cp -a "${REPO_DIR}/backend" "${INSTALL_DIR}/"
 cp "${REPO_DIR}/VERSION" "${INSTALL_DIR}/VERSION"
@@ -69,12 +69,12 @@ if [ -d "${REPO_DIR}/packages" ]; then
 fi
 
 # 2. Update Python dependencies
-echo "[2/5] Updating Python dependencies..."
+echo "[2/6] Updating Python dependencies..."
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
 
 # 3. Rebuild frontend (if Node.js is available)
-echo "[3/5] Building frontend..."
+echo "[3/6] Building frontend..."
 if command -v node &>/dev/null; then
     cd "${INSTALL_DIR}/frontend"
     npm install
@@ -89,7 +89,7 @@ else
 fi
 
 # 4. Fix permissions
-echo "[4/5] Fixing permissions..."
+echo "[4/6] Fixing permissions..."
 SERVICE_USER="puppet"
 if [ -f /etc/systemd/system/openvox-gui.service ]; then
     UNIT_USER=$(grep "^User=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)

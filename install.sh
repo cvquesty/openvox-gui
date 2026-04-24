@@ -709,9 +709,8 @@ install_nodejs() {
 }
 
 if [ "$BUILD_FRONTEND" = "true" ]; then
-    FRONTEND_BUILT="false"
     NODE_OK="false"
-    
+
     # Check if Node.js 18+ is available
     if command -v node &>/dev/null; then
         NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
@@ -771,7 +770,6 @@ if [ "$BUILD_FRONTEND" = "true" ]; then
     
     if npm run build; then
         log_ok "Frontend built successfully"
-        FRONTEND_BUILT="true"
     else
         log_err "npm run build failed — check the error output above"
         exit 1

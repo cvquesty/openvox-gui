@@ -180,7 +180,7 @@ function Get-MsiProperties {
     # registers against the right server) and Manual startup mode (we
     # let `puppet resource service puppet ensure=running` handle the
     # actual start so service mode and ensure stay consistent with the
-    # ManagePuppetService call below).
+    # Set-PuppetService call below).
     $props += "PUPPET_MASTER_SERVER=$Server"
     $props += "PUPPET_AGENT_STARTUP_MODE=Manual"
     ($props -join ' ')
