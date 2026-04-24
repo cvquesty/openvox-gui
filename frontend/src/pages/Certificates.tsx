@@ -11,7 +11,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconCertificate, IconCheck, IconX, IconTrash, IconRefresh, IconInfoCircle,
+  IconCertificate, IconX, IconTrash, IconRefresh, IconInfoCircle,
   IconShield, IconClock, IconKey, IconFingerprint, IconCalendar,
 } from '@tabler/icons-react';
 import { certificates } from '../services/api';
@@ -152,16 +152,10 @@ export function CertificatesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSign = async (certname: string) => {
-    if (!confirm(`Sign certificate for "${certname}"?`)) return;
-    try {
-      await certificates.sign(certname);
-      notifications.show({ title: 'Signed', message: `Certificate signed for ${certname}`, color: 'green' });
-      load();
-    } catch (e: any) {
-      notifications.show({ title: 'Error', message: e.message, color: 'red' });
-    }
-  };
+  // NB: Pending-CSR signing UI lives on the Agent Install page now
+  // (3.3.5-20+). This page only handles already-signed certs:
+  // info / revoke / clean. The handleSign helper used to live here
+  // and was removed at the same time as the Pending Requests Card.
 
   const handleRevoke = async (certname: string) => {
     if (!confirm(`Revoke certificate for "${certname}"? This cannot be undone.`)) return;
@@ -200,7 +194,7 @@ export function CertificatesPage() {
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
 
-  const requested = data?.requested || [];
+  // requested/pending CSRs are surfaced on the Agent Install page
   const signed = data?.signed || [];
 
   return (
@@ -375,48 +369,8 @@ export function CertificatesPage() {
         </Card>
       )}
 
-      {/* Pending Requests */}
-      <Card withBorder shadow="sm" padding="md">
-        <Group mb="md">
-          <Title order={4}>Pending Requests</Title>
-          <Badge color={requested.length > 0 ? 'yellow' : 'green'} size="lg">
-            {requested.length}
-          </Badge>
-        </Group>
-        {requested.length > 0 ? (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Certname</Table.Th>
-                <Table.Th>Fingerprint</Table.Th>
-                <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {requested.map((cert: any) => (
-                <Table.Tr key={cert.name}>
-                  <Table.Td><Text fw={500}>{cert.name}</Text></Table.Td>
-                  <Table.Td><Code>{cert.fingerprint || 'N/A'}</Code></Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" justify="flex-end">
-                      <Button size="xs" color="green" leftSection={<IconCheck size={14} />}
-                        onClick={() => handleSign(cert.name)}>
-                        Sign
-                      </Button>
-                      <Button size="xs" color="red" variant="outline" leftSection={<IconTrash size={14} />}
-                        onClick={() => handleClean(cert.name)}>
-                        Reject
-                      </Button>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        ) : (
-          <Text c="dimmed" ta="center" py="lg">No pending certificate requests</Text>
-        )}
-      </Card>
+      {/* Pending CSR signing has moved to Infrastructure -> Agent Install
+          (3.3.5-20+) so cert workflow stays grouped with agent provisioning. */}
 
       {/* Signed Certificates */}
       <Card withBorder shadow="sm" padding="md">

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-20] - 2026-04-23
+
+### Changed
+- **Reorganized the Infrastructure pages so the agent-bring-up workflow lives in one place.** Two moves:
+  1. **Pending Certificate Requests moved from Certificate Authority to Agent Install.** Agent install + CSR signing are two halves of the same workflow (install agent → agent submits CSR → operator signs here → first puppet run succeeds), so they now sit next to each other. Certificate Authority keeps everything else: CA info panel, signed-cert list (with revoke / clean / details), expiry warnings.
+  2. **Mirror Status, Disk Space, and Sync Log are now tabs inside the Install Commands card** instead of three standalone cards taking up the lower half of the Agent Install page. Layout is now: header → one tabbed Install Commands card (Linux | Windows | Direct URLs | Mirror Status | Sync Log) → Pending Certificate Requests card. Less vertical real estate, clearer information architecture.
+- **"Sync now" button moved into the Install Commands card header**, alongside the server FQDN and "Sync in progress" badge -- it's always visible regardless of which tab is active. After a manual sync, the page automatically switches to the Sync Log tab so the captured output is immediately visible.
+- **CSR sign / reject** in the new Pending Certificate Requests card uses the same backend endpoints (`/api/certificates/sign`, `/api/certificates/clean`) as before; the move is purely UI. Same admin/operator role gating; viewers see the buttons disabled.
+
+### Notes
+- No backend changes -- pure frontend reorganization.
+- Both the `/installer` route and the `/certificates` route stay where they are; existing bookmarks keep working.
+
 ## [3.3.5-19] - 2026-04-23
 
 ### Fixed

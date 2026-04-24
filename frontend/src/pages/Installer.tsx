@@ -1,50 +1,48 @@
 /**
  * OpenVox GUI - Installer.tsx
  *
- * Lives under Infrastructure -> Agent Install.  Surfaces the local OpenVox
- * package mirror that openvox-gui maintains under /opt/openvox-pkgs/
- * and provides the install commands a fresh agent host should run to
- * bootstrap itself against this puppetserver.
+ * Lives under Infrastructure -> Agent Install. Surfaces three things
+ * an operator needs in one place to bring a new node into the fleet:
  *
- * Mirrors the spirit of Puppet Enterprise's "Install agents" page
- * (https://help.puppet.com/pe/2023.8/topics/installing_agents.htm)
- * but for OpenVox: agents pull packages from yum.voxpupuli.org /
- * apt.voxpupuli.org / downloads.voxpupuli.org via this server.
+ *   1. The copy-to-clipboard install one-liner for Linux and Windows
+ *      (the headline feature -- replicates Puppet Enterprise's
+ *      "install agents" workflow but pointed at the OpenVox mirror).
+ *   2. The state of the local OpenVox package mirror at
+ *      /opt/openvox-pkgs/ (per-platform breakdown, last-sync time,
+ *      disk usage) and a manual "Sync now" trigger.
+ *   3. The list of pending certificate signing requests waiting to
+ *      be approved -- moved here from Certificate Authority in
+ *      3.3.5-20 because CSR approval is part of the agent-bring-up
+ *      workflow, not part of CA maintenance.
  *
- * Major UI sections:
+ * Layout (3.3.5-20):
+ *   - Header
+ *   - "Install Commands" Card with Tabs:
+ *       Linux | Windows | Direct URLs | Mirror Status | Sync Log
+ *   - "Pending Certificate Requests" Card
  *
- *   1. Install commands (Linux + Windows) -- the headline feature.
- *      One copy-to-clipboard box per platform with the curl/PowerShell
- *      one-liner pre-rendered.
- *   2. Mirror status -- last sync time, total bytes, disk space, lock
- *      status; "Sync now" button for admins/operators.
- *   3. Per-platform breakdown -- one row per top-level platform
- *      directory showing presence, size, and package count.
- *   4. Sync log tail -- last N lines of the sync log file for quick
- *      troubleshooting.
- *
- * Backend contract: /api/installer/{info,sync,log,diskinfo,files}.
+ * Backend contract: /api/installer/{info,sync,log,diskinfo,files}
+ *                   /api/certificates/{list,sign,clean}
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
-  Table, Badge, Code, ScrollArea, Grid, Box, Divider, Tabs,
+  Table, Badge, Code, ScrollArea, Grid, Divider, Tabs,
   CopyButton, ActionIcon, Tooltip, Progress, Anchor,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconDownload, IconRefresh, IconCheck, IconCopy, IconBrandWindows,
-  IconBrandUbuntu, IconBrandDebian, IconBrandRedhat, IconBrandApple,
+  IconBrandUbuntu, IconBrandRedhat, IconBrandDebian, IconBrandApple,
   IconAlertCircle, IconCloudDownload, IconClipboard, IconFolder,
-  IconExternalLink, IconClock, IconServer,
+  IconExternalLink, IconClock, IconServer, IconCertificate, IconTrash,
 } from '@tabler/icons-react';
-import { installer, InstallerInfo, InstallerDiskInfo } from '../services/api';
+import { installer, certificates, InstallerInfo, InstallerDiskInfo } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
 
 /**
  * Format a byte count as a human-friendly string (B / KB / MB / GB / TB).
- * We use binary units (1024-based) to match what most disk-management
- * tools display, not decimal MB.
+ * Binary units (1024-based) -- matches what most disk-management tools show.
  */
 function formatBytes(n: number): string {
   if (!n || n < 0) return '0 B';
@@ -59,11 +57,10 @@ function formatBytes(n: number): string {
 }
 
 /**
- * Pick a Tabler icon + display label for a mirror directory name so
- * the breakdown table is scannable at a glance. The 3.3.5-2 layout
- * uses upstream-source names (yum, apt, windows, mac) rather than
- * per-OS-family names; the display labels keep the table understandable
- * to operators who think in OS terms.
+ * Pick a Tabler icon + display label for a mirror directory name.
+ * 3.3.5-2+: layout uses upstream-source names (yum, apt, ...) rather
+ * than per-OS-family names; the display labels keep the table
+ * understandable to operators who think in OS terms.
  */
 function platformIcon(name: string) {
   switch (name) {
@@ -86,9 +83,8 @@ function platformLabel(name: string): string {
 }
 
 /**
- * Render a copy-able command snippet inside a styled <Card>.  The
- * Mantine CopyButton handles the clipboard interaction; we just style
- * the surrounding chrome.
+ * Render a copy-able command snippet inside a styled Card. Mantine's
+ * CopyButton handles the clipboard interaction; we just style chrome.
  */
 function CommandBlock({
   title, icon, command, helper,
@@ -124,11 +120,8 @@ function CommandBlock({
       {helper && (
         <Text size="xs" c="dimmed" mb="xs">{helper}</Text>
       )}
-      {/*
-        The command can be very long (the Windows one-liner is ~250
-        chars).  Wrap inside a horizontally-scrolling ScrollArea so the
-        Card doesn't overflow on narrow viewports.
-      */}
+      {/* Long commands (Windows one-liner is ~250 chars) need horizontal
+          scroll so the Card doesn't overflow on narrow viewports. */}
       <ScrollArea>
         <Code block style={{ whiteSpace: 'pre' }}>{command}</Code>
       </ScrollArea>
@@ -147,23 +140,33 @@ export function InstallerPage() {
   const [tail, setTail]           = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>('linux');
 
-  // Operators and admins can trigger sync; viewers cannot.
-  const canSync = user && (user.role === 'admin' || user.role === 'operator');
+  // Pending CSRs (moved here from Certificate Authority in 3.3.5-20).
+  const [pendingCerts, setPendingCerts] = useState<any[]>([]);
+  const [pendingCertsErr, setPendingCertsErr] = useState<string | null>(null);
+
+  // Operators and admins can trigger syncs and sign certs; viewers cannot.
+  const canManage = user && (user.role === 'admin' || user.role === 'operator');
 
   /**
-   * Fetch installer info + disk info + log tail in parallel.
-   * Called on mount and after each manual sync.
+   * Fetch installer info + disk info + log tail + pending certs in parallel.
+   * Called on mount and after each manual sync or cert action.
    */
   const refresh = useCallback(async () => {
     try {
-      const [i, d, l] = await Promise.all([
+      const [i, d, l, c] = await Promise.all([
         installer.getInfo(),
         installer.getDiskInfo().catch(() => null),
         installer.getLog(50).catch(() => ({ lines: [] as string[] })),
+        // certificates.list returns { requested, signed }; we only want
+        // the requested side here. Fail gracefully so the page still
+        // renders if puppetserver CA is unreachable.
+        certificates.list().catch((e: any) => ({ requested: [], _err: e?.message })),
       ]);
       setInfo(i);
       setDiskInfo(d);
       setTail(l.lines || []);
+      setPendingCerts((c as any).requested || []);
+      setPendingCertsErr((c as any)._err || null);
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -175,12 +178,12 @@ export function InstallerPage() {
   useEffect(() => { refresh(); }, [refresh]);
 
   /**
-   * Trigger a manual repo sync.  Disabled for viewer-role users.
-   * Streams the captured stdout/stderr back inline so operators can
-   * see what happened without leaving the page.
+   * Trigger a manual repo sync. Disabled for viewer-role users.
+   * Streams captured stdout/stderr back inline so operators can see
+   * what happened without leaving the page.
    */
   const handleSync = async () => {
-    if (!canSync) return;
+    if (!canManage) return;
     setSyncing(true);
     setSyncLog([]);
     try {
@@ -193,8 +196,9 @@ export function InstallerPage() {
           : `Exit code ${res.exit_code} -- check the log for details`,
         color: res.success ? 'green' : 'orange',
       });
-      // Refresh info regardless of success so disk usage / status
-      // numbers reflect whatever did get downloaded.
+      // Switch to the Sync Log tab so the captured output is immediately
+      // visible (most useful UX after a manual sync).
+      setActiveTab('synclog');
       await refresh();
     } catch (e: any) {
       notifications.show({
@@ -207,6 +211,53 @@ export function InstallerPage() {
     }
   };
 
+  /**
+   * Sign a pending CSR. Operator/admin only. Confirms via window dialog
+   * to match the existing pattern from the old Certificates.tsx code.
+   */
+  const handleSignCert = async (certname: string) => {
+    if (!canManage) return;
+    if (!confirm(`Sign certificate for "${certname}"?`)) return;
+    try {
+      await certificates.sign(certname);
+      notifications.show({
+        title: 'Signed',
+        message: `Certificate signed for ${certname}`,
+        color: 'green',
+      });
+      await refresh();
+    } catch (e: any) {
+      notifications.show({
+        title: 'Sign failed',
+        message: e.message || String(e),
+        color: 'red',
+      });
+    }
+  };
+
+  /**
+   * Reject a pending CSR by cleaning it. Operator/admin only.
+   */
+  const handleRejectCert = async (certname: string) => {
+    if (!canManage) return;
+    if (!confirm(`Reject (clean) certificate request for "${certname}"?`)) return;
+    try {
+      await certificates.clean(certname);
+      notifications.show({
+        title: 'Rejected',
+        message: `Certificate request for ${certname} cleaned`,
+        color: 'yellow',
+      });
+      await refresh();
+    } catch (e: any) {
+      notifications.show({
+        title: 'Reject failed',
+        message: e.message || String(e),
+        color: 'red',
+      });
+    }
+  };
+
   // Loading / error short-circuits ------------------------------------------
   if (loading) {
     return <Center h={300}><Loader size="lg" /></Center>;
@@ -214,7 +265,7 @@ export function InstallerPage() {
   if (error) {
     return (
       <Stack>
-        <Title order={2}>Installer</Title>
+        <Title order={2}>Agent Install</Title>
         <Alert color="red" icon={<IconAlertCircle size={16} />} title="Could not load installer info">
           {error}
         </Alert>
@@ -257,16 +308,33 @@ export function InstallerPage() {
         </Group>
       </Group>
 
-      {/* ── Install commands (the headline feature) ───────────────── */}
+      {/* ── Install commands + mirror status (folded into one tabbed Card) ── */}
       <Card withBorder shadow="sm">
         <Group justify="space-between" mb="xs">
           <Group gap="xs">
             <IconDownload size={20} />
-            <Title order={4}>Install commands</Title>
+            <Title order={4}>Install Commands</Title>
           </Group>
           <Group gap="xs">
+            {info.sync_in_progress && (
+              <Badge color="blue" leftSection={<Loader size={10} color="white" />}>
+                Sync in progress
+              </Badge>
+            )}
             <Text size="xs" c="dimmed">Server:</Text>
             <Code>{info.puppet_server}:{info.puppet_port}</Code>
+            <Button
+              size="xs"
+              variant="filled"
+              color="blue"
+              leftSection={<IconRefresh size={14} />}
+              onClick={handleSync}
+              loading={syncing}
+              disabled={!canManage || info.sync_in_progress}
+              title={canManage ? '' : 'Requires admin or operator role'}
+            >
+              Sync now
+            </Button>
           </Group>
         </Group>
 
@@ -275,8 +343,11 @@ export function InstallerPage() {
             <Tabs.Tab value="linux"   leftSection={<IconBrandUbuntu size={14} />}>Linux (RHEL / Debian / Ubuntu)</Tabs.Tab>
             <Tabs.Tab value="windows" leftSection={<IconBrandWindows size={14} />}>Windows</Tabs.Tab>
             <Tabs.Tab value="urls"    leftSection={<IconExternalLink size={14} />}>Direct URLs</Tabs.Tab>
+            <Tabs.Tab value="mirror"  leftSection={<IconCloudDownload size={14} />}>Mirror Status</Tabs.Tab>
+            <Tabs.Tab value="synclog" leftSection={<IconClipboard size={14} />}>Sync Log</Tabs.Tab>
           </Tabs.List>
 
+          {/* ── Linux one-liner ──────────────────────────────────────── */}
           <Tabs.Panel value="linux" pt="md">
             <CommandBlock
               title="Run as root on the agent host"
@@ -286,6 +357,7 @@ export function InstallerPage() {
             />
           </Tabs.Panel>
 
+          {/* ── Windows one-liner ────────────────────────────────────── */}
           <Tabs.Panel value="windows" pt="md">
             <CommandBlock
               title="Run in an elevated PowerShell prompt"
@@ -295,6 +367,7 @@ export function InstallerPage() {
             />
           </Tabs.Panel>
 
+          {/* ── Direct URLs ──────────────────────────────────────────── */}
           <Tabs.Panel value="urls" pt="md">
             <Stack gap="xs">
               <Group justify="space-between">
@@ -345,158 +418,200 @@ export function InstallerPage() {
               </Text>
             </Stack>
           </Tabs.Panel>
-        </Tabs>
-      </Card>
 
-      {/* ── Mirror status ─────────────────────────────────────────── */}
-      <Grid>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card withBorder shadow="sm" h="100%">
-            <Group justify="space-between" mb="md">
-              <Group gap="xs">
-                <IconCloudDownload size={20} />
-                <Title order={4}>Mirror status</Title>
-              </Group>
-              <Group gap="xs">
-                {info.sync_in_progress && (
-                  <Badge color="blue" leftSection={<Loader size={10} color="white" />}>
-                    Sync in progress
-                  </Badge>
-                )}
-                <Button
-                  size="xs"
-                  variant="filled"
-                  color="blue"
-                  leftSection={<IconRefresh size={14} />}
-                  onClick={handleSync}
-                  loading={syncing}
-                  disabled={!canSync || info.sync_in_progress}
-                  title={canSync ? '' : 'Requires admin or operator role'}
-                >
-                  Sync now
-                </Button>
-              </Group>
-            </Group>
+          {/* ── Mirror Status (3.3.5-20: folded in from standalone cards) ── */}
+          <Tabs.Panel value="mirror" pt="md">
+            <Grid gutter="md">
+              <Grid.Col span={{ base: 12, md: 8 }}>
+                <Stack gap="xs">
+                  {/* Top-line summary row */}
+                  <Grid gutter="xs">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Stack gap={4}>
+                        <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>
+                        <Text size="sm">{lastSync}</Text>
+                        {lastSyncBadge}
+                      </Stack>
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Stack gap={4}>
+                        <Group gap="xs"><IconServer size={14} /><Text size="sm" fw={600}>Mirror size</Text></Group>
+                        <Text size="sm">{formatBytes(info.total_bytes)}</Text>
+                        <Text size="xs" c="dimmed">at {info.pkg_repo_dir}</Text>
+                      </Stack>
+                    </Grid.Col>
+                  </Grid>
 
-            <Grid gutter="xs">
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <Stack gap={4}>
-                  <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>
-                  <Text size="sm">{lastSync}</Text>
-                  {lastSyncBadge}
+                  <Divider my="xs" />
+
+                  <Text size="sm" fw={600}>Per-platform breakdown</Text>
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Platform</Table.Th>
+                        <Table.Th>Status</Table.Th>
+                        <Table.Th style={{ textAlign: 'right' }}>Packages</Table.Th>
+                        <Table.Th style={{ textAlign: 'right' }}>Size</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {info.platforms.map((p) => (
+                        <Table.Tr key={p.platform}>
+                          <Table.Td>
+                            <Group gap="xs">
+                              {platformIcon(p.platform)}
+                              <Text fw={500}>{platformLabel(p.platform)}</Text>
+                            </Group>
+                          </Table.Td>
+                          <Table.Td>
+                            {p.present
+                              ? <Badge color="green" size="sm">mirrored</Badge>
+                              : <Badge color="gray"  size="sm">not yet synced</Badge>}
+                          </Table.Td>
+                          <Table.Td style={{ textAlign: 'right' }}>
+                            {p.present ? p.packages.toLocaleString() : '-'}
+                          </Table.Td>
+                          <Table.Td style={{ textAlign: 'right' }}>
+                            {p.present ? formatBytes(p.bytes) : '-'}
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
                 </Stack>
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <Stack gap={4}>
-                  <Group gap="xs"><IconServer size={14} /><Text size="sm" fw={600}>Mirror size</Text></Group>
-                  <Text size="sm">{formatBytes(info.total_bytes)}</Text>
-                  <Text size="xs" c="dimmed">at {info.pkg_repo_dir}</Text>
+
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <Stack gap="xs">
+                  <Group gap="xs">
+                    <IconFolder size={16} />
+                    <Text size="sm" fw={600}>Disk space</Text>
+                  </Group>
+                  {diskInfo ? (
+                    <>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">Free</Text>
+                        <Text size="sm" fw={600}>{formatBytes(diskInfo.free)}</Text>
+                      </Group>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">Used</Text>
+                        <Text size="sm">{formatBytes(diskInfo.used)}</Text>
+                      </Group>
+                      <Group justify="space-between">
+                        <Text size="sm" c="dimmed">Total</Text>
+                        <Text size="sm">{formatBytes(diskInfo.total)}</Text>
+                      </Group>
+                      <Progress
+                        value={diskInfo.used_pct}
+                        color={diskInfo.used_pct > 90 ? 'red'
+                             : diskInfo.used_pct > 75 ? 'orange'
+                             : 'blue'}
+                      />
+                      <Text size="xs" c="dimmed" ta="right">{diskInfo.used_pct}% used</Text>
+                      {diskInfo.used_pct > 90 && (
+                        <Alert color="red" icon={<IconAlertCircle size={14} />} p="xs">
+                          Disk almost full -- next sync may fail.
+                        </Alert>
+                      )}
+                    </>
+                  ) : (
+                    <Text size="sm" c="dimmed">Disk info unavailable.</Text>
+                  )}
+                  <Divider my="xs" />
+                  <Text size="xs" c="dimmed">
+                    Nightly sync runs at 02:30 local time via systemd timer
+                    (<Code>openvox-repo-sync.timer</Code>).
+                  </Text>
                 </Stack>
               </Grid.Col>
             </Grid>
+          </Tabs.Panel>
 
-            <Divider my="md" />
-
-            <Text size="sm" fw={600} mb="xs">Per-platform breakdown</Text>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Platform</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th style={{ textAlign: 'right' }}>Packages</Table.Th>
-                  <Table.Th style={{ textAlign: 'right' }}>Size</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {info.platforms.map((p) => (
-                  <Table.Tr key={p.platform}>
-                    <Table.Td>
-                      <Group gap="xs">
-                        {platformIcon(p.platform)}
-                        <Text fw={500}>{platformLabel(p.platform)}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      {p.present
-                        ? <Badge color="green" size="sm">mirrored</Badge>
-                        : <Badge color="gray"  size="sm">not yet synced</Badge>}
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: 'right' }}>
-                      {p.present ? p.packages.toLocaleString() : '-'}
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: 'right' }}>
-                      {p.present ? formatBytes(p.bytes) : '-'}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Card>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card withBorder shadow="sm" h="100%">
-            <Group gap="xs" mb="md">
-              <IconFolder size={20} />
-              <Title order={4}>Disk space</Title>
+          {/* ── Sync Log (3.3.5-20: folded in from standalone card) ──── */}
+          <Tabs.Panel value="synclog" pt="md">
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={600}>Most recent sync output</Text>
+              <Text size="xs" c="dimmed">tail of /opt/openvox-gui/logs/repo-sync.log</Text>
             </Group>
-            {diskInfo ? (
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Free</Text>
-                  <Text size="sm" fw={600}>{formatBytes(diskInfo.free)}</Text>
-                </Group>
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Used</Text>
-                  <Text size="sm">{formatBytes(diskInfo.used)}</Text>
-                </Group>
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Total</Text>
-                  <Text size="sm">{formatBytes(diskInfo.total)}</Text>
-                </Group>
-                <Progress
-                  value={diskInfo.used_pct}
-                  color={diskInfo.used_pct > 90 ? 'red'
-                       : diskInfo.used_pct > 75 ? 'orange'
-                       : 'blue'}
-                />
-                <Text size="xs" c="dimmed" ta="right">{diskInfo.used_pct}% used</Text>
-                {diskInfo.used_pct > 90 && (
-                  <Alert color="red" icon={<IconAlertCircle size={14} />} p="xs">
-                    Disk almost full -- next sync may fail.
-                  </Alert>
-                )}
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">Disk info unavailable.</Text>
-            )}
-            <Divider my="md" />
-            <Text size="xs" c="dimmed">
-              Nightly sync runs at 02:30 local time via systemd timer
-              (<Code>openvox-repo-sync.timer</Code>).
-            </Text>
-          </Card>
-        </Grid.Col>
-      </Grid>
+            <ScrollArea h={320} type="auto">
+              <Code block style={{ whiteSpace: 'pre', fontSize: 11 }}>
+                {(syncLog.length ? syncLog : tail).join('\n') || '(no log entries yet)'}
+              </Code>
+            </ScrollArea>
+          </Tabs.Panel>
+        </Tabs>
+      </Card>
 
-      {/* ── Sync log / tail ───────────────────────────────────────── */}
+      {/* ── Pending Certificate Requests (moved from Certificate Authority,
+             3.3.5-20). Sits with Install Commands because CSR approval is
+             part of agent bring-up: install agent → agent generates CSR →
+             operator signs here → first puppet run succeeds. ─────────── */}
       <Card withBorder shadow="sm">
         <Group justify="space-between" mb="xs">
           <Group gap="xs">
-            <IconClipboard size={20} />
-            <Title order={4}>Sync log</Title>
+            <IconCertificate size={20} />
+            <Title order={4}>Pending Certificate Requests</Title>
+            <Badge color={pendingCerts.length > 0 ? 'yellow' : 'green'}>
+              {pendingCerts.length}
+            </Badge>
           </Group>
           <Text size="xs" c="dimmed">
-            tail of /opt/openvox-gui/logs/repo-sync.log
+            Approve agents that have just installed and submitted their CSR
           </Text>
         </Group>
-        {/* If we just ran a manual sync, show its captured output;
-            otherwise show the persistent file tail. */}
-        <ScrollArea h={240} type="auto">
-          <Code block style={{ whiteSpace: 'pre', fontSize: 11 }}>
-            {(syncLog.length ? syncLog : tail).join('\n') || '(no log entries yet)'}
-          </Code>
-        </ScrollArea>
+        {pendingCertsErr ? (
+          <Alert color="orange" icon={<IconAlertCircle size={14} />}>
+            Could not load CSR list: {pendingCertsErr}
+          </Alert>
+        ) : pendingCerts.length === 0 ? (
+          <Text c="dimmed" ta="center" py="lg" size="sm">
+            No pending certificate requests. Newly installed agents that have
+            checked in for the first time will appear here, ready to sign.
+          </Text>
+        ) : (
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Certname</Table.Th>
+                <Table.Th>Fingerprint</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {pendingCerts.map((cert: any) => (
+                <Table.Tr key={cert.name}>
+                  <Table.Td><Text fw={500}>{cert.name}</Text></Table.Td>
+                  <Table.Td><Code>{cert.fingerprint || 'N/A'}</Code></Table.Td>
+                  <Table.Td>
+                    <Group gap="xs" justify="flex-end">
+                      <Button
+                        size="xs"
+                        color="green"
+                        leftSection={<IconCheck size={14} />}
+                        onClick={() => handleSignCert(cert.name)}
+                        disabled={!canManage}
+                        title={canManage ? '' : 'Requires admin or operator role'}
+                      >
+                        Sign
+                      </Button>
+                      <Button
+                        size="xs"
+                        color="red"
+                        variant="outline"
+                        leftSection={<IconTrash size={14} />}
+                        onClick={() => handleRejectCert(cert.name)}
+                        disabled={!canManage}
+                        title={canManage ? '' : 'Requires admin or operator role'}
+                      >
+                        Reject
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
       </Card>
     </Stack>
   );
