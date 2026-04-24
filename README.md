@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.5--20-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.3.5--21-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -234,14 +234,15 @@ roll up into the tagged 3.4.0 release.
 A full PE-style agent bootstrap workflow for OpenVox:
 
 - **One-line install on Linux** -- the GUI publishes a copy-to-clipboard command of the form
-  `curl -k https://<server>:8140/packages/install.bash | sudo bash -s -- --server <server>`.
-  The hostname appears once in the URL and once after `--server`, both pulled from the same source so they always match. Operators just paste and run as root.
+  `curl -k --noproxy <server> https://<server>:8140/packages/install.bash | sudo bash`.
+  The script auto-discovers the puppetserver FQDN from the kernel's TCP state and reverse DNS, so no `--server` arg is needed. The `--noproxy` keeps corporate proxies from intercepting the bootstrap curl.
 - **One-line install on Windows** -- equivalent PowerShell snippet that downloads `install.ps1` and passes the puppetserver FQDN extracted from the URL via `[System.Uri]$url.Host`.
 - **Local OpenVox package mirror** under `/opt/openvox-pkgs/` populated from yum.voxpupuli.org, apt.voxpupuli.org, and downloads.voxpupuli.org. Layout: `yum/`, `apt/`, `windows/`, `mac/` -- one tree per upstream source, mirroring the upstream structure 1:1.
 - **PuppetServer mounts `/packages/*` on port 8140** -- the standard puppetserver port that existing firewall rules already permit. Agents reach the mirror without any new firewall holes. The openvox-gui FastAPI app also serves the same content on its own port (4567) as a fallback.
-- **Promoted to top-level "Infrastructure" navigation** -- the new "Agent Install" page sits alongside Certificate Authority and Orchestration in the left nav, with copy-to-clipboard one-liners, mirror status, per-platform breakdown, disk-usage warning, "Sync now" button (admin/operator only), and a sync-log tail.
+- **Top-level "Infrastructure" nav** with three pages: **Certificate Authority** (CA info + signed-cert management), **Orchestration** (Bolt commands/tasks/plans), **Agent Install** (install commands + mirror status + pending CSR signing).
+- **Agent Install page** is one tabbed Card (Linux | Windows | Direct URLs | Mirror Status | Sync Log) plus a Pending Certificate Requests card -- the whole agent bring-up workflow in one place: paste install command -> wait for CSR to appear -> click Sign -> done.
 - **Nightly auto-sync** via systemd timer (02:30 + randomised delay). Both `install.sh` (fresh install) and `update_local.sh` (upgrade) offer an interactive "Sync now?" prompt so the mirror is populated before the first agent installs.
-- **Self-configuring agent scripts** -- `install.bash` and `install.ps1` resolve the puppetserver FQDN from `--server` arg / env var, then a server-side rendered placeholder, then an existing `puppet.conf` (re-install case). `PKG_REPO_URL` is derived from the puppetserver FQDN, not a separate placeholder.
+- **Self-configuring agent scripts** -- `install.bash` resolves the puppetserver FQDN from a 4-step chain: `--server` arg / env var → `/proc/net/tcp` + reverse DNS of the curl connection (3.3.5-11+, the "just works" path) → server-side rendered placeholder → existing `puppet.conf`. Permanent puppet CA trust installed into `/etc/pki/ca-trust/source/anchors/` (RHEL) or `/usr/local/share/ca-certificates/` (Debian/Ubuntu) so subsequent `apt-get update` / `dnf upgrade` work without flags.
 
 > **First-run sync takes time.** The first sync downloads roughly **1-2 GB** of OpenVox packages from voxpupuli.org and takes **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental (only changed files). Pick whichever first-sync path fits: the interactive `install.sh` / `update_local.sh` prompt, the **Sync now** button on Infrastructure -> Agent Install, `sudo systemctl start openvox-repo-sync.service` from the CLI, or just wait for the 02:30 nightly timer.
 
@@ -253,15 +254,25 @@ The left nav is now: **Monitoring**, **Infrastructure**, **Code**, **Data**, **I
 
 ### Per-iteration history
 
-For the full per-iteration changelog (3.3.5-1 through 3.3.5-8), see [CHANGELOG.md](CHANGELOG.md). Highlights:
+For the full per-iteration changelog see [CHANGELOG.md](CHANGELOG.md). Highlights of the 3.3.5-x series so far:
 
 - **3.3.5-2** validated installer URLs against live voxpupuli.org and simplified the mirror layout to per-upstream-source trees.
-- **3.3.5-3** fixed a wget double-nesting bug discovered during the first live sync trial.
+- **3.3.5-3** fixed a wget double-nesting bug.
 - **3.3.5-4** added the interactive "Sync now?" prompt to `update_local.sh`.
-- **3.3.5-5** redesigned the agent scripts to be self-configuring at runtime.
-- **3.3.5-6** corrected the published one-liner to use `bash -s --` so extra args parse correctly.
-- **3.3.5-7** rolled the puppetserver FQDN into the published one-liner explicitly.
+- **3.3.5-5/6/7** iterations on the agent scripts to be self-configuring.
 - **3.3.5-8** promoted Infrastructure to a top-level nav group.
+- **3.3.5-9** cumulative documentation refresh.
+- **3.3.5-10** renamed nav item "Installer" -> "Agent Install" so the label matches what the page does.
+- **3.3.5-11/12** added `/proc/net/tcp` + reverse-DNS discovery to install.bash so the URL the operator typed IS the FQDN the agent gets configured against -- no flags or env vars needed.
+- **3.3.5-13** trimmed the published Linux one-liner to its bare form once discovery was confirmed working.
+- **3.3.5-14** fixed a self-inflicted bug where the placeholder check was clobbering its own substituted value.
+- **3.3.5-15** cleared 3 high-severity npm audit findings (vite/lodash/picomatch).
+- **3.3.5-16** added missing `warn()` helper that was breaking apt installs.
+- **3.3.5-17** exported `no_proxy` inside install.bash so apt/yum bypass corporate proxies.
+- **3.3.5-18** install puppet CA into the system trust store so subsequent `apt-get update` / `dnf upgrade` work without `--insecure` flags.
+- **3.3.5-19** published one-liner gained `--noproxy <fqdn>` (curl) / `$wc.Proxy = $null` (PowerShell) so the bootstrap download itself bypasses the proxy.
+- **3.3.5-20** moved Pending Certificate Requests from Certificate Authority to Agent Install; folded Mirror Status / Disk Space / Sync Log into tabs on the Install Commands card so the page is one workflow, not three stacked panels.
+- **3.3.5-21** cumulative documentation refresh (this file, INSTALLER.md, INSTALL.md, UPDATE.md, TROUBLESHOOTING.md) to bring everything in line with the actual current behavior.
 
 ## What's New in Version 3.3.0
 

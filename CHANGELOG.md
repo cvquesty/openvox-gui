@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-21] - 2026-04-23
+
+### Documentation
+- **End-to-end documentation refresh** to bring every operator-facing doc in line with the actual current behavior after twenty 3.3.5-x iterations. No code changes -- pure docs.
+  - **`docs/INSTALLER.md`** -- the canonical feature reference. Major rewrites:
+    - Updated "How the install one-liners work" section: bare `curl -k --noproxy <fqdn> ...` form (was `bash -s -- --server`); 4-step resolution chain documented (added `/proc/net/tcp` discovery as path 2); the `--noproxy`, `-k`, and "no script args needed" rationale spelled out; CA install + `no_proxy` export listed as steps in the install flow.
+    - "The Agent Install page" section rewritten for the new layout: one tabbed Install Commands card (Linux | Windows | Direct URLs | Mirror Status | Sync Log) + a Pending Certificate Requests card. Old "three sections" description replaced.
+    - New troubleshooting entries: `CONNECT tunnel failed, response 407`, `Certificate verification failed: The certificate is NOT trusted`, `404 Not Found` on a specific dist's `Packages` index. Existing entries updated to match the current resolution chain.
+    - Security considerations section rewritten to reflect the CA install + proxy bypass mechanisms; old `[trusted=yes]` framing replaced.
+    - "Sync runs but takes hours" entry updated to use current `yum,apt` platform names instead of the legacy `redhat,debian,ubuntu`.
+  - **`README.md`** -- "What's New in the 3.3.5-x series" updated:
+    - Bare one-liner form described accurately.
+    - Per-iteration history list expanded to cover 3.3.5-9 through 3.3.5-21.
+    - Self-configuring agent scripts description updated to mention the 4-step resolution chain (added `/proc/net/tcp` + reverse DNS) and the CA install.
+  - **`INSTALL.md`** -- prompt #7 description updated: bare one-liner form + new bullet about automatic CA-trust install on agents (3.3.5-18+).
+  - **`UPDATE.md`** -- "Special note for upgrades" updated: describes the new tabbed Install Commands card + Pending Certificate Requests card layout, and shows the bare one-liner as the published form.
+  - **`TROUBLESHOOTING.md`** -- three new entries (407 proxy, cert-not-trusted, mirror-not-synced 404), one updated entry (`bash: --server: invalid option` now references the bare GUI one-liner). Existing entries adjusted to current behavior.
+  - **`docs/SUDOERS.md`** -- added the missing sync-trigger sudoers rule (`puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh*`) that install.sh has been writing since 3.3.5-1 but the doc didn't mention.
+
 ## [3.3.5-20] - 2026-04-23
 
 ### Changed

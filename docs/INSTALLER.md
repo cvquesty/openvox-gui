@@ -22,10 +22,12 @@ from `yum.voxpupuli.org` / `apt.voxpupuli.org` /
 PE makes adding a new agent very easy:
 
 ```bash
-curl -k https://<puppet-server>:8140/packages/current/install.bash | sudo bash
+curl -k https://<puppet-server>:8140/packages/install.bash | sudo bash
 ```
 
-OpenVox agents historically required several manual steps to install:
+(Older PE docs show `/packages/current/install.bash`; we drop the
+`current/` so the URL maps directly to the file on disk.) OpenVox
+agents historically required several manual steps to install:
 add the Vox Pupuli repo, install `openvox-agent`, edit
 `/etc/puppetlabs/puppet/puppet.conf`, start the service, sign the
 cert.  This feature collapses all of that into the same one-liner.
@@ -190,75 +192,122 @@ a few minutes.
 
 ---
 
-## The Installer page
+## The Agent Install page
 
-`Infrastructure -> Agent Install` is where day-to-day operators interact
-with the feature.  It shows three things:
+`Infrastructure -> Agent Install` is where day-to-day operators
+interact with the feature. It's two stacked cards:
 
-1.  **Install commands** -- the curl/PowerShell one-liners ready to
-    paste, with a copy-to-clipboard button per platform.
-2.  **Mirror status** -- last sync time, total bytes mirrored, disk
-    usage, and a per-platform breakdown of how many packages are
-    present.  Admins and operators see a "Sync now" button.
-3.  **Sync log** -- tail of `/opt/openvox-gui/logs/repo-sync.log`,
-    or the captured output of the most recent manual sync.
+### 1. Install Commands (tabbed)
 
-Viewer-role users can copy the install commands but cannot trigger
-a sync.
+The headline card. Header always shows the puppetserver FQDN, a
+"Sync in progress" badge when relevant, and a "Sync now" button
+(admin/operator only -- viewers see it disabled). Five tabs:
+
+- **Linux** -- copy-to-clipboard one-liner for `curl ... | sudo bash`.
+- **Windows** -- copy-to-clipboard PowerShell snippet.
+- **Direct URLs** -- raw URLs for install.bash, install.ps1, and the
+  mirror root (useful if you want to script the install yourself).
+- **Mirror Status** -- last-sync time + result, mirror size, per-
+  platform breakdown table (yum / apt / windows / mac with
+  package counts and bytes), and a disk-space widget on the side.
+- **Sync Log** -- tail of `/opt/openvox-gui/logs/repo-sync.log`, or
+  the captured stdout/stderr of the most recent manual sync. The
+  page auto-switches to this tab when you click "Sync now" so you
+  see what happened immediately.
+
+### 2. Pending Certificate Requests *(moved here in 3.3.5-20)*
+
+Was previously on the Certificate Authority page. Lives here now
+because CSR signing is part of the agent bring-up workflow:
+
+```
+install agent -> agent submits CSR -> operator signs here -> first puppet run succeeds
+```
+
+Shows certname + fingerprint with **Sign** / **Reject** buttons per
+row (admin/operator only). After signing or rejecting, the table
+refreshes automatically. The Certificate Authority page still
+handles everything else: CA info panel, signed-cert list (with
+revoke / clean / details), expiry warnings.
+
+### Roles
+
+- **viewer** can read everything (commands, status, logs, pending
+  CSR list) but can't trigger a sync or sign/reject CSRs.
+- **operator** and **admin** can trigger syncs and sign / reject CSRs.
+  Buttons are visibly disabled with a tooltip for viewers.
 
 ---
 
 ## How the install one-liners work
 
-The Installer page in the GUI publishes a copy-to-clipboard one-liner
-for both Linux and Windows. Both put the puppetserver FQDN into the
-command **explicitly** so the agent never has to guess what server to
-talk to -- whatever hostname the operator points the one-liner at is
-the same hostname the agent gets configured against.
+The Agent Install page publishes copy-to-clipboard one-liners for
+both Linux and Windows. The script auto-discovers everything it
+needs from the URL the operator just typed -- no `--server` flag,
+no env vars, no manual configuration.
 
 ### Linux
 
 ```bash
-curl -k https://<server>:8140/packages/install.bash | sudo bash -s -- --server <server>
+curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash
 ```
 
-Two things to notice:
+Three things the bare-looking command quietly does:
 
-- **`bash -s --`** lets operators append their own arguments without
-  bash interpreting them as its own options. Without the `-s --`,
-  appending `--server foo` would die with `bash: --server: invalid
-  option`.
-- **`--server <server>`** is included by the GUI explicitly so the
-  agent knows the puppetserver FQDN even if the server-side render of
-  the placeholder somehow misfires. The GUI fills in the same FQDN
-  twice (once in the URL, once after `--server`) so they always match.
+- **`--noproxy <fqdn>`** tells curl to bypass any inherited
+  `http_proxy` / `https_proxy` for the puppetserver host. Without
+  this, hosts behind a corporate proxy fail at the bootstrap
+  curl with `CONNECT tunnel failed, response 407`.
+- **`-k`** skips cert verification on the bootstrap curl because
+  the puppetserver presents a cert signed by Puppet's internal CA
+  that the agent doesn't trust *yet* (the script installs that CA
+  later, see step 2 below).
+- **No script args needed** -- the script extracts the puppetserver
+  FQDN from the kernel's TCP state (the curl connection lingers in
+  `/proc/net/tcp` for ~60 s in TIME_WAIT) and reverse-DNSes the
+  remote IP back to the FQDN. Whatever hostname the operator
+  pointed curl at IS the hostname the agent gets configured against.
 
-The script:
+The script then:
 
-1.  Resolves the puppetserver FQDN. Resolution order: `--server` arg
-    -> `PUPPET_SERVER` env var -> server-side rendered placeholder ->
-    `[main] server=` from existing `/etc/puppetlabs/puppet/puppet.conf`.
-2.  Derives `PKG_REPO_URL` from the FQDN as
-    `https://<server>:8140/packages` (override with `--pkg-repo-url`
-    if your mirror lives elsewhere).
-3.  Detects the platform (RHEL family / Debian / Ubuntu, version,
-    architecture) by reading `/etc/os-release`.
-4.  Drops a yum/apt repo file pointing at the local mirror:
+1.  **Resolves the puppetserver FQDN.** Four-step resolution order
+    (highest priority first):
+    1. `--server` CLI arg or `PUPPET_SERVER` env var
+    2. **NEW (3.3.5-11+)** `/proc/net/tcp` + reverse DNS of the
+       curl connection that just downloaded us
+    3. `__OPENVOX_PUPPET_SERVER__` placeholder substituted at
+       server-side render time
+    4. `[main] server=` from existing `/etc/puppetlabs/puppet/puppet.conf`
+    Path 2 handles the common case; the others are belt-and-suspenders.
+2.  **Sets `no_proxy`** in the script's environment so subsequent
+    apt/yum invocations bypass the corporate proxy too.
+3.  **Installs the puppet CA into the system trust store** (3.3.5-18+)
+    by fetching `https://<server>:8140/puppet-ca/v1/certificate/ca`
+    and dropping it into `/usr/local/share/ca-certificates/openvox-puppet-ca.crt`
+    (Debian/Ubuntu) or `/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt`
+    (RHEL family), then runs `update-ca-certificates` /
+    `update-ca-trust extract`. After this, future `apt-get update`,
+    `dnf upgrade openvox-agent`, manual `curl`, etc. work without
+    any `--insecure` / `Verify-Peer=false` / `sslverify=0` flags.
+4.  **Detects the platform** (RHEL family / Debian / Ubuntu,
+    version, architecture) by reading `/etc/os-release`.
+5.  **Drops a yum/apt repo file** pointing at the local mirror:
     -   RHEL: `/etc/yum.repos.d/openvox8.repo`
     -   Debian/Ubuntu: `/etc/apt/sources.list.d/openvox8.list`
     -   APT distro names use **numeric** form: `debian12`, `ubuntu24.04`
         (matching the upstream apt suite layout).
-5.  Installs `openvox-agent` via the platform's package manager.
-6.  Sets `server` and `certname` in `/etc/puppetlabs/puppet/puppet.conf`.
-7.  Starts and enables the puppet service.
-8.  Symlinks `puppet`, `facter`, `hiera` into `/usr/local/bin/` for
-    convenience.
+6.  **Installs `openvox-agent`** via the platform's package manager.
+7.  **Sets `server` and `certname`** in `/etc/puppetlabs/puppet/puppet.conf`.
+8.  **Starts and enables the puppet service.**
+9.  **Symlinks** `puppet` / `facter` / `hiera` into `/usr/local/bin/`
+    so they're on `PATH` without needing `/opt/puppetlabs/bin`.
 
-You can append extra arguments after the `bash -s --`:
+You can append extra arguments using bash's `-s --` form (required so
+bash treats trailing tokens as positional args for the script, not
+options for itself):
 
 ```bash
-curl -k https://<server>:8140/packages/install.bash | sudo bash -s -- \
-    --server <server> \
+curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash -s -- \
     extension_requests:pp_role=webserver \
     extension_requests:pp_environment=prod \
     --puppet-service-ensure stopped
@@ -268,11 +317,11 @@ Supported argument forms:
 
 | Argument | Effect |
 |----------|--------|
-| `--server <fqdn>` | Puppetserver FQDN. Highest priority. |
-| `--pkg-repo-url <url>` | Package mirror base URL. Default: `https://<server>:8140/packages` (rarely needed). |
+| `--server <fqdn>` | Override the puppetserver FQDN (rare -- discovery handles it) |
+| `--pkg-repo-url <url>` | Override the package mirror base URL. Default: `https://<server>:8140/packages` |
 | `--version <7\|8>` | Pick OpenVox major version (default: 8) |
-| `--puppet-service-ensure running\|stopped` | Service state after install |
-| `--puppet-service-enable true\|false\|manual` | Service startup mode |
+| `--puppet-service-ensure running\|stopped` | Service state after install (default: running) |
+| `--puppet-service-enable true\|false\|manual` | Service startup mode (default: true) |
 | `<section>:<key>=<value>` | Apply a setting to puppet.conf at install time |
 | `custom_attributes:<key>=<value>` | Add to csr_attributes.yaml |
 | `extension_requests:<key>=<value>` | Add to csr_attributes.yaml (becomes a trusted fact) |
@@ -284,15 +333,27 @@ Supported argument forms:
 [Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; `
 $url = 'https://<server>:8140/packages/install.ps1'; `
 $wc = New-Object System.Net.WebClient; `
+$wc.Proxy = $null; `
 $wc.DownloadFile($url, 'install.ps1'); `
 .\install.ps1 -Server ([System.Uri]$url).Host -v
 ```
 
-Same trick as Linux: the puppetserver FQDN is extracted from the
-download URL via `[System.Uri]$url.Host` and passed to install.ps1
-explicitly via `-Server`. install.ps1 can't auto-discover the URL
-after the fact -- it's downloaded to a file before it runs -- so the
-one-liner does the extraction up front.
+Notice three things:
+
+- **`$wc.Proxy = $null`** bypasses the system-configured proxy
+  (PowerShell's `WebClient` inherits it by default), preventing
+  the same `407 Proxy Authentication Required` failure Linux can
+  hit at the bootstrap step.
+- **`-Server ([System.Uri]$url).Host`** extracts the puppetserver
+  FQDN from the download URL and passes it to install.ps1
+  explicitly. install.ps1 can't auto-discover from `/proc/net/tcp`
+  the way install.bash does -- the script runs from a downloaded
+  file, not via a pipe -- so the one-liner does the extraction
+  up front.
+- The `ServerCertificateValidationCallback = {$true}` line skips
+  cert verification on the bootstrap download (puppet's internal
+  CA isn't trusted yet); install.ps1 itself uses normal verification
+  after that point.
 
 The script:
 
@@ -414,43 +475,120 @@ sudo journalctl -u puppetserver --since "5 minutes ago" --no-pager \
 
 ### `bash: --server: invalid option`
 
-You ran the one-liner without `bash -s --` between `bash` and the
-script's arguments. The `-s --` form is required so bash treats
-trailing tokens as positional args for the script instead of options
-for itself:
+You appended args to the one-liner without `bash -s --` between
+`bash` and them. Bash interpreted `--server` as one of its own
+options. The fix is to insert `-s --`:
 
 ```bash
 # WRONG -- bash eats --server itself
-curl -k https://server:8140/packages/install.bash | sudo bash --server foo
+curl -k --noproxy server https://server:8140/packages/install.bash | sudo bash --server foo
 
-# RIGHT -- the GUI's published one-liner already does this
-curl -k https://server:8140/packages/install.bash | sudo bash -s -- --server foo
+# RIGHT -- -s -- tells bash "everything after this is for the script"
+curl -k --noproxy server https://server:8140/packages/install.bash | sudo bash -s -- --server foo
+```
+
+The GUI's published one-liner doesn't pass extra args (discovery
+handles the FQDN on its own), so this only trips you if you're
+overriding behavior with `--server` / `extension_requests:` /
+similar.
+
+### `curl: (56) CONNECT tunnel failed, response 407`
+
+Your agent host is behind a corporate proxy and the bootstrap
+curl tried to tunnel through it. Use the GUI's published
+one-liner (it includes `--noproxy <fqdn>` to bypass the proxy
+for the puppetserver host):
+
+```bash
+curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash
+```
+
+If you'd rather make the bare `curl ... | bash` form work
+without `--noproxy`, set `no_proxy` in the host environment
+once (e.g. via `/etc/environment`) and any future curl will
+bypass the proxy automatically.
+
+### `Certificate verification failed: The certificate is NOT trusted`
+
+You're seeing this AFTER install.bash completed -- e.g. a follow-up
+`apt-get update` or `dnf upgrade` failing because the puppet CA
+isn't in the system trust store.
+
+In 3.3.5-18+, install.bash installs the puppet CA into the system
+trust store automatically (`/usr/local/share/ca-certificates/openvox-puppet-ca.crt`
+on Debian/Ubuntu, `/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt`
+on RHEL family). If you're seeing this error on a newly installed
+agent, install.bash either failed to fetch the CA or failed to run
+the trust-refresh command. Re-run install.bash on the agent to
+retry, or install the CA manually:
+
+```bash
+# Debian/Ubuntu
+sudo curl -ksLf https://<fqdn>:8140/puppet-ca/v1/certificate/ca \
+    -o /usr/local/share/ca-certificates/openvox-puppet-ca.crt
+sudo update-ca-certificates
+
+# RHEL family
+sudo curl -ksLf https://<fqdn>:8140/puppet-ca/v1/certificate/ca \
+    -o /etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt
+sudo update-ca-trust extract
+```
+
+### `404 Not Found` fetching e.g. `/packages/apt/dists/ubuntu24.04/openvox8/binary-amd64/Packages`
+
+Different from "puppetserver returns ~378 bytes of HTML" above --
+that's the puppetserver mount missing entirely. This 404 means
+the mount is working but the mirror has no content for that
+specific OS family / arch. Two causes:
+
+1.  The sync hasn't run yet on this server. Trigger one:
+    ```bash
+    sudo systemctl start openvox-repo-sync.service
+    ```
+2.  The sync IS running but hasn't reached that platform / arch.
+    Check Infrastructure -> Agent Install -> Mirror Status tab
+    for the per-platform breakdown.
+
+Fast option: limit the sync to just what your test agent needs:
+```bash
+sudo /opt/openvox-gui/scripts/sync-openvox-repo.sh \
+    --platforms apt --ubuntu-releases 24.04 --arches x86_64
 ```
 
 ### `Could not determine the puppetserver FQDN`
 
-Means all four resolution paths failed:
+All four resolution paths failed:
 
 1. `--server` arg / `PUPPET_SERVER` env var (not set)
-2. The `__OPENVOX_PUPPET_SERVER__` placeholder substituted server-side
+2. `/proc/net/tcp` + reverse DNS of the curl connection that just
+   downloaded the script (no matching connection found, or reverse
+   DNS returned nothing)
+3. The `__OPENVOX_PUPPET_SERVER__` placeholder substituted server-side
    (not rendered)
-3. `[main] server=` from existing `puppet.conf` (not present)
+4. `[main] server=` from existing `puppet.conf` (not present)
 
-The error message names two workarounds:
+In normal operation path 2 hits and the script self-configures.
+This error means none of those worked. Most likely causes:
 
-- **One-shot fix on the agent**: re-run with `--server <fqdn>`:
+- Running install.bash from a downloaded file, not a curl pipe
+  (no TCP connection in `/proc/net/tcp` to discover from).
+- Reverse DNS for the puppetserver IP returns nothing or returns
+  a name that's not the puppetserver's actual FQDN.
+- `/proc/net/tcp` isn't a procfs (rare, but happens in some
+  containerized environments).
+
+Workarounds:
+
+- **One-shot fix on the agent** -- re-run with `--server` explicit:
   ```bash
-  curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>
+  curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash \
+    | sudo bash -s -- --server <fqdn>
   ```
-- **Fix on the openvox-gui server**: re-run the deploy so install.bash
-  gets re-rendered with the correct FQDN:
+- **Fix the underlying render on the openvox-gui server** so
+  path 3 covers future agents even if path 2 fails:
   ```bash
-  cd ~/openvox-gui && git pull && sudo ./scripts/update_local.sh --force
+  cd ~/openvox-gui && git pull && sudo ./scripts/update_local.sh
   ```
-
-Note that the GUI's published one-liner ALWAYS includes `--server`
-explicitly, so this error only triggers if the operator stripped that
-argument out manually.
 
 ### Agent install fails with "openvox-agent MSI not found"
 
@@ -481,12 +619,15 @@ sudo dpkg -i /opt/openvox-pkgs/apt/openvox8-release-debian12.deb
 The first sync is full (~2 GB).  Subsequent syncs are incremental
 because `wget --mirror` skips files that haven't changed upstream.
 If syncs are routinely slow, mirror only the platforms you actually
-deploy:
+deploy. The platform names match the upstream-source layout
+(`yum`, `apt`, `windows`, `mac`) -- the older `redhat,debian,ubuntu`
+names from 3.3.5-1 are still accepted with a deprecation warning:
 
 ```bash
-echo 'PLATFORMS=redhat,ubuntu' | sudo tee /etc/sysconfig/openvox-repo-sync
-echo 'EL_RELEASES=8,9'         | sudo tee -a /etc/sysconfig/openvox-repo-sync
-echo 'UBU_RELEASES=jammy,noble'| sudo tee -a /etc/sysconfig/openvox-repo-sync
+echo 'PLATFORMS=yum,apt'        | sudo tee /etc/sysconfig/openvox-repo-sync
+echo 'EL_RELEASES=8,9'          | sudo tee -a /etc/sysconfig/openvox-repo-sync
+echo 'UBU_RELEASES=22.04,24.04' | sudo tee -a /etc/sysconfig/openvox-repo-sync
+echo 'DEB_RELEASES=12,13'       | sudo tee -a /etc/sysconfig/openvox-repo-sync
 ```
 
 ### "A sync is already running" -- but I don't see one
@@ -502,25 +643,41 @@ sudo rm -f /opt/openvox-pkgs/.sync.lock
 
 ## Security considerations
 
--   **HTTP vs HTTPS**: install.bash uses `curl -k` (skip cert
-    verification) because the puppetserver presents a self-signed cert
-    by default.  This is the same pattern PE uses.  If you front the
-    puppetserver with a public CA-signed cert, you can drop the `-k`.
+-   **HTTP vs HTTPS** (bootstrap): The published one-liner uses
+    `curl -k --noproxy <fqdn>` because the puppetserver presents
+    a cert signed by its own internal CA, which the agent doesn't
+    trust until install.bash gets a chance to install it. `-k` is
+    a one-time band-aid for the bootstrap curl only.
+-   **Permanent cert trust** (3.3.5-18+): install.bash installs the
+    puppet CA into the system trust store as one of its first
+    steps, so subsequent `apt-get update` / `dnf upgrade
+    openvox-agent` / `curl https://<server>:8140/...` etc. work
+    *without* `--insecure` / `Verify-Peer=false` / `sslverify=0`
+    flags. CA goes to `/usr/local/share/ca-certificates/` (Debian/
+    Ubuntu) or `/etc/pki/ca-trust/source/anchors/` (RHEL family);
+    the trust store is then refreshed via `update-ca-certificates`
+    or `update-ca-trust extract`.
 -   **Repo signature verification**: the OpenVox repos are signed.
-    On apt platforms, install.bash falls back to `[trusted=yes]` when
-    the public key isn't available -- this is acceptable on internal
-    networks but consider distributing the openvox-release `.deb` /
-    `.rpm` alongside install.bash for production.
+    install.bash fetches `openvox-keyring.gpg` from the local
+    mirror and installs it into `/etc/apt/trusted.gpg.d/`. On
+    failure it falls back to `[trusted=yes]` in the sources.list,
+    which works but skips GPG verification -- acceptable on
+    internal networks but worth knowing.
+-   **Proxy bypass** (3.3.5-17/19+): install.bash exports `no_proxy`
+    with the puppetserver FQDN appended (preserving any inherited
+    value) so apt/yum bypass the corporate proxy for the local
+    mirror. The bootstrap curl uses `--noproxy <fqdn>` for the
+    same reason.
 -   **Sync runs as root**: `sync-openvox-repo.sh` writes into
     `/opt/openvox-pkgs/` and chowns the result to `puppet:puppet`.
-    The systemd unit runs as root.  The "Sync now" button in the
+    The systemd unit runs as root. The "Sync now" button in the
     GUI shells out via `sudo` using a NOPASSWD rule restricted to
     the exact sync script path.
--   **The Installer page is auth-protected**.  Anonymous users
-    cannot trigger a sync.  Viewer-role users can read status and
-    copy install commands but cannot trigger work.
--   **/packages/* is intentionally unauthenticated** -- agents have
-    no JWT to present.  The puppetserver mount and the openvox-gui
+-   **The Agent Install page is auth-protected**. Anonymous users
+    cannot trigger a sync or sign CSRs. Viewer-role users can read
+    status and copy install commands but cannot trigger work.
+-   **/packages/\* is intentionally unauthenticated** -- agents have
+    no JWT to present. The puppetserver mount and the openvox-gui
     static mount both serve files anonymously, exactly as PE does.
 
 ---

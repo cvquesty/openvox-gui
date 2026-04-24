@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.3.5-20**
+**OpenVox GUI Version 3.3.5-21**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -79,10 +79,26 @@ will:
 > one-liners will return install.bash correctly but agents will fail
 > at the package-install step until the mirror is populated.
 
-After the upgrade, visit **Infrastructure -> Agent Install** in the GUI
-to see the install commands, mirror status, disk usage, and a manual
-"Sync now" button. See [docs/INSTALLER.md](docs/INSTALLER.md) for the
-full feature guide.
+After the upgrade, visit **Infrastructure -> Agent Install** in the GUI.
+The page now consists of:
+
+- One **Install Commands** card with five tabs: **Linux**, **Windows**,
+  **Direct URLs**, **Mirror Status**, **Sync Log** -- "Sync now" button
+  in the card header (always visible, no matter which tab is active).
+- One **Pending Certificate Requests** card with **Sign** and **Reject**
+  buttons (moved here from Certificate Authority in 3.3.5-20 so the
+  whole agent bring-up workflow lives on one page).
+
+The published Linux one-liner is now the bare PE-style form:
+```bash
+curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash
+```
+No `--server` arg, no `bash -s --` -- the script auto-discovers the
+puppetserver FQDN from the kernel's TCP state, installs the puppet
+CA into the agent's system trust store, sets `no_proxy`, and runs
+the package install.
+
+See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide.
 
 ---
 
@@ -135,7 +151,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.3.5-20"}
+# {"status":"ok","version":"3.3.5-21"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:

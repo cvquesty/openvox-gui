@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.3.5-20**
+**OpenVox GUI Version 3.3.5-21**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.3.5-20"}
+   # Should return: {"status":"ok","version":"3.3.5-21"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -642,15 +642,56 @@ After the restart, the URL should return the install.bash script
 
 ### Problem: `bash: --server: invalid option`
 
-You ran the one-liner without `bash -s --` between `bash` and the
-script's arguments. The GUI's published one-liner already includes
-`-s --`; if you typed the command manually, use this form:
+You appended args to the one-liner without `bash -s --` between
+`bash` and them. Bash interpreted `--server` as one of its own
+options. The fix is to insert `-s --` so bash treats trailing
+tokens as positional args for the script:
 
 ```bash
-curl -k https://server:8140/packages/install.bash | sudo bash -s -- --server <fqdn>
+curl -k --noproxy <server> https://<server>:8140/packages/install.bash | sudo bash -s -- --server <fqdn>
 ```
 
-### Problem: Installer page shows "Mirror size: 0 B" / "Last sync: never"
+The GUI's published one-liner doesn't pass extra args (the script
+auto-discovers the FQDN), so this only trips you if you're
+overriding behavior.
+
+### Problem: `curl: (56) CONNECT tunnel failed, response 407`
+
+Your agent host is behind a corporate proxy and the bootstrap
+curl tried to tunnel through it. Use the GUI's published
+one-liner -- it includes `--noproxy <fqdn>` to bypass the proxy
+for the puppetserver host (3.3.5-19+):
+
+```bash
+curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash
+```
+
+For the bare `curl ... | bash` form to work without `--noproxy`,
+set `no_proxy` in `/etc/environment` on the host once.
+
+### Problem: `Certificate verification failed: The certificate is NOT trusted`
+
+You're seeing this on a follow-up `apt-get update` or `dnf upgrade`
+after the agent install completed. install.bash 3.3.5-18+ installs
+the puppet CA into the system trust store automatically, so this
+should only happen if the CA install step failed (CA endpoint
+unreachable from the agent, `update-ca-certificates` missing,
+unsupported OS family). Re-run install.bash to retry, or install
+the CA manually:
+
+```bash
+# Debian/Ubuntu
+sudo curl -ksLf https://<fqdn>:8140/puppet-ca/v1/certificate/ca \
+    -o /usr/local/share/ca-certificates/openvox-puppet-ca.crt
+sudo update-ca-certificates
+
+# RHEL family
+sudo curl -ksLf https://<fqdn>:8140/puppet-ca/v1/certificate/ca \
+    -o /etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt
+sudo update-ca-trust extract
+```
+
+### Problem: Agent Install page shows "Mirror size: 0 B" / "Last sync: never"
 
 The local mirror at `/opt/openvox-pkgs/` is empty. Either:
 
@@ -664,14 +705,18 @@ The first sync downloads ~1-2 GB and takes 15-45 minutes.
 
 ### Problem: Install script dies with `Could not determine the puppetserver FQDN`
 
-The agent script couldn't resolve a server name from any of its four
-fallback sources. This shouldn't happen with the GUI's published
-one-liner because it always includes `--server` explicitly. If you
-typed the command manually:
+In normal operation `install.bash` discovers the FQDN automatically
+from the kernel's TCP state (the curl connection lingers in
+`/proc/net/tcp` after the bootstrap download completes) plus reverse
+DNS. When all four resolution paths fail (`--server` arg / env var,
+`/proc/net/tcp` discovery, server-side rendered placeholder, existing
+`puppet.conf`), this error fires. Most likely cause: reverse DNS for
+the puppetserver IP returns nothing or returns a name that's not the
+puppetserver's actual FQDN. Workaround:
 
 ```bash
-# Re-run with --server explicit
-curl -k <install-url> | sudo bash -s -- --server <puppetserver-fqdn>
+curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash \
+    | sudo bash -s -- --server <fqdn>
 ```
 
 ### Problem: Agent install gets through repo setup but `dnf install openvox-agent` fails with 404s

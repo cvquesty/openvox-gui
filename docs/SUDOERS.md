@@ -38,6 +38,12 @@ puppet ALL=(ALL) NOPASSWD: /usr/bin/openssl crl *
 
 # Puppet lookup (hiera data resolution)
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
+
+# OpenVox Agent Installer -- "Sync now" button on the Agent Install
+# page (3.3.5-1+). The sync writes into /opt/openvox-pkgs/ which is
+# owned by root, so the sync script must run with elevated privileges.
+puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
+puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh *
 ```
 
 ## Security Notes
