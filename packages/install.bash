@@ -525,8 +525,17 @@ setup_rhel_repo() {
     local repo_url="${PKG_REPO_URL%/}/yum/openvox${OPENVOX_VERSION}/el/${PLATFORM_RELEASE}/${PLATFORM_ARCHITECTURE}"
     local repo_file="/etc/yum.repos.d/openvox${OPENVOX_VERSION}.repo"
     local gpg_url="${PKG_REPO_URL%/}/yum/GPG-KEY-openvox.pub"
+    # 3.3.5-24+: sslverify=1 when the puppet CA install succeeded
+    # (CA_TRUSTED=true) so dnf/yum verify the puppetserver cert
+    # properly. Falls back to sslverify=0 only when CA install failed.
+    local sslverify_value=1
+    if [ "${CA_TRUSTED:-false}" != "true" ]; then
+        sslverify_value=0
+    fi
+
     info "Configuring yum repository at ${repo_file}"
     info "  baseurl: ${repo_url}"
+    info "  sslverify: ${sslverify_value}"
     cat > "$repo_file" <<EOF
 [openvox${OPENVOX_VERSION}]
 name=OpenVox ${OPENVOX_VERSION} - el-${PLATFORM_RELEASE}-${PLATFORM_ARCHITECTURE} (local mirror)
@@ -534,7 +543,7 @@ baseurl=${repo_url}
 enabled=1
 gpgcheck=1
 gpgkey=${gpg_url}
-sslverify=0
+sslverify=${sslverify_value}
 EOF
     if cmd dnf; then
         dnf -y --disablerepo='*' --enablerepo="openvox${OPENVOX_VERSION}" install openvox-agent
@@ -574,8 +583,24 @@ setup_apt_repo() {
     # every modern apt honours) and only fall back to `[trusted=yes]`
     # if the download fails -- which keeps the install working on
     # disconnected internal networks.
+    #
+    # 3.3.5-24+: when the puppet CA install (CA_TRUSTED=true) succeeded
+    # earlier in the script, drop --insecure for the keyring fetch and
+    # drop Acquire::https::Verify-Peer=false from apt-get -- TLS now
+    # verifies properly against the just-installed CA, which is also
+    # what subsequent `apt-get update` / `dnf upgrade openvox-agent`
+    # invocations will see. When CA install failed, keep the band-aids
+    # so the install still completes.
+    local curl_tls_args=""
+    local apt_tls_args=()
+    if [ "${CA_TRUSTED:-false}" != "true" ]; then
+        curl_tls_args="--insecure"
+        apt_tls_args=(-o Acquire::https::Verify-Peer=false)
+    fi
+
     local trusted_marker="[trusted=yes]"
-    if cmd curl && curl -fsSL --insecure \
+    # shellcheck disable=SC2086
+    if cmd curl && curl -fsSL ${curl_tls_args} \
         "${apt_base}/openvox-keyring.gpg" \
         -o "${trust_dir}/openvox${OPENVOX_VERSION}.gpg" 2>/dev/null; then
         trusted_marker=""
@@ -588,9 +613,9 @@ setup_apt_repo() {
 deb ${trusted_marker} ${apt_base}/ ${dist} openvox${OPENVOX_VERSION}
 EOF
 
-    apt-get update -y -o Acquire::https::Verify-Peer=false || true
+    apt-get update -y "${apt_tls_args[@]}" || true
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        -o Acquire::https::Verify-Peer=false \
+        "${apt_tls_args[@]}" \
         openvox-agent
 }
 
@@ -600,9 +625,19 @@ EOF
 # dnf upgrade openvox-agent, etc.) would fail with "certificate is
 # NOT trusted" until the puppet-agent's first run installed the CA
 # elsewhere -- which is too late to be useful for package management.
-# Failure is non-fatal; the install-time band-aids (Verify-Peer=false,
-# sslverify=0) are still in place as a fallback.
-install_puppet_ca_cert || true
+#
+# We track success/failure in CA_TRUSTED so the repo-setup functions
+# below can use proper TLS verification when the CA is trusted, and
+# only fall back to --insecure / Verify-Peer=false / sslverify=0
+# when the CA install actually failed (CA endpoint unreachable, no
+# update-ca-certificates, etc.). 3.3.5-21 audit BUG-5 flagged that
+# we were always using the band-aids -- undermining the trust install.
+if install_puppet_ca_cert; then
+    CA_TRUSTED="true"
+else
+    CA_TRUSTED="false"
+    warn "CA install failed; will fall back to insecure HTTPS for the install fetch."
+fi
 
 case "$PLATFORM_NAME" in
     rhel)

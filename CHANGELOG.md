@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-24] - 2026-04-24
+
+### Fixed
+- **`install.bash` no longer uses `--insecure` / `Verify-Peer=false` / `sslverify=0` after a successful CA install** (3.3.5-21 audit BUG-5). The CA install added in 3.3.5-18 made it possible to verify the puppetserver cert properly via the system trust store -- but the apt + yum repo setup paths kept passing the band-aid flags unconditionally, undermining the trust install.
+- Now: install.bash tracks the CA-install outcome in `CA_TRUSTED`. When true, the keyring fetch drops `--insecure`, `apt-get update`/`install` drop `Acquire::https::Verify-Peer=false`, and the yum repo file uses `sslverify=1`. When false (CA endpoint unreachable, `update-ca-certificates` missing, etc.), the band-aids stay in place so the install still completes -- just with the documented loss of trust verification.
+- Net effect: on a host where the CA install succeeded, the install-time TLS posture matches the post-install TLS posture (both verify against the same trust store). No more silent skip of cert verification on the install fetch.
+
 ## [3.3.5-23] - 2026-04-24
 
 ### Fixed
