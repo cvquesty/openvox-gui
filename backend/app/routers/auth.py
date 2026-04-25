@@ -366,10 +366,17 @@ async def update_ldap_configuration(data: LdapConfigRequest, request: Request):
     cfg_data = data.model_dump(exclude_none=False)
 
     # If bind_password is None or empty, preserve existing password
+    # (already encrypted on disk, so just pass it through unchanged).
     if not cfg_data.get("bind_password"):
         existing = await get_ldap_config()
         if existing and existing.bind_password:
             cfg_data["bind_password"] = existing.bind_password
+    else:
+        # Encrypt the new value before it's persisted (3.3.5-28 audit
+        # finding HIGH-6 -- this column was previously plaintext-at-rest
+        # despite the model column comment saying otherwise).
+        from ..services.secrets import encrypt_secret
+        cfg_data["bind_password"] = encrypt_secret(cfg_data["bind_password"])
 
     try:
         cfg = await save_ldap_config(cfg_data)

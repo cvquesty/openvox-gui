@@ -161,8 +161,14 @@ def ldap_authenticate_user(cfg: LdapConfig, username: str, password: str) -> Opt
             return user_info
 
         # --- Standard LDAP bind-search-bind ---
-        # Step 1: Bind with service account
-        service_conn = Connection(server, user=cfg.bind_dn, password=cfg.bind_password,
+        # Step 1: Bind with service account. Decrypt the at-rest
+        # bind_password (3.3.5-28+); legacy plaintext is returned
+        # unchanged so existing installs keep working through the
+        # migration -- the next save through the LDAP config form
+        # writes the value back encrypted.
+        from ..services.secrets import decrypt_secret
+        bind_pwd = decrypt_secret(cfg.bind_password) if cfg.bind_password else None
+        service_conn = Connection(server, user=cfg.bind_dn, password=bind_pwd,
                                   auto_bind=True, raise_exceptions=False,
                                   receive_timeout=cfg.connection_timeout)
         if not service_conn.bound:

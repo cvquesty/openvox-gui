@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-28] - 2026-04-24
+
+### Security
+- **LDAP bind password is now encrypted at rest** (audit finding HIGH-6). The `LDAPConfig.bind_password` column had a comment claiming "Encrypted at rest" since 2.0 but was actually storing plaintext. The audit found this discrepancy. Now it's actually encrypted, using Fernet (AES-128-CBC + HMAC-SHA256) with a key derived from the existing `OPENVOX_GUI_SECRET_KEY` via SHA-256.
+
+### Added
+- New `backend/app/services/secrets.py` module with `encrypt_secret()` / `decrypt_secret()` / `is_encrypted()` helpers. Versioned ciphertext (`enc:v1:<token>`) so plaintext / encrypted values can coexist in the same column during migration -- legacy plaintext is returned unchanged on read and gets re-encrypted on the next save through the LDAP config form.
+- Encryption is invoked on save in `backend/app/routers/auth.py:update_ldap_configuration` (preserves the "blank password = keep existing" UI semantic by not double-wrapping when the form left the field empty).
+- Decryption happens at bind time in `backend/app/middleware/auth_ldap.py:authenticate_user`. Decrypt failures (wrong key, tampered ciphertext) fail soft -- log a warning and treat as no-password rather than crashing the request.
+
+### Notes
+- Operators using LDAP today: existing plaintext bind passwords keep working unchanged. The next time you save the LDAP configuration form (or re-test the connection) the password is encrypted.
+- Rotating `OPENVOX_GUI_SECRET_KEY` invalidates the encrypted bind password (and all JWTs) -- same operational tradeoff the JWT subsystem already accepts.
+- The `cryptography` library was already an indirect dependency; no new package install required.
+
 ## [3.3.5-27] - 2026-04-24
 
 ### Security
