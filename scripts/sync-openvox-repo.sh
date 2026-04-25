@@ -229,8 +229,16 @@ acquire_lock() {
         rm -f "$LOCK_FILE"
     fi
     mkdir -p "$(dirname "$LOCK_FILE")"
-    echo "$$" > "$LOCK_FILE"
+    # Install the cleanup trap BEFORE writing the lock file. Original
+    # ordering (write then trap) had a small race window: if the
+    # script was killed between `echo "$$" > "$LOCK_FILE"` and the
+    # `trap` call (e.g. by a SIGTERM from systemd-on-shutdown), the
+    # lock would be left on disk and every subsequent sync would
+    # need the stale-lock cleanup branch. Trap-first means the
+    # cleanup is registered BEFORE the lock exists; no race window.
+    # Audit BUG-2 from 3.3.5-21.
     trap 'rm -f "$LOCK_FILE"' EXIT
+    echo "$$" > "$LOCK_FILE"
 }
 
 write_status() {

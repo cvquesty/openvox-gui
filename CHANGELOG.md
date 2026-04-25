@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-25] - 2026-04-24
+
+### Fixed
+- **`sync-openvox-repo.sh` lock-file race window closed** (audit BUG-2). The original `acquire_lock` wrote the lock file (`echo "$$" > "$LOCK_FILE"`) and THEN installed the cleanup trap. If the script was killed in between (e.g. SIGTERM from systemd-on-shutdown), the lock would survive and every subsequent sync would have to take the stale-lock cleanup branch. Trap is now installed BEFORE the lock write -- no race window.
+- **Two bare `except:` clauses in `routers/certificates.py` `get_ca_info` narrowed to `except (ValueError, TypeError):`** (audit BUG-4). Bare `except:` swallows `KeyboardInterrupt` and `asyncio.CancelledError`, which can mask real failures. The narrowed exception list catches only the date-parse failures we actually expect.
+- **Three blocking `subprocess.run` calls in `async` certificates handlers wrapped in `asyncio.to_thread`** (audit BUG-3). The original code called sync `subprocess.run(..., timeout=10)` directly inside `async def` handlers (`get_ca_info` x2, `certificate_info` x1), which blocks the entire uvicorn event loop for up to 10 s per request -- under any load the GUI would freeze for everyone every time someone opened the Certificate Authority page or clicked a cert detail. `asyncio.to_thread` runs the subprocess in the default thread pool so other requests stay responsive.
+
 ## [3.3.5-24] - 2026-04-24
 
 ### Fixed

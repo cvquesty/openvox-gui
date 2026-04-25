@@ -276,7 +276,10 @@ async def get_ca_info():
             try:
                 nb_date = datetime.strptime(info["not_before"], "%b %d %H:%M:%S %Y %Z")
                 info["valid_from"] = nb_date.isoformat()
-            except:
+            except (ValueError, TypeError):
+                # bare 'except:' would also swallow KeyboardInterrupt /
+                # asyncio.CancelledError; narrow to just the date-parse
+                # failures we actually expect (3.3.5-25 audit BUG-4).
                 info["valid_from"] = info["not_before"]
         
         not_after_match = re.search(r"Not After\s*:\s*(.+)", cert_text)
@@ -290,7 +293,8 @@ async def get_ca_info():
                 info["days_until_expiry"] = days_until
                 info["is_expired"] = days_until < 0
                 info["expires_soon"] = 0 < days_until < 90
-            except:
+            except (ValueError, TypeError):
+                # See note above re: narrowing the bare except (BUG-4).
                 info["valid_until"] = info["not_after"]
         
         # Extract Signature Algorithm
@@ -307,8 +311,11 @@ async def get_ca_info():
         if key_size_match:
             info["key_size"] = int(key_size_match.group(1))
         
-        # Extract fingerprints
-        sha256_result = subprocess.run(
+        # Extract fingerprints. Run via asyncio.to_thread so the
+        # blocking subprocess.run doesn't freeze the entire uvicorn
+        # event loop for up to 10s per request -- 3.3.5-21 audit BUG-3.
+        sha256_result = await asyncio.to_thread(
+            subprocess.run,
             ["sudo", "openssl", "x509", "-in", ca_cert_path, "-fingerprint", "-sha256", "-noout"],
             capture_output=True, text=True, timeout=10
         )
@@ -317,9 +324,10 @@ async def get_ca_info():
             if fp_match:
                 info["sha256_fingerprint"] = fp_match.group(1).strip()
         
-        # Get CA CRL info if available
+        # Get CA CRL info if available -- same async wrapping.
         crl_path = "/etc/puppetlabs/puppet/ssl/ca/ca_crl.pem"
-        crl_result = subprocess.run(
+        crl_result = await asyncio.to_thread(
+            subprocess.run,
             ["sudo", "openssl", "crl", "-in", crl_path, "-text", "-noout"],
             capture_output=True, text=True, timeout=10
         )
@@ -376,7 +384,10 @@ async def certificate_info(certname: str):
         if not str(cert_path).startswith(str(ca_signed_dir.resolve())):
             return {"certname": certname, "error": "Path traversal not allowed"}
 
-        result = subprocess.run(
+        # asyncio.to_thread keeps the blocking subprocess.run from
+        # freezing the event loop -- BUG-3 from the 3.3.5-21 audit.
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["sudo", "openssl", "x509", "-in", str(cert_path), "-text", "-noout"],
             capture_output=True, text=True, timeout=10
         )
