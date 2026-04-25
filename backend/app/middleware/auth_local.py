@@ -8,6 +8,7 @@ On startup, any existing htpasswd-file users are automatically migrated
 into the database.
 """
 import logging
+import secrets as _stdlib_secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, timezone
@@ -17,13 +18,14 @@ from passlib.hash import bcrypt
 import jwt
 from jwt.exceptions import InvalidTokenError
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth_base import AuthBackend
 from ..config import settings
 from ..database import async_session
 from ..models.user import User
+from ..models.token_denylist import TokenDenylist
 
 logger = logging.getLogger(__name__)
 
@@ -50,27 +52,140 @@ def _verify_password_hash(password: str, password_hash: str) -> bool:
 
 
 def create_token(username: str, role: str) -> str:
-    """Create a JWT access token."""
+    """Create a JWT access token.
+
+    Includes a `jti` (JWT ID) claim -- a random url-safe token --
+    used by the denylist mechanism (3.3.5-29) to invalidate this
+    specific token on /api/auth/logout. Without jti there's no way
+    to revoke a JWT before its natural expiry.
+    """
     expire = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
     payload = {
         "sub": username,
         "role": role,
         "exp": expire,
+        "jti": _stdlib_secrets.token_urlsafe(16),
     }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
-def verify_token(token: str) -> Optional[Dict[str, Any]]:
-    """Verify a JWT token and return the payload."""
+def _decode_token_payload(token: str) -> Optional[Dict[str, Any]]:
+    """Decode (and signature-verify) a JWT, returning the raw payload.
+
+    Helper used both by verify_token (which then maps to a user dict)
+    and by the logout handler (which needs the jti + exp to write the
+    denylist row). Returns None on any decode failure.
+    """
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        role = payload.get("role", "viewer")
-        if username is None:
-            return None
-        return {"user_id": username, "username": username, "name": username, "role": role}
+        return jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
     except (InvalidTokenError, Exception):
         return None
+
+
+async def _is_jti_revoked(jti: str) -> bool:
+    """Check the token denylist for a revoked jti.
+
+    Called from verify_token before returning a user dict. A db hit
+    per request sounds expensive but the denylist is small (typically
+    a few rows -- entries past their expiry are pruned at startup)
+    and the SQLite primary-key lookup is fast.
+    """
+    if not jti:
+        return False
+    try:
+        async with async_session() as db:
+            stmt = select(TokenDenylist).where(TokenDenylist.jti == jti)
+            result = await db.execute(stmt)
+            return result.scalar_one_or_none() is not None
+    except Exception as exc:
+        # Don't let a DB hiccup let revoked tokens through. Log and
+        # treat as "unknown -> deny" to fail safe.
+        logger.warning("Token denylist lookup failed: %s; failing safe.", exc)
+        return True
+
+
+def verify_token(token: str) -> Optional[Dict[str, Any]]:
+    """Verify a JWT token and return the payload.
+
+    Note: this is sync because it's called from the auth middleware's
+    sync `dispatch` flow. The denylist check is performed via
+    `verify_token_async` instead -- the middleware can choose which
+    based on whether it has an event loop available.
+    """
+    payload = _decode_token_payload(token)
+    if payload is None:
+        return None
+    username = payload.get("sub")
+    role = payload.get("role", "viewer")
+    if username is None:
+        return None
+    return {
+        "user_id": username, "username": username, "name": username,
+        "role": role, "jti": payload.get("jti"),
+    }
+
+
+async def verify_token_async(token: str) -> Optional[Dict[str, Any]]:
+    """Async variant that ALSO checks the revocation denylist.
+
+    Use this from any async path (FastAPI dependencies, async
+    middleware). The denylist requires a DB query, which can't run
+    from the existing sync verify_token without blocking the event
+    loop.
+    """
+    user = verify_token(token)
+    if user is None:
+        return None
+    if await _is_jti_revoked(user.get("jti", "")):
+        return None
+    return user
+
+
+async def revoke_token(token: str) -> bool:
+    """Add a token's jti to the denylist so future verify_token_async
+    calls reject it. Called from the logout handler.
+
+    Returns True if a row was inserted, False if the token couldn't
+    be decoded or had no jti (which means it's a pre-3.3.5-29 token
+    that we can't revoke individually -- it'll just expire normally).
+    """
+    payload = _decode_token_payload(token)
+    if payload is None:
+        return False
+    jti = payload.get("jti")
+    if not jti:
+        return False
+    exp = payload.get("exp")
+    expires_at = datetime.fromtimestamp(exp, tz=timezone.utc) if exp else (
+        datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
+    )
+    try:
+        async with async_session() as db:
+            db.add(TokenDenylist(
+                jti=jti,
+                expires_at=expires_at.replace(tzinfo=None),
+            ))
+            await db.commit()
+        return True
+    except Exception as exc:
+        logger.warning("Could not insert token into denylist: %s", exc)
+        return False
+
+
+async def prune_expired_tokens() -> int:
+    """Delete denylist rows past their original expiry. Called from
+    main.py startup so the table doesn't grow unboundedly. Returns
+    the row count deleted."""
+    try:
+        async with async_session() as db:
+            now = datetime.utcnow()
+            stmt = delete(TokenDenylist).where(TokenDenylist.expires_at < now)
+            result = await db.execute(stmt)
+            await db.commit()
+            return result.rowcount or 0
+    except Exception as exc:
+        logger.warning("Could not prune expired denylist rows: %s", exc)
+        return 0
 
 
 # ─── Async database operations ──────────────────────────────
@@ -279,7 +394,14 @@ class LocalAuthBackend(AuthBackend):
     """
 
     async def authenticate(self, request: Request) -> Optional[Dict[str, Any]]:
-        """Authenticate via JWT token in Authorization header or cookie."""
+        """Authenticate via JWT token in Authorization header or cookie.
+
+        Uses verify_token_async (3.3.5-29+) which checks the token's
+        jti against the denylist on top of the normal signature +
+        expiry verification. Tokens revoked via /api/auth/logout are
+        rejected here even though they're still cryptographically
+        valid.
+        """
         token = None
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
@@ -288,7 +410,7 @@ class LocalAuthBackend(AuthBackend):
             token = request.cookies.get("openvox_token")
         if not token:
             return None
-        return verify_token(token)
+        return await verify_token_async(token)
 
     async def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
         async with async_session() as session:

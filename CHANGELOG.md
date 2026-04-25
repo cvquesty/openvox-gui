@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-29] - 2026-04-24
+
+### Security
+- **`/api/auth/logout` now actually revokes the JWT** (audit finding HIGH-11). Previously logout only deleted the cookie client-side -- the underlying JWT stayed cryptographically valid for its full 24-hour expiry, so anyone who captured the token (browser cache, network tap pre-HTTPS, copy-pasted curl) could keep using it indefinitely after the user thought they had logged out. Now the token's `jti` is added to a server-side denylist; subsequent requests with the same token are rejected even though the signature still verifies.
+
+### Added
+- **New `jti` (JWT ID) claim** on all newly-minted tokens (`secrets.token_urlsafe(16)`). Pre-3.3.5-29 tokens have no `jti`, so they can't be revoked individually -- they expire normally. New tokens are always revocable.
+- **`backend/app/models/token_denylist.py`**: SQLAlchemy `TokenDenylist` model (jti primary key, `expires_at`, `revoked_at`). Auto-created at startup via `Base.metadata.create_all` -- no Alembic migration needed.
+- **`backend/app/middleware/auth_local.py`** gains `verify_token_async()` (sync verify + denylist check), `revoke_token()` (decode + insert), and `prune_expired_tokens()` (cleanup of rows past their original JWT expiry, run at startup).
+- **Auth middleware** (`backend/app/middleware/auth_local.py:LocalAuthBackend.authenticate`) now uses `verify_token_async`, so denylist hits reject the request with 401.
+
+### Notes
+- Cost is one PK lookup per authenticated request -- the denylist table is small (entries past their original JWT expiry are pruned at startup) and a SQLite indexed lookup is sub-millisecond. No measurable latency impact.
+- DB-error fail-safe: if the denylist lookup itself errors, the request is rejected (treat-as-revoked). Better to fail closed than to let a hiccup let revoked tokens through.
+
 ## [3.3.5-28] - 2026-04-24
 
 ### Security

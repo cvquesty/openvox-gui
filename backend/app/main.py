@@ -90,6 +90,18 @@ async def lifespan(app: FastAPI):
         from .middleware.auth_local import migrate_htpasswd_users
         await migrate_htpasswd_users()
 
+    # Prune any token denylist rows whose original JWT expiry has
+    # passed (3.3.5-29). Keeps the table small over time -- entries
+    # past their expires_at serve no purpose because the JWT itself
+    # is naturally invalid by then.
+    try:
+        from .middleware.auth_local import prune_expired_tokens
+        n_pruned = await prune_expired_tokens()
+        if n_pruned:
+            logger.info(f"Pruned {n_pruned} expired token-denylist entries")
+    except Exception as exc:
+        logger.warning(f"Token denylist prune failed: {exc}")
+
     yield  # Application runs here
 
     # Shutdown: Clean up resources

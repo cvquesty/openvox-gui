@@ -207,8 +207,31 @@ async def login(request: Request, login_request: LoginRequest):
 
 
 @router.post("/logout")
-async def logout():
-    """Clear the authentication cookie."""
+async def logout(request: Request):
+    """Clear the authentication cookie AND revoke the token (3.3.5-29).
+
+    Pre-3.3.5-29, /logout only deleted the cookie client-side -- the
+    JWT itself stayed valid for the full 24h expiry, so anyone who
+    captured it before logout could keep using it. Now we also write
+    the token's jti to the denylist so verify_token_async() rejects
+    it on subsequent requests.
+    """
+    # Try to read the current token (cookie OR Authorization header)
+    # so we can revoke it. Failure to find / decode is not fatal --
+    # the cookie deletion below still happens.
+    token = request.cookies.get("openvox_token") or ""
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[len("Bearer "):]
+
+    if token:
+        try:
+            from ..middleware.auth_local import revoke_token
+            await revoke_token(token)
+        except Exception as exc:
+            logger.warning(f"Logout: could not revoke token: {exc}")
+
     response = JSONResponse(content={"status": "ok"})
     response.delete_cookie("openvox_token")
     return response
