@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-30] - 2026-04-24
+
+### Security
+- **Sudoers wildcards tightened** (audit findings HIGH-7, HIGH-8, HIGH-9):
+  - **`openssl x509 *` was the highest-risk wildcard** -- it allowed `sudo openssl x509 -out /etc/shadow ...` (arbitrary file write as root) or `-engine /malicious.so` (load a shared library as root). Replaced with explicit per-form rules constrained to `/etc/puppetlabs/puppet/ssl/ca/` paths and exactly the flags openvox-gui actually invokes (`-text -noout` and `-fingerprint -sha256 -noout`).
+  - **`puppetserver ca *` replaced with explicit per-subcommand rules**: `ca list [args]`, `ca sign --certname *`, `ca revoke --certname *`, `ca clean --certname *`, `ca generate --certname *`. Anything outside that argv shape is no longer sudo-allowed.
+  - **`r10k-deploy.sh *` defended in depth via the wrapper** -- rather than tighten the sudoers pattern (sudoers globs can't enforce "letters only"), the script now validates each argv element before exec'ing r10k. Allowed: an environment-name positional (`[a-zA-Z0-9_./-]+`) and any flag (`--?[a-zA-Z0-9_.=/-]+`). Anything else exits 64. Belt-and-suspenders alongside the 3.3.5-27 webhook HMAC + ref-pattern fix.
+- **Notes left in place** about `puppet lookup *` (data-resolution subcommand with no shell-escape facets, so the wildcard is acceptable in this case) and the `sync-openvox-repo.sh *` rule (added in 3.3.5-1, scoped to the script path).
+
+### Notes
+- `docs/SUDOERS.md` updated to match the new install.sh payload.
+- New sudoers payload validated with `visudo -cf` (passes).
+- Existing installs need to re-run `update_local.sh` to pick up the tightened sudoers; old wildcard rules stay in `/etc/sudoers.d/openvox-gui` until the install.sh sudoers block re-renders the file.
+
 ## [3.3.5-29] - 2026-04-24
 
 ### Security

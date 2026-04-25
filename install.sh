@@ -917,11 +917,25 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
 
-# OpenVox GUI -- allow certificate management
-${SERVICE_USER} ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca *
-${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
+# OpenVox GUI -- allow certificate management.
+# Tightened in 3.3.5-30: each verb-form is listed explicitly rather
+# than `puppetserver ca *` / `openssl x509 *` wildcards. The wildcard
+# forms allowed flags like `openssl x509 -out /etc/shadow` (arbitrary
+# file write as root); the explicit forms below restrict each
+# invocation to a known argv shape.
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list, /opt/puppetlabs/bin/puppetserver ca list *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -text -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -fingerprint -sha256 -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/signed/* -text -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem -text -noout
 
-# OpenVox GUI -- allow puppet lookup
+# OpenVox GUI -- allow puppet lookup. The puppet-lookup subcommand is a
+# data-resolution tool with no shell-execution facets, so the wildcard
+# is safer than it looks; we keep it but document the rationale.
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 
 # OpenVox GUI -- allow triggering the OpenVox package mirror sync from

@@ -32,11 +32,24 @@ puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart openvox-gui
 # Reading PuppetDB configuration files (owned by puppetdb user)
 puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
 
-# Certificate inspection via openssl
-puppet ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
-puppet ALL=(ALL) NOPASSWD: /usr/bin/openssl crl *
+# Certificate Authority management. 3.3.5-30+: each subcommand is
+# listed explicitly rather than `puppetserver ca *` / `openssl x509 *`
+# wildcards. The wildcard forms allowed flags like `openssl x509 -out
+# /etc/shadow` (arbitrary file write as root); the explicit forms
+# below restrict each invocation to a known argv shape.
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list, /opt/puppetlabs/bin/puppetserver ca list *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname *
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -text -noout
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -fingerprint -sha256 -noout
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/signed/* -text -noout
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem -text -noout
 
-# Puppet lookup (hiera data resolution)
+# Puppet lookup (hiera data resolution). The puppet-lookup subcommand
+# is a data-resolution tool with no shell-execution facets, so the
+# wildcard is safer than the `openssl x509 *` form was.
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 
 # OpenVox Agent Installer -- "Sync now" button on the Agent Install

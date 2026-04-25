@@ -41,5 +41,30 @@ echo "r10k-deploy.sh: HOME=$HOME USER=$(whoami) DNS=$(getent hosts github.com 2>
 [ -n "$HTTP_PROXY" ] && echo "r10k-deploy.sh: HTTP_PROXY=$HTTP_PROXY" >&2
 [ -n "$HTTPS_PROXY" ] && echo "r10k-deploy.sh: HTTPS_PROXY=$HTTPS_PROXY" >&2
 
+# ─── Validate args before passing to r10k (3.3.5-30 hardening) ────────────
+#
+# r10k-deploy.sh is sudo-enabled with a wildcard arg pattern; that's the
+# only way sudoers can express "any optional environment name plus
+# optional flags". The wildcard means an attacker who can compose a
+# sudo invocation could try to slip in things like `-c /tmp/evil.yaml`
+# or weird env names. r10k itself parses these reasonably safely, but
+# defense-in-depth: we whitelist what we accept.
+#
+# Allowed argv elements:
+#   * Positional 1 (optional): a Puppet environment name -- letters,
+#     digits, underscore, hyphen, dot, slash. Matches what r10k itself
+#     allows in environment names.
+#   * Any other arg must start with `-` (a flag) and contain only
+#     letters, digits, hyphen, underscore, dot, equals (so `-pv` and
+#     `--config-file=/path/...` are both OK shape-wise).
+for arg in "$@"; do
+    if [[ "$arg" =~ ^[a-zA-Z0-9_./-]+$ ]] || \
+       [[ "$arg" =~ ^--?[a-zA-Z0-9_.=/-]+$ ]]; then
+        continue
+    fi
+    echo "r10k-deploy.sh: refusing suspicious arg: $arg" >&2
+    exit 64
+done
+
 # ─── Execute r10k ─────────────────────────────────────────────
 exec /opt/puppetlabs/puppet/bin/r10k deploy environment "$@"
