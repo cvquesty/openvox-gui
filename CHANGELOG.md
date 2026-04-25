@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-26] - 2026-04-24
+
+### Security
+- **Per-route role enforcement on every destructive endpoint** (audit findings CRIT-1, CRIT-2, CRIT-4, HIGH-5, HIGH-10). The `AuthMiddleware` was correctly verifying JWTs at the gateway, but a large fraction of mutating endpoints declared only `Depends(get_current_user)` -- meaning *any* authenticated user (including viewer-role and auto-provisioned LDAP accounts) could trigger them. Now every mutating endpoint requires `admin` or `admin/operator` via `require_role(...)`.
+- **`bolt.py`** -- all six `/run/*` and `/file/*` endpoints (`run_command`, `run_task`, `run_plan`, `upload_file_to_targets`, `download_file_from_targets`, `run_script_on_targets`) now require **admin or operator**. `PUT /config` (rewrites `bolt-project.yaml` / `inventory.yaml`) requires **admin only**. `POST /inventory/sync` requires **admin or operator**.
+- **`certificates.py`** -- `sign`, `revoke`, `clean` now require **admin or operator**. Read endpoints (`list`, `info/{certname}`, `info`) remain accessible to all authenticated users.
+- **`config.py`** -- all 13 mutating endpoints (puppet.conf, hiera, ssl, .env, restart-puppet-stack, services/restart, files/read, files/save, lookup, app, ssl, preferences, hiera data CRUD) require **admin only**. These edit cluster-wide configuration and call `puppet lookup` as root via sudo; not operator-level work.
+- **`enc.py`** -- all 10 mutating endpoints (common/save, environments CRUD, groups CRUD, nodes CRUD) require **admin or operator**.
+- **`pql.py`** -- `POST /query` requires **admin or operator**. PQL queries against PuppetDB can leak Hiera-rendered passwords / API keys / network topology via fact queries; restricting to operator+ keeps viewers from exfiltrating fleet-wide secrets.
+- **Pattern**: a small number of routers define a module-level `_ADMIN_ONLY = require_role("admin")` or `_ENC_WRITE = require_role("admin", "operator")` constant and reuse it across every endpoint, both for brevity and so the role-policy contract is visible at the top of the file.
+
+### Notes
+- Frontend impact is minimal: the existing pages already gate destructive actions on `user.role` client-side (Sign / Reject buttons are already disabled for viewers on the Agent Install + Certificate Authority pages). The backend was the missing belt-and-suspenders.
+- Read-only endpoints (`/list`, `/info`, `/status`, `/inventory`, `/tasks`, `/plans`, `/config` GET, dashboard, reports, nodes, facts) are unchanged -- still accept any authenticated user.
+
 ## [3.3.5-25] - 2026-04-24
 
 ### Fixed

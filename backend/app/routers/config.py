@@ -3,11 +3,17 @@ import json
 """
 Configuration API - Manage PuppetServer, PuppetDB, Hiera, and application settings.
 """
-from fastapi import Request,  APIRouter, HTTPException
+from fastapi import Request, APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from ..services.puppetserver import puppetserver_service
 from ..config import settings
+from ..dependencies import require_role
+
+# All mutating endpoints in this router are admin-only (3.3.5-26).
+# These edit puppet.conf, hiera, ssl, .env, restart the puppet stack,
+# and run `puppet lookup` as root -- not operator-level work.
+_ADMIN_ONLY = require_role("admin")
 
 router = APIRouter(prefix="/api/config", tags=["configuration"])
 
@@ -54,7 +60,10 @@ async def get_puppet_config():
 
 
 @router.put("/puppet")
-async def update_puppet_config(request: ConfigUpdateRequest):
+async def update_puppet_config(
+    request: ConfigUpdateRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Update a puppet.conf setting."""
     success = puppetserver_service.update_puppet_conf(
         request.section, request.key, request.value
@@ -110,7 +119,10 @@ async def get_hiera_config():
 
 
 @router.put("/hiera")
-async def update_hiera_config(request: HieraUpdateRequest):
+async def update_hiera_config(
+    request: HieraUpdateRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Update hiera.yaml content. Creates a backup of the existing file."""
     try:
         success = puppetserver_service.write_hiera_config(request.content)
@@ -159,7 +171,12 @@ async def get_hiera_data_file(environment: str, path: str):
 
 
 @router.put("/hiera/data/{environment}/file")
-async def update_hiera_data_file(environment: str, path: str, request: HieraDataFileRequest):
+async def update_hiera_data_file(
+    environment: str,
+    path: str,
+    request: HieraDataFileRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Update a specific Hiera data file. Pass the full_path as a query param ?path=..."""
     try:
         success = puppetserver_service.write_hiera_data_file(path, request.content)
@@ -174,7 +191,11 @@ async def update_hiera_data_file(environment: str, path: str, request: HieraData
 
 
 @router.post("/hiera/data/{environment}/file")
-async def create_hiera_data_file(environment: str, request: HieraDataFileCreateRequest):
+async def create_hiera_data_file(
+    environment: str,
+    request: HieraDataFileCreateRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Create a new Hiera data file in an environment's data directory."""
     from pathlib import Path
     try:
@@ -203,7 +224,11 @@ async def create_hiera_data_file(environment: str, request: HieraDataFileCreateR
 
 
 @router.delete("/hiera/data/{environment}/file")
-async def delete_hiera_data_file(environment: str, path: str):
+async def delete_hiera_data_file(
+    environment: str,
+    path: str,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Delete a Hiera data file. Pass the full_path as a query param ?path=..."""
     from pathlib import Path
     try:
@@ -249,7 +274,10 @@ async def get_services_status():
 
 
 @router.post("/services/restart")
-async def restart_service(request: ServiceActionRequest):
+async def restart_service(
+    request: ServiceActionRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Restart a Puppet service."""
     if request.action != "restart":
         raise HTTPException(status_code=400, detail="Only 'restart' action is supported")
@@ -260,7 +288,9 @@ async def restart_service(request: ServiceActionRequest):
 
 
 @router.post("/services/restart-puppet-stack")
-async def restart_puppet_stack():
+async def restart_puppet_stack(
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Restart PuppetServer, PuppetDB, and Puppet agent in the correct order."""
     results = []
     for svc in ["puppetdb", "puppetserver", "puppet"]:
@@ -398,7 +428,10 @@ async def list_config_files():
 
 
 @router.post("/files/read")
-async def read_config_file(request: ConfigFileReadRequest):
+async def read_config_file(
+    request: ConfigFileReadRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Read contents of a configuration file."""
     from pathlib import Path
     import subprocess
@@ -446,7 +479,10 @@ async def read_config_file(request: ConfigFileReadRequest):
 
 
 @router.post("/files/save")
-async def save_config_file(request: ConfigFileSaveRequest):
+async def save_config_file(
+    request: ConfigFileSaveRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Save contents to a configuration file (creates backup first)."""
     from pathlib import Path
     import shutil, time
@@ -545,7 +581,10 @@ class PuppetLookupRequest(BaseModel):
 
 
 @router.post("/lookup")
-async def puppet_lookup(request: PuppetLookupRequest):
+async def puppet_lookup(
+    request: PuppetLookupRequest,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Run puppet lookup --explain and return the trace output."""
     import subprocess, shlex
     puppet_bin = "/opt/puppetlabs/bin/puppet"
@@ -602,7 +641,10 @@ async def get_app_config():
 
 
 @router.put("/app")
-async def update_app_config(request: Request):
+async def update_app_config(
+    request: Request,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Update an application setting in the .env file."""
     body = await request.json()
     key = body.get("key", "")
@@ -718,7 +760,10 @@ async def get_ssl_config():
 
 
 @router.put("/ssl")
-async def update_ssl_config(request: Request):
+async def update_ssl_config(
+    request: Request,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Update SSL configuration in the .env file."""
     body = await request.json()
     
@@ -771,7 +816,10 @@ async def update_ssl_config(request: Request):
 
 
 @router.put("/preferences")
-async def update_preferences(request: Request):
+async def update_preferences(
+    request: Request,
+    _user: str = Depends(_ADMIN_ONLY),
+):
     """Update user preferences."""
     body = await request.json()
     prefs = _load_prefs()

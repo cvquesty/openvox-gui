@@ -13,11 +13,12 @@ executed by PuppetDB, which has its own parser and will reject malformed
 queries with a 400 error.
 """
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from ..services.puppetdb import puppetdb_service
 from ..utils.validation import validate_pql_query
+from ..dependencies import require_role
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +31,21 @@ class PQLRequest(BaseModel):
 
 
 @router.post("/query")
-async def execute_pql(request: PQLRequest):
+async def execute_pql(
+    request: PQLRequest,
+    _user: str = Depends(require_role("admin", "operator")),
+):
     """Execute a raw PQL query against PuppetDB.
 
     The query string is validated for length and suspicious patterns
     before being forwarded to PuppetDB. PuppetDB itself performs full
     query parsing and will return a 400 error for malformed PQL.
+
+    Operator/admin only (3.3.5-26): PuppetDB facts can contain
+    sensitive data (Hiera-rendered passwords, API keys in environment
+    facts on misconfigured nodes, network topology). Restricting raw
+    PQL to admins/operators keeps a viewer account from exfiltrating
+    fleet-wide secrets via inventory queries.
     """
     # Validate the query using the centralised validation utility.
     # This catches excessively long queries and SQL-injection-like patterns.

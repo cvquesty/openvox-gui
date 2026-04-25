@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 
 from ..database import get_db
 from ..models import ExecutionHistory
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, require_role
 from ..utils.validation import validate_command
 from ..services.enc import enc_service
 from ..services.puppetdb import puppetdb_service
@@ -293,7 +293,7 @@ UPLOAD_STAGING_DIR = Path("/opt/openvox-gui/data/bolt-uploads")
 async def run_command(
     req: RunCommandRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_role("admin", "operator"))
 ):
     """Run an ad-hoc command on targets.
 
@@ -352,7 +352,7 @@ async def run_command(
 async def run_task(
     req: RunTaskRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_role("admin", "operator"))
 ):
     """Run a Bolt task on targets."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
@@ -399,7 +399,7 @@ async def run_task(
 async def run_plan(
     req: RunPlanRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_role("admin", "operator"))
 ):
     """Run a Bolt plan."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
@@ -448,7 +448,7 @@ async def upload_file_to_targets(
     targets: str = Form(..., description="Comma-separated certnames, 'all', or ENC group name"),
     destination: str = Form(..., description="Remote path where the file should be placed on targets"),
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(require_role("admin", "operator")),
 ):
     """Upload a file to remote targets via Puppet Bolt.
 
@@ -527,7 +527,7 @@ async def upload_file_to_targets(
 async def download_file_from_targets(
     req: FileDownloadRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(require_role("admin", "operator")),
 ):
     """Download a file from remote targets to the Bolt controller via Bolt.
 
@@ -617,7 +617,7 @@ async def run_script_on_targets(
     targets: str = Form(..., description="Comma-separated certnames, 'all', or ENC group name"),
     arguments: str = Form("", description="Arguments to pass to the script (space-separated)"),
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user),
+    current_user: str = Depends(require_role("admin", "operator")),
 ):
     """Upload and execute a local script on remote targets via Bolt.
 
@@ -725,8 +725,17 @@ class SaveBoltConfigRequest(BaseModel):
 
 
 @router.put("/config")
-async def save_config(req: SaveBoltConfigRequest):
-    """Save a Bolt configuration file (bolt-project.yaml or inventory.yaml)."""
+async def save_config(
+    req: SaveBoltConfigRequest,
+    current_user: str = Depends(require_role("admin")),
+):
+    """Save a Bolt configuration file (bolt-project.yaml or inventory.yaml).
+
+    Admin-only -- this rewrites the orchestration config under
+    /etc/puppetlabs/bolt/, which controls how every Bolt invocation
+    targets nodes. Operators can RUN bolt (above) but only admins
+    can change the config that governs runs.
+    """
     allowed = {
         "config": "bolt-project.yaml",
         "inventory": "inventory.yaml",
@@ -772,7 +781,10 @@ async def save_config(req: SaveBoltConfigRequest):
 
 
 @router.post("/inventory/sync")
-async def sync_inventory_from_enc(db: AsyncSession = Depends(get_db)):
+async def sync_inventory_from_enc(
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(require_role("admin", "operator")),
+):
     """
     Generate Bolt inventory from the ENC hierarchy and write it to disk.
 

@@ -16,8 +16,10 @@ import asyncio
 import logging
 import re
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from ..dependencies import require_role
 from typing import Optional, List
 
 router = APIRouter(prefix="/api/certificates", tags=["certificates"])
@@ -177,11 +179,15 @@ class CertActionRequest(BaseModel):
 
 
 @router.post("/sign")
-async def sign_certificate(request: CertActionRequest):
+async def sign_certificate(
+    request: CertActionRequest,
+    current_user: str = Depends(require_role("admin", "operator")),
+):
     """Sign a pending certificate request.
 
     Validates the certname to prevent command injection before passing
-    it to the puppetserver ca subprocess.
+    it to the puppetserver ca subprocess. Operator/admin only since
+    signing a CSR adds a node to the trusted fleet.
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["sign", "--certname", request.certname])
@@ -193,11 +199,15 @@ async def sign_certificate(request: CertActionRequest):
 
 
 @router.post("/revoke")
-async def revoke_certificate(request: CertActionRequest):
+async def revoke_certificate(
+    request: CertActionRequest,
+    current_user: str = Depends(require_role("admin", "operator")),
+):
     """Revoke a signed certificate.
 
     Validates the certname before passing it to the puppetserver ca
-    subprocess to prevent command injection.
+    subprocess to prevent command injection. Operator/admin only --
+    revoking a cert immediately stops a node from getting catalogs.
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["revoke", "--certname", request.certname])
@@ -209,11 +219,15 @@ async def revoke_certificate(request: CertActionRequest):
 
 
 @router.post("/clean")
-async def clean_certificate(request: CertActionRequest):
+async def clean_certificate(
+    request: CertActionRequest,
+    current_user: str = Depends(require_role("admin", "operator")),
+):
     """Clean (remove) a certificate and all associated key material.
 
     Validates the certname before passing it to the puppetserver ca
-    subprocess to prevent command injection.
+    subprocess to prevent command injection. Operator/admin only --
+    cleaning destroys CA-side state for a node.
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["clean", "--certname", request.certname])

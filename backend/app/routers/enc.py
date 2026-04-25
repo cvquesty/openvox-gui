@@ -11,8 +11,14 @@ import yaml
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..services.enc import enc_service
+from ..dependencies import require_role
 
 router = APIRouter(prefix="/api/enc", tags=["enc"])
+
+# All ENC mutating endpoints (3.3.5-26): admin or operator. Operators
+# commonly assign nodes to groups / promote nodes to environments;
+# admins do everything operators do plus group/environment lifecycle.
+_ENC_WRITE = require_role("admin", "operator")
 
 
 # ─── Pydantic models ───────────────────────────────────────
@@ -196,7 +202,7 @@ async def get_common(db: AsyncSession = Depends(get_db)):
     }
 
 @router.put("/common")
-async def save_common(data: CommonData, db: AsyncSession = Depends(get_db)):
+async def save_common(data: CommonData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     common = await enc_service.save_common(db, classes=data.classes, parameters=data.parameters)
     return {"classes": common.classes, "parameters": common.parameters}
 
@@ -211,21 +217,21 @@ async def list_environments(db: AsyncSession = Depends(get_db)):
             for e in envs]
 
 @router.post("/environments", status_code=201)
-async def create_environment(data: EnvironmentData, db: AsyncSession = Depends(get_db)):
+async def create_environment(data: EnvironmentData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     env = await enc_service.save_environment(db, name=data.name, description=data.description,
                                               classes=data.classes, parameters=data.parameters)
     return {"name": env.name, "description": env.description,
             "classes": env.classes, "parameters": env.parameters}
 
 @router.put("/environments/{name}")
-async def update_environment(name: str, data: EnvironmentData, db: AsyncSession = Depends(get_db)):
+async def update_environment(name: str, data: EnvironmentData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     env = await enc_service.save_environment(db, name=name, description=data.description,
                                               classes=data.classes, parameters=data.parameters)
     return {"name": env.name, "description": env.description,
             "classes": env.classes, "parameters": env.parameters}
 
 @router.delete("/environments/{name}", status_code=204)
-async def delete_environment(name: str, db: AsyncSession = Depends(get_db)):
+async def delete_environment(name: str, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     if not await enc_service.delete_environment(db, name):
         raise HTTPException(status_code=404, detail="Environment not found")
 
@@ -241,7 +247,7 @@ async def list_groups(db: AsyncSession = Depends(get_db)):
             for g in groups]
 
 @router.post("/groups", status_code=201)
-async def create_group(data: GroupData, db: AsyncSession = Depends(get_db)):
+async def create_group(data: GroupData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     try:
         group = await enc_service.save_group(db, name=data.name,
                                               environment=data.environment,
@@ -255,7 +261,7 @@ async def create_group(data: GroupData, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/groups/{group_id}")
-async def update_group(group_id: int, data: GroupData, db: AsyncSession = Depends(get_db)):
+async def update_group(group_id: int, data: GroupData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     try:
         group = await enc_service.save_group(db, name=data.name,
                                               environment=data.environment,
@@ -270,7 +276,7 @@ async def update_group(group_id: int, data: GroupData, db: AsyncSession = Depend
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/groups/{group_id}", status_code=204)
-async def delete_group(group_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_group(group_id: int, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     if not await enc_service.delete_group(db, group_id):
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -286,7 +292,7 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
             for n in nodes]
 
 @router.post("/nodes", status_code=201)
-async def create_node(data: NodeData, db: AsyncSession = Depends(get_db)):
+async def create_node(data: NodeData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     try:
         node = await enc_service.save_node(db, certname=data.certname,
                                             environment=data.environment,
@@ -300,7 +306,7 @@ async def create_node(data: NodeData, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/nodes/{certname}")
-async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(get_db)):
+async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     try:
         node = await enc_service.save_node(db, certname=certname,
                                             environment=data.environment,
@@ -314,7 +320,7 @@ async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/nodes/{certname}", status_code=204)
-async def delete_node(certname: str, db: AsyncSession = Depends(get_db)):
+async def delete_node(certname: str, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
     if not await enc_service.delete_node(db, certname):
         raise HTTPException(status_code=404, detail="Node not found")
 
