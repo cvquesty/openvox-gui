@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-23] - 2026-04-24
+
+### Fixed
+- **`install.ps1` placeholder check was clobbering its own substituted value** -- same self-inflicted wound that hit `install.bash` on production in 3.3.5-13 and was fixed there in 3.3.5-14, but the parallel fix never propagated to the Windows path. The line `if ($Server -like '*__OPENVOX_PUPPET_SERVER__*') { $Server = '' }` had the literal placeholder, which the server-side `sed` render replaces along with everything else -- leaving `if ($Server -like '*openvox.questy.org*') { $Server = '' }` after render, which always matched the real FQDN and wiped it. Fix: build the marker via PowerShell concatenation `'__OPENVOX' + '_PUPPET_SERVER__'` so the literal sequence never appears as a single token in the source -- `sed` matches on text, with the literal split it leaves it alone. Verified by simulating a render and confirming both that the substituted FQDN reaches `$Server` and that the marker variable contains the placeholder string at runtime.
+
+### Added
+- **`install.ps1` now installs the puppet CA into the Windows system trust store** at install time, mirroring the Linux behavior added in 3.3.5-18. New `Install-PuppetCaCert` function fetches `https://<server>:8140/puppet-ca/v1/certificate/ca` (using `ServerCertificateValidationCallback={$true}` for the chicken-and-egg fetch), validates the response, then imports it into `Cert:\LocalMachine\Root` via `Import-Certificate`. After this, subsequent HTTPS requests to the puppetserver from the Windows host (PowerShell `Invoke-WebRequest`, browser, future puppet-agent invocations) work without disabling cert verification. Failure is non-fatal -- the bootstrap download already used a callback and the MSI install path doesn't depend on system-trust verification.
+
 ## [3.3.5-22] - 2026-04-24
 
 ### Removed

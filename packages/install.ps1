@@ -63,7 +63,19 @@ $puppet_conf_dir = Join-Path ([Environment]::GetFolderPath('CommonApplicationDat
 # ─── Resolve $Server / $PkgRepoUrl ──────────────────────────────────────────
 # Treat the unsubstituted placeholder as "not set" so we fall through
 # to the recovery paths instead of failing immediately.
-if ($Server -like '*__OPENVOX_PUPPET_SERVER__*') { $Server = '' }
+#
+# CRITICAL: build the placeholder string via runtime concatenation.
+# The literal sequence __OPENVOX_PUPPET_SERVER__ must NOT appear in
+# this script outside the actual default-value position above, because
+# the server-side `sed` render substitutes EVERY occurrence with the
+# puppetserver FQDN. If we wrote the marker as a literal here, the
+# render would turn it into the real FQDN, this -like check would
+# falsely match a successful render, and $Server would be cleared --
+# the exact bug that hit install.bash on production in 3.3.5-13 and
+# was fixed there in 3.3.5-14. The PowerShell + concatenation keeps
+# `sed` from matching the token.
+$placeholderMarker = '__OPENVOX' + '_PUPPET_SERVER__'
+if ($Server -like "*$placeholderMarker*") { $Server = '' }
 
 # Recovery path: re-install on a host that already has puppet.conf.
 # Pull the server= line out of [main]. This makes the script work
@@ -106,6 +118,58 @@ if (-not $PkgRepoUrl) {
 Write-Verbose "Server     : $Server"
 Write-Verbose "Repo URL   : $PkgRepoUrl"
 Write-Verbose "OpenVox ver: $OpenVoxVersion"
+
+# ─── Install puppet CA into the system trust store ─────────────────────────
+# Mirrors the install.bash 3.3.5-18 behaviour for Windows. Without this,
+# every subsequent HTTPS request to the puppetserver from this host
+# (PowerShell, browser, future puppet-agent invocations) would have to
+# disable cert verification. We install once, here, so the puppet CA is
+# permanently trusted system-wide via Cert:\LocalMachine\Root.
+function Install-PuppetCaCert {
+    param([String]$Server)
+
+    $caUrl = "https://${Server}:8140/puppet-ca/v1/certificate/ca"
+    $caTmp = Join-Path ([System.IO.Path]::GetTempPath()) 'openvox-puppet-ca.crt'
+
+    # We don't trust the cert yet, so disable verification just for this
+    # one fetch. Same chicken-and-egg as the bash installer.
+    $oldCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+    try {
+        $wcCa = New-Object System.Net.WebClient
+        $wcCa.Proxy = $null
+        $wcCa.DownloadFile($caUrl, $caTmp)
+    } catch {
+        Write-Warning "Could not fetch puppet CA from $caUrl ($_). Subsequent HTTPS to the puppetserver may need -SkipCertificateCheck or equivalent."
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $oldCallback
+        return $false
+    } finally {
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $oldCallback
+    }
+
+    if (-not (Test-Path $caTmp) -or (Get-Item $caTmp).Length -lt 100) {
+        Write-Warning "Downloaded CA file is empty or too small; skipping trust-store import."
+        return $false
+    }
+
+    try {
+        # LocalMachine\Root requires admin (we're running elevated already).
+        Import-Certificate -FilePath $caTmp -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+        Write-Output "openvox-install: Installed puppet CA into LocalMachine\Root"
+        return $true
+    } catch {
+        Write-Warning "Could not import CA into LocalMachine\Root ($_). Subsequent HTTPS may fail until trust is established."
+        return $false
+    } finally {
+        Remove-Item -Force -ErrorAction SilentlyContinue $caTmp
+    }
+}
+
+# Failure is non-fatal -- the bootstrap download already used
+# ServerCertificateValidationCallback={$true} as a fallback, and the
+# MSI install below doesn't depend on system-trust cert verification.
+[void](Install-PuppetCaCert -Server $Server)
+
 $date_time_stamp = (Get-Date -Format s) -replace ':', '-'
 $install_log     = Join-Path ([System.IO.Path]::GetTempPath()) "$date_time_stamp-openvox-install.log"
 
