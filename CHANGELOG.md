@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.3.5-27] - 2026-04-24
+
+### Security
+- **`/api/deploy/webhook` now requires HMAC-SHA256 signature verification** (audit finding CRIT-3). Previously the endpoint accepted unauthenticated POSTs from anywhere, with a docstring suggesting the operator add an IP filter themselves -- effectively an open r10k-deploy-as-root entrypoint for any scanner that found it. Now:
+  - When `OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET` is unset / empty in `.env`, every webhook call returns **503 Disabled** (fail-closed default). The webhook simply doesn't work until the operator opts in.
+  - When the secret IS set, every request must carry a valid `X-Hub-Signature-256: sha256=<hex>` header (HMAC-SHA256 of the raw body keyed by the shared secret). Mismatched signatures return **401**. `hmac.compare_digest` is used to avoid timing attacks.
+- **r10k `ref` (branch) field strictly validated** before being passed as a subprocess argument (audit finding CRIT-3 secondary). Default pattern `^[a-zA-Z0-9._/-]{1,200}$` allows everything git itself accepts in a branch name and rejects anything with whitespace, shell metacharacters, or path-traversal sequences. Pattern is configurable via `OPENVOX_GUI_DEPLOY_WEBHOOK_REF_PATTERN`.
+
+### Added
+- New settings: `deploy_webhook_secret` (default `""`) and `deploy_webhook_ref_pattern` (default `^[a-zA-Z0-9._/-]{1,200}$`) in `backend/app/config.py`. Both read from environment variables prefixed `OPENVOX_GUI_DEPLOY_WEBHOOK_*`.
+
+### BREAKING
+- **Existing webhook deployments will return 503 until the secret is configured.** Anyone with a GitHub webhook currently pointed at `/api/deploy/webhook` needs to:
+  1. Generate a strong shared secret (e.g. `openssl rand -hex 32`).
+  2. Add `OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET=<that-secret>` to `/opt/openvox-gui/config/.env`.
+  3. Restart openvox-gui (`sudo systemctl restart openvox-gui`).
+  4. In the GitHub webhook settings, set the `Secret` field to the same string.
+- This is intentional. Falling back to "open" by default would defeat the security fix; operators who have already configured a webhook need to take one explicit action to keep it working.
+
 ## [3.3.5-26] - 2026-04-24
 
 ### Security

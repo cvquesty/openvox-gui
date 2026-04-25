@@ -151,44 +151,101 @@ async def get_deploy_status():
 async def webhook_deploy(request: Request):
     """GitHub webhook endpoint for automatic code deployment.
 
-    When configured as a GitHub webhook, this endpoint receives push
-    events and automatically triggers an r10k deployment. This eliminates
-    the need to manually click "Deploy" after pushing code changes.
+    Configured as a GitHub webhook with HMAC-SHA256 signature
+    verification. When the operator configures a shared secret via
+    OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET in .env (and the same string
+    in the GitHub webhook settings), every push event triggers an
+    r10k deployment of the pushed branch.
 
     GitHub webhook setup:
-      1. Go to your control repo → Settings → Webhooks → Add webhook
+      1. Go to your control repo -> Settings -> Webhooks -> Add webhook
       2. Payload URL: https://your-server:4567/api/deploy/webhook
       3. Content type: application/json
-      4. Secret: (optional, for signature verification)
+      4. Secret: same value as OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET
       5. Events: Just the push event
 
-    The endpoint accepts any POST request and triggers a deploy. It does
-    NOT require authentication — it's designed to be called by GitHub's
-    webhook service which cannot authenticate with JWT tokens. In
-    production, you should restrict access by IP (GitHub's webhook IPs)
-    or use a webhook secret for HMAC signature verification.
+    Security model (hardened in 3.3.5-27 -- audit CRIT-3):
 
-    The deployment is recorded in the deploy history with triggered_by
-    set to 'github-webhook' and includes the branch and commit info
-    from the push event payload.
+    * If OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET is empty / unset, EVERY
+      request to this endpoint returns 503. The previous "anonymous,
+      please add an IP filter yourself" posture was an open
+      r10k-deploy-as-root entrypoint.
+
+    * If the secret is set, the request must carry a valid
+      X-Hub-Signature-256: sha256=<hex> header (HMAC-SHA256 of the
+      raw request body, keyed by the shared secret). Mismatched
+      signatures return 401. hmac.compare_digest is used to avoid
+      timing attacks.
+
+    * The 'ref' field from the payload (what r10k-deploy.sh receives
+      as the environment name) is validated against
+      OPENVOX_GUI_DEPLOY_WEBHOOK_REF_PATTERN before being passed to
+      sudo/subprocess. The default pattern (^[a-zA-Z0-9._/-]{1,200}$)
+      matches what git itself accepts in branch names; anything else
+      returns 400.
     """
-    # Parse the GitHub webhook payload (if present)
+    import hmac
+    import hashlib
+    import json
+    import re as _re
+    from ..config import settings
+
+    # Hard refusal when no secret is configured. This used to be
+    # "warn and continue" -- now it's a fail-closed default so an
+    # accidentally-exposed openvox-gui can't be turned into an
+    # arbitrary-code-deploy oracle by a passing scanner.
+    secret = (settings.deploy_webhook_secret or "").strip()
+    if not secret:
+        logger.warning("Webhook called but OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET is unset; returning 503.")
+        raise HTTPException(
+            status_code=503,
+            detail="Deploy webhook is disabled. Set OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET in .env to enable it.",
+        )
+
+    # Read the raw body (we need the unparsed bytes for HMAC) and
+    # only THEN parse it as JSON.
+    raw_body = await request.body()
+
+    sig_header = request.headers.get("X-Hub-Signature-256", "")
+    if not sig_header.startswith("sha256="):
+        logger.warning("Webhook called without X-Hub-Signature-256 header.")
+        raise HTTPException(status_code=401, detail="Missing X-Hub-Signature-256 header")
+
+    expected = hmac.new(
+        secret.encode("utf-8"), raw_body, hashlib.sha256
+    ).hexdigest()
+    provided = sig_header[len("sha256="):]
+    if not hmac.compare_digest(expected, provided):
+        logger.warning("Webhook signature mismatch (expected vs provided differ).")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    # Signature is valid -- parse the payload.
     try:
-        payload = await request.json()
-    except Exception:
+        payload = json.loads(raw_body or b"{}")
+    except (ValueError, TypeError):
         payload = {}
 
-    ref = payload.get("ref", "unknown")
+    ref = payload.get("ref", "")
     branch = ref.split("/")[-1] if "/" in ref else ref
     pusher = payload.get("pusher", {}).get("name", "unknown")
     head_commit = payload.get("head_commit", {})
     commit_msg = head_commit.get("message", "")[:100] if head_commit else ""
 
-    logger.info(f"Webhook received: branch={branch}, pusher={pusher}, commit={commit_msg}")
+    # Strict ref validation -- prevents arg injection into the r10k
+    # subprocess. The default pattern allows what git itself allows
+    # in branch names but rejects anything with whitespace, shell
+    # metacharacters, or path traversal sequences.
+    ref_pattern = _re.compile(settings.deploy_webhook_ref_pattern)
+    if branch and not ref_pattern.match(branch):
+        logger.warning(f"Webhook rejected: invalid branch name '{branch}'")
+        raise HTTPException(status_code=400, detail="Invalid branch / ref")
 
-    # Trigger r10k deploy for the pushed branch (or all if not determinable)
+    logger.info(f"Webhook authenticated: branch={branch}, pusher={pusher}, commit={commit_msg}")
+
+    # Trigger r10k deploy for the pushed branch (or all environments
+    # if the ref couldn't be determined / is the default 'main').
     cmd = ["sudo", "/opt/openvox-gui/scripts/r10k-deploy.sh"]
-    if branch and branch not in ("unknown", "main"):
+    if branch and branch not in ("", "main"):
         cmd.append(branch)
     cmd.extend(["-pv"])
 

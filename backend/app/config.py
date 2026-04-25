@@ -85,6 +85,24 @@ class Settings(BaseSettings):
     https_proxy: Optional[str] = None
     no_proxy: str = "localhost,127.0.0.1,10.*,172.16.*,172.17.*,172.18.*,172.19.*,172.20.*,172.21.*,172.22.*,172.23.*,172.24.*,172.25.*,172.26.*,172.27.*,172.28.*,172.29.*,172.30.*,172.31.*,*.local,*.local.twitter.com,*.twitter.com,*.corp"
 
+    # ── Deploy webhook (GitHub) ───────────────────────────────
+    # Shared secret used to verify HMAC signatures on incoming
+    # webhook requests at /api/deploy/webhook. When set, requests
+    # without a valid X-Hub-Signature-256 header are rejected with
+    # 401. When empty, the webhook endpoint refuses ALL requests
+    # (3.3.5-27 audit fix CRIT-3 -- the previous "anonymous, please
+    # add an IP filter yourself" posture was an open r10k-deploy-as-
+    # root entrypoint). Set this in your .env to enable the webhook,
+    # then configure the same string as the secret in the GitHub
+    # webhook settings.
+    deploy_webhook_secret: str = ""
+
+    # Strict regex for git refs accepted by the webhook (passed to
+    # r10k-deploy.sh as the environment name). Matches what git itself
+    # allows in branch names. Anything not matching is rejected.
+    # Tightened from the previous lenient parser in 3.3.5-27.
+    deploy_webhook_ref_pattern: str = r"^[a-zA-Z0-9._/-]{1,200}$"
+
     # ── SSL / TLS for incoming connections ────────────────────
     # Enable SSL on the uvicorn server itself (not nginx). If enabled,
     # the app serves HTTPS directly using the provided cert/key paths.
