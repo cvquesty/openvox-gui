@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.3.5-30**
+**OpenVox GUI Version 3.6.0**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.3.5-30"}
+   # Should return: {"status":"ok","version":"3.6.0"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -618,7 +618,7 @@ To use a real certificate, see the Configuration documentation.
 
 ---
 
-## Agent Installer Problems *(3.3.5-1+)*
+## Agent Installer Problems *(3.6.0+)*
 
 For issues specific to the local OpenVox package mirror and the
 `curl ... | sudo bash` agent install workflow, see
@@ -660,7 +660,7 @@ overriding behavior.
 Your agent host is behind a corporate proxy and the bootstrap
 curl tried to tunnel through it. Use the GUI's published
 one-liner -- it includes `--noproxy <fqdn>` to bypass the proxy
-for the puppetserver host (3.3.5-19+):
+for the puppetserver host:
 
 ```bash
 curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash
@@ -672,7 +672,7 @@ set `no_proxy` in `/etc/environment` on the host once.
 ### Problem: `Certificate verification failed: The certificate is NOT trusted`
 
 You're seeing this on a follow-up `apt-get update` or `dnf upgrade`
-after the agent install completed. install.bash 3.3.5-18+ installs
+after the agent install completed. install.bash installs
 the puppet CA into the system trust store automatically, so this
 should only happen if the CA install step failed (CA endpoint
 unreachable from the agent, `update-ca-certificates` missing,

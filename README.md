@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.3.5--30-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.6.0-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -130,7 +130,7 @@ Manage server certificates (like ID cards for servers):
 - Revoke certificates for decommissioned servers
 - See certificate details and expiration dates
 
-### 📥 Agent Installer *(3.3.5-1+)*
+### 📥 Agent Installer *(3.6.0+)*
 Bootstrap new OpenVox agents with a single command, the same way Puppet Enterprise does:
 - Local mirror of `yum.voxpupuli.org` / `apt.voxpupuli.org` / `downloads.voxpupuli.org`
 - Linux: `curl -k https://server:8140/packages/install.bash | sudo bash`
@@ -223,11 +223,14 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## What's New in the 3.3.5-x Series
+## What's New in Version 3.6.0
 
-The 3.3.5-x line is a series of test builds that introduce the
-**OpenVox Agent Installer**. Iterations 3.3.5-1 through 3.3.5-8 will
-roll up into the tagged 3.4.0 release.
+3.6.0 is a major release that introduces the **OpenVox Agent
+Installer** feature, consolidates the agent-bring-up workflow into
+a single GUI page, and tightens authentication and authorization
+across every privileged endpoint. The release rolls up 30 test-build
+iterations (3.3.5-1 through 3.3.5-30) into one stable artifact
+suitable for production.
 
 ### OpenVox Agent Installer (the headline feature)
 
@@ -242,37 +245,50 @@ A full PE-style agent bootstrap workflow for OpenVox:
 - **Top-level "Infrastructure" nav** with three pages: **Certificate Authority** (CA info + signed-cert management), **Orchestration** (Bolt commands/tasks/plans), **Agent Install** (install commands + mirror status + pending CSR signing).
 - **Agent Install page** is one tabbed Card (Linux | Windows | Direct URLs | Mirror Status | Sync Log) plus a Pending Certificate Requests card -- the whole agent bring-up workflow in one place: paste install command -> wait for CSR to appear -> click Sign -> done.
 - **Nightly auto-sync** via systemd timer (02:30 + randomised delay). Both `install.sh` (fresh install) and `update_local.sh` (upgrade) offer an interactive "Sync now?" prompt so the mirror is populated before the first agent installs.
-- **Self-configuring agent scripts** -- `install.bash` resolves the puppetserver FQDN from a 4-step chain: `--server` arg / env var → `/proc/net/tcp` + reverse DNS of the curl connection (3.3.5-11+, the "just works" path) → server-side rendered placeholder → existing `puppet.conf`. Permanent puppet CA trust installed into `/etc/pki/ca-trust/source/anchors/` (RHEL) or `/usr/local/share/ca-certificates/` (Debian/Ubuntu) so subsequent `apt-get update` / `dnf upgrade` work without flags.
+- **Self-configuring agent scripts** -- `install.bash` resolves the puppetserver FQDN from a 4-step chain: `--server` arg / env var → `/proc/net/tcp` + reverse DNS of the curl connection (the "just works" path) → server-side rendered placeholder → existing `puppet.conf`. Permanent puppet CA trust installed into `/etc/pki/ca-trust/source/anchors/` (RHEL) or `/usr/local/share/ca-certificates/` (Debian/Ubuntu) so subsequent `apt-get update` / `dnf upgrade` work without flags.
 
 > **First-run sync takes time.** The first sync downloads roughly **1-2 GB** of OpenVox packages from voxpupuli.org and takes **15-45 minutes** on a typical broadband connection. Subsequent syncs are incremental (only changed files). Pick whichever first-sync path fits: the interactive `install.sh` / `update_local.sh` prompt, the **Sync now** button on Infrastructure -> Agent Install, `sudo systemctl start openvox-repo-sync.service` from the CLI, or just wait for the 02:30 nightly timer.
 
 See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide -- architecture, mirror layout, CLI options, security considerations, and troubleshooting.
 
-### Navigation restructuring (3.3.5-8)
+### UI reorganization
 
-The left nav is now: **Monitoring**, **Infrastructure**, **Code**, **Data**, **Information**, **Settings**. Infrastructure was previously a nested sub-group inside Monitoring; it has been promoted to a top-level group of its own.
+- **Top-level "Infrastructure" nav** with three pages: Certificate Authority, Orchestration, and Agent Install.
+- **Agent Install page** holds the entire agent bring-up workflow on a single page: copy-to-clipboard install commands (Linux | Windows | Direct URLs | Mirror Status | Sync Log tabs) plus a Pending Certificate Requests card. Paste the one-liner -> wait for the CSR to appear -> click Sign -> done.
+- **Final left-nav order**: Monitoring, Infrastructure, Code, Data, Information, Settings.
 
-### Per-iteration history
+### Security hardening
 
-For the full per-iteration changelog see [CHANGELOG.md](CHANGELOG.md). Highlights of the 3.3.5-x series so far:
+3.6.0 closes every CRITICAL and HIGH finding from an internal security audit. **Every privileged endpoint now requires explicit role authorization** (`require_role("admin")` or `require_role("admin", "operator")`) on top of JWT validation -- previously an authenticated viewer could trigger Bolt commands as root, sign or revoke certs, edit Hiera data, or restart the puppet stack:
 
-- **3.3.5-2** validated installer URLs against live voxpupuli.org and simplified the mirror layout to per-upstream-source trees.
-- **3.3.5-3** fixed a wget double-nesting bug.
-- **3.3.5-4** added the interactive "Sync now?" prompt to `update_local.sh`.
-- **3.3.5-5/6/7** iterations on the agent scripts to be self-configuring.
-- **3.3.5-8** promoted Infrastructure to a top-level nav group.
-- **3.3.5-9** cumulative documentation refresh.
-- **3.3.5-10** renamed nav item "Installer" -> "Agent Install" so the label matches what the page does.
-- **3.3.5-11/12** added `/proc/net/tcp` + reverse-DNS discovery to install.bash so the URL the operator typed IS the FQDN the agent gets configured against -- no flags or env vars needed.
-- **3.3.5-13** trimmed the published Linux one-liner to its bare form once discovery was confirmed working.
-- **3.3.5-14** fixed a self-inflicted bug where the placeholder check was clobbering its own substituted value.
-- **3.3.5-15** cleared 3 high-severity npm audit findings (vite/lodash/picomatch).
-- **3.3.5-16** added missing `warn()` helper that was breaking apt installs.
-- **3.3.5-17** exported `no_proxy` inside install.bash so apt/yum bypass corporate proxies.
-- **3.3.5-18** install puppet CA into the system trust store so subsequent `apt-get update` / `dnf upgrade` work without `--insecure` flags.
-- **3.3.5-19** published one-liner gained `--noproxy <fqdn>` (curl) / `$wc.Proxy = $null` (PowerShell) so the bootstrap download itself bypasses the proxy.
-- **3.3.5-20** moved Pending Certificate Requests from Certificate Authority to Agent Install; folded Mirror Status / Disk Space / Sync Log into tabs on the Install Commands card so the page is one workflow, not three stacked panels.
-- **3.3.5-21** cumulative documentation refresh (this file, INSTALLER.md, INSTALL.md, UPDATE.md, TROUBLESHOOTING.md) to bring everything in line with the actual current behavior.
+- **Bolt** `/run/{command,task,plan}` and `/file/{upload,download}` -- admin or operator
+- **Certificate Authority** sign / revoke / clean -- admin or operator
+- **Configuration** (puppet.conf, Hiera, SSL, .env, restart-puppet-stack, puppet lookup) -- admin only
+- **External Node Classifier** mutating endpoints -- admin or operator
+- **PQL Console** raw queries -- admin or operator (PuppetDB facts can leak Hiera-rendered passwords)
+- **Deploy webhook** (`/api/deploy/webhook`) -- now requires HMAC-SHA256 signature verification with a shared secret. Disabled by default; opt in via `OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET` in `.env`. The `ref` field is strictly validated against a regex before being passed as a subprocess argument
+- **JWT logout** now actually invalidates the token via a server-side denylist. Pre-3.6.0, `/api/auth/logout` only deleted the cookie -- the underlying JWT stayed cryptographically valid for its full 24-hour expiry. New tokens carry a `jti` claim used as the denylist key
+- **LDAP bind password** is now encrypted at rest in SQLite using Fernet with a key derived from `OPENVOX_GUI_SECRET_KEY`. Existing plaintext values are read transparently and re-encrypted on the next save through the LDAP config form
+- **Sudoers wildcards tightened**: `openssl x509 *` (which allowed `-out /etc/shadow`) replaced with explicit per-form rules; `puppetserver ca *` replaced with per-subcommand rules; `r10k-deploy.sh` argv whitelisted inside the wrapper script
+
+### Quality + reliability
+
+- **Cleared 3 npm-audit high-severity findings** (vite 6.4.1->6.4.2, lodash 4.18.1, picomatch 4.0.4)
+- **Async cert handlers**: `subprocess.run` calls in async cert routes wrapped in `asyncio.to_thread` so the event loop doesn't block while shelling out
+- **Sync script lock-file race** closed; trap installed before lock write
+- **Bare `except:` clauses narrowed** so `KeyboardInterrupt` / `CancelledError` propagate
+
+### Documentation
+
+- **`docs/INSTALLER.md`** is now the canonical reference for the agent installer feature: architecture, mirror layout, CLI options, security model, and a troubleshooting section covering the actual failures the test campaign hit (407 proxy, untrusted cert, mirror-not-synced 404)
+- **`docs/SUDOERS.md`** updated with the tightened sudoers payload + the new sync-trigger rule
+- **`INSTALL.md`** documents the new install-time prompts for the agent installer (`CONFIGURE_PKG_REPO`, `RUN_INITIAL_SYNC`)
+- **`UPDATE.md`** "Special note for upgrades to 3.6.0" walks operators through what the upgrade does and the one mandatory action (set the webhook secret if you use the deploy webhook)
+- **`TROUBLESHOOTING.md`** has a dedicated Agent Installer section with the most common gotchas
+
+### Per-iteration changelog
+
+For the full development history of how 3.6.0 came together (31 test-build iterations leading up to this release), see [CHANGELOG.md](CHANGELOG.md).
 
 ## What's New in Version 3.3.0
 

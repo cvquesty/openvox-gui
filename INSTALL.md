@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.3.5-30**
+**OpenVox GUI Version 3.6.0**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -170,7 +170,7 @@ The installer will ask you some questions. Here's what each one means:
 6. **Admin password:** Password for the web interface
    - Type a secure password (or let it generate one for you)
 
-7. **Configure local agent package mirror? [Y/n]:** *(3.3.5-1+)*
+7. **Configure local agent package mirror? [Y/n]:** *(3.6.0+)*
    - Sets up the OpenVox Agent Installer feature so you can bootstrap
      fresh agents with `curl -k --noproxy <server> https://<server>:8140/packages/install.bash | sudo bash`
    - Drops a static-content mount into puppetserver's `conf.d/` so the
@@ -178,7 +178,7 @@ The installer will ask you some questions. Here's what each one means:
    - Installs a systemd timer for nightly mirror sync
    - Sets up automatic puppet-CA trust on agent hosts at install time
      so subsequent `apt-get update` / `dnf upgrade` work without
-     `--insecure` / `Verify-Peer=false` flags *(3.3.5-18+)*
+     `--insecure` / `Verify-Peer=false` flags
    - See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide
 
 8. **Run initial sync now? [y/N]:** *(only if you said yes to #7)*
@@ -314,7 +314,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.3.5-30"}` if everything is working.
+You should see `{"status":"ok","version":"3.6.0"}` if everything is working.
 
 ---
 

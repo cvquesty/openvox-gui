@@ -32,7 +32,7 @@ puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart openvox-gui
 # Reading PuppetDB configuration files (owned by puppetdb user)
 puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
 
-# Certificate Authority management. 3.3.5-30+: each subcommand is
+# Certificate Authority management. Each subcommand is
 # listed explicitly rather than `puppetserver ca *` / `openssl x509 *`
 # wildcards. The wildcard forms allowed flags like `openssl x509 -out
 # /etc/shadow` (arbitrary file write as root); the explicit forms
@@ -53,7 +53,7 @@ puppet ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 
 # OpenVox Agent Installer -- "Sync now" button on the Agent Install
-# page (3.3.5-1+). The sync writes into /opt/openvox-pkgs/ which is
+# page. The sync writes into /opt/openvox-pkgs/ which is
 # owned by root, so the sync script must run with elevated privileges.
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh *

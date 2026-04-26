@@ -1,6 +1,6 @@
 # OpenVox Agent Installer
 
-**Available since**: openvox-gui 3.3.5-1
+**Available since**: openvox-gui 3.6.0
 
 This guide covers the **agent installer** feature: a local OpenVox
 package mirror, a one-line bootstrap script for Linux and Windows
@@ -96,7 +96,7 @@ There are five moving parts:
 | `install.bash` | `/opt/openvox-pkgs/` | Linux agent bootstrap |
 | `install.ps1` | `/opt/openvox-pkgs/` | Windows agent bootstrap |
 
-## Mirror layout (3.3.5-2+)
+## Mirror layout
 
 The local mirror under `/opt/openvox-pkgs/` preserves the upstream
 voxpupuli.org tree structure one-for-one rather than reorganising into
@@ -146,10 +146,10 @@ by the in-browser preview on the Installer page.
 ## Installing the feature
 
 The whole feature is set up automatically by `install.sh` from
-openvox-gui 3.3.5-1 onward.  The interactive prompts are:
+openvox-gui 3.6.0 onward.  The interactive prompts are:
 
 ```
-Agent Package Mirror (3.3.5-1+)
+Agent Package Mirror
   Sets up a local OpenVox package mirror under /opt/openvox-pkgs so
   agents can be installed via 'curl ... | sudo bash' without internet
   access. Mirror is populated from yum/apt.voxpupuli.org.
@@ -215,10 +215,10 @@ The headline card. Header always shows the puppetserver FQDN, a
   page auto-switches to this tab when you click "Sync now" so you
   see what happened immediately.
 
-### 2. Pending Certificate Requests *(moved here in 3.3.5-20)*
+### 2. Pending Certificate Requests
 
-Was previously on the Certificate Authority page. Lives here now
-because CSR signing is part of the agent bring-up workflow:
+CSR signing lives on the Agent Install page because it's part of the
+agent bring-up workflow:
 
 ```
 install agent -> agent submits CSR -> operator signs here -> first puppet run succeeds
@@ -273,15 +273,15 @@ The script then:
 1.  **Resolves the puppetserver FQDN.** Four-step resolution order
     (highest priority first):
     1. `--server` CLI arg or `PUPPET_SERVER` env var
-    2. **NEW (3.3.5-11+)** `/proc/net/tcp` + reverse DNS of the
-       curl connection that just downloaded us
+    2. `/proc/net/tcp` + reverse DNS of the curl connection that
+       just downloaded us
     3. `__OPENVOX_PUPPET_SERVER__` placeholder substituted at
        server-side render time
     4. `[main] server=` from existing `/etc/puppetlabs/puppet/puppet.conf`
     Path 2 handles the common case; the others are belt-and-suspenders.
 2.  **Sets `no_proxy`** in the script's environment so subsequent
     apt/yum invocations bypass the corporate proxy too.
-3.  **Installs the puppet CA into the system trust store** (3.3.5-18+)
+3.  **Installs the puppet CA into the system trust store**
     by fetching `https://<server>:8140/puppet-ca/v1/certificate/ca`
     and dropping it into `/usr/local/share/ca-certificates/openvox-puppet-ca.crt`
     (Debian/Ubuntu) or `/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt`
@@ -381,8 +381,8 @@ PowerShell parameters mirror the PE installer:
 
 ## What gets mirrored
 
-By default `sync-openvox-repo.sh` mirrors (3.3.5-2 defaults are
-"latest two only" -- expand via flags if you need older OS releases):
+By default `sync-openvox-repo.sh` mirrors the latest two of every
+supported OS release (expand via flags if you need older releases):
 
 | Source | OpenVox versions | OS releases | Architectures |
 |--------|------------------|-------------|---------------|
@@ -514,7 +514,7 @@ You're seeing this AFTER install.bash completed -- e.g. a follow-up
 `apt-get update` or `dnf upgrade` failing because the puppet CA
 isn't in the system trust store.
 
-In 3.3.5-18+, install.bash installs the puppet CA into the system
+install.bash installs the puppet CA into the system
 trust store automatically (`/usr/local/share/ca-certificates/openvox-puppet-ca.crt`
 on Debian/Ubuntu, `/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt`
 on RHEL family). If you're seeing this error on a newly installed
@@ -621,7 +621,8 @@ because `wget --mirror` skips files that haven't changed upstream.
 If syncs are routinely slow, mirror only the platforms you actually
 deploy. The platform names match the upstream-source layout
 (`yum`, `apt`, `windows`, `mac`) -- the older `redhat,debian,ubuntu`
-names from 3.3.5-1 are still accepted with a deprecation warning:
+names from the early test builds are still accepted with a
+deprecation warning:
 
 ```bash
 echo 'PLATFORMS=yum,apt'        | sudo tee /etc/sysconfig/openvox-repo-sync
@@ -648,7 +649,7 @@ sudo rm -f /opt/openvox-pkgs/.sync.lock
     a cert signed by its own internal CA, which the agent doesn't
     trust until install.bash gets a chance to install it. `-k` is
     a one-time band-aid for the bootstrap curl only.
--   **Permanent cert trust** (3.3.5-18+): install.bash installs the
+-   **Permanent cert trust**: install.bash installs the
     puppet CA into the system trust store as one of its first
     steps, so subsequent `apt-get update` / `dnf upgrade
     openvox-agent` / `curl https://<server>:8140/...` etc. work
@@ -663,7 +664,7 @@ sudo rm -f /opt/openvox-pkgs/.sync.lock
     failure it falls back to `[trusted=yes]` in the sources.list,
     which works but skips GPG verification -- acceptable on
     internal networks but worth knowing.
--   **Proxy bypass** (3.3.5-17/19+): install.bash exports `no_proxy`
+-   **Proxy bypass**: install.bash exports `no_proxy`
     with the puppetserver FQDN appended (preserving any inherited
     value) so apt/yum bypass the corporate proxy for the local
     mirror. The bootstrap curl uses `--noproxy <fqdn>` for the

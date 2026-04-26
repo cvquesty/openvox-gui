@@ -9,6 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.0] - 2026-04-25
+
+3.6.0 is a major release. It consolidates 31 test-build iterations
+(3.3.5-1 through 3.3.5-30 plus 3.3.5-22 cleanup) into one stable
+artifact suitable for production. Per-iteration history is preserved
+below for context.
+
+### Headline feature -- OpenVox Agent Installer
+
+A full PE-style agent bootstrap workflow for OpenVox:
+
+- **One-line install on Linux**:
+  `curl -k --noproxy <fqdn> https://<fqdn>:8140/packages/install.bash | sudo bash`
+  No `--server` arg needed -- `install.bash` discovers the puppetserver FQDN by reading the kernel's TCP state (`/proc/net/tcp`) and reverse-DNSing the IP of the curl connection that just downloaded it.
+- **One-line install on Windows**: equivalent PowerShell snippet that downloads `install.ps1` and passes the FQDN extracted from the URL via `[System.Uri]$url.Host`.
+- **Local OpenVox package mirror** at `/opt/openvox-pkgs/{yum,apt,windows,mac}/` populated from `yum.voxpupuli.org`, `apt.voxpupuli.org`, and `downloads.voxpupuli.org`. Layout mirrors upstream 1:1.
+- **PuppetServer static-content mount** serves `/packages/*` on port 8140 (the standard puppetserver port -- no new firewall rules needed). FastAPI also serves the same content on its own port (4567) as a fallback.
+- **Nightly auto-sync** via `openvox-repo-sync.timer` at 02:30 with randomised delay. Both `install.sh` (fresh install) and `update_local.sh` (upgrade) offer an interactive "Sync now?" prompt so the mirror is populated before the first agent install.
+- **Permanent puppet CA trust install on agents**: `install.bash` and `install.ps1` install the puppetserver's CA cert into the OS-native trust store (`/usr/local/share/ca-certificates/openvox-puppet-ca.crt` on Debian/Ubuntu, `/etc/pki/ca-trust/source/anchors/openvox-puppet-ca.crt` on RHEL family, `Cert:\LocalMachine\Root` on Windows). Subsequent `apt-get update` / `dnf upgrade openvox-agent` / browser visits work without `--insecure` / `Verify-Peer=false` / `sslverify=0` band-aids.
+- **`no_proxy` handling**: `install.bash` exports `no_proxy` for apt/yum so they bypass corporate proxies for the local mirror; the GUI's published one-liner uses `--noproxy <fqdn>` (curl) / `$wc.Proxy = $null` (PowerShell) to bypass proxies at the bootstrap-curl layer too.
+
+### UI reorganization
+
+- **"Infrastructure" promoted to a top-level nav group** with three pages: Certificate Authority, Orchestration, and Agent Install. Final left-nav order: Monitoring, Infrastructure, Code, Data, Information, Settings.
+- **Agent Install page** holds the entire agent bring-up workflow on one page: copy-to-clipboard install commands (Linux | Windows | Direct URLs | Mirror Status | Sync Log tabs in a single Card) plus a Pending Certificate Requests Card. Pending CSR signing was moved here from the Certificate Authority page so the workflow (paste install command -> wait for CSR -> click Sign -> done) lives in one place.
+- **Mirror Status, Disk Space, and Sync Log are now tabs** inside the Install Commands card instead of three standalone cards stacked below it. "Sync now" button hoisted into the card header so it's always visible regardless of which tab is active.
+
+### Security hardening
+
+3.6.0 closes every CRITICAL and HIGH finding from an internal security audit conducted at the end of the 3.3.5-x test-build series.
+
+- **Per-route role enforcement** on every privileged endpoint. Previously the auth middleware only checked JWT validity -- any authenticated user (including `viewer` and auto-provisioned LDAP accounts) could trigger destructive operations. Now each endpoint declares `Depends(require_role(...))`:
+  - **Bolt** `/run/{command,task,plan}`, `/file/{upload,download}`, `/run/script`, `/inventory/sync` -- admin or operator
+  - **Bolt** `PUT /config` (rewrites `bolt-project.yaml` / `inventory.yaml`) -- admin only
+  - **Certificate Authority** `sign`, `revoke`, `clean` -- admin or operator
+  - **Configuration** all 13 mutating endpoints (puppet.conf, Hiera, SSL, .env, restart-puppet-stack, files, lookup, app, ssl, preferences) -- admin only
+  - **External Node Classifier** all 10 mutating endpoints (common save, environments / groups / nodes CRUD) -- admin or operator
+  - **PQL Console** `POST /query` -- admin or operator (PuppetDB facts can leak Hiera-rendered passwords)
+- **Deploy webhook (`/api/deploy/webhook`)** now requires HMAC-SHA256 signature verification with a shared secret. **Disabled by default**; opt in via `OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET` in `.env` (and configure the same string in GitHub's webhook settings). The `ref` field from the JSON payload is strictly validated against `OPENVOX_GUI_DEPLOY_WEBHOOK_REF_PATTERN` (default `^[a-zA-Z0-9._/-]{1,200}$`) before being passed to `r10k-deploy.sh`. Previously the endpoint accepted unauthenticated POSTs and was effectively an open r10k-deploy-as-root entrypoint.
+- **JWT logout actually revokes the token now**. New tokens carry a `jti` (JWT ID) claim; `/api/auth/logout` adds the `jti` to a server-side `token_denylist` table; the auth middleware checks the denylist on every authenticated request via `verify_token_async`. Pre-3.6.0, `/logout` only deleted the cookie -- the JWT itself stayed cryptographically valid for its full 24-hour expiry. Pre-3.6.0 tokens (no `jti`) can't be revoked individually and expire normally.
+- **LDAP bind password encrypted at rest** with Fernet (AES-128-CBC + HMAC-SHA256) keyed off the existing `OPENVOX_GUI_SECRET_KEY`. The column had a comment claiming "Encrypted at rest" since 2.0 but stored plaintext; that's fixed. New `backend/app/services/secrets.py` module provides `encrypt_secret` / `decrypt_secret` / `is_encrypted` with versioned ciphertext (`enc:v1:<token>`) so existing plaintext values are read transparently and re-encrypted on the next save.
+- **Sudoers wildcards tightened**:
+  - `openssl x509 *` (allowed `-out /etc/shadow` for arbitrary file write as root) replaced with explicit per-form rules constrained to `/etc/puppetlabs/puppet/ssl/ca/` paths.
+  - `puppetserver ca *` replaced with explicit per-subcommand rules (`ca list`, `ca sign --certname *`, etc.).
+  - `r10k-deploy.sh *` defended in depth via the wrapper script -- argv elements are now whitelisted (env name + flags only) before exec'ing r10k.
+
+### Quality + reliability
+
+- **Three high-severity npm-audit findings cleared** non-breaking via `npm audit fix`: vite 6.4.1->6.4.2 (Path Traversal in Optimized Deps + Arbitrary File Read via WebSocket -- both dev-server-only), lodash->4.18.1 (Code Injection via `_.template`, Prototype Pollution in `_.unset`/`_.omit`), picomatch->4.0.4 (Method Injection in POSIX Character Classes, ReDoS via extglob quantifiers).
+- **Async cert handlers**: three blocking `subprocess.run` calls in `routers/certificates.py` async handlers wrapped in `asyncio.to_thread` so the uvicorn event loop doesn't freeze for up to 10 s per request when shelling out to openssl.
+- **Sync script lock-file race closed** in `sync-openvox-repo.sh`: cleanup trap installed before lock-file write (was the other way round, leaving a small race window for stale locks on SIGTERM).
+- **Bare `except:` clauses narrowed** in `routers/certificates.py` so `KeyboardInterrupt` and `asyncio.CancelledError` propagate.
+
+### Documentation
+
+- **`docs/INSTALLER.md`** is the canonical reference for the agent installer feature: architecture diagram, mirror layout, full CLI option matrix, four-step puppetserver-FQDN resolution chain, security model, and troubleshooting entries for the actual failures the test campaign hit (`407 CONNECT tunnel failed`, `Certificate verification failed`, `404 Not Found` on a specific dist's `Packages` index).
+- **`docs/SUDOERS.md`** updated with the tightened sudoers payload + the sync-trigger NOPASSWD rule.
+- **`INSTALL.md`** documents the new install-time prompts (`CONFIGURE_PKG_REPO`, `RUN_INITIAL_SYNC`).
+- **`UPDATE.md`** "Special note for upgrades to 3.6.0" walks operators through what `update_local.sh` does and the one mandatory action (set the webhook secret if you use the deploy webhook).
+- **`TROUBLESHOOTING.md`** has a dedicated Agent Installer section covering the most common gotchas.
+
+### Per-iteration history (preserved below)
+
+The 31 test-build iterations that produced this release are kept as historical entries below. They document how the design evolved, what was rejected, and the exact failure modes that were fixed. Future maintainers should treat them as background context; the consolidated entry above is the canonical changelog for 3.6.0.
+
+---
+
 ## [3.3.5-30] - 2026-04-24
 
 ### Security

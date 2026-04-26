@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.3.5-30**
+**OpenVox GUI Version 3.6.0**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -49,13 +49,16 @@ Think of updating like changing the oil in your car - you want to prepare first:
    - The service will be briefly unavailable
    - Notify your users if needed
 
-### Special note for upgrades to 3.3.5-x or later
+### Special note for upgrades to 3.6.0 or later
 
-This release introduces the **OpenVox Agent Installer** -- a local
+3.6.0 introduces the **OpenVox Agent Installer** -- a local
 package mirror under `/opt/openvox-pkgs/` plus PE-style
-`curl ... | sudo bash` agent install scripts served on port 8140.
+`curl ... | sudo bash` agent install scripts served on port 8140 --
+plus comprehensive security hardening (per-route role enforcement,
+encrypted LDAP bind password, HMAC-verified deploy webhook, JWT
+revocation on logout, tightened sudoers).
 
-When you upgrade an existing installation to 3.3.5-x, `update_local.sh`
+When you upgrade an existing installation to 3.6.0, `update_local.sh`
 will:
 
 1. Drop the new `sync-openvox-repo.sh` script and the agent installer
@@ -86,8 +89,8 @@ The page now consists of:
   **Direct URLs**, **Mirror Status**, **Sync Log** -- "Sync now" button
   in the card header (always visible, no matter which tab is active).
 - One **Pending Certificate Requests** card with **Sign** and **Reject**
-  buttons (moved here from Certificate Authority in 3.3.5-20 so the
-  whole agent bring-up workflow lives on one page).
+  buttons (so the whole agent bring-up workflow lives on one page --
+  paste the install one-liner, wait for the CSR to appear, click Sign).
 
 The published Linux one-liner is now the bare PE-style form:
 ```bash
@@ -99,6 +102,23 @@ CA into the agent's system trust store, sets `no_proxy`, and runs
 the package install.
 
 See [docs/INSTALLER.md](docs/INSTALLER.md) for the full feature guide.
+
+> **MANDATORY ACTION (only if you use the GitHub deploy webhook):**
+> 3.6.0 hardened `/api/deploy/webhook` to require HMAC-SHA256
+> signature verification. The endpoint is **disabled by default**
+> after the upgrade and returns 503 until you opt in. If you have
+> a GitHub webhook currently pointed at this endpoint, run once:
+>
+> ```bash
+> SECRET=$(openssl rand -hex 32)
+> echo "OPENVOX_GUI_DEPLOY_WEBHOOK_SECRET=${SECRET}" | sudo tee -a /opt/openvox-gui/config/.env
+> sudo systemctl restart openvox-gui
+> echo "Now paste this string into the GitHub webhook 'Secret' field:"
+> echo "${SECRET}"
+> ```
+>
+> If you don't use the deploy webhook, ignore -- leaving it disabled
+> is the safer default.
 
 ---
 
@@ -151,7 +171,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.3.5-30"}
+# {"status":"ok","version":"3.6.0"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
