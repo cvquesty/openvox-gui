@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2] - 2026-04-26
+
+**Release-engineering follow-up to 3.6.1.** No code or dependency
+changes; scrubs a corporate Artifactory URL that leaked into
+`frontend/package-lock.json` during the 3.6.1 prep, breaking deploys
+from a fresh clone of the v3.6.1 tag.
+
+### Fixed
+
+- **`postcss` 8.5.12 lockfile entry now resolves from `https://registry.npmjs.org/`** instead of `https://artifactory.twitter.biz/...`. The 3.6.1 lockfile bump was performed on a workstation whose `~/.npmrc` pointed at an internal Artifactory mirror; npm faithfully recorded that resolved URL in the lockfile. On any host without access to that mirror -- including the test server -- `npm install` against the v3.6.1 lockfile failed with `403 Forbidden`. Re-pinned with `npm install postcss@^8.5.12 --save --registry=https://registry.npmjs.org/` so the lockfile is portable.
+
+### Operator notes
+
+- v3.6.1 should be considered superseded for any clean-clone deploy. Hosts that already deployed by rsync of a working tree (rather than from the tagged ref) are unaffected. v3.6.2 is otherwise identical to v3.6.1.
+- `package.json` postcss caret stays at `^8.5.12` (unchanged from 3.6.1).
+- No action required on hosts already running 3.6.1 successfully -- a routine upgrade to 3.6.2 just re-resolves the same package version from a public URL.
+
+---
+
 ## [3.6.1] - 2026-04-26
 
 **Security release.** Patches both moderate Dependabot findings flagged on `main` immediately after the 3.6.0 cut. No behavior changes; dependency bumps only.
