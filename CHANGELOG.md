@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.1] - 2026-04-26
+
+**Security release.** Patches both moderate Dependabot findings flagged on `main` immediately after the 3.6.0 cut. No behavior changes; dependency bumps only.
+
+### Security
+
+- **`postcss` 8.5.6 -> 8.5.12** ([GHSA / Dependabot #27](https://github.com/cvquesty/openvox-gui/security/dependabot/27)). Fixes a CSS-stringify XSS in the PostCSS output when an unescaped `</style>` token was present in input CSS. Patched range is `< 8.5.10`. PostCSS is a transitive dev dependency pulled in by `postcss-preset-mantine`, `postcss-mixins`, and `postcss-simple-vars`; the package.json caret (`^8.4.47`) already permitted the patched version, so `npm update postcss` was sufficient -- no manifest change needed.
+- **`python-multipart` 0.0.22 -> 0.0.26** ([GHSA / Dependabot #26](https://github.com/cvquesty/openvox-gui/security/dependabot/26)). Fixes a denial-of-service in `python-multipart` when an attacker sends a multipart request with a very large preamble or epilogue (the inter-boundary regions of a multipart body that aren't part of any part's content). Affected versions repeatedly grow internal buffers from those regions. Patched in 0.0.26. Backend FastAPI uses `python-multipart` for `multipart/form-data` parsing on file-upload endpoints (Bolt `/file/upload`, Hiera config uploads, etc.).
+
+### Verified
+
+- Frontend `npx vite build` clean against the patched lockfile.
+- Backend AST parse clean.
+- Both Dependabot alerts confirmed open at the time of the cut; will auto-close on push.
+
+---
+
 ## [3.6.0] - 2026-04-25
 
 3.6.0 is a major release. It consolidates 31 test-build iterations
