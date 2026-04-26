@@ -22,13 +22,23 @@ from a fresh clone of the v3.6.1 tag.
 
 ### Operator notes
 
-- v3.6.1 should be considered superseded for any clean-clone deploy. Hosts that already deployed by rsync of a working tree (rather than from the tagged ref) are unaffected. v3.6.2 is otherwise identical to v3.6.1.
+- **v3.6.1 has been rescinded** -- the GitHub Release entry was removed on 2026-04-26 to prevent further downloads. The v3.6.1 tag is preserved for audit history. Hosts that already deployed v3.6.1 successfully (by rsync of a working tree, rather than from the tagged ref) are unaffected. v3.6.2 is otherwise identical to v3.6.1.
 - `package.json` postcss caret stays at `^8.5.12` (unchanged from 3.6.1).
 - No action required on hosts already running 3.6.1 successfully -- a routine upgrade to 3.6.2 just re-resolves the same package version from a public URL.
 
 ---
 
-## [3.6.1] - 2026-04-26
+## [3.6.1] - 2026-04-26 -- RESCINDED
+
+> **This release has been rescinded.** Use [v3.6.2](#362---2026-04-26) instead.
+>
+> The published `frontend/package-lock.json` accidentally captured an
+> internal Artifactory URL for `postcss`, which made `npm install`
+> fail with HTTP 403 on any host without access to that mirror.
+> The GitHub Release entry was removed on 2026-04-26 to prevent
+> further downloads; the v3.6.1 tag is preserved for changelog
+> referenceability and audit history. **3.6.2 contains every
+> security fix from 3.6.1, plus the lockfile portability fix.**
 
 **Security release.** Patches both moderate Dependabot findings flagged on `main` immediately after the 3.6.0 cut. No behavior changes; dependency bumps only.
 
