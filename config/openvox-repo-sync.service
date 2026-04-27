@@ -21,9 +21,14 @@ Group=root
 # the install directory's scripts/ subfolder.
 ExecStart=/opt/openvox-gui/scripts/sync-openvox-repo.sh --quiet
 
-# Reasonable timeout: full mirror can take a while on first run.
-# After the initial sync, incremental runs are much faster.
-TimeoutStartSec=2h
+# Reasonable timeout: full mirror (yum + apt + windows + mac, both
+# v7 and v8, both arches) can take a while on first run -- empirically
+# the yum portion alone runs ~1h40m, apt is the largest tree, and the
+# old 2h cap killed in-progress full syncs at the apt stage (verified
+# 2026-04-23 on test server: yum finished at 17:01Z having started at
+# 15:20Z, then SIGTERM at 17:20Z mid-apt). 6h gives comfortable
+# headroom for a cold full sync; incremental runs finish in minutes.
+TimeoutStartSec=6h
 
 # Don't restart on failure -- timer will retry on next schedule
 Restart=no

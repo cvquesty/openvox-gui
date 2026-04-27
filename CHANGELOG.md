@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2-1] - 2026-04-27
+
+**Operations follow-up.** Single change: extends the systemd
+TimeoutStartSec on `openvox-repo-sync.service` from 2h to 6h so a
+cold full mirror sync (yum + apt + windows + mac, both v7 and v8,
+both arches) can actually finish before being killed.
+
+### Fixed
+
+- **`openvox-repo-sync.service` no longer SIGTERMs mid-sync.** The
+  prior `TimeoutStartSec=2h` was empirically insufficient for a cold
+  full sync. On the test server, the yum portion alone took ~1h40m;
+  systemd then SIGTERMed the script at the 2h mark while it was still
+  inside `sync_apt`. Result: `apt/`, `windows/`, and `mac/` mirror
+  trees stayed empty after install, and `Sync now` from the GUI (or
+  `systemctl start openvox-repo-sync.service`) consistently exited
+  with `Result: timeout`. Bumped to 6h, which gives comfortable
+  headroom over a measured ~4h40m cold full sync. Incremental runs
+  (the steady-state nightly case) still complete in minutes.
+
+### Operator notes
+
+- After upgrading, reload systemd to pick up the new unit:
+  `sudo systemctl daemon-reload`. The deploy script does this
+  automatically.
+- If the nightly timer was never enabled on your install (verify with
+  `systemctl is-enabled openvox-repo-sync.timer`), enable it now:
+  `sudo systemctl enable --now openvox-repo-sync.timer`. Fresh
+  installs since 3.3.0 enable it automatically; upgrades performed
+  via `update_local.sh` / `update_remote.sh` between certain
+  versions did not.
+- No code, dependency, or schema changes; pure ops/timeout fix.
+
+---
+
 ## [3.6.2] - 2026-04-26
 
 **Release-engineering follow-up to 3.6.1.** No code or dependency
