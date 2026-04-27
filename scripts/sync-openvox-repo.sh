@@ -25,8 +25,8 @@
 #     ├── apt/
 #     │   ├── GPG-KEY-openvox.pub
 #     │   ├── openvox-keyring.gpg
-#     │   ├── openvox{7,8}-release-{debian12,debian13,ubuntu22.04,ubuntu24.04}.deb
-#     │   ├── dists/{debian12,debian13,ubuntu22.04,ubuntu24.04}/openvox{7,8}/binary-{amd64,arm64}/
+#     │   ├── openvox{7,8}-release-{debian10,debian12,debian13,ubuntu22.04,ubuntu24.04}.deb
+#     │   ├── dists/{debian10,debian12,debian13,ubuntu22.04,ubuntu24.04}/openvox{7,8}/binary-{amd64,arm64}/
 #     │   │     ├── Packages, Packages.gz, Release
 #     │   │     └── (also dists/<dist>/{InRelease,Release,Release.gpg})
 #     │   └── pool/openvox{7,8}/o/{openvox-agent,openbolt,...}/
@@ -82,7 +82,7 @@ DOWNLOADS_BASE="${DOWNLOADS_BASE:-https://downloads.voxpupuli.org}"
 PLATFORMS_DEFAULT="yum,apt,windows,mac"
 VERSIONS_DEFAULT="7,8"
 EL_RELEASES_DEFAULT="8,9"
-DEB_RELEASES_DEFAULT="12,13"
+DEB_RELEASES_DEFAULT="10,12,13"
 UBU_RELEASES_DEFAULT="22.04,24.04"
 ARCHES_DEFAULT="x86_64,aarch64"
 

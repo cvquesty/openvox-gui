@@ -56,8 +56,8 @@ There are three problems it solves:
                                        │                            │
    yum.voxpupuli.org                   │  /opt/openvox-pkgs/        │
    apt.voxpupuli.org   ───[sync]──>    │    yum/openvox{7,8}/...    │
-   downloads.voxpupuli.org             │    apt/dists/{debian12,    │
-                                       │             ubuntu24.04}/  │
+   downloads.voxpupuli.org             │    apt/dists/{debian10,    │
+                                       │     debian12,ubuntu24.04}/ │
    (sync-openvox-repo.sh,              │    windows/                │
     nightly via systemd timer          │    mac/                    │
     or on-demand via GUI button)       │    install.bash            │
@@ -118,8 +118,8 @@ URL paths that map directly to the upstream documentation.
 │
 ├── apt/                             mirrors apt.voxpupuli.org
 │   ├── GPG-KEY-openvox.pub, openvox-keyring.gpg
-│   ├── openvox{7,8}-release-{debian12,debian13,ubuntu22.04,ubuntu24.04}.deb
-│   ├── dists/{debian12,debian13,ubuntu22.04,ubuntu24.04}/
+│   ├── openvox{7,8}-release-{debian10,debian12,debian13,ubuntu22.04,ubuntu24.04}.deb
+│   ├── dists/{debian10,debian12,debian13,ubuntu22.04,ubuntu24.04}/
 │   │     ├── {InRelease,Release,Release.gpg}
 │   │     └── openvox{7,8}/binary-{amd64,arm64}/{Packages,Packages.gz,Release}
 │   └── pool/openvox{7,8}/o/{openvox-agent,openbolt,openvox-server,...}/
@@ -387,7 +387,7 @@ supported OS release (expand via flags if you need older releases):
 | Source | OpenVox versions | OS releases | Architectures |
 |--------|------------------|-------------|---------------|
 | `yum` (RHEL family: rocky/alma/centos/rhel/oracle) | 7, 8 | el-8, el-9 | x86_64, aarch64 |
-| `apt` Debian | 7, 8 | debian12 (bookworm), debian13 (trixie) | amd64, arm64 |
+| `apt` Debian | 7, 8 | debian10 (buster), debian12 (bookworm), debian13 (trixie) | amd64, arm64 |
 | `apt` Ubuntu | 7, 8 | ubuntu22.04 (jammy), ubuntu24.04 (noble) | amd64, arm64 |
 | `windows` | 7, 8 | n/a | x64 |
 | `mac` | 7, 8 | n/a | x86_64, arm64 |
@@ -400,7 +400,7 @@ sudo /opt/openvox-gui/scripts/sync-openvox-repo.sh \
     --versions 8 \
     --el-releases 8,9 \
     --ubuntu-releases 22.04,24.04 \
-    --debian-releases 12,13 \
+    --debian-releases 10,12,13 \
     --arches x86_64
 ```
 
@@ -420,7 +420,7 @@ A full mirror of every supported platform is roughly:
 | Source | Approx size |
 |--------|-------------|
 | yum (el-8,9 x86_64+aarch64, openvox 7+8) | 600 MB |
-| apt (debian12,13 + ubuntu22.04,24.04, openvox 7+8) | 500 MB |
+| apt (debian10,12,13 + ubuntu22.04,24.04, openvox 7+8) | 500 MB |
 | Windows MSIs | 100 MB |
 | macOS DMGs | 200 MB |
 | **Total** | **~1.4 GB** |
@@ -628,7 +628,7 @@ deprecation warning:
 echo 'PLATFORMS=yum,apt'        | sudo tee /etc/sysconfig/openvox-repo-sync
 echo 'EL_RELEASES=8,9'          | sudo tee -a /etc/sysconfig/openvox-repo-sync
 echo 'UBU_RELEASES=22.04,24.04' | sudo tee -a /etc/sysconfig/openvox-repo-sync
-echo 'DEB_RELEASES=12,13'       | sudo tee -a /etc/sysconfig/openvox-repo-sync
+echo 'DEB_RELEASES=10,12,13'    | sudo tee -a /etc/sysconfig/openvox-repo-sync
 ```
 
 ### "A sync is already running" -- but I don't see one

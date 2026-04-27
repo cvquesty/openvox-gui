@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2-4] - 2026-04-27
+
+**Feature.** Adds Debian 10 (buster) to the default mirror set for
+both OpenVox 7 and 8.
+
+### Added
+
+- **`DEB_RELEASES_DEFAULT` now includes `10`** in addition to `12,13`.
+  Verified upstream availability of all four required artifacts:
+  `dists/debian10/openvox{7,8}/binary-{amd64,arm64}/Packages` and
+  `openvox{7,8}-release-debian10.deb`. Debian 10 is end-of-life
+  upstream as of 2024-06-30, but voxpupuli.org is still publishing
+  for it; supporting it here is a small concession to long-tail
+  hosts that haven't yet been upgraded.
+- **Disk impact: negligible** (~200 KB of additional metadata).
+  The apt `pool/openvox{N}/` tree was already being mirrored
+  whole, which already includes every per-Debian-release `.deb`.
+  The missing piece was the `dists/debian10/` metadata tree --
+  without it, apt clients on Debian 10 had no way to discover the
+  packages even though the .debs were sitting in the mirror. This
+  release adds that tree.
+- **`install.bash` required no change.** The agent installer is
+  version-agnostic for Debian -- it builds `debian${PLATFORM_RELEASE}`
+  from the host's `/etc/os-release`, so any Debian major version
+  with a corresponding mirror tree just works.
+
+### Operator notes
+
+- Existing custom configs in `/etc/sysconfig/openvox-repo-sync` that
+  override `DEB_RELEASES` will keep their explicit value -- this
+  change only moves the *default*. To opt in on a host with an
+  override, append `10`:
+  `DEB_RELEASES=10,12,13`.
+- After picking up the new script (`scp` of
+  `scripts/sync-openvox-repo.sh`), trigger one sync to populate the
+  `dists/debian10/` tree:
+  `sudo systemctl start openvox-repo-sync.service`.
+- Debian 11 (bullseye) is also published upstream; not added by
+  default but available via `--debian-releases 10,11,12,13`.
+
+---
+
 ## [3.6.2-3] - 2026-04-27
 
 **Diagnostic fix.** Streams every individual URL `wget` fetches into
