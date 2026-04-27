@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2-5] - 2026-04-27
+
+**Diagnostic fix.** Eliminates false-alarm WARN lines for
+version/release combinations that are not published upstream.
+
+### Fixed
+
+- **`sync_apt` now probes upstream before mirroring.** A lightweight
+  HEAD request (`url_exists`) checks whether
+  `dists/<dist>/openvox<N>/` exists before entering the per-arch
+  mirror loop. Combinations that return 404 are logged once at INFO
+  (`openvox7 not published for debian13 -- skipping`) and the loop
+  `continue`s cleanly, without incrementing `SYNC_FAILURES` or
+  logging WARN. This eliminates the "wget failed" noise for combos
+  like openvox 7 × debian 13 that legitimately don't exist upstream
+  (verified: voxpupuli.org only publishes openvox 8 for debian 13).
+  Same probe applied to the Ubuntu release loop.
+- **`url_exists` helper added to the script.** Uses
+  `curl --head --max-time 15` to test reachability. On corp-network
+  hosts where egress is blackholed, the 15s timeout keeps the probe
+  fast rather than waiting wget's full 60s timeout.
+
+### Operator notes
+
+- On hosts with working internet, the only visible change is that
+  `[WARN] wget failed for .../dists/debian13/openvox7/...` lines
+  disappear, replaced by a single INFO skip line.
+- On hosts behind a blackholed corp firewall, the probes will fail
+  at 15s each and the script will skip everything (same net result as
+  before, just faster). The underlying network issue still needs to
+  be resolved separately (see 3.6.2-2 operator notes).
+
+---
+
 ## [3.6.2-4] - 2026-04-27
 
 **Feature.** Adds Debian 10 (buster) to the default mirror set for

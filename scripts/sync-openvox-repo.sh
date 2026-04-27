@@ -133,6 +133,21 @@ deb_arch() {
     esac
 }
 
+# Probe whether a remote URL exists (HTTP 200) before attempting a
+# potentially long wget mirror. Returns 0 if the URL is reachable,
+# 1 otherwise. Uses a HEAD request with a short timeout so it fails
+# fast on blackholed corp networks rather than waiting --timeout
+# seconds. Logs the skip reason at INFO (not WARN) since a missing
+# upstream combination is normal -- e.g. openvox 7 is not published
+# for Debian 13.
+url_exists() {
+    local url="$1"
+    local code
+    code=$(curl -s -o /dev/null -w '%{http_code}' \
+               --head --max-time 15 "$url" 2>/dev/null) || code="000"
+    [ "$code" = "200" ]
+}
+
 # Map openvox arch to mac DMG arch suffix
 mac_arch() {
     case "$1" in
@@ -421,6 +436,16 @@ sync_apt() {
         # 2. dists/<numeric>/{InRelease,Release,Release.gpg}
         for rel in $(echo "$DEB_RELEASES" | tr ',' ' '); do
             dist="debian${rel}"
+            # Not every openvox version is published for every dist
+            # (e.g. openvox 7 is not available for debian 13). Probe
+            # with a lightweight HEAD request and skip cleanly rather
+            # than letting wget_mirror fail with a noisy 404 after
+            # --timeout seconds of waiting.
+            if [ "$DRY_RUN" != "true" ] && \
+               ! url_exists "${APT_BASE}/dists/${dist}/openvox${v}/"; then
+                info "  (openvox${v} not published for ${dist} -- skipping)"
+                continue
+            fi
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 deb_a=$(deb_arch "$arch")
                 local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
@@ -442,6 +467,11 @@ sync_apt() {
         done
         for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
             dist="ubuntu${rel}"
+            if [ "$DRY_RUN" != "true" ] && \
+               ! url_exists "${APT_BASE}/dists/${dist}/openvox${v}/"; then
+                info "  (openvox${v} not published for ${dist} -- skipping)"
+                continue
+            fi
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 deb_a=$(deb_arch "$arch")
                 local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
