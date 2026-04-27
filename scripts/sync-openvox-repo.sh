@@ -192,16 +192,43 @@ wget_mirror() {
         return 0
     fi
 
+    # Capture wget's stderr so we can surface the real failure reason
+    # in the application log when the run is being driven by systemd
+    # with --quiet (the journal sees wget's chatter, but the journal
+    # rotates and operators look at /opt/openvox-gui/logs/repo-sync.log
+    # first). Without this, all you ever see is "wget failed (exit ?)".
+    #
+    # IMPORTANT: capture the real exit code BEFORE the `if` test --
+    # `if ! wget ...; then warn "$?"; fi` always reports 0 because the
+    # `!` operator inverts wget's exit status, and `$?` inside the
+    # then-branch reflects that inverted status, not wget's. Audit
+    # 3.6.2-2: this swallowed every non-zero wget on the production
+    # corp-network host and made remote diagnosis impossible.
+    local wget_err
+    wget_err=$(mktemp -t wget-mirror.XXXXXX.err)
     # shellcheck disable=SC2086
-    if ! wget "${args[@]}" $extra "$url"; then
-        warn "wget failed for ${url} (exit $?)"
+    wget "${args[@]}" $extra "$url" 2>"$wget_err"
+    local rc=$?
+    if [ $rc -ne 0 ]; then
+        warn "wget failed for ${url} (exit ${rc})"
+        # Echo wget's last 10 stderr lines into the app log so the
+        # actual error (DNS failure, SSL trust, 403, etc.) is visible
+        # without having to chase journalctl.
+        local line
+        while IFS= read -r line; do
+            [ -n "$line" ] && warn "  wget: ${line}"
+        done < <(tail -n 10 "$wget_err")
+        rm -f "$wget_err"
         return 1
     fi
+    rm -f "$wget_err"
     return 0
 }
 
 # Fetch one specific URL into a destination directory using wget -N
-# (only re-downloads if the remote file is newer).
+# (only re-downloads if the remote file is newer). Same stderr-capture
+# pattern as wget_mirror so failures surface a useful reason in the
+# application log instead of a bare exit code.
 fetch_one() {
     local url="$1"
     local dest_dir="$2"
@@ -210,11 +237,25 @@ fetch_one() {
         info "DRY-RUN: wget -N -P ${dest_dir} ${url}"
         return 0
     fi
+    local wget_err
+    wget_err=$(mktemp -t wget-fetch-one.XXXXXX.err)
     if [ "$QUIET" = "true" ]; then
-        wget --quiet -N -P "$dest_dir" "$url" 2>/dev/null || return 1
+        wget --quiet -N -P "$dest_dir" "$url" 2>"$wget_err"
     else
-        wget -N -P "$dest_dir" "$url" || return 1
+        wget -N -P "$dest_dir" "$url" 2>"$wget_err"
     fi
+    local rc=$?
+    if [ $rc -ne 0 ]; then
+        warn "wget failed for ${url} (exit ${rc})"
+        local line
+        while IFS= read -r line; do
+            [ -n "$line" ] && warn "  wget: ${line}"
+        done < <(tail -n 10 "$wget_err")
+        rm -f "$wget_err"
+        return 1
+    fi
+    rm -f "$wget_err"
+    return 0
 }
 
 acquire_lock() {

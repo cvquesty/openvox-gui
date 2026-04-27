@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2-2] - 2026-04-27
+
+**Diagnostic fix.** Surfaces the real reason `wget` fails inside
+`sync-openvox-repo.sh`. No behavior change for healthy hosts; on
+hosts that are failing the warning now actually tells you why.
+
+### Fixed
+
+- **`wget_mirror` now reports the real wget exit code.** The prior
+  pattern was `if ! wget ...; then warn "exit $?"; fi` -- the `!`
+  operator inverts wget's exit status, so `$?` inside the then-branch
+  always reads as `0`. Operators on corp-network hosts saw warnings
+  like `wget failed for https://yum.voxpupuli.org/openvox7/el/8/x86_64/ (exit 0)`
+  and (reasonably) suspected a script bug or a malformed URL. The
+  URL is fine -- `wget --mirror` of an autoindexed directory is the
+  correct pattern and works on the test server -- but the diagnostic
+  was hiding the real DNS/SSL/proxy/HTTP failure underneath. Now
+  captures the exit code into a local before the `if`, and reports it
+  honestly.
+- **`wget_mirror` and `fetch_one` now log wget's stderr on failure.**
+  Captures wget's stderr to a tempfile and tees the last 10 lines
+  into `/opt/openvox-gui/logs/repo-sync.log` with a `wget:` prefix
+  whenever wget exits non-zero. Operators no longer have to chase
+  `journalctl -u openvox-repo-sync.service` (which rotates) to see
+  whether the failure was `Name or service not known`, a TLS handshake
+  rejection, an HTTP 403 from a corporate egress proxy, or something
+  else. Successful runs still produce no extra output.
+- **`fetch_one` now uses the same exit-code capture pattern.** The
+  prior `wget ... || return 1` swallowed the real exit too; it now
+  captures `rc` in a local before deciding what to do, matching
+  `wget_mirror`.
+
+### Operator notes
+
+- This release is a script-only change; nothing under `config/` or
+  `frontend/` moved. To pick it up on a host where the sync was
+  failing silently, copy `scripts/sync-openvox-repo.sh` into
+  `/opt/openvox-gui/scripts/`, then re-run the sync (no
+  `daemon-reload` needed). On hosts behind a bastion where rsync from
+  the GitHub-hosted repo isn't possible, scp the single file.
+
+---
+
 ## [3.6.2-1] - 2026-04-27
 
 **Operations follow-up.** Single change: extends the systemd
