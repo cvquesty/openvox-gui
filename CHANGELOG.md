@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2-3] - 2026-04-27
+
+**Diagnostic fix.** Streams every individual URL `wget` fetches into
+`/opt/openvox-gui/logs/repo-sync.log` in real time, instead of only
+recording the directory the script started recursing on. Operators
+can now see exactly what's being pulled (or attempted) per file
+without chasing `journalctl`.
+
+### Changed
+
+- **`wget_mirror` now streams each URL into the app log live.** The
+  prior log only showed the recursion entry point, e.g.
+  `[INFO]   -> openvox7/el/8/x86_64`, then went silent for the
+  duration of the call (could be seconds, could be the full 60s
+  timeout) before printing either nothing or a `wget failed` line.
+  `wget`'s per-file output went to its stderr -- captured by the
+  systemd journal but never written into the file operators actually
+  monitor. On a host where the sync was failing silently this gave
+  the false impression that the script was "sourcing a directory and
+  not pulling files" -- it was trying to pull files, the log just
+  wasn't recording the attempts. Each file now appears as e.g.
+  `[INFO]   wget: 2026-04-27 18:52:00 URL:https://yum.voxpupuli.org/openvox7/el/8/x86_64/openvox-agent-7.x.y.rpm [27384926/27384926] -> "/opt/openvox-pkgs/yum/openvox7/el/8/x86_64/openvox-agent-7.x.y.rpm" [1]`.
+- **`fetch_one` now streams the same way.** Same shape. The
+  per-call `--quiet` toggle (which previously suppressed every URL on
+  systemd runs) has been replaced with `--no-verbose`, so single-file
+  fetches like the GPG keys and `*-release-*.rpm` packages also
+  appear in the log.
+- **Always pass `--no-verbose` to `wget`.** Previously this was
+  conditional on `QUIET=true`; without it, `wget` would emit
+  multi-line progress bars that would have been unreadable in the
+  log. We now pin the format. `QUIET` remains accepted for backward
+  compatibility but no longer affects `wget` output formatting --
+  the streaming + per-line prefix is uniformly concise either way.
+- **Use `stdbuf -oL -eL`** in front of `wget` so its stdio is
+  line-buffered. Without this, glibc block-buffers wget's stderr
+  when it's piped (rather than attached to a terminal), and lines
+  arrive in 4 KB bursts -- making the live log far less useful for
+  watching a slow corp-network sync stall.
+- **`${PIPESTATUS[0]}` capture replaces the prior tempfile + tail
+  pattern.** With every `wget:` line already in the log, the
+  3.6.2-2-style "tail the last 10 stderr lines into a WARN" is
+  redundant -- the stderr lines are now part of the streamed log.
+  Failure mode now logs a single WARN with the real exit code and a
+  pointer back to the preceding `wget:` lines.
+
+### Operator notes
+
+- This release will increase log volume on `repo-sync.log`. A full
+  cold sync touches hundreds to low thousands of files; expect each
+  to add one INFO line. No log-rotation policy is bundled yet --
+  for now, `logrotate` is left to the operator.
+- Picking this up on a running host: scp `scripts/sync-openvox-repo.sh`
+  into `/opt/openvox-gui/scripts/`, then re-run. No systemd or GUI
+  changes; no `daemon-reload` needed.
+
+---
+
 ## [3.6.2-2] - 2026-04-27
 
 **Diagnostic fix.** Surfaces the real reason `wget` fails inside

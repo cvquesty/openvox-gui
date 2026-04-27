@@ -170,7 +170,8 @@ wget_mirror() {
     #   --no-parent           : don't ascend to the parent directory
     #   --reject              : skip HTML index files (we serve via web later)
     #   -e robots=off         : ignore robots.txt restrictions on archive files
-    #   --no-verbose          : compact output (one line per file)
+    #   --no-verbose          : one-line-per-file output (always on now -- see
+    #                           audit 3.6.2-3 below)
     local args=(
         --mirror
         --no-host-directories
@@ -181,54 +182,67 @@ wget_mirror() {
         --tries=3
         --waitretry=5
         --timeout=60
+        --no-verbose
     )
-
-    if [ "$QUIET" = "true" ]; then
-        args+=(--no-verbose)
-    fi
 
     if [ "$DRY_RUN" = "true" ]; then
         info "DRY-RUN: wget ${args[*]} ${extra} ${url}"
         return 0
     fi
 
-    # Capture wget's stderr so we can surface the real failure reason
-    # in the application log when the run is being driven by systemd
-    # with --quiet (the journal sees wget's chatter, but the journal
-    # rotates and operators look at /opt/openvox-gui/logs/repo-sync.log
-    # first). Without this, all you ever see is "wget failed (exit ?)".
+    # Stream every wget line into the application log with a "wget:"
+    # prefix so operators see each individual URL/file being fetched
+    # in /opt/openvox-gui/logs/repo-sync.log -- not just the directory
+    # we started recursing on.
     #
-    # IMPORTANT: capture the real exit code BEFORE the `if` test --
-    # `if ! wget ...; then warn "$?"; fi` always reports 0 because the
-    # `!` operator inverts wget's exit status, and `$?` inside the
-    # then-branch reflects that inverted status, not wget's. Audit
-    # 3.6.2-2: this swallowed every non-zero wget on the production
-    # corp-network host and made remote diagnosis impossible.
-    local wget_err
-    wget_err=$(mktemp -t wget-mirror.XXXXXX.err)
+    # Audit 3.6.2-3: prior to this change the log showed only
+    #   [INFO]   -> openvox7/el/8/x86_64
+    # and then went silent until the call returned, because wget's
+    # per-file output was going to its stderr (and from there to the
+    # systemd journal, which rotates) but never into the app log
+    # operators actually look at. On a host where the sync was failing
+    # silently this gave the false impression that the script was
+    # "sourcing a directory and not pulling files" -- it was trying to
+    # pull files, the log just wasn't recording the attempts.
+    #
+    # Implementation notes:
+    #  - `--no-verbose` makes wget emit one summary line per file
+    #    instead of multi-line progress bars, keeping the log readable.
+    #  - `stdbuf -oL -eL` forces line-buffered stdio on wget so each
+    #    file appears in the log in real time. Without it glibc would
+    #    block-buffer wget's stderr (it's no longer attached to a
+    #    terminal once we pipe it) and lines would arrive in 4KB
+    #    bursts -- making the log far less useful for live monitoring.
+    #  - `2>&1 | while read` pipes both streams through a per-line
+    #    handler. ${PIPESTATUS[0]} gives wget's exit code (the pipe's
+    #    own exit status is the while-loop's, which is always 0).
+    #  - IMPORTANT: we use ${PIPESTATUS[0]} BEFORE the `if` test --
+    #    same trap as the `! wget` inversion bug fixed in 3.6.2-2,
+    #    just a different shape. Capture into a local first, then
+    #    branch on it.
     # shellcheck disable=SC2086
-    wget "${args[@]}" $extra "$url" 2>"$wget_err"
-    local rc=$?
+    stdbuf -oL -eL wget "${args[@]}" $extra "$url" 2>&1 \
+        | while IFS= read -r line; do
+            [ -n "$line" ] && info "  wget: ${line}"
+          done
+    local rc=${PIPESTATUS[0]}
     if [ $rc -ne 0 ]; then
-        warn "wget failed for ${url} (exit ${rc})"
-        # Echo wget's last 10 stderr lines into the app log so the
-        # actual error (DNS failure, SSL trust, 403, etc.) is visible
-        # without having to chase journalctl.
-        local line
-        while IFS= read -r line; do
-            [ -n "$line" ] && warn "  wget: ${line}"
-        done < <(tail -n 10 "$wget_err")
-        rm -f "$wget_err"
+        warn "wget failed for ${url} (exit ${rc}) -- see preceding 'wget:' lines for the real error"
         return 1
     fi
-    rm -f "$wget_err"
     return 0
 }
 
 # Fetch one specific URL into a destination directory using wget -N
-# (only re-downloads if the remote file is newer). Same stderr-capture
-# pattern as wget_mirror so failures surface a useful reason in the
-# application log instead of a bare exit code.
+# (only re-downloads if the remote file is newer). Same streaming
+# pattern as wget_mirror so each URL appears live in the app log,
+# and failures surface the real exit code with full wget context.
+#
+# Note: previously honored QUIET by passing --quiet (silent wget). We
+# now always use --no-verbose instead, so each fetched URL appears in
+# the log even in unattended/systemd mode. QUIET is no longer
+# meaningful for fetch_one (the per-line streaming is uniformly
+# concise either way).
 fetch_one() {
     local url="$1"
     local dest_dir="$2"
@@ -237,24 +251,15 @@ fetch_one() {
         info "DRY-RUN: wget -N -P ${dest_dir} ${url}"
         return 0
     fi
-    local wget_err
-    wget_err=$(mktemp -t wget-fetch-one.XXXXXX.err)
-    if [ "$QUIET" = "true" ]; then
-        wget --quiet -N -P "$dest_dir" "$url" 2>"$wget_err"
-    else
-        wget -N -P "$dest_dir" "$url" 2>"$wget_err"
-    fi
-    local rc=$?
+    stdbuf -oL -eL wget --no-verbose -N -P "$dest_dir" "$url" 2>&1 \
+        | while IFS= read -r line; do
+            [ -n "$line" ] && info "  wget: ${line}"
+          done
+    local rc=${PIPESTATUS[0]}
     if [ $rc -ne 0 ]; then
-        warn "wget failed for ${url} (exit ${rc})"
-        local line
-        while IFS= read -r line; do
-            [ -n "$line" ] && warn "  wget: ${line}"
-        done < <(tail -n 10 "$wget_err")
-        rm -f "$wget_err"
+        warn "wget failed for ${url} (exit ${rc}) -- see preceding 'wget:' lines for the real error"
         return 1
     fi
-    rm -f "$wget_err"
     return 0
 }
 
