@@ -626,7 +626,7 @@ def _proxy_kwargs() -> dict:
 async def _scrape_links(url: str) -> list[str]:
     """Fetch an HTML directory listing and extract href values."""
     try:
-        async with httpx.AsyncClient(timeout=15, verify=False, **_proxy_kwargs()) as client:
+        async with httpx.AsyncClient(timeout=30, verify=False, **_proxy_kwargs()) as client:
             resp = await client.get(url)
             resp.raise_for_status()
     except Exception as exc:
@@ -649,10 +649,17 @@ async def _discover_upstream() -> UpstreamInfo:
             cache = json.loads(UPSTREAM_CACHE.read_text())
             cached_at = datetime.fromisoformat(cache.get("cached_at", ""))
             age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
-            if age_hours < CACHE_TTL_HOURS:
+            # Only use cache if it's fresh AND has actual data.
+            # An empty cache from a pre-proxy failed attempt must be
+            # discarded so the next call retries with working proxy.
+            if age_hours < CACHE_TTL_HOURS and cache.get("families"):
                 return UpstreamInfo(**cache)
         except Exception:
             pass
+
+    proxy_url = settings.https_proxy or settings.http_proxy
+    logger.info("Upstream discovery starting (proxy: %s)",
+                proxy_url or "none")
 
     families: list[UpstreamFamily] = []
     all_versions: set[str] = set()
@@ -818,6 +825,9 @@ async def _discover_upstream() -> UpstreamInfo:
         openvox_versions=sorted(all_versions),
         cached_at=datetime.now(timezone.utc).isoformat(),
     )
+
+    logger.info("Upstream discovery complete: %d families, versions %s",
+                len(families), sorted(all_versions))
 
     try:
         PKG_REPO_DIR.mkdir(parents=True, exist_ok=True)
