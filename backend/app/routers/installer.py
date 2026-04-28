@@ -619,12 +619,8 @@ class SelectionUpdateResult(BaseModel):
 
 def _proxy_kwargs() -> dict:
     """Build httpx proxy kwargs from the app's configured proxy settings."""
-    proxies = {}
-    if settings.http_proxy:
-        proxies["http://"] = settings.http_proxy
-    if settings.https_proxy:
-        proxies["https://"] = settings.https_proxy
-    return {"proxies": proxies} if proxies else {}
+    url = settings.https_proxy or settings.http_proxy
+    return {"proxy": url} if url else {}
 
 
 async def _scrape_links(url: str) -> list[str]:

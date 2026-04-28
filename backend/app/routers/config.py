@@ -718,18 +718,14 @@ async def test_proxy_connection(
     """
     import httpx
 
-    proxies = {}
-    if settings.http_proxy:
-        proxies["http://"] = settings.http_proxy
-    if settings.https_proxy:
-        proxies["https://"] = settings.https_proxy
+    proxy_url = settings.https_proxy or settings.http_proxy or None
 
     test_url = "https://yum.voxpupuli.org/"
     try:
         async with httpx.AsyncClient(
             timeout=15,
             verify=False,
-            proxies=proxies if proxies else None,
+            proxy=proxy_url,
         ) as client:
             resp = await client.head(test_url)
             return {

@@ -10,47 +10,18 @@ from typing import Optional, Dict, Any
 from ..config import settings
 
 
-def get_proxy_config() -> Optional[Dict[str, str]]:
+def get_proxy_url() -> Optional[str]:
     """
-    Get proxy configuration for httpx clients.
+    Get the proxy URL from settings.
 
-    Returns a dict suitable for httpx's `proxies` parameter, or None if
-    no proxy is configured. The NO_PROXY setting is handled automatically
-    by httpx via the environment variables.
+    Returns the HTTPS proxy if set, otherwise the HTTP proxy, or None.
+    httpx 0.28+ uses a single ``proxy`` parameter (not ``proxies``).
 
     Example:
-        async with httpx.AsyncClient(proxies=get_proxy_config()) as client:
+        async with httpx.AsyncClient(proxy=get_proxy_url()) as client:
             resp = await client.get("https://external-api.com/...")
     """
-    proxies = {}
-
-    if settings.http_proxy:
-        proxies["http://"] = settings.http_proxy
-    if settings.https_proxy:
-        proxies["https://"] = settings.https_proxy
-
-    return proxies if proxies else None
-
-
-def get_proxy_mounts() -> Dict[str, Optional[httpx.AsyncBaseTransport]]:
-    """
-    Get proxy mounts for httpx clients with more control.
-
-    Returns a dict suitable for httpx's `mounts` parameter. This provides
-    more granular control over which requests use proxies.
-
-    Example:
-        async with httpx.AsyncClient(mounts=get_proxy_mounts()) as client:
-            resp = await client.get("https://external-api.com/...")
-    """
-    mounts = {}
-
-    if settings.http_proxy:
-        mounts["http://"] = httpx.AsyncHTTPTransport(proxy=settings.http_proxy)
-    if settings.https_proxy:
-        mounts["https://"] = httpx.AsyncHTTPTransport(proxy=settings.https_proxy)
-
-    return mounts
+    return settings.https_proxy or settings.http_proxy or None
 
 
 def should_bypass_proxy(url: str) -> bool:
@@ -108,10 +79,8 @@ async def create_external_client(
             resp = await client.get("https://api.example.com/data")
             data = resp.json()
     """
-    proxy_config = get_proxy_config()
-
     return httpx.AsyncClient(
-        proxies=proxy_config,
+        proxy=get_proxy_url(),
         timeout=timeout,
         **kwargs
     )
