@@ -247,7 +247,7 @@ export function InstallerPage() {
       setDiskInfo(d);
       setTail(l.lines || []);
       setPendingCerts((c as any).requested || []);
-      setPendingCertsErr((c as any)._err || null);
+      setPendingCertsErr((c as any)._err || (c as any).error || null);
       if (u) setUpstream(u);
       setSavedSelections(s);
       setDraftVersions(s.openvox_versions);
