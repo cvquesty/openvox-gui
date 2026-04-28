@@ -6,7 +6,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Loader, Center, Alert, Card, Stack, Text, Code, Table, Badge, Group,
-  Tabs, TextInput, PasswordInput, Select, ActionIcon, Modal, Tooltip, Button,
+  Tabs, TextInput, Textarea, PasswordInput, Select, ActionIcon, Modal, Tooltip, Button,
   Grid, SegmentedControl, Switch, Divider, Accordion, Collapse,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -832,6 +832,153 @@ function UserManagerTab() {
   );
 }
 
+/* ────────────────────── Proxy Configuration Tab ────────────────────── */
+
+function ProxyTab() {
+  const { data, loading, error, refetch } = useApi(config.getApp);
+  const [httpProxy, setHttpProxy] = useState('');
+  const [httpsProxy, setHttpsProxy] = useState('');
+  const [noProxy, setNoProxy] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (data && !initialized) {
+      setHttpProxy(data.http_proxy || '');
+      setHttpsProxy(data.https_proxy || '');
+      setNoProxy(data.no_proxy || '');
+      setInitialized(true);
+    }
+  }, [data, initialized]);
+
+  const isDirty =
+    data &&
+    (httpProxy !== (data.http_proxy || '') ||
+     httpsProxy !== (data.https_proxy || '') ||
+     noProxy !== (data.no_proxy || ''));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await config.updateApp('http_proxy', httpProxy);
+      await config.updateApp('https_proxy', httpsProxy);
+      await config.updateApp('no_proxy', noProxy);
+      notifications.show({
+        title: 'Proxy settings saved',
+        message: 'Restart the openvox-gui service and repo-sync timer for changes to take effect.',
+        color: 'green',
+      });
+      setInitialized(false);
+      refetch();
+    } catch (err: any) {
+      notifications.show({
+        title: 'Failed to save proxy settings',
+        message: err.message || String(err),
+        color: 'red',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await config.testProxy();
+      notifications.show({
+        title: res.success ? 'Connection successful' : 'Connection failed',
+        message: `${res.message} (proxy: ${res.proxy_used})`,
+        color: res.success ? 'green' : 'red',
+      });
+    } catch (err: any) {
+      notifications.show({
+        title: 'Test failed',
+        message: err.message || String(err),
+        color: 'red',
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (loading) return <Center h={200}><Loader size="lg" /></Center>;
+  if (error) return <Alert color="red" title="Error">{error.message || String(error)}</Alert>;
+
+  return (
+    <Card withBorder shadow="sm">
+      <Stack>
+        <div>
+          <Text fw={700} size="lg">Proxy Configuration</Text>
+          <Text size="sm" c="dimmed">
+            Configure HTTP proxy settings for outbound connections. Used by mirror sync,
+            upstream distribution discovery, and package downloads. Leave fields empty if
+            no proxy is needed.
+          </Text>
+        </div>
+
+        <Divider />
+
+        <Grid gutter="md">
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="HTTP Proxy"
+              description="Proxy URL for HTTP connections"
+              placeholder="http://proxy.example.com:3128"
+              value={httpProxy}
+              onChange={(e) => setHttpProxy(e.currentTarget.value)}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="HTTPS Proxy"
+              description="Proxy URL for HTTPS connections (often the same as HTTP)"
+              placeholder="http://proxy.example.com:3128"
+              value={httpsProxy}
+              onChange={(e) => setHttpsProxy(e.currentTarget.value)}
+            />
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Textarea
+              label="No Proxy"
+              description="Comma-separated list of hostnames, domains, or IP patterns to bypass the proxy"
+              placeholder="localhost,127.0.0.1,10.*,*.local,*.corp"
+              value={noProxy}
+              onChange={(e) => setNoProxy(e.currentTarget.value)}
+              minRows={3}
+              autosize
+            />
+          </Grid.Col>
+        </Grid>
+
+        <Group justify="space-between">
+          <Text size="xs" c="dimmed">
+            After saving, restart the openvox-gui service and the repo-sync timer for changes to take effect.
+          </Text>
+          <Group gap="xs">
+            <Button
+              variant="light"
+              leftSection={<IconTestPipe size={14} />}
+              onClick={handleTest}
+              loading={testing}
+            >
+              Test Connection
+            </Button>
+            <Button
+              leftSection={<IconDeviceFloppy size={14} />}
+              onClick={handleSave}
+              loading={saving}
+              disabled={!isDirty}
+            >
+              Save
+            </Button>
+          </Group>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
+
 /* ────────────────────── Main Page ────────────────────── */
 export function ConfigAppPage() {
   const [activeTab, setActiveTab] = useState<string | null>('settings');
@@ -846,12 +993,14 @@ export function ConfigAppPage() {
           <Tabs.Tab value="users" leftSection={<IconUsers size={16} />}>User Manager</Tabs.Tab>
           <Tabs.Tab value="auth" leftSection={<IconPlugConnected size={16} />}>Auth Settings</Tabs.Tab>
           <Tabs.Tab value="ssl" leftSection={<IconLock size={16} />}>SSL Configuration</Tabs.Tab>
+          <Tabs.Tab value="proxy" leftSection={<IconWorld size={16} />}>Proxy Configuration</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings" pt="md"><ApplicationTab onSwitchToServices={() => setActiveTab('services')} /></Tabs.Panel>
         <Tabs.Panel value="services" pt="md"><ServicesTab /></Tabs.Panel>
         <Tabs.Panel value="auth" pt="md"><AuthSettingsTab /></Tabs.Panel>
         <Tabs.Panel value="users" pt="md"><UserManagerTab /></Tabs.Panel>
         <Tabs.Panel value="ssl" pt="md"><ConfigSSLPage /></Tabs.Panel>
+        <Tabs.Panel value="proxy" pt="md"><ProxyTab /></Tabs.Panel>
       </Tabs>
     </Stack>
   );

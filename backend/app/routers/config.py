@@ -637,6 +637,9 @@ async def get_app_config():
         "puppetdb_port": settings.puppetdb_port,
         "auth_backend": settings.auth_backend,
         "debug": settings.debug,
+        "http_proxy": settings.http_proxy or "",
+        "https_proxy": settings.https_proxy or "",
+        "no_proxy": settings.no_proxy,
     }
 
 
@@ -658,6 +661,9 @@ async def update_app_config(
         "puppetdb_host": "OPENVOX_GUI_PUPPETDB_HOST",
         "puppetdb_port": "OPENVOX_GUI_PUPPETDB_PORT",
         "debug": "OPENVOX_GUI_DEBUG",
+        "http_proxy": "OPENVOX_GUI_HTTP_PROXY",
+        "https_proxy": "OPENVOX_GUI_HTTPS_PROXY",
+        "no_proxy": "OPENVOX_GUI_NO_PROXY",
     }
 
     if key not in key_map:
@@ -695,6 +701,50 @@ async def update_app_config(
     env_path.write_text("\n".join(new_lines) + "\n")
 
     return {"status": "ok", "key": key, "value": value, "message": "Setting updated. Restart service for changes to take effect."}
+
+
+# ── Proxy connection test ───────────────────────────────────
+
+
+@router.get("/proxy-test")
+async def test_proxy_connection(
+    _user: str = Depends(_ADMIN_ONLY),
+):
+    """Test outbound connectivity through the configured proxy.
+
+    Attempts a HEAD request to yum.voxpupuli.org using the proxy
+    settings from the running config. Returns success/failure so
+    the operator can verify their proxy works before committing.
+    """
+    import httpx
+
+    proxies = {}
+    if settings.http_proxy:
+        proxies["http://"] = settings.http_proxy
+    if settings.https_proxy:
+        proxies["https://"] = settings.https_proxy
+
+    test_url = "https://yum.voxpupuli.org/"
+    try:
+        async with httpx.AsyncClient(
+            timeout=15,
+            verify=False,
+            proxies=proxies if proxies else None,
+        ) as client:
+            resp = await client.head(test_url)
+            return {
+                "success": resp.status_code == 200,
+                "status_code": resp.status_code,
+                "message": f"HTTP {resp.status_code} from {test_url}",
+                "proxy_used": settings.https_proxy or settings.http_proxy or "(none)",
+            }
+    except Exception as exc:
+        return {
+            "success": False,
+            "status_code": 0,
+            "message": str(exc),
+            "proxy_used": settings.https_proxy or settings.http_proxy or "(none)",
+        }
 
 
 # ── User Preferences ────────────────────────────────────────

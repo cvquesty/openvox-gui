@@ -310,6 +310,10 @@ export const config = {
       method: 'PUT',
       body: JSON.stringify({ key, value }),
     }),
+  testProxy: () =>
+    fetchJSON<{ success: boolean; status_code: number; message: string; proxy_used: string }>(
+      '/config/proxy-test'
+    ),
   // OpenVox lookup
   lookup: (key: string, node?: string, environment?: string) =>
     fetchJSON<any>('/config/lookup', {

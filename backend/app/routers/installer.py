@@ -617,10 +617,20 @@ class SelectionUpdateResult(BaseModel):
     message: str
 
 
+def _proxy_kwargs() -> dict:
+    """Build httpx proxy kwargs from the app's configured proxy settings."""
+    proxies = {}
+    if settings.http_proxy:
+        proxies["http://"] = settings.http_proxy
+    if settings.https_proxy:
+        proxies["https://"] = settings.https_proxy
+    return {"proxies": proxies} if proxies else {}
+
+
 async def _scrape_links(url: str) -> list[str]:
     """Fetch an HTML directory listing and extract href values."""
     try:
-        async with httpx.AsyncClient(timeout=15, verify=False) as client:
+        async with httpx.AsyncClient(timeout=15, verify=False, **_proxy_kwargs()) as client:
             resp = await client.get(url)
             resp.raise_for_status()
     except Exception as exc:
@@ -1063,7 +1073,7 @@ async def _fetch_file(url: str, dest_path: str) -> bool:
     """Download a single file via httpx."""
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     try:
-        async with httpx.AsyncClient(timeout=300, verify=False) as client:
+        async with httpx.AsyncClient(timeout=300, verify=False, **_proxy_kwargs()) as client:
             resp = await client.get(url)
             if resp.status_code == 200:
                 with open(dest_path, "wb") as f:

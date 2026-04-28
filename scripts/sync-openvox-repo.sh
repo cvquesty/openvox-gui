@@ -87,6 +87,24 @@ DOWNLOADS_BASE="${DOWNLOADS_BASE:-https://downloads.voxpupuli.org}"
 RSYNC_HOST="${RSYNC_HOST:-apt.voxpupuli.org}"
 RSYNC_MODULE="${RSYNC_MODULE:-packages}"
 
+# ─── Proxy support ─────────────────────────────────────────────────────────────
+# If the openvox-gui .env has OPENVOX_GUI_HTTP_PROXY / OPENVOX_GUI_HTTPS_PROXY
+# set (loaded via EnvironmentFile in the systemd unit), export them as the
+# standard environment variables that curl respects.  This is the bridge
+# between the GUI's Proxy Configuration page and the sync script.
+if [ -n "${OPENVOX_GUI_HTTPS_PROXY:-}" ]; then
+    export https_proxy="$OPENVOX_GUI_HTTPS_PROXY"
+    export HTTPS_PROXY="$OPENVOX_GUI_HTTPS_PROXY"
+fi
+if [ -n "${OPENVOX_GUI_HTTP_PROXY:-}" ]; then
+    export http_proxy="$OPENVOX_GUI_HTTP_PROXY"
+    export HTTP_PROXY="$OPENVOX_GUI_HTTP_PROXY"
+fi
+if [ -n "${OPENVOX_GUI_NO_PROXY:-}" ]; then
+    export no_proxy="$OPENVOX_GUI_NO_PROXY"
+    export NO_PROXY="$OPENVOX_GUI_NO_PROXY"
+fi
+
 # Defaults reflect "latest two only" as chosen at design time. Override
 # with the matching --flag or in /etc/sysconfig/openvox-repo-sync.
 PLATFORMS_DEFAULT="yum,apt,windows,mac"

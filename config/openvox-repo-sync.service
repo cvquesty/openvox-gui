@@ -39,8 +39,11 @@ StandardError=journal
 
 # Environment overrides can be placed in /etc/sysconfig/openvox-repo-sync
 # (RHEL family) or /etc/default/openvox-repo-sync (Debian family).
+# The openvox-gui .env is loaded so proxy settings configured via the
+# GUI's Proxy Configuration page are available to the sync script.
 EnvironmentFile=-/etc/sysconfig/openvox-repo-sync
 EnvironmentFile=-/etc/default/openvox-repo-sync
+EnvironmentFile=-/opt/openvox-gui/config/.env
 
 [Install]
 WantedBy=multi-user.target
