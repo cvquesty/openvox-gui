@@ -68,7 +68,16 @@ async def list_nodes(
                 query = '["and", ' + ', '.join(conditions) + ']'
 
         nodes = await puppetdb_service.get_nodes(query=query)
-        return [NodeSummary(**node) for node in nodes]
+        # Deduplicate by certname -- PuppetDB should enforce uniqueness
+        # but stale/reactivated nodes can occasionally produce duplicates.
+        seen: set[str] = set()
+        unique = []
+        for node in nodes:
+            cn = node.get("certname", "")
+            if cn not in seen:
+                seen.add(cn)
+                unique.append(node)
+        return [NodeSummary(**node) for node in unique]
     except HTTPException:
         raise
     except Exception as e:
