@@ -475,6 +475,38 @@ export interface InstallerDiskInfo {
   used_pct: number;
 }
 
+export interface UpstreamRelease {
+  id: string;
+  label: string;
+  openvox_versions: string[];
+  arches?: string[];
+}
+
+export interface UpstreamFamily {
+  id: string;
+  label: string;
+  repo_type: string;
+  releases: UpstreamRelease[];
+}
+
+export interface UpstreamInfo {
+  families: UpstreamFamily[];
+  openvox_versions: string[];
+  cached_at?: string | null;
+}
+
+export interface MirrorSelections {
+  openvox_versions: string[];
+  distributions: string[];
+}
+
+export interface SelectionUpdateResult {
+  success: boolean;
+  added: string[];
+  removed: string[];
+  message: string;
+}
+
 export const installer = {
   getInfo: () => fetchJSON<InstallerInfo>('/installer/info'),
   triggerSync: () =>
@@ -495,6 +527,14 @@ export const installer = {
         mtime_utc: string;
       }>;
     }>(`/installer/files${prefix ? '?prefix=' + encodeURIComponent(prefix) : ''}`),
+  getUpstream: () => fetchJSON<UpstreamInfo>('/installer/upstream'),
+  getSelections: () => fetchJSON<MirrorSelections>('/installer/mirror-selections'),
+  saveSelections: (selections: MirrorSelections) =>
+    fetchJSON<SelectionUpdateResult>('/installer/mirror-selections', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(selections),
+    }),
 };
 
 export const executionHistory = {

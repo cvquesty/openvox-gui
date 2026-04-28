@@ -10,8 +10,7 @@
 #
 #   curl -k https://<server-fqdn>:8140/packages/install.bash | sudo bash
 #
-# Layout produced (3.3.5-2+, after the validation against live
-# voxpupuli.org showed the original guesses were wrong):
+# Layout produced:
 #
 #   /opt/openvox-pkgs/
 #     ├── install.bash                 (Linux agent bootstrap)
@@ -42,8 +41,9 @@
 #
 # Transport: rsync is the preferred transport (uses rsync://RSYNC_HOST/
 # RSYNC_MODULE). When rsync is unavailable or blocked, each platform
-# falls back to wget (yum/windows/mac use wget --mirror; apt uses
-# Packages-file-parsing to discover .deb URLs properly).
+# falls back to curl (yum/windows/mac parse HTML directory listings to
+# discover file URLs; apt parses Packages.gz metadata to discover
+# .deb URLs).
 #
 # Single-tree apt + single-tree yum match how upstream organises things;
 # the user-facing install URLs become https://<server>:8140/packages/yum/...
@@ -54,7 +54,7 @@
 #   sudo ./sync-openvox-repo.sh --platforms yum,apt
 #   sudo ./sync-openvox-repo.sh --versions 8
 #   sudo ./sync-openvox-repo.sh --dry-run      # Show what would happen
-#   sudo ./sync-openvox-repo.sh --quiet        # Suppress wget chatter
+#   sudo ./sync-openvox-repo.sh --quiet        # Less verbose output
 #   sudo ./sync-openvox-repo.sh --status       # Show last sync info and exit
 #
 # Environment overrides:
@@ -95,6 +95,7 @@ EL_RELEASES_DEFAULT="8,9"
 DEB_RELEASES_DEFAULT="10,12,13"
 UBU_RELEASES_DEFAULT="22.04,24.04"
 ARCHES_DEFAULT="x86_64,aarch64"
+YUM_FAMILIES_DEFAULT="el"
 
 PLATFORMS="$PLATFORMS_DEFAULT"
 VERSIONS="$VERSIONS_DEFAULT"
@@ -102,10 +103,20 @@ EL_RELEASES="$EL_RELEASES_DEFAULT"
 DEB_RELEASES="$DEB_RELEASES_DEFAULT"
 UBU_RELEASES="$UBU_RELEASES_DEFAULT"
 ARCHES="$ARCHES_DEFAULT"
+YUM_FAMILIES="$YUM_FAMILIES_DEFAULT"
+
+# Additional yum family releases (only used when --yum-families includes them)
+AMAZON_RELEASES="${AMAZON_RELEASES:-}"
+FEDORA_RELEASES="${FEDORA_RELEASES:-}"
+SLES_RELEASES="${SLES_RELEASES:-}"
+FIPS_RELEASES="${FIPS_RELEASES:-}"
 
 DRY_RUN="false"
 QUIET="false"
 STATUS_ONLY="false"
+FROM_CONFIG="false"
+
+SELECTIONS_FILE="${PKG_REPO_DIR}/.mirror-selections.json"
 
 LOCK_FILE="${PKG_REPO_DIR}/.sync.lock"
 STATUS_FILE="${PKG_REPO_DIR}/.last-sync"
@@ -144,12 +155,9 @@ deb_arch() {
 }
 
 # Probe whether a remote URL exists (HTTP 200) before attempting a
-# potentially long wget mirror. Returns 0 if the URL is reachable,
+# potentially long mirror. Returns 0 if the URL is reachable,
 # 1 otherwise. Uses a HEAD request with a short timeout so it fails
-# fast on blackholed corp networks rather than waiting --timeout
-# seconds. Logs the skip reason at INFO (not WARN) since a missing
-# upstream combination is normal -- e.g. openvox 7 is not published
-# for Debian 13.
+# fast on blackholed corp networks.
 url_exists() {
     local url="$1"
     local code
@@ -170,7 +178,7 @@ mac_arch() {
 # ─── rsync helpers ────────────────────────────────────────────────────────────
 #
 # rsync is the preferred transport for mirroring. These helpers wrap the
-# rsync binary with the same streaming-log pattern as wget_mirror/fetch_one:
+# rsync binary with the same streaming-log pattern as curl_mirror/curl_fetch:
 # every line of rsync output is piped through info() so it appears in the
 # application log, and the real exit code is captured via ${PIPESTATUS[0]}.
 
@@ -225,124 +233,139 @@ rsync_files() {
     return 0
 }
 
-# wget wrapper that mirrors a remote tree into a local dir.
-# Args: $1 = remote URL, $2 = mirror ROOT (top-level platform dir),
-#       $3 = optional extra args
+# ─── curl helpers ─────────────────────────────────────────────────────────────
 #
-# IMPORTANT: $2 is the root of the local mirror tree (e.g.
-# /opt/openvox-pkgs/yum), NOT the per-URL subdirectory.  wget's
-# --no-host-directories strips only the hostname; the rest of the URL
-# path is preserved under --directory-prefix.  So passing the URL's
-# subpath in $2 produces a doubly-nested layout (validated 2026-04-23
-# by an actual sync that produced /opt/openvox-pkgs/yum/openvox8/el/9/
-# x86_64/openvox8/el/9/x86_64/openvox-agent-*.rpm).
+# curl is the fallback transport when rsync is unavailable or blocked.
+# curl is available on every RHEL 9 / Debian 12+ system by default,
+# unlike wget which requires a separate package install.
+
+# Fetch a single file from a URL into a local directory.
+# Uses -z for conditional download (only fetches if remote is newer
+# than the existing local copy), similar to wget -N.
 #
-# With this convention, calling
-#   wget_mirror https://yum.voxpupuli.org/openvox8/el/9/x86_64/ /opt/openvox-pkgs/yum
-# correctly produces files at /opt/openvox-pkgs/yum/openvox8/el/9/x86_64/.
-wget_mirror() {
-    local url="$1"
-    local dest="$2"
-    local extra="${3:-}"
-
-    mkdir -p "$dest"
-
-    # Build the wget command. We use:
-    #   --mirror              : recursive, timestamping, infinite depth
-    #   --no-host-directories : don't create per-host folders
-    #   --no-parent           : don't ascend to the parent directory
-    #   --reject              : skip HTML index files (we serve via web later)
-    #   -e robots=off         : ignore robots.txt restrictions on archive files
-    #   --no-verbose          : one-line-per-file output (always on now -- see
-    #                           audit 3.6.2-3 below)
-    local args=(
-        --mirror
-        --no-host-directories
-        --no-parent
-        --reject "index.html*,robots.txt"
-        -e robots=off
-        --directory-prefix="$dest"
-        --tries=3
-        --waitretry=5
-        --timeout=60
-        --no-verbose
-    )
-
-    if [ "$DRY_RUN" = "true" ]; then
-        info "DRY-RUN: wget ${args[*]} ${extra} ${url}"
-        return 0
-    fi
-
-    # Stream every wget line into the application log with a "wget:"
-    # prefix so operators see each individual URL/file being fetched
-    # in /opt/openvox-gui/logs/repo-sync.log -- not just the directory
-    # we started recursing on.
-    #
-    # Audit 3.6.2-3: prior to this change the log showed only
-    #   [INFO]   -> openvox7/el/8/x86_64
-    # and then went silent until the call returned, because wget's
-    # per-file output was going to its stderr (and from there to the
-    # systemd journal, which rotates) but never into the app log
-    # operators actually look at. On a host where the sync was failing
-    # silently this gave the false impression that the script was
-    # "sourcing a directory and not pulling files" -- it was trying to
-    # pull files, the log just wasn't recording the attempts.
-    #
-    # Implementation notes:
-    #  - `--no-verbose` makes wget emit one summary line per file
-    #    instead of multi-line progress bars, keeping the log readable.
-    #  - `stdbuf -oL -eL` forces line-buffered stdio on wget so each
-    #    file appears in the log in real time. Without it glibc would
-    #    block-buffer wget's stderr (it's no longer attached to a
-    #    terminal once we pipe it) and lines would arrive in 4KB
-    #    bursts -- making the log far less useful for live monitoring.
-    #  - `2>&1 | while read` pipes both streams through a per-line
-    #    handler. ${PIPESTATUS[0]} gives wget's exit code (the pipe's
-    #    own exit status is the while-loop's, which is always 0).
-    #  - IMPORTANT: we use ${PIPESTATUS[0]} BEFORE the `if` test --
-    #    same trap as the `! wget` inversion bug fixed in 3.6.2-2,
-    #    just a different shape. Capture into a local first, then
-    #    branch on it.
-    # shellcheck disable=SC2086
-    stdbuf -oL -eL wget "${args[@]}" $extra "$url" 2>&1 \
-        | while IFS= read -r line; do
-            [ -n "$line" ] && info "  wget: ${line}"
-          done
-    local rc=${PIPESTATUS[0]}
-    if [ $rc -ne 0 ]; then
-        warn "wget failed for ${url} (exit ${rc}) -- see preceding 'wget:' lines for the real error"
-        return 1
-    fi
-    return 0
-}
-
-# Fetch one specific URL into a destination directory using wget -N
-# (only re-downloads if the remote file is newer). Same streaming
-# pattern as wget_mirror so each URL appears live in the app log,
-# and failures surface the real exit code with full wget context.
-#
-# Note: previously honored QUIET by passing --quiet (silent wget). We
-# now always use --no-verbose instead, so each fetched URL appears in
-# the log even in unattended/systemd mode. QUIET is no longer
-# meaningful for fetch_one (the per-line streaming is uniformly
-# concise either way).
-fetch_one() {
+# Args: $1 = remote URL, $2 = local destination directory
+curl_fetch() {
     local url="$1"
     local dest_dir="$2"
+    local filename
+    filename=$(basename "$url")
     mkdir -p "$dest_dir"
+
     if [ "$DRY_RUN" = "true" ]; then
-        info "DRY-RUN: wget -N -P ${dest_dir} ${url}"
+        info "DRY-RUN: curl -o ${dest_dir}/${filename} ${url}"
         return 0
     fi
-    stdbuf -oL -eL wget --no-verbose -N -P "$dest_dir" "$url" 2>&1 \
-        | while IFS= read -r line; do
-            [ -n "$line" ] && info "  wget: ${line}"
-          done
-    local rc=${PIPESTATUS[0]}
-    if [ $rc -ne 0 ]; then
-        warn "wget failed for ${url} (exit ${rc}) -- see preceding 'wget:' lines for the real error"
-        return 1
+
+    local dest_path="${dest_dir}/${filename}"
+    local curl_args=(-fSL --connect-timeout 15 --max-time 600 -o "$dest_path")
+
+    # Conditional GET: only download if the remote file is newer
+    # than our local copy (sends If-Modified-Since). If the file
+    # doesn't exist locally, curl does an unconditional GET.
+    if [ -f "$dest_path" ]; then
+        curl_args+=(-z "$dest_path")
     fi
+
+    # -s: silent (no progress bar), but -S: still show errors
+    if [ "$QUIET" = "true" ]; then
+        curl_args+=(-sS)
+    else
+        curl_args+=(-sS)
+    fi
+
+    local output
+    output=$(curl "${curl_args[@]}" "$url" 2>&1)
+    local rc=$?
+
+    if [ $rc -eq 0 ]; then
+        [ "$QUIET" != "true" ] && info "  fetched: ${filename}"
+        return 0
+    fi
+
+    # curl exit 22 = HTTP error (4xx/5xx) when using -f
+    # Show the error output for diagnosis
+    if [ -n "$output" ]; then
+        info "  curl: ${output}"
+    fi
+    warn "curl failed for ${url} (exit ${rc})"
+    return 1
+}
+
+# Mirror a remote directory tree into a local directory by parsing
+# the HTML directory listing (nginx autoindex format) and fetching
+# each file individually with curl_fetch. Recurses into subdirectories.
+#
+# This replaces wget --mirror with a curl-based approach that:
+#   1. Fetches the HTML directory listing
+#   2. Extracts href entries (files and subdirectories)
+#   3. Downloads files via curl_fetch (with conditional GET)
+#   4. Recurses into subdirectories
+#
+# Args:
+#   $1 = remote directory URL (should end with /)
+#   $2 = local destination directory
+#   $3 = optional accept regex (e.g., '\.(rpm|xml|gz)$') -- only
+#        files matching this pattern are downloaded. Directories
+#        are always followed regardless of the filter.
+curl_mirror() {
+    local url="$1"
+    local dest="$2"
+    local accept="${3:-}"
+
+    # Normalise: ensure URL ends with /
+    url="${url%/}/"
+
+    mkdir -p "$dest"
+    if [ "$DRY_RUN" = "true" ]; then
+        info "DRY-RUN: curl_mirror ${url} -> ${dest}"
+        return 0
+    fi
+
+    # Fetch the HTML directory listing from the upstream nginx server.
+    # nginx autoindex produces lines like:
+    #   <a href="repodata/">repodata/</a>                 17-Apr-2026 22:51  -
+    #   <a href="openvox-agent-8.26.1-1.el9.x86_64.rpm">...
+    local listing
+    listing=$(curl -fsSL --connect-timeout 15 --max-time 30 "$url" 2>/dev/null) || {
+        warn "Could not fetch directory listing from ${url}"
+        return 1
+    }
+
+    # Extract href values, skip parent-dir links, absolute paths,
+    # and index/robots files.
+    local entries
+    entries=$(echo "$listing" \
+        | sed -n 's/.*href="\([^"]*\)".*/\1/p' \
+        | grep -vE '^\.\.|^/|^$|index\.html|robots\.txt')
+
+    if [ -z "$entries" ]; then
+        # Not necessarily an error -- some dirs are legitimately empty
+        info "  (no files found in ${url})"
+        return 0
+    fi
+
+    local failures=0
+    local entry
+    for entry in $entries; do
+        if [[ "$entry" == */ ]]; then
+            # Subdirectory: always recurse (regardless of accept filter)
+            local subdir="${entry%/}"
+            info "  -> ${subdir}/"
+            curl_mirror "${url}${entry}" "${dest}/${subdir}" "$accept" || \
+                failures=$((failures + 1))
+        else
+            # Regular file: apply accept filter if specified
+            if [ -n "$accept" ]; then
+                if ! echo "$entry" | grep -qE "$accept"; then
+                    continue
+                fi
+            fi
+            curl_fetch "${url}${entry}" "$dest" || \
+                failures=$((failures + 1))
+        fi
+    done
+
+    [ $failures -gt 0 ] && return 1
     return 0
 }
 
@@ -358,14 +381,9 @@ acquire_lock() {
         rm -f "$LOCK_FILE"
     fi
     mkdir -p "$(dirname "$LOCK_FILE")"
-    # Install the cleanup trap BEFORE writing the lock file. Original
-    # ordering (write then trap) had a small race window: if the
-    # script was killed between `echo "$$" > "$LOCK_FILE"` and the
-    # `trap` call (e.g. by a SIGTERM from systemd-on-shutdown), the
-    # lock would be left on disk and every subsequent sync would
-    # need the stale-lock cleanup branch. Trap-first means the
-    # cleanup is registered BEFORE the lock exists; no race window.
-    # Audit BUG-2 from 3.3.5-21.
+    # Install the cleanup trap BEFORE writing the lock file to avoid
+    # a race window where a SIGTERM between write and trap would leave
+    # a stale lock.
     trap 'rm -f "$LOCK_FILE"' EXIT
     echo "$$" > "$LOCK_FILE"
 }
@@ -389,17 +407,23 @@ EOF
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --platforms)       PLATFORMS="$2"; shift 2 ;;
-        --versions)        VERSIONS="$2"; shift 2 ;;
-        --el-releases)     EL_RELEASES="$2"; shift 2 ;;
-        --debian-releases) DEB_RELEASES="$2"; shift 2 ;;
-        --ubuntu-releases) UBU_RELEASES="$2"; shift 2 ;;
-        --arches)          ARCHES="$2"; shift 2 ;;
-        --dry-run)         DRY_RUN="true"; shift ;;
-        --quiet)           QUIET="true"; shift ;;
-        --status)          STATUS_ONLY="true"; shift ;;
-        -h|--help)         show_help ;;
-        *)                 err "Unknown argument: $1"; exit 3 ;;
+        --platforms)         PLATFORMS="$2"; shift 2 ;;
+        --versions)          VERSIONS="$2"; shift 2 ;;
+        --el-releases)       EL_RELEASES="$2"; shift 2 ;;
+        --debian-releases)   DEB_RELEASES="$2"; shift 2 ;;
+        --ubuntu-releases)   UBU_RELEASES="$2"; shift 2 ;;
+        --arches)            ARCHES="$2"; shift 2 ;;
+        --yum-families)      YUM_FAMILIES="$2"; shift 2 ;;
+        --amazon-releases)   AMAZON_RELEASES="$2"; shift 2 ;;
+        --fedora-releases)   FEDORA_RELEASES="$2"; shift 2 ;;
+        --sles-releases)     SLES_RELEASES="$2"; shift 2 ;;
+        --fips-releases)     FIPS_RELEASES="$2"; shift 2 ;;
+        --from-config)       FROM_CONFIG="true"; shift ;;
+        --dry-run)           DRY_RUN="true"; shift ;;
+        --quiet)             QUIET="true"; shift ;;
+        --status)            STATUS_ONLY="true"; shift ;;
+        -h|--help)           show_help ;;
+        *)                   err "Unknown argument: $1"; exit 3 ;;
     esac
 done
 
@@ -414,10 +438,89 @@ if [ "$STATUS_ONLY" = "true" ]; then
     fi
 fi
 
+# ─── Read selections config ──────────────────────────────────────────────────
+# When --from-config is passed, or when the config file exists and no
+# CLI overrides were given, derive sync parameters from the JSON config
+# written by the GUI's distribution selector.
+
+_load_from_config() {
+    if [ ! -f "$SELECTIONS_FILE" ]; then
+        info "No selections config at ${SELECTIONS_FILE}; using defaults"
+        return
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        warn "python3 not available; cannot parse selections config"
+        return
+    fi
+    info "Reading selections from ${SELECTIONS_FILE}"
+    # Parse the JSON and emit shell-style variable assignments
+    local parsed
+    parsed=$(python3 -c "
+import json, sys
+cfg = json.load(open('${SELECTIONS_FILE}'))
+versions = cfg.get('openvox_versions', ['7','8'])
+dists = cfg.get('distributions', [])
+print('CFG_VERSIONS=' + ','.join(versions))
+# Group distributions by family
+families = {}
+for d in dists:
+    parts = d.split('/', 1)
+    fam = parts[0]
+    rel = parts[1] if len(parts) > 1 else ''
+    families.setdefault(fam, []).append(rel)
+# Determine platforms
+platforms = set()
+yum_fams = set()
+for fam in families:
+    if fam in ('el','amazon','fedora','sles','redhatfips'):
+        platforms.add('yum')
+        yum_fams.add(fam)
+    elif fam in ('debian','ubuntu'):
+        platforms.add('apt')
+    elif fam == 'windows':
+        platforms.add('windows')
+    elif fam == 'mac':
+        platforms.add('mac')
+print('CFG_PLATFORMS=' + ','.join(sorted(platforms)))
+print('CFG_YUM_FAMILIES=' + ','.join(sorted(yum_fams)))
+print('CFG_EL=' + ','.join(families.get('el',[])))
+print('CFG_AMAZON=' + ','.join(families.get('amazon',[])))
+print('CFG_FEDORA=' + ','.join(families.get('fedora',[])))
+print('CFG_SLES=' + ','.join(families.get('sles',[])))
+print('CFG_FIPS=' + ','.join(families.get('redhatfips',[])))
+# APT: strip family prefix (debian/debian12 -> debian12)
+deb_rels = [r.replace('debian','') for r in families.get('debian',[]) if r]
+ubu_rels = [r.replace('ubuntu','') for r in families.get('ubuntu',[]) if r]
+print('CFG_DEB=' + ','.join(deb_rels))
+print('CFG_UBU=' + ','.join(ubu_rels))
+" 2>/dev/null) || {
+        warn "Could not parse ${SELECTIONS_FILE}"
+        return
+    }
+    eval "$parsed"
+    [ -n "${CFG_VERSIONS:-}" ]       && VERSIONS="$CFG_VERSIONS"
+    [ -n "${CFG_PLATFORMS:-}" ]      && PLATFORMS="$CFG_PLATFORMS"
+    [ -n "${CFG_YUM_FAMILIES:-}" ]   && YUM_FAMILIES="$CFG_YUM_FAMILIES"
+    [ -n "${CFG_EL:-}" ]             && EL_RELEASES="$CFG_EL"
+    [ -n "${CFG_AMAZON:-}" ]         && AMAZON_RELEASES="$CFG_AMAZON"
+    [ -n "${CFG_FEDORA:-}" ]         && FEDORA_RELEASES="$CFG_FEDORA"
+    [ -n "${CFG_SLES:-}" ]           && SLES_RELEASES="$CFG_SLES"
+    [ -n "${CFG_FIPS:-}" ]           && FIPS_RELEASES="$CFG_FIPS"
+    [ -n "${CFG_DEB:-}" ]            && DEB_RELEASES="$CFG_DEB"
+    [ -n "${CFG_UBU:-}" ]            && UBU_RELEASES="$CFG_UBU"
+}
+
+if [ "$FROM_CONFIG" = "true" ]; then
+    _load_from_config
+elif [ -f "$SELECTIONS_FILE" ]; then
+    # Auto-load config if it exists and no explicit CLI overrides were given
+    _load_from_config
+fi
+
 # ─── Preflight ───────────────────────────────────────────────────────────────
 
-if ! command -v wget >/dev/null 2>&1; then
-    err "wget is required but not installed. Install it with: dnf install wget OR apt install wget"
+if ! command -v curl >/dev/null 2>&1; then
+    err "curl is required but not installed."
     exit 1
 fi
 
@@ -439,36 +542,48 @@ info "  Platforms  : ${PLATFORMS}"
 info "  Versions   : ${VERSIONS}"
 info "  Arches     : ${ARCHES}"
 if [ "$HAVE_RSYNC" = "true" ]; then
-    info "  Transport  : rsync (preferred) with wget fallback"
+    info "  Transport  : rsync (preferred) with curl fallback"
 else
-    info "  Transport  : wget only (rsync not installed)"
+    info "  Transport  : curl only (rsync not installed)"
 fi
 [ "$DRY_RUN" = "true" ] && info "  Mode       : DRY RUN (no files will be written)"
 
 OVERALL_RESULT="success"
 SYNC_FAILURES=0
 
-# ─── yum.voxpupuli.org (RHEL family) ─────────────────────────────────────────
+# ─── yum.voxpupuli.org (all RPM-based families) ──────────────────────────────
 #
-# Upstream layout:
-#   yum.voxpupuli.org/openvox{N}/el/{R}/{arch}/...
+# Upstream layout (same pattern for all families):
+#   yum.voxpupuli.org/openvox{N}/{family}/{R}/{arch}/...
 #                                     repodata/
 #                                     openvox-agent-*.rpm
-#                                     openbolt-*.rpm
-#   yum.voxpupuli.org/openvox{N}-release-el-{R}.noarch.rpm
+#   yum.voxpupuli.org/openvox{N}-release-{family}-{R}.noarch.rpm
 #   yum.voxpupuli.org/GPG-KEY-openvox.pub
+#
+# Supported families: el, amazon, fedora, sles, redhatfips
+# Controlled by YUM_FAMILIES + per-family release variables.
 #
 # rsync: rsync://RSYNC_HOST/RSYNC_MODULE/yum/...
 #
 
+# Return the releases list for a given yum family.
+_yum_family_releases() {
+    local fam="$1"
+    case "$fam" in
+        el)          echo "$EL_RELEASES" ;;
+        amazon)      echo "$AMAZON_RELEASES" ;;
+        fedora)      echo "$FEDORA_RELEASES" ;;
+        sles)        echo "$SLES_RELEASES" ;;
+        redhatfips)  echo "$FIPS_RELEASES" ;;
+        *)           echo "" ;;
+    esac
+}
+
 rsync_sync_yum() {
     local rsync_base="rsync://${RSYNC_HOST}/${RSYNC_MODULE}"
-    local v rel arch
+    local v rel arch fam releases
     local yum_root="${PKG_REPO_DIR}/yum"
 
-    # Quick connectivity probe -- if the rsync server is unreachable,
-    # bail immediately so the dispatcher can fall back to wget.
-    # Skip in DRY_RUN mode so we show the rsync path (preferred).
     if [ "$DRY_RUN" != "true" ]; then
         if ! rsync -4 --timeout=10 --contimeout=5 --list-only \
                 "${rsync_base}/yum/" >/dev/null 2>&1; then
@@ -477,51 +592,51 @@ rsync_sync_yum() {
         fi
     fi
 
-    # GPG key
     rsync_tree "${rsync_base}/yum/GPG-KEY-openvox.pub" "${yum_root}/" \
         || warn "Could not rsync GPG-KEY-openvox.pub"
 
-    for v in $(echo "$VERSIONS" | tr ',' ' '); do
-        for rel in $(echo "$EL_RELEASES" | tr ',' ' '); do
-            for arch in $(echo "$ARCHES" | tr ',' ' '); do
-                info "  -> yum/openvox${v}/el/${rel}/${arch}"
-                if ! rsync_tree "${rsync_base}/yum/openvox${v}/el/${rel}/${arch}/" \
-                        "${yum_root}/openvox${v}/el/${rel}/${arch}/"; then
+    for fam in $(echo "$YUM_FAMILIES" | tr ',' ' '); do
+        releases=$(_yum_family_releases "$fam")
+        [ -z "$releases" ] && continue
+        for v in $(echo "$VERSIONS" | tr ',' ' '); do
+            for rel in $(echo "$releases" | tr ',' ' '); do
+                # Mirror the entire release tree (all arches inside)
+                info "  -> yum/openvox${v}/${fam}/${rel}"
+                if ! rsync_tree "${rsync_base}/yum/openvox${v}/${fam}/${rel}/" \
+                        "${yum_root}/openvox${v}/${fam}/${rel}/"; then
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
                 fi
+                # Release RPM at root
+                rsync_tree "${rsync_base}/yum/openvox${v}-release-${fam}-${rel}.noarch.rpm" \
+                    "${yum_root}/" \
+                    || warn "Could not rsync openvox${v}-release-${fam}-${rel}.noarch.rpm"
             done
-            # Release RPM at root
-            rsync_tree "${rsync_base}/yum/openvox${v}-release-el-${rel}.noarch.rpm" \
-                "${yum_root}/" \
-                || warn "Could not rsync openvox${v}-release-el-${rel}.noarch.rpm"
         done
     done
 }
 
-wget_sync_yum() {
-    local v rel arch
+curl_sync_yum() {
+    local v rel fam releases
     local yum_root="${PKG_REPO_DIR}/yum"
 
-    # GPG key (single file, root of yum tree)
-    fetch_one "${YUM_BASE}/GPG-KEY-openvox.pub" "${yum_root}" \
+    curl_fetch "${YUM_BASE}/GPG-KEY-openvox.pub" "${yum_root}" \
         || warn "Could not fetch GPG-KEY-openvox.pub"
 
-    for v in $(echo "$VERSIONS" | tr ',' ' '); do
-        for rel in $(echo "$EL_RELEASES" | tr ',' ' '); do
-            for arch in $(echo "$ARCHES" | tr ',' ' '); do
-                local url="${YUM_BASE}/openvox${v}/el/${rel}/${arch}/"
-                info "  -> openvox${v}/el/${rel}/${arch}"
-                # Pass the yum root -- wget will recreate openvox${v}/el/${rel}/${arch}/
-                # underneath it because --no-host-directories preserves the URL path.
-                if ! wget_mirror "$url" "$yum_root"; then
+    for fam in $(echo "$YUM_FAMILIES" | tr ',' ' '); do
+        releases=$(_yum_family_releases "$fam")
+        [ -z "$releases" ] && continue
+        for v in $(echo "$VERSIONS" | tr ',' ' '); do
+            for rel in $(echo "$releases" | tr ',' ' '); do
+                local url="${YUM_BASE}/openvox${v}/${fam}/${rel}/"
+                info "  -> openvox${v}/${fam}/${rel}"
+                if ! curl_mirror "$url" "${yum_root}/openvox${v}/${fam}/${rel}"; then
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
                 fi
+                curl_fetch \
+                    "${YUM_BASE}/openvox${v}-release-${fam}-${rel}.noarch.rpm" \
+                    "${yum_root}" \
+                    || warn "Could not fetch openvox${v}-release-${fam}-${rel}.noarch.rpm"
             done
-            # Release rpm lives at the root of yum.voxpupuli.org
-            fetch_one \
-                "${YUM_BASE}/openvox${v}-release-el-${rel}.noarch.rpm" \
-                "${yum_root}" \
-                || warn "Could not fetch openvox${v}-release-el-${rel}.noarch.rpm"
         done
     done
 }
@@ -532,9 +647,9 @@ sync_yum() {
         if rsync_sync_yum; then
             return 0
         fi
-        warn "rsync failed for yum; falling back to wget"
+        warn "rsync failed for yum; falling back to curl"
     fi
-    wget_sync_yum
+    curl_sync_yum
 }
 
 # ─── apt.voxpupuli.org (Debian + Ubuntu, single shared tree) ─────────────────
@@ -550,11 +665,11 @@ sync_yum() {
 #
 # rsync: rsync://RSYNC_HOST/RSYNC_MODULE/apt/...
 #
-# IMPORTANT: wget --mirror is the WRONG approach for APT repos. APT's
-# two-tree layout (dists/ metadata + pool/ debs) is not designed for
-# directory crawling. The wget fallback (wget_sync_apt) instead parses
-# Packages.gz metadata to discover .deb URLs, which is how apt itself
-# works.
+# IMPORTANT: recursive mirroring (wget --mirror or curl_mirror) is the
+# WRONG approach for APT repos. APT's two-tree layout (dists/ metadata
+# + pool/ debs) is not designed for directory crawling. The curl
+# fallback (curl_sync_apt) instead parses Packages.gz metadata to
+# discover .deb URLs, which is how apt itself works.
 #
 
 rsync_sync_apt() {
@@ -644,17 +759,17 @@ rsync_sync_apt() {
     done
 }
 
-# wget fallback for apt -- uses Packages-file parsing instead of
-# wget --mirror. Fetches Packages.gz, extracts Filename: fields to
-# discover .deb URLs, then downloads each individually. This is how
-# apt itself discovers packages.
-wget_sync_apt() {
+# curl fallback for apt -- uses Packages-file parsing instead of
+# recursive directory mirroring. Fetches Packages.gz, extracts
+# Filename: fields to discover .deb URLs, then downloads each
+# individually with curl. This is how apt itself discovers packages.
+curl_sync_apt() {
     local v rel arch deb_a dist filename
     local apt_root="${PKG_REPO_DIR}/apt"
 
     # Root files
     for f in GPG-KEY-openvox.pub openvox-keyring.gpg; do
-        fetch_one "${APT_BASE}/${f}" "${apt_root}" \
+        curl_fetch "${APT_BASE}/${f}" "${apt_root}" \
             || warn "Could not fetch ${f}"
     done
 
@@ -672,7 +787,7 @@ wget_sync_apt() {
                 local pkg_url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/Packages.gz"
                 info "  -> parsing ${dist}/openvox${v}/binary-${deb_a}/Packages.gz for .deb URLs"
                 local deb_list
-                deb_list=$(curl -sL --max-time 60 "$pkg_url" 2>/dev/null \
+                deb_list=$(curl -fsSL --max-time 60 "$pkg_url" 2>/dev/null \
                     | zcat 2>/dev/null \
                     | awk '/^Filename:/ {print $2}')
                 if [ -z "$deb_list" ]; then
@@ -683,26 +798,26 @@ wget_sync_apt() {
                 local deb_count=0
                 for filename in $deb_list; do
                     local dest_dir="${apt_root}/$(dirname "$filename")"
-                    if fetch_one "${APT_BASE}/${filename}" "$dest_dir"; then
+                    if curl_fetch "${APT_BASE}/${filename}" "$dest_dir"; then
                         deb_count=$((deb_count + 1))
                     fi
                 done
                 info "    fetched ${deb_count} .deb(s) for ${dist}/openvox${v}/${deb_a}"
                 # Metadata files
                 for f in Packages Packages.gz Release; do
-                    fetch_one \
+                    curl_fetch \
                         "${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/${f}" \
                         "${apt_root}/dists/${dist}/openvox${v}/binary-${deb_a}"
                 done
             done
             # Dist-level Release files
             for relfile in InRelease Release Release.gpg; do
-                fetch_one "${APT_BASE}/dists/${dist}/${relfile}" \
+                curl_fetch "${APT_BASE}/dists/${dist}/${relfile}" \
                     "${apt_root}/dists/${dist}" \
                     || warn "Could not fetch dists/${dist}/${relfile}"
             done
             # Release DEB
-            fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
+            curl_fetch "${APT_BASE}/openvox${v}-release-${dist}.deb" \
                 "${apt_root}" \
                 || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
@@ -720,7 +835,7 @@ wget_sync_apt() {
                 local pkg_url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/Packages.gz"
                 info "  -> parsing ${dist}/openvox${v}/binary-${deb_a}/Packages.gz for .deb URLs"
                 local deb_list
-                deb_list=$(curl -sL --max-time 60 "$pkg_url" 2>/dev/null \
+                deb_list=$(curl -fsSL --max-time 60 "$pkg_url" 2>/dev/null \
                     | zcat 2>/dev/null \
                     | awk '/^Filename:/ {print $2}')
                 if [ -z "$deb_list" ]; then
@@ -731,23 +846,23 @@ wget_sync_apt() {
                 local deb_count=0
                 for filename in $deb_list; do
                     local dest_dir="${apt_root}/$(dirname "$filename")"
-                    if fetch_one "${APT_BASE}/${filename}" "$dest_dir"; then
+                    if curl_fetch "${APT_BASE}/${filename}" "$dest_dir"; then
                         deb_count=$((deb_count + 1))
                     fi
                 done
                 info "    fetched ${deb_count} .deb(s) for ${dist}/openvox${v}/${deb_a}"
                 for f in Packages Packages.gz Release; do
-                    fetch_one \
+                    curl_fetch \
                         "${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/${f}" \
                         "${apt_root}/dists/${dist}/openvox${v}/binary-${deb_a}"
                 done
             done
             for relfile in InRelease Release Release.gpg; do
-                fetch_one "${APT_BASE}/dists/${dist}/${relfile}" \
+                curl_fetch "${APT_BASE}/dists/${dist}/${relfile}" \
                     "${apt_root}/dists/${dist}" \
                     || warn "Could not fetch dists/${dist}/${relfile}"
             done
-            fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
+            curl_fetch "${APT_BASE}/openvox${v}-release-${dist}.deb" \
                 "${apt_root}" \
                 || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
@@ -760,9 +875,9 @@ sync_apt() {
         if rsync_sync_apt; then
             return 0
         fi
-        warn "rsync failed for apt; falling back to wget (Packages-file parsing)"
+        warn "rsync failed for apt; falling back to curl (Packages-file parsing)"
     fi
-    wget_sync_apt
+    curl_sync_apt
 }
 
 # ─── downloads.voxpupuli.org/windows/ (MSI installers) ───────────────────────
@@ -801,15 +916,15 @@ rsync_sync_windows() {
     done
 }
 
-wget_sync_windows() {
-    # Pass downloads root so wget recreates windows/openvox{v}/ underneath
+curl_sync_windows() {
     local v
-    local downloads_root="${PKG_REPO_DIR}"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         local url="${DOWNLOADS_BASE}/windows/openvox${v}/"
         info "  -> windows/openvox${v}"
-        if ! wget_mirror "$url" "$downloads_root" "--accept=*.msi,SHA256SUMS"; then
+        # Accept only MSI installers and checksum files
+        if ! curl_mirror "$url" "${PKG_REPO_DIR}/windows/openvox${v}" \
+                '\.(msi|MSI)$|SHA256SUMS'; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
         fi
     done
@@ -821,11 +936,11 @@ sync_windows() {
         if rsync_sync_windows; then
             : # rsync succeeded
         else
-            warn "rsync failed for windows; falling back to wget"
-            wget_sync_windows
+            warn "rsync failed for windows; falling back to curl"
+            curl_sync_windows
         fi
     else
-        wget_sync_windows
+        curl_sync_windows
     fi
 
     # Post-sync: pick the newest stable (non-rc) MSI per version and
@@ -889,15 +1004,15 @@ rsync_sync_mac() {
     done
 }
 
-wget_sync_mac() {
-    # Pass downloads root so wget recreates mac/openvox{v}/ underneath
+curl_sync_mac() {
     local v
-    local downloads_root="${PKG_REPO_DIR}"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         local url="${DOWNLOADS_BASE}/mac/openvox${v}/"
         info "  -> mac/openvox${v}"
-        if ! wget_mirror "$url" "$downloads_root" "--accept=*.dmg,*.pkg,SHA256SUMS"; then
+        # Accept only DMG/PKG installers and checksum files
+        if ! curl_mirror "$url" "${PKG_REPO_DIR}/mac/openvox${v}" \
+                '\.(dmg|pkg|DMG|PKG)$|SHA256SUMS'; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
         fi
     done
@@ -909,11 +1024,11 @@ sync_mac() {
         if rsync_sync_mac; then
             : # rsync succeeded
         else
-            warn "rsync failed for mac; falling back to wget"
-            wget_sync_mac
+            warn "rsync failed for mac; falling back to curl"
+            curl_sync_mac
         fi
     else
-        wget_sync_mac
+        curl_sync_mac
     fi
 
     # Post-sync: pick the newest DMG per arch and copy to a stable name

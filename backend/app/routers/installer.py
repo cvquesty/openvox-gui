@@ -42,14 +42,17 @@ them without supplying a JWT.  All admin endpoints (``/sync``,
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
@@ -547,3 +550,555 @@ async def get_disk_info() -> dict:
         }
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Cannot stat {PKG_REPO_DIR}: {exc}")
+
+
+# ─── Upstream discovery + distribution selection ────────────────────────────
+#
+# These endpoints let operators choose which distributions to mirror
+# via the Mirror Status tab.  The upstream discovery scrapes the
+# voxpupuli.org directory listings to build a tree of available
+# distributions.  Selections are persisted in a JSON config file that
+# the nightly sync script also reads.
+
+YUM_BASE      = os.environ.get("YUM_BASE",       "https://yum.voxpupuli.org")
+APT_BASE      = os.environ.get("APT_BASE",       "https://apt.voxpupuli.org")
+DOWNLOADS_BASE = os.environ.get("DOWNLOADS_BASE", "https://downloads.voxpupuli.org")
+RSYNC_HOST    = os.environ.get("RSYNC_HOST",      "apt.voxpupuli.org")
+RSYNC_MODULE  = os.environ.get("RSYNC_MODULE",    "packages")
+
+UPSTREAM_CACHE   = PKG_REPO_DIR / ".upstream-cache.json"
+SELECTIONS_FILE  = PKG_REPO_DIR / ".mirror-selections.json"
+CACHE_TTL_HOURS  = 24
+
+# Display metadata for yum families.
+_YUM_FAMILY_LABELS = {
+    "el":          "RHEL / Rocky / Alma",
+    "amazon":      "Amazon Linux",
+    "fedora":      "Fedora",
+    "sles":        "SUSE Linux Enterprise",
+    "redhatfips":  "RHEL FIPS",
+}
+
+# Friendly release labels for distributions that use codenames.
+_DEBIAN_CODENAMES = {
+    "10": "Buster", "11": "Bullseye", "12": "Bookworm", "13": "Trixie",
+}
+
+
+class UpstreamRelease(BaseModel):
+    id: str
+    label: str
+    openvox_versions: list[str]
+    arches: list[str] = []
+
+
+class UpstreamFamily(BaseModel):
+    id: str
+    label: str
+    repo_type: str
+    releases: list[UpstreamRelease]
+
+
+class UpstreamInfo(BaseModel):
+    families: list[UpstreamFamily]
+    openvox_versions: list[str]
+    cached_at: Optional[str] = None
+
+
+class MirrorSelections(BaseModel):
+    openvox_versions: list[str] = ["8"]
+    distributions: list[str] = []
+
+
+class SelectionUpdateResult(BaseModel):
+    success: bool
+    added: list[str]
+    removed: list[str]
+    message: str
+
+
+async def _scrape_links(url: str) -> list[str]:
+    """Fetch an HTML directory listing and extract href values."""
+    try:
+        async with httpx.AsyncClient(timeout=15, verify=False) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("Could not scrape %s: %s", url, exc)
+        return []
+    hrefs = re.findall(r'href="([^"]+)"', resp.text)
+    return [h for h in hrefs if not h.startswith("/") and h != "../"]
+
+
+async def _discover_upstream() -> UpstreamInfo:
+    """Scrape upstream repos to build the available distribution tree.
+
+    Cached in .upstream-cache.json (24h TTL) to avoid hammering
+    upstream on every page load.
+    """
+    # Check cache
+    if UPSTREAM_CACHE.exists():
+        try:
+            cache = json.loads(UPSTREAM_CACHE.read_text())
+            cached_at = datetime.fromisoformat(cache.get("cached_at", ""))
+            age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
+            if age_hours < CACHE_TTL_HOURS:
+                return UpstreamInfo(**cache)
+        except Exception:
+            pass
+
+    families: list[UpstreamFamily] = []
+    all_versions: set[str] = set()
+
+    # ── YUM families ──
+    # Discover openvox versions from root listing (openvox7/, openvox8/)
+    yum_root = await _scrape_links(f"{YUM_BASE}/")
+    openvox_dirs = sorted(
+        h.strip("/") for h in yum_root if h.endswith("/") and h.startswith("openvox")
+    )
+    yum_versions = [d.replace("openvox", "") for d in openvox_dirs]
+    all_versions.update(yum_versions)
+
+    # For each version, discover families and releases
+    yum_family_data: dict[str, dict[str, dict]] = {}
+    for ver in yum_versions:
+        families_links = await _scrape_links(f"{YUM_BASE}/openvox{ver}/")
+        for fam_link in families_links:
+            if not fam_link.endswith("/"):
+                continue
+            fam = fam_link.strip("/")
+            if fam in ("lost+found", "repo_files"):
+                continue
+            if fam not in yum_family_data:
+                yum_family_data[fam] = {}
+            releases_links = await _scrape_links(f"{YUM_BASE}/openvox{ver}/{fam}/")
+            for rel_link in releases_links:
+                if not rel_link.endswith("/"):
+                    continue
+                rel = rel_link.strip("/")
+                if rel not in yum_family_data[fam]:
+                    yum_family_data[fam][rel] = {"versions": [], "arches": []}
+                yum_family_data[fam][rel]["versions"].append(ver)
+                # Discover arches for this combo
+                if not yum_family_data[fam][rel]["arches"]:
+                    arch_links = await _scrape_links(
+                        f"{YUM_BASE}/openvox{ver}/{fam}/{rel}/"
+                    )
+                    yum_family_data[fam][rel]["arches"] = sorted(
+                        a.strip("/") for a in arch_links
+                        if a.endswith("/") and a.strip("/") not in ("src", "SRPMS")
+                    )
+
+    for fam, releases in sorted(yum_family_data.items()):
+        label = _YUM_FAMILY_LABELS.get(fam, fam.upper())
+        rel_list = []
+        for rel_id, data in sorted(releases.items()):
+            if fam == "el":
+                rel_label = f"EL {rel_id}"
+            elif fam == "amazon":
+                rel_label = f"Amazon {rel_id}"
+            elif fam == "fedora":
+                rel_label = f"Fedora {rel_id}"
+            elif fam == "sles":
+                rel_label = f"SLES {rel_id}"
+            elif fam == "redhatfips":
+                rel_label = f"FIPS {rel_id}"
+            else:
+                rel_label = f"{fam} {rel_id}"
+            rel_list.append(UpstreamRelease(
+                id=rel_id,
+                label=rel_label,
+                openvox_versions=sorted(set(data["versions"])),
+                arches=data["arches"],
+            ))
+        families.append(UpstreamFamily(
+            id=fam, label=label, repo_type="yum", releases=rel_list,
+        ))
+
+    # ── APT distributions ──
+    apt_dists = await _scrape_links(f"{APT_BASE}/dists/")
+    debian_releases: list[UpstreamRelease] = []
+    ubuntu_releases: list[UpstreamRelease] = []
+
+    for dist_link in sorted(apt_dists):
+        if not dist_link.endswith("/"):
+            continue
+        dist = dist_link.strip("/")
+        # Find which openvox versions are available
+        comp_links = await _scrape_links(f"{APT_BASE}/dists/{dist}/")
+        versions = sorted(
+            c.strip("/").replace("openvox", "")
+            for c in comp_links
+            if c.endswith("/") and c.startswith("openvox")
+        )
+        all_versions.update(versions)
+
+        if dist.startswith("debian"):
+            num = dist.replace("debian", "")
+            codename = _DEBIAN_CODENAMES.get(num, "")
+            label = f"Debian {num}" + (f" ({codename})" if codename else "")
+            debian_releases.append(UpstreamRelease(
+                id=dist, label=label, openvox_versions=versions,
+            ))
+        elif dist.startswith("ubuntu"):
+            num = dist.replace("ubuntu", "")
+            label = f"Ubuntu {num}"
+            ubuntu_releases.append(UpstreamRelease(
+                id=dist, label=label, openvox_versions=versions,
+            ))
+
+    if debian_releases:
+        families.append(UpstreamFamily(
+            id="debian", label="Debian", repo_type="apt", releases=debian_releases,
+        ))
+    if ubuntu_releases:
+        families.append(UpstreamFamily(
+            id="ubuntu", label="Ubuntu", repo_type="apt", releases=ubuntu_releases,
+        ))
+
+    # ── Downloads (Windows / macOS) ──
+    dl_root = await _scrape_links(f"{DOWNLOADS_BASE}/")
+    for platform in ("windows", "mac"):
+        if f"{platform}/" not in dl_root:
+            continue
+        plat_links = await _scrape_links(f"{DOWNLOADS_BASE}/{platform}/")
+        versions = sorted(
+            p.strip("/").replace("openvox", "")
+            for p in plat_links
+            if p.endswith("/") and p.startswith("openvox")
+        )
+        all_versions.update(versions)
+        label = "Windows" if platform == "windows" else "macOS"
+        families.append(UpstreamFamily(
+            id=platform, label=label, repo_type="downloads",
+            releases=[UpstreamRelease(
+                id=platform, label=label, openvox_versions=versions,
+            )],
+        ))
+
+    result = UpstreamInfo(
+        families=families,
+        openvox_versions=sorted(all_versions),
+        cached_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    # Write cache
+    try:
+        PKG_REPO_DIR.mkdir(parents=True, exist_ok=True)
+        UPSTREAM_CACHE.write_text(result.model_dump_json(indent=2))
+    except OSError as exc:
+        logger.warning("Could not write upstream cache: %s", exc)
+
+    return result
+
+
+def _read_selections() -> MirrorSelections:
+    if not SELECTIONS_FILE.exists():
+        return MirrorSelections()
+    try:
+        return MirrorSelections(**json.loads(SELECTIONS_FILE.read_text()))
+    except Exception as exc:
+        logger.warning("Could not read selections: %s", exc)
+        return MirrorSelections()
+
+
+def _write_selections(sel: MirrorSelections) -> None:
+    PKG_REPO_DIR.mkdir(parents=True, exist_ok=True)
+    SELECTIONS_FILE.write_text(json.dumps(sel.model_dump(), indent=2))
+
+
+def _distribution_paths(dist_key: str, versions: list[str]) -> list[Path]:
+    """Map a distribution key to local mirror paths that should exist."""
+    paths: list[Path] = []
+    # dist_key format: "el/9", "debian/12", "ubuntu/24.04", "windows", "mac"
+    # or for apt: "debian/debian12", "ubuntu/ubuntu24.04"
+    parts = dist_key.split("/", 1)
+    family = parts[0]
+    release = parts[1] if len(parts) > 1 else family
+
+    for ver in versions:
+        if family in _YUM_FAMILY_LABELS:
+            paths.append(PKG_REPO_DIR / "yum" / f"openvox{ver}" / family / release)
+        elif family == "debian":
+            paths.append(PKG_REPO_DIR / "apt" / "dists" / release / f"openvox{ver}")
+            paths.append(PKG_REPO_DIR / "apt" / "pool" / f"openvox{ver}")
+        elif family == "ubuntu":
+            paths.append(PKG_REPO_DIR / "apt" / "dists" / release / f"openvox{ver}")
+            paths.append(PKG_REPO_DIR / "apt" / "pool" / f"openvox{ver}")
+        elif family in ("windows", "mac"):
+            paths.append(PKG_REPO_DIR / family / f"openvox{ver}")
+    return paths
+
+
+async def _sync_distribution(dist_key: str, versions: list[str]) -> bool:
+    """Download packages for a single distribution via rsync or curl."""
+    parts = dist_key.split("/", 1)
+    family = parts[0]
+    release = parts[1] if len(parts) > 1 else family
+
+    rsync_base = f"rsync://{RSYNC_HOST}/{RSYNC_MODULE}"
+    loop = asyncio.get_event_loop()
+    success = True
+
+    for ver in versions:
+        if family in _YUM_FAMILY_LABELS:
+            # Yum: mirror the entire release directory for all arches
+            src = f"{rsync_base}/yum/openvox{ver}/{family}/{release}/"
+            dest = PKG_REPO_DIR / "yum" / f"openvox{ver}" / family / release
+            dest.mkdir(parents=True, exist_ok=True)
+            ok = await _rsync_or_curl(
+                src, str(dest),
+                f"{YUM_BASE}/openvox{ver}/{family}/{release}/",
+            )
+            if not ok:
+                success = False
+            # GPG key
+            gpg_dest = PKG_REPO_DIR / "yum"
+            gpg_dest.mkdir(parents=True, exist_ok=True)
+            await _fetch_file(
+                f"{YUM_BASE}/GPG-KEY-openvox.pub",
+                str(gpg_dest / "GPG-KEY-openvox.pub"),
+            )
+
+        elif family in ("debian", "ubuntu"):
+            dist_name = release  # e.g., "debian12", "ubuntu24.04"
+            # APT: mirror dists metadata + pool
+            for sub in (f"dists/{dist_name}/openvox{ver}/", f"pool/openvox{ver}/"):
+                src = f"{rsync_base}/apt/{sub}"
+                dest = PKG_REPO_DIR / "apt" / sub.rstrip("/")
+                dest.mkdir(parents=True, exist_ok=True)
+                ok = await _rsync_or_curl(
+                    src, str(dest) + "/",
+                    f"{APT_BASE}/{sub}",
+                )
+                if not ok:
+                    success = False
+            # Dist-level release files
+            for relfile in ("InRelease", "Release", "Release.gpg"):
+                await _fetch_file(
+                    f"{APT_BASE}/dists/{dist_name}/{relfile}",
+                    str(PKG_REPO_DIR / "apt" / "dists" / dist_name / relfile),
+                )
+            # GPG key + keyring
+            apt_root = PKG_REPO_DIR / "apt"
+            apt_root.mkdir(parents=True, exist_ok=True)
+            for kf in ("GPG-KEY-openvox.pub", "openvox-keyring.gpg"):
+                await _fetch_file(
+                    f"{APT_BASE}/{kf}",
+                    str(apt_root / kf),
+                )
+
+        elif family in ("windows", "mac"):
+            src = f"{rsync_base}/downloads/{family}/openvox{ver}/"
+            dest = PKG_REPO_DIR / family / f"openvox{ver}"
+            dest.mkdir(parents=True, exist_ok=True)
+            ok = await _rsync_or_curl(
+                src, str(dest) + "/",
+                f"{DOWNLOADS_BASE}/{family}/openvox{ver}/",
+            )
+            if not ok:
+                success = False
+
+    # Fix ownership
+    def _chown():
+        try:
+            subprocess.run(
+                ["chown", "-R", "puppet:puppet", str(PKG_REPO_DIR)],
+                capture_output=True, timeout=60,
+            )
+            subprocess.run(
+                ["chmod", "-R", "a+rX", str(PKG_REPO_DIR)],
+                capture_output=True, timeout=60,
+            )
+        except Exception:
+            pass
+    await loop.run_in_executor(None, _chown)
+    return success
+
+
+async def _rsync_or_curl(rsync_src: str, local_dest: str, curl_url: str) -> bool:
+    """Try rsync first, fall back to curl-based download."""
+    loop = asyncio.get_event_loop()
+
+    def _try_rsync():
+        try:
+            proc = subprocess.run(
+                ["rsync", "-av", "-4", "--timeout=60", "--contimeout=15",
+                 rsync_src, local_dest],
+                capture_output=True, text=True, timeout=600,
+            )
+            return proc.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+
+    if await loop.run_in_executor(None, _try_rsync):
+        return True
+
+    logger.info("rsync failed for %s, falling back to curl", rsync_src)
+    # Curl-based mirror: scrape the dir listing and download files
+    links = await _scrape_links(curl_url)
+    if not links:
+        return False
+
+    ok = True
+    for link in links:
+        if link.endswith("/"):
+            # Subdirectory: recurse
+            subdir = link.strip("/")
+            sub_dest = os.path.join(local_dest, subdir)
+            os.makedirs(sub_dest, exist_ok=True)
+            if not await _rsync_or_curl(
+                rsync_src + link, sub_dest + "/", curl_url + link,
+            ):
+                ok = False
+        else:
+            file_url = curl_url + link
+            file_dest = os.path.join(local_dest, link)
+            if not await _fetch_file(file_url, file_dest):
+                ok = False
+    return ok
+
+
+async def _fetch_file(url: str, dest_path: str) -> bool:
+    """Download a single file via httpx."""
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    try:
+        async with httpx.AsyncClient(timeout=300, verify=False) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                with open(dest_path, "wb") as f:
+                    f.write(resp.content)
+                return True
+            else:
+                logger.warning("HTTP %d fetching %s", resp.status_code, url)
+                return False
+    except Exception as exc:
+        logger.warning("Failed to fetch %s: %s", url, exc)
+        return False
+
+
+def _remove_distribution(dist_key: str, versions: list[str]) -> list[str]:
+    """Remove local directories for a deselected distribution.
+
+    Returns the list of paths that were actually removed.
+    """
+    removed: list[str] = []
+    paths = _distribution_paths(dist_key, versions)
+    for p in paths:
+        if p.exists():
+            try:
+                shutil.rmtree(p)
+                removed.append(str(p))
+                logger.info("Removed mirror directory: %s", p)
+            except OSError as exc:
+                logger.warning("Could not remove %s: %s", p, exc)
+    return removed
+
+
+# ─── Upstream + selection endpoints ──────────────────────────────────────────
+
+
+@router.get("/upstream", response_model=UpstreamInfo)
+async def get_upstream_distributions() -> UpstreamInfo:
+    """Discover available distributions from upstream repos.
+
+    Caches results for 24 hours.  The GUI calls this once on the Mirror
+    Status tab to populate the distribution selector.
+    """
+    return await _discover_upstream()
+
+
+@router.get("/mirror-selections", response_model=MirrorSelections)
+async def get_mirror_selections() -> MirrorSelections:
+    """Return the current distribution selection config."""
+    return _read_selections()
+
+
+@router.put("/mirror-selections", response_model=SelectionUpdateResult)
+async def update_mirror_selections(
+    body: MirrorSelections,
+    user: str = Depends(require_role("admin", "operator")),
+) -> SelectionUpdateResult:
+    """Save distribution selections and sync/remove as needed.
+
+    Computes the diff between old and new selections:
+    - Newly selected distributions are synced in the background.
+    - Deselected distributions have their directories removed immediately.
+    """
+    # Check sync lock
+    holder = _sync_lock_held()
+    if holder is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A sync is already running (PID {holder}). "
+                   "Wait for it to finish before changing selections.",
+        )
+
+    old = _read_selections()
+    new = body
+
+    old_set = set(old.distributions)
+    new_set = set(new.distributions)
+    added = sorted(new_set - old_set)
+    removed = sorted(old_set - new_set)
+
+    # Also handle version changes: if versions changed, distributions
+    # that stayed selected may need sync (new version) or removal
+    # (removed version).
+    old_vers = set(old.openvox_versions)
+    new_vers = set(new.openvox_versions)
+    added_vers = sorted(new_vers - old_vers)
+    removed_vers = sorted(old_vers - new_vers)
+
+    # Save first so the config is updated even if sync takes a while
+    _write_selections(new)
+    logger.info(
+        "User %s updated mirror selections: +%s -%s (versions: %s)",
+        user, added, removed, new.openvox_versions,
+    )
+
+    # Remove deselected distributions
+    removed_paths: list[str] = []
+    for dist in removed:
+        removed_paths.extend(
+            _remove_distribution(dist, list(old.openvox_versions))
+        )
+    # Remove old versions from remaining distributions
+    if removed_vers:
+        for dist in (new_set & old_set):
+            _remove_distribution(dist, removed_vers)
+
+    # Sync newly selected distributions in the background
+    dists_to_sync = list(added)
+    # If new OpenVox versions were added, re-sync existing distributions
+    if added_vers:
+        for dist in (new_set & old_set):
+            if dist not in dists_to_sync:
+                dists_to_sync.append(dist)
+
+    if dists_to_sync:
+        async def _background_sync():
+            for dist in dists_to_sync:
+                try:
+                    await _sync_distribution(dist, new.openvox_versions)
+                except Exception as exc:
+                    logger.error("Background sync failed for %s: %s", dist, exc)
+        asyncio.create_task(_background_sync())
+
+    msg_parts = []
+    if added:
+        msg_parts.append(f"syncing {len(added)} distribution(s)")
+    if removed:
+        msg_parts.append(f"removed {len(removed)} distribution(s)")
+    if added_vers:
+        msg_parts.append(f"adding OpenVox version(s) {', '.join(added_vers)}")
+    if removed_vers:
+        msg_parts.append(f"removed OpenVox version(s) {', '.join(removed_vers)}")
+    message = "; ".join(msg_parts) if msg_parts else "no changes"
+
+    return SelectionUpdateResult(
+        success=True,
+        added=added,
+        removed=removed,
+        message=message,
+    )

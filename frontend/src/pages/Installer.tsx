@@ -27,8 +27,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
-  Table, Badge, Code, ScrollArea, Grid, Divider, Tabs,
-  CopyButton, ActionIcon, Tooltip, Progress, Anchor,
+  Table, Badge, Code, ScrollArea, Grid, Divider, Tabs, Checkbox,
+  CopyButton, ActionIcon, Tooltip, Progress, Anchor, SimpleGrid,
+  Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -36,8 +37,13 @@ import {
   IconBrandUbuntu, IconBrandRedhat, IconBrandDebian, IconBrandApple,
   IconAlertCircle, IconCloudDownload, IconClipboard, IconFolder,
   IconExternalLink, IconClock, IconServer, IconCertificate, IconTrash,
+  IconDeviceFloppy, IconPackage,
 } from '@tabler/icons-react';
-import { installer, certificates, InstallerInfo, InstallerDiskInfo } from '../services/api';
+import {
+  installer, certificates,
+  InstallerInfo, InstallerDiskInfo,
+  UpstreamInfo, UpstreamFamily, MirrorSelections,
+} from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
 
 /**
@@ -144,6 +150,13 @@ export function InstallerPage() {
   const [pendingCerts, setPendingCerts] = useState<any[]>([]);
   const [pendingCertsErr, setPendingCertsErr] = useState<string | null>(null);
 
+  // Distribution selector state
+  const [upstream, setUpstream]           = useState<UpstreamInfo | null>(null);
+  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8'], distributions: [] });
+  const [draftVersions, setDraftVersions]     = useState<string[]>(['8']);
+  const [draftDists, setDraftDists]           = useState<string[]>([]);
+  const [savingSelections, setSavingSelections] = useState(false);
+
   // Operators and admins can trigger syncs and sign certs; viewers cannot.
   const canManage = user && (user.role === 'admin' || user.role === 'operator');
 
@@ -153,20 +166,23 @@ export function InstallerPage() {
    */
   const refresh = useCallback(async () => {
     try {
-      const [i, d, l, c] = await Promise.all([
+      const [i, d, l, c, u, s] = await Promise.all([
         installer.getInfo(),
         installer.getDiskInfo().catch(() => null),
         installer.getLog(50).catch(() => ({ lines: [] as string[] })),
-        // certificates.list returns { requested, signed }; we only want
-        // the requested side here. Fail gracefully so the page still
-        // renders if puppetserver CA is unreachable.
         certificates.list().catch((e: any) => ({ requested: [], _err: e?.message })),
+        installer.getUpstream().catch(() => null),
+        installer.getSelections().catch(() => ({ openvox_versions: ['8'], distributions: [] } as MirrorSelections)),
       ]);
       setInfo(i);
       setDiskInfo(d);
       setTail(l.lines || []);
       setPendingCerts((c as any).requested || []);
       setPendingCertsErr((c as any)._err || null);
+      if (u) setUpstream(u);
+      setSavedSelections(s);
+      setDraftVersions(s.openvox_versions);
+      setDraftDists(s.distributions);
       setError(null);
     } catch (e: any) {
       setError(e.message || String(e));
@@ -256,6 +272,64 @@ export function InstallerPage() {
         color: 'red',
       });
     }
+  };
+
+  // ── Distribution selection helpers ──────────────────────────────────────
+  const hasDraftChanges =
+    JSON.stringify([...draftVersions].sort()) !== JSON.stringify([...savedSelections.openvox_versions].sort()) ||
+    JSON.stringify([...draftDists].sort()) !== JSON.stringify([...savedSelections.distributions].sort());
+
+  const draftAdded = draftDists.filter(d => !savedSelections.distributions.includes(d));
+  const draftRemoved = savedSelections.distributions.filter(d => !draftDists.includes(d));
+
+  const toggleVersion = (ver: string) => {
+    setDraftVersions(prev =>
+      prev.includes(ver) ? prev.filter(v => v !== ver) : [...prev, ver],
+    );
+  };
+
+  const toggleDist = (key: string) => {
+    setDraftDists(prev =>
+      prev.includes(key) ? prev.filter(d => d !== key) : [...prev, key],
+    );
+  };
+
+  const handleSaveSelections = async () => {
+    if (!canManage || !hasDraftChanges) return;
+    setSavingSelections(true);
+    try {
+      const res = await installer.saveSelections({
+        openvox_versions: draftVersions,
+        distributions: draftDists,
+      });
+      notifications.show({
+        title: 'Selections updated',
+        message: res.message,
+        color: 'green',
+      });
+      await refresh();
+    } catch (e: any) {
+      notifications.show({
+        title: 'Failed to update selections',
+        message: e.message || String(e),
+        color: 'red',
+      });
+    } finally {
+      setSavingSelections(false);
+    }
+  };
+
+  /**
+   * Build a distribution key from family + release for the selection model.
+   * YUM families: "el/9", "amazon/2023", etc.
+   * APT families: "debian/debian12", "ubuntu/ubuntu24.04"
+   * Downloads: "windows/windows", "mac/mac"
+   */
+  const distKey = (family: UpstreamFamily, releaseId: string): string => {
+    if (family.repo_type === 'apt' || family.repo_type === 'downloads') {
+      return `${family.id}/${releaseId}`;
+    }
+    return `${family.id}/${releaseId}`;
   };
 
   // Loading / error short-circuits ------------------------------------------
@@ -421,110 +495,205 @@ export function InstallerPage() {
 
           {/* ── Mirror Status (3.3.5-20: folded in from standalone cards) ── */}
           <Tabs.Panel value="mirror" pt="md">
-            <Grid gutter="md">
-              <Grid.Col span={{ base: 12, md: 8 }}>
-                <Stack gap="xs">
-                  {/* Top-line summary row */}
-                  <Grid gutter="xs">
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Stack gap={4}>
-                        <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>
-                        <Text size="sm">{lastSync}</Text>
-                        {lastSyncBadge}
-                      </Stack>
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Stack gap={4}>
-                        <Group gap="xs"><IconServer size={14} /><Text size="sm" fw={600}>Mirror size</Text></Group>
-                        <Text size="sm">{formatBytes(info.total_bytes)}</Text>
-                        <Text size="xs" c="dimmed">at {info.pkg_repo_dir}</Text>
-                      </Stack>
-                    </Grid.Col>
-                  </Grid>
-
-                  <Divider my="xs" />
-
-                  <Text size="sm" fw={600}>Per-platform breakdown</Text>
-                  <Table striped highlightOnHover>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Platform</Table.Th>
-                        <Table.Th>Status</Table.Th>
-                        <Table.Th style={{ textAlign: 'right' }}>Packages</Table.Th>
-                        <Table.Th style={{ textAlign: 'right' }}>Size</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {info.platforms.map((p) => (
-                        <Table.Tr key={p.platform}>
-                          <Table.Td>
-                            <Group gap="xs">
-                              {platformIcon(p.platform)}
-                              <Text fw={500}>{platformLabel(p.platform)}</Text>
-                            </Group>
-                          </Table.Td>
-                          <Table.Td>
-                            {p.present
-                              ? <Badge color="green" size="sm">mirrored</Badge>
-                              : <Badge color="gray"  size="sm">not yet synced</Badge>}
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'right' }}>
-                            {p.present ? p.packages.toLocaleString() : '-'}
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'right' }}>
-                            {p.present ? formatBytes(p.bytes) : '-'}
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </Stack>
-              </Grid.Col>
-
-              <Grid.Col span={{ base: 12, md: 4 }}>
-                <Stack gap="xs">
+            <Stack gap="md">
+              {/* ── Distribution Support selector ─────────────────────── */}
+              <Card withBorder p="md">
+                <Group justify="space-between" mb="sm">
                   <Group gap="xs">
-                    <IconFolder size={16} />
-                    <Text size="sm" fw={600}>Disk space</Text>
+                    <IconPackage size={18} />
+                    <Text fw={700} size="sm">Distribution Support</Text>
                   </Group>
-                  {diskInfo ? (
-                    <>
-                      <Group justify="space-between">
-                        <Text size="sm" c="dimmed">Free</Text>
-                        <Text size="sm" fw={600}>{formatBytes(diskInfo.free)}</Text>
-                      </Group>
-                      <Group justify="space-between">
-                        <Text size="sm" c="dimmed">Used</Text>
-                        <Text size="sm">{formatBytes(diskInfo.used)}</Text>
-                      </Group>
-                      <Group justify="space-between">
-                        <Text size="sm" c="dimmed">Total</Text>
-                        <Text size="sm">{formatBytes(diskInfo.total)}</Text>
-                      </Group>
-                      <Progress
-                        value={diskInfo.used_pct}
-                        color={diskInfo.used_pct > 90 ? 'red'
-                             : diskInfo.used_pct > 75 ? 'orange'
-                             : 'blue'}
-                      />
-                      <Text size="xs" c="dimmed" ta="right">{diskInfo.used_pct}% used</Text>
-                      {diskInfo.used_pct > 90 && (
-                        <Alert color="red" icon={<IconAlertCircle size={14} />} p="xs">
-                          Disk almost full -- next sync may fail.
-                        </Alert>
-                      )}
-                    </>
-                  ) : (
-                    <Text size="sm" c="dimmed">Disk info unavailable.</Text>
-                  )}
-                  <Divider my="xs" />
-                  <Text size="xs" c="dimmed">
-                    Nightly sync runs at 02:30 local time via systemd timer
-                    (<Code>openvox-repo-sync.timer</Code>).
-                  </Text>
-                </Stack>
-              </Grid.Col>
-            </Grid>
+                  <Group gap="xs">
+                    {hasDraftChanges && (
+                      <Badge color="yellow" size="sm" variant="light">
+                        {draftAdded.length > 0 && `+${draftAdded.length}`}
+                        {draftAdded.length > 0 && draftRemoved.length > 0 && ' / '}
+                        {draftRemoved.length > 0 && `-${draftRemoved.length}`}
+                        {' unsaved'}
+                      </Badge>
+                    )}
+                    <Button
+                      size="xs"
+                      variant="filled"
+                      color="blue"
+                      leftSection={<IconDeviceFloppy size={14} />}
+                      onClick={handleSaveSelections}
+                      loading={savingSelections}
+                      disabled={!canManage || !hasDraftChanges || draftVersions.length === 0}
+                      title={!canManage ? 'Requires admin or operator role' : ''}
+                    >
+                      Apply Changes
+                    </Button>
+                  </Group>
+                </Group>
+                <Text size="xs" c="dimmed" mb="sm">
+                  Select which distributions to mirror locally. Selecting a distribution downloads its
+                  packages; deselecting removes them from disk to save space.
+                </Text>
+
+                {/* OpenVox version toggles */}
+                <Group gap="lg" mb="md">
+                  <Text size="sm" fw={600}>OpenVox Versions:</Text>
+                  {(upstream?.openvox_versions || ['7', '8']).map(ver => (
+                    <Checkbox
+                      key={ver}
+                      label={`OpenVox ${ver}`}
+                      checked={draftVersions.includes(ver)}
+                      onChange={() => toggleVersion(ver)}
+                      disabled={!canManage}
+                    />
+                  ))}
+                </Group>
+
+                {upstream ? (
+                  <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
+                    {upstream.families.map(family => (
+                      <Box key={family.id}>
+                        <Text size="sm" fw={600} mb={4}>{family.label}</Text>
+                        <Stack gap={4}>
+                          {family.releases.map(rel => {
+                            const key = distKey(family, rel.id);
+                            const available = rel.openvox_versions.some(v =>
+                              draftVersions.includes(v),
+                            );
+                            return (
+                              <Checkbox
+                                key={key}
+                                label={
+                                  <Group gap={4}>
+                                    <Text size="sm">{rel.label}</Text>
+                                    {rel.openvox_versions.length > 0 && (
+                                      <Text size="xs" c="dimmed">
+                                        (v{rel.openvox_versions.join(', v')})
+                                      </Text>
+                                    )}
+                                  </Group>
+                                }
+                                checked={draftDists.includes(key)}
+                                onChange={() => toggleDist(key)}
+                                disabled={!canManage || !available}
+                              />
+                            );
+                          })}
+                        </Stack>
+                      </Box>
+                    ))}
+                  </SimpleGrid>
+                ) : (
+                  <Center py="md">
+                    <Group gap="xs">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">Discovering available distributions...</Text>
+                    </Group>
+                  </Center>
+                )}
+              </Card>
+
+              {/* ── Sync status + per-platform breakdown ──────────────── */}
+              <Grid gutter="md">
+                <Grid.Col span={{ base: 12, md: 8 }}>
+                  <Stack gap="xs">
+                    <Grid gutter="xs">
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Stack gap={4}>
+                          <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>
+                          <Text size="sm">{lastSync}</Text>
+                          {lastSyncBadge}
+                        </Stack>
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Stack gap={4}>
+                          <Group gap="xs"><IconServer size={14} /><Text size="sm" fw={600}>Mirror size</Text></Group>
+                          <Text size="sm">{formatBytes(info.total_bytes)}</Text>
+                          <Text size="xs" c="dimmed">at {info.pkg_repo_dir}</Text>
+                        </Stack>
+                      </Grid.Col>
+                    </Grid>
+
+                    <Divider my="xs" />
+
+                    <Text size="sm" fw={600}>Per-platform breakdown</Text>
+                    <Table striped highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Platform</Table.Th>
+                          <Table.Th>Status</Table.Th>
+                          <Table.Th style={{ textAlign: 'right' }}>Packages</Table.Th>
+                          <Table.Th style={{ textAlign: 'right' }}>Size</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {info.platforms.map((p) => (
+                          <Table.Tr key={p.platform}>
+                            <Table.Td>
+                              <Group gap="xs">
+                                {platformIcon(p.platform)}
+                                <Text fw={500}>{platformLabel(p.platform)}</Text>
+                              </Group>
+                            </Table.Td>
+                            <Table.Td>
+                              {p.present
+                                ? <Badge color="green" size="sm">mirrored</Badge>
+                                : <Badge color="gray"  size="sm">not yet synced</Badge>}
+                            </Table.Td>
+                            <Table.Td style={{ textAlign: 'right' }}>
+                              {p.present ? p.packages.toLocaleString() : '-'}
+                            </Table.Td>
+                            <Table.Td style={{ textAlign: 'right' }}>
+                              {p.present ? formatBytes(p.bytes) : '-'}
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </Stack>
+                </Grid.Col>
+
+                <Grid.Col span={{ base: 12, md: 4 }}>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <IconFolder size={16} />
+                      <Text size="sm" fw={600}>Disk space</Text>
+                    </Group>
+                    {diskInfo ? (
+                      <>
+                        <Group justify="space-between">
+                          <Text size="sm" c="dimmed">Free</Text>
+                          <Text size="sm" fw={600}>{formatBytes(diskInfo.free)}</Text>
+                        </Group>
+                        <Group justify="space-between">
+                          <Text size="sm" c="dimmed">Used</Text>
+                          <Text size="sm">{formatBytes(diskInfo.used)}</Text>
+                        </Group>
+                        <Group justify="space-between">
+                          <Text size="sm" c="dimmed">Total</Text>
+                          <Text size="sm">{formatBytes(diskInfo.total)}</Text>
+                        </Group>
+                        <Progress
+                          value={diskInfo.used_pct}
+                          color={diskInfo.used_pct > 90 ? 'red'
+                               : diskInfo.used_pct > 75 ? 'orange'
+                               : 'blue'}
+                        />
+                        <Text size="xs" c="dimmed" ta="right">{diskInfo.used_pct}% used</Text>
+                        {diskInfo.used_pct > 90 && (
+                          <Alert color="red" icon={<IconAlertCircle size={14} />} p="xs">
+                            Disk almost full -- next sync may fail.
+                          </Alert>
+                        )}
+                      </>
+                    ) : (
+                      <Text size="sm" c="dimmed">Disk info unavailable.</Text>
+                    )}
+                    <Divider my="xs" />
+                    <Text size="xs" c="dimmed">
+                      Nightly sync runs at 02:30 local time via systemd timer
+                      (<Code>openvox-repo-sync.timer</Code>).
+                    </Text>
+                  </Stack>
+                </Grid.Col>
+              </Grid>
+            </Stack>
           </Tabs.Panel>
 
           {/* ── Sync Log (3.3.5-20: folded in from standalone card) ──── */}

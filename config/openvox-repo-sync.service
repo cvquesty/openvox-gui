@@ -11,7 +11,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-# Run as root so wget can write into /opt/openvox-pkgs and chown the
+# Run as root so curl can write into /opt/openvox-pkgs and chown the
 # resulting tree to the puppet user. The script itself does not need
 # privileged operations beyond filesystem writes.
 User=root
