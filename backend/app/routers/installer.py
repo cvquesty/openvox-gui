@@ -510,23 +510,64 @@ async def list_files(prefix: str = "") -> dict:
     }
 
 
+SYNC_LOG_PATH = Path("/opt/openvox-gui/logs/repo-sync.log")
+
+
 @router.get("/log")
 async def get_sync_log(lines: int = 200) -> dict:
     """Return the last *lines* lines of the sync log file."""
-    log_path = Path("/opt/openvox-gui/logs/repo-sync.log")
-    if not log_path.exists():
-        return {"path": str(log_path), "exists": False, "lines": []}
+    if not SYNC_LOG_PATH.exists():
+        return {"path": str(SYNC_LOG_PATH), "exists": False, "lines": []}
     try:
-        # Read the whole file and tail in Python -- the log is small
-        # enough that this beats fork/exec'ing tail.
-        all_lines = log_path.read_text().splitlines()
+        all_lines = SYNC_LOG_PATH.read_text().splitlines()
     except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Cannot read {log_path}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Cannot read {SYNC_LOG_PATH}: {exc}")
     return {
-        "path":   str(log_path),
+        "path":   str(SYNC_LOG_PATH),
         "exists": True,
         "lines":  all_lines[-max(1, lines):],
     }
+
+
+@router.get("/log/stream")
+async def stream_sync_log(lines: int = 50):
+    """Stream the sync log via Server-Sent Events (tail -f).
+
+    Opens with the last *lines* lines of history, then pushes each
+    new line as it appears.  The browser connects with EventSource
+    and gets live output -- no polling, no refresh button.
+    """
+    from fastapi.responses import StreamingResponse
+
+    async def _generate():
+        # If the log doesn't exist yet, wait for it
+        while not SYNC_LOG_PATH.exists():
+            yield "data: (waiting for log file...)\n\n"
+            await asyncio.sleep(2)
+
+        proc = await asyncio.create_subprocess_exec(
+            "tail", "-n", str(lines), "-f", str(SYNC_LOG_PATH),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        try:
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                yield f"data: {line.decode(errors='replace').rstrip()}\n\n"
+        finally:
+            proc.kill()
+            await proc.wait()
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ─── Disk-space sanity check (used by the Installer page) ──────────────────

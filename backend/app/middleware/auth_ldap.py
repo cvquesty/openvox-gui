@@ -463,6 +463,8 @@ class LDAPAuthBackend(AuthBackend):
         if not token:
             token = request.cookies.get("openvox_token")
         if not token:
+            token = request.query_params.get("token")
+        if not token:
             return None
         return verify_token(token)
 

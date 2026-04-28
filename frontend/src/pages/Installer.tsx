@@ -24,7 +24,7 @@
  * Backend contract: /api/installer/{info,sync,log,diskinfo,files}
  *                   /api/certificates/{list,sign,clean}
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
   Table, Badge, Code, ScrollArea, Grid, Divider, Tabs, Checkbox,
@@ -132,6 +132,75 @@ function CommandBlock({
         <Code block style={{ whiteSpace: 'pre' }}>{command}</Code>
       </ScrollArea>
     </Card>
+  );
+}
+
+/**
+ * Live-tail sync log panel. Connects to the SSE endpoint on mount
+ * and appends lines in real time. Falls back to the static syncLog
+ * captured from the last manual sync if the stream hasn't produced
+ * output yet.
+ */
+function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
+  const [lines, setLines] = useState<string[]>([]);
+  const [connected, setConnected] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('openvox_token');
+    // EventSource doesn't support custom headers, so we pass the
+    // token as a query param. The backend auth middleware accepts
+    // both Authorization header and ?token= for SSE streams.
+    const url = `/api/installer/log/stream?lines=80${token ? '&token=' + encodeURIComponent(token) : ''}`;
+    const es = new EventSource(url);
+
+    es.onopen = () => setConnected(true);
+
+    es.onmessage = (event) => {
+      setLines(prev => {
+        const next = [...prev, event.data];
+        // Keep a reasonable buffer
+        return next.length > 2000 ? next.slice(-1500) : next;
+      });
+    };
+
+    es.onerror = () => {
+      setConnected(false);
+      es.close();
+    };
+
+    return () => { es.close(); };
+  }, []);
+
+  // Auto-scroll to bottom when new lines arrive
+  useEffect(() => {
+    if (viewportRef.current) {
+      viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+    }
+  }, [lines]);
+
+  const display = lines.length > 0 ? lines : syncLog;
+
+  return (
+    <>
+      <Group justify="space-between" mb="xs">
+        <Group gap="xs">
+          <Text size="sm" fw={600}>Sync Log</Text>
+          {connected ? (
+            <Badge color="green" size="xs" variant="dot">live</Badge>
+          ) : (
+            <Badge color="gray" size="xs" variant="dot">disconnected</Badge>
+          )}
+        </Group>
+        <Text size="xs" c="dimmed">/opt/openvox-gui/logs/repo-sync.log</Text>
+      </Group>
+      <ScrollArea h={400} type="auto" viewportRef={viewportRef}>
+        <Code block style={{ whiteSpace: 'pre', fontSize: 11 }} ref={scrollRef}>
+          {display.join('\n') || '(no log entries yet)'}
+        </Code>
+      </ScrollArea>
+    </>
   );
 }
 
@@ -704,17 +773,9 @@ export function InstallerPage() {
             </Stack>
           </Tabs.Panel>
 
-          {/* ── Sync Log (3.3.5-20: folded in from standalone card) ──── */}
+          {/* ── Sync Log (live tail -f via SSE) ──────────────────── */}
           <Tabs.Panel value="synclog" pt="md">
-            <Group justify="space-between" mb="xs">
-              <Text size="sm" fw={600}>Most recent sync output</Text>
-              <Text size="xs" c="dimmed">tail of /opt/openvox-gui/logs/repo-sync.log</Text>
-            </Group>
-            <ScrollArea h={320} type="auto">
-              <Code block style={{ whiteSpace: 'pre', fontSize: 11 }}>
-                {(syncLog.length ? syncLog : tail).join('\n') || '(no log entries yet)'}
-              </Code>
-            </ScrollArea>
+            <SyncLogPanel syncLog={syncLog} />
           </Tabs.Panel>
         </Tabs>
       </Card>
