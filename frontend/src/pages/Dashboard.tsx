@@ -260,6 +260,7 @@ export function DashboardPage() {
                 <YAxis allowDecimals={false} />
                 <ReTooltip />
                 <Legend />
+                <Area type="monotone" dataKey="unreported" stroke="#868e96" fill="#868e96" fillOpacity={0.25} strokeWidth={1} name="unreported" />
                 <Area type="monotone" dataKey="unchanged" stroke="#40c057" fill="#40c057" fillOpacity={0.4} strokeWidth={1.5} />
                 <Area type="monotone" dataKey="changed" stroke="#fab005" fill="#fab005" fillOpacity={0.5} strokeWidth={2.5} />
                 <Area type="monotone" dataKey="failed" stroke="#fa5252" fill="#fa5252" fillOpacity={0.5} strokeWidth={2.5} />
