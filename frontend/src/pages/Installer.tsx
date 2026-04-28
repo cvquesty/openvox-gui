@@ -417,7 +417,7 @@ export function InstallerPage() {
             <Tabs.Tab value="linux"   leftSection={<IconBrandUbuntu size={14} />}>Linux (RHEL / Debian / Ubuntu)</Tabs.Tab>
             <Tabs.Tab value="windows" leftSection={<IconBrandWindows size={14} />}>Windows</Tabs.Tab>
             <Tabs.Tab value="urls"    leftSection={<IconExternalLink size={14} />}>Direct URLs</Tabs.Tab>
-            <Tabs.Tab value="mirror"  leftSection={<IconCloudDownload size={14} />}>Mirror Status</Tabs.Tab>
+            <Tabs.Tab value="mirror"  leftSection={<IconCloudDownload size={14} />}>Mirror</Tabs.Tab>
             <Tabs.Tab value="synclog" leftSection={<IconClipboard size={14} />}>Sync Log</Tabs.Tab>
           </Tabs.List>
 
@@ -493,10 +493,122 @@ export function InstallerPage() {
             </Stack>
           </Tabs.Panel>
 
-          {/* ── Mirror Status (3.3.5-20: folded in from standalone cards) ── */}
+          {/* ── Mirror (status on top, distribution selector below) ── */}
           <Tabs.Panel value="mirror" pt="md">
             <Stack gap="md">
-              {/* ── Distribution Support selector ─────────────────────── */}
+
+              {/* ── Panel 1: Mirror Status ────────────────────────────── */}
+              <Card withBorder p="md">
+                <Group gap="xs" mb="sm">
+                  <IconCloudDownload size={18} />
+                  <Text fw={700} size="sm">Mirror Status</Text>
+                </Group>
+                <Grid gutter="md">
+                  <Grid.Col span={{ base: 12, md: 8 }}>
+                    <Stack gap="xs">
+                      <Grid gutter="xs">
+                        <Grid.Col span={{ base: 12, sm: 6 }}>
+                          <Stack gap={4}>
+                            <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>
+                            <Text size="sm">{lastSync}</Text>
+                            {lastSyncBadge}
+                          </Stack>
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, sm: 6 }}>
+                          <Stack gap={4}>
+                            <Group gap="xs"><IconServer size={14} /><Text size="sm" fw={600}>Mirror size</Text></Group>
+                            <Text size="sm">{formatBytes(info.total_bytes)}</Text>
+                            <Text size="xs" c="dimmed">at {info.pkg_repo_dir}</Text>
+                          </Stack>
+                        </Grid.Col>
+                      </Grid>
+
+                      <Divider my="xs" />
+
+                      <Text size="sm" fw={600}>Per-platform breakdown</Text>
+                      <Table striped highlightOnHover>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Platform</Table.Th>
+                            <Table.Th>Status</Table.Th>
+                            <Table.Th style={{ textAlign: 'right' }}>Packages</Table.Th>
+                            <Table.Th style={{ textAlign: 'right' }}>Size</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {info.platforms.map((p) => (
+                            <Table.Tr key={p.platform}>
+                              <Table.Td>
+                                <Group gap="xs">
+                                  {platformIcon(p.platform)}
+                                  <Text fw={500}>{platformLabel(p.platform)}</Text>
+                                </Group>
+                              </Table.Td>
+                              <Table.Td>
+                                {p.present
+                                  ? <Badge color="green" size="sm">mirrored</Badge>
+                                  : <Badge color="gray"  size="sm">not yet synced</Badge>}
+                              </Table.Td>
+                              <Table.Td style={{ textAlign: 'right' }}>
+                                {p.present ? p.packages.toLocaleString() : '-'}
+                              </Table.Td>
+                              <Table.Td style={{ textAlign: 'right' }}>
+                                {p.present ? formatBytes(p.bytes) : '-'}
+                              </Table.Td>
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    </Stack>
+                  </Grid.Col>
+
+                  <Grid.Col span={{ base: 12, md: 4 }}>
+                    <Stack gap="xs">
+                      <Group gap="xs">
+                        <IconFolder size={16} />
+                        <Text size="sm" fw={600}>Disk space</Text>
+                      </Group>
+                      {diskInfo ? (
+                        <>
+                          <Group justify="space-between">
+                            <Text size="sm" c="dimmed">Free</Text>
+                            <Text size="sm" fw={600}>{formatBytes(diskInfo.free)}</Text>
+                          </Group>
+                          <Group justify="space-between">
+                            <Text size="sm" c="dimmed">Used</Text>
+                            <Text size="sm">{formatBytes(diskInfo.used)}</Text>
+                          </Group>
+                          <Group justify="space-between">
+                            <Text size="sm" c="dimmed">Total</Text>
+                            <Text size="sm">{formatBytes(diskInfo.total)}</Text>
+                          </Group>
+                          <Progress
+                            value={diskInfo.used_pct}
+                            color={diskInfo.used_pct > 90 ? 'red'
+                                 : diskInfo.used_pct > 75 ? 'orange'
+                                 : 'blue'}
+                          />
+                          <Text size="xs" c="dimmed" ta="right">{diskInfo.used_pct}% used</Text>
+                          {diskInfo.used_pct > 90 && (
+                            <Alert color="red" icon={<IconAlertCircle size={14} />} p="xs">
+                              Disk almost full -- next sync may fail.
+                            </Alert>
+                          )}
+                        </>
+                      ) : (
+                        <Text size="sm" c="dimmed">Disk info unavailable.</Text>
+                      )}
+                      <Divider my="xs" />
+                      <Text size="xs" c="dimmed">
+                        Nightly sync runs at 02:30 local time via systemd timer
+                        (<Code>openvox-repo-sync.timer</Code>).
+                      </Text>
+                    </Stack>
+                  </Grid.Col>
+                </Grid>
+              </Card>
+
+              {/* ── Panel 2: Distribution Support ─────────────────────── */}
               <Card withBorder p="md">
                 <Group justify="space-between" mb="sm">
                   <Group gap="xs">
@@ -589,110 +701,6 @@ export function InstallerPage() {
                 )}
               </Card>
 
-              {/* ── Sync status + per-platform breakdown ──────────────── */}
-              <Grid gutter="md">
-                <Grid.Col span={{ base: 12, md: 8 }}>
-                  <Stack gap="xs">
-                    <Grid gutter="xs">
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <Stack gap={4}>
-                          <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>
-                          <Text size="sm">{lastSync}</Text>
-                          {lastSyncBadge}
-                        </Stack>
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <Stack gap={4}>
-                          <Group gap="xs"><IconServer size={14} /><Text size="sm" fw={600}>Mirror size</Text></Group>
-                          <Text size="sm">{formatBytes(info.total_bytes)}</Text>
-                          <Text size="xs" c="dimmed">at {info.pkg_repo_dir}</Text>
-                        </Stack>
-                      </Grid.Col>
-                    </Grid>
-
-                    <Divider my="xs" />
-
-                    <Text size="sm" fw={600}>Per-platform breakdown</Text>
-                    <Table striped highlightOnHover>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Platform</Table.Th>
-                          <Table.Th>Status</Table.Th>
-                          <Table.Th style={{ textAlign: 'right' }}>Packages</Table.Th>
-                          <Table.Th style={{ textAlign: 'right' }}>Size</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {info.platforms.map((p) => (
-                          <Table.Tr key={p.platform}>
-                            <Table.Td>
-                              <Group gap="xs">
-                                {platformIcon(p.platform)}
-                                <Text fw={500}>{platformLabel(p.platform)}</Text>
-                              </Group>
-                            </Table.Td>
-                            <Table.Td>
-                              {p.present
-                                ? <Badge color="green" size="sm">mirrored</Badge>
-                                : <Badge color="gray"  size="sm">not yet synced</Badge>}
-                            </Table.Td>
-                            <Table.Td style={{ textAlign: 'right' }}>
-                              {p.present ? p.packages.toLocaleString() : '-'}
-                            </Table.Td>
-                            <Table.Td style={{ textAlign: 'right' }}>
-                              {p.present ? formatBytes(p.bytes) : '-'}
-                            </Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </Stack>
-                </Grid.Col>
-
-                <Grid.Col span={{ base: 12, md: 4 }}>
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <IconFolder size={16} />
-                      <Text size="sm" fw={600}>Disk space</Text>
-                    </Group>
-                    {diskInfo ? (
-                      <>
-                        <Group justify="space-between">
-                          <Text size="sm" c="dimmed">Free</Text>
-                          <Text size="sm" fw={600}>{formatBytes(diskInfo.free)}</Text>
-                        </Group>
-                        <Group justify="space-between">
-                          <Text size="sm" c="dimmed">Used</Text>
-                          <Text size="sm">{formatBytes(diskInfo.used)}</Text>
-                        </Group>
-                        <Group justify="space-between">
-                          <Text size="sm" c="dimmed">Total</Text>
-                          <Text size="sm">{formatBytes(diskInfo.total)}</Text>
-                        </Group>
-                        <Progress
-                          value={diskInfo.used_pct}
-                          color={diskInfo.used_pct > 90 ? 'red'
-                               : diskInfo.used_pct > 75 ? 'orange'
-                               : 'blue'}
-                        />
-                        <Text size="xs" c="dimmed" ta="right">{diskInfo.used_pct}% used</Text>
-                        {diskInfo.used_pct > 90 && (
-                          <Alert color="red" icon={<IconAlertCircle size={14} />} p="xs">
-                            Disk almost full -- next sync may fail.
-                          </Alert>
-                        )}
-                      </>
-                    ) : (
-                      <Text size="sm" c="dimmed">Disk info unavailable.</Text>
-                    )}
-                    <Divider my="xs" />
-                    <Text size="xs" c="dimmed">
-                      Nightly sync runs at 02:30 local time via systemd timer
-                      (<Code>openvox-repo-sync.timer</Code>).
-                    </Text>
-                  </Stack>
-                </Grid.Col>
-              </Grid>
             </Stack>
           </Tabs.Panel>
 
