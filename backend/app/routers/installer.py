@@ -895,11 +895,16 @@ def _write_selections(sel: MirrorSelections) -> None:
     SELECTIONS_FILE.write_text(json.dumps(sel.model_dump(), indent=2))
 
 
-def _distribution_paths(dist_key: str, versions: list[str]) -> list[Path]:
-    """Map a distribution key to local mirror paths that should exist."""
+def _removable_paths(dist_key: str, versions: list[str]) -> list[Path]:
+    """Paths safe to remove when deselecting a distribution.
+
+    IMPORTANT: the APT pool (``apt/pool/openvox{ver}``) is shared
+    across ALL Debian/Ubuntu distributions.  Removing it when a single
+    dist is deselected would wipe .debs for every other dist too.
+    Only the per-dist ``dists/{name}/openvox{ver}`` metadata tree is
+    removed; the pool is left for the nightly sync to prune.
+    """
     paths: list[Path] = []
-    # dist_key format: "el/9", "debian/12", "ubuntu/24.04", "windows", "mac"
-    # or for apt: "debian/debian12", "ubuntu/ubuntu24.04"
     parts = dist_key.split("/", 1)
     family = parts[0]
     release = parts[1] if len(parts) > 1 else family
@@ -907,12 +912,9 @@ def _distribution_paths(dist_key: str, versions: list[str]) -> list[Path]:
     for ver in versions:
         if family in _YUM_FAMILY_LABELS:
             paths.append(PKG_REPO_DIR / "yum" / f"openvox{ver}" / family / release)
-        elif family == "debian":
+        elif family in ("debian", "ubuntu"):
+            # Only remove the dist-specific metadata -- NOT the shared pool
             paths.append(PKG_REPO_DIR / "apt" / "dists" / release / f"openvox{ver}")
-            paths.append(PKG_REPO_DIR / "apt" / "pool" / f"openvox{ver}")
-        elif family == "ubuntu":
-            paths.append(PKG_REPO_DIR / "apt" / "dists" / release / f"openvox{ver}")
-            paths.append(PKG_REPO_DIR / "apt" / "pool" / f"openvox{ver}")
         elif family in ("windows", "mac"):
             paths.append(PKG_REPO_DIR / family / f"openvox{ver}")
     return paths
@@ -1010,13 +1012,23 @@ async def _rsync_or_curl(rsync_src: str, local_dest: str, curl_url: str) -> bool
 
     def _try_rsync():
         try:
+            # Ensure dest ends with / so rsync copies CONTENTS into it
+            dest = local_dest.rstrip("/") + "/"
             proc = subprocess.run(
-                ["rsync", "-av", "-4", "--timeout=60", "--contimeout=15",
-                 rsync_src, local_dest],
-                capture_output=True, text=True, timeout=600,
+                ["rsync", "-av", "-4", "--timeout=120", "--contimeout=15",
+                 rsync_src, dest],
+                capture_output=True, text=True, timeout=900,
             )
+            if proc.returncode != 0:
+                logger.warning("rsync exit %d for %s: %s",
+                               proc.returncode, rsync_src,
+                               (proc.stderr or "")[:500])
             return proc.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+        except FileNotFoundError:
+            logger.warning("rsync binary not found")
+            return False
+        except subprocess.TimeoutExpired:
+            logger.warning("rsync timed out for %s", rsync_src)
             return False
 
     if await loop.run_in_executor(None, _try_rsync):
@@ -1068,10 +1080,11 @@ async def _fetch_file(url: str, dest_path: str) -> bool:
 def _remove_distribution(dist_key: str, versions: list[str]) -> list[str]:
     """Remove local directories for a deselected distribution.
 
-    Returns the list of paths that were actually removed.
+    Uses _removable_paths (not full distribution paths) so shared
+    directories like the APT pool are never deleted.
     """
     removed: list[str] = []
-    paths = _distribution_paths(dist_key, versions)
+    paths = _removable_paths(dist_key, versions)
     for p in paths:
         if p.exists():
             try:
@@ -1166,11 +1179,19 @@ async def update_mirror_selections(
 
     if dists_to_sync:
         async def _background_sync():
+            logger.info("Background sync starting for %d distribution(s): %s",
+                        len(dists_to_sync), dists_to_sync)
             for dist in dists_to_sync:
                 try:
-                    await _sync_distribution(dist, new.openvox_versions)
+                    logger.info("Syncing distribution: %s (versions %s)", dist, new.openvox_versions)
+                    ok = await _sync_distribution(dist, new.openvox_versions)
+                    if ok:
+                        logger.info("Sync succeeded for %s", dist)
+                    else:
+                        logger.warning("Sync returned failure for %s", dist)
                 except Exception as exc:
-                    logger.error("Background sync failed for %s: %s", dist, exc)
+                    logger.error("Background sync failed for %s: %s", dist, exc, exc_info=True)
+            logger.info("Background sync finished for all distributions")
         asyncio.create_task(_background_sync())
 
     msg_parts = []
