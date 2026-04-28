@@ -194,8 +194,8 @@ discover_server_from_curl_socket() {
 # ─── Argument parsing ────────────────────────────────────────────────────────
 # Accept both flag-style overrides (--server, --version) and the
 # section:setting=value directives that PE's installer accepts.
-declare -a CSR_ATTR_LINES
-declare -a CSR_EXT_LINES
+CSR_ATTR_LINES=()
+CSR_EXT_LINES=()
 # Don't pre-seed OPENVOX_VERSION here -- the resolution block below
 # handles defaulting via "${OPENVOX_VERSION:-$DEFAULT_OPENVOX_VERSION}"
 # so env vars and --version both work without being clobbered.
@@ -203,7 +203,7 @@ SECTION_REGEX='^(main|server|agent|user|custom_attributes|extension_requests):([
 
 # We collect puppet.conf settings here so we can apply them after the
 # package has been installed (and the puppet binary exists).
-declare -a PUPPET_CONFIG_KV  # entries: "section|key|value"
+PUPPET_CONFIG_KV=()  # entries: "section|key|value"
 
 while [ $# -gt 0 ]; do
     case "$1" in
