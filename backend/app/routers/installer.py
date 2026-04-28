@@ -634,9 +634,10 @@ async def _discover_upstream() -> UpstreamInfo:
     """Scrape upstream repos to build the available distribution tree.
 
     Cached in .upstream-cache.json (24h TTL) to avoid hammering
-    upstream on every page load.
+    upstream on every page load.  All HTTP scrapes are parallelized
+    with asyncio.gather so the cold-cache path completes in seconds
+    rather than minutes.
     """
-    # Check cache
     if UPSTREAM_CACHE.exists():
         try:
             cache = json.loads(UPSTREAM_CACHE.read_text())
@@ -650,44 +651,73 @@ async def _discover_upstream() -> UpstreamInfo:
     families: list[UpstreamFamily] = []
     all_versions: set[str] = set()
 
-    # ── YUM families ──
-    # Discover openvox versions from root listing (openvox7/, openvox8/)
-    yum_root = await _scrape_links(f"{YUM_BASE}/")
+    # ── Phase 1: discover openvox versions + APT dists + downloads root ──
+    yum_root, apt_dists_raw, dl_root = await asyncio.gather(
+        _scrape_links(f"{YUM_BASE}/"),
+        _scrape_links(f"{APT_BASE}/dists/"),
+        _scrape_links(f"{DOWNLOADS_BASE}/"),
+    )
+
     openvox_dirs = sorted(
-        h.strip("/") for h in yum_root if h.endswith("/") and h.startswith("openvox")
+        h.strip("/") for h in yum_root
+        if h.endswith("/") and h.startswith("openvox")
     )
     yum_versions = [d.replace("openvox", "") for d in openvox_dirs]
     all_versions.update(yum_versions)
 
-    # For each version, discover families and releases
+    # ── Phase 2: discover yum families (parallel per version) ──
+    ver_family_results = await asyncio.gather(
+        *[_scrape_links(f"{YUM_BASE}/openvox{v}/") for v in yum_versions]
+    )
+    # Collect unique families
+    all_yum_fams: set[str] = set()
+    for links in ver_family_results:
+        for link in links:
+            if link.endswith("/"):
+                fam = link.strip("/")
+                if fam not in ("lost+found", "repo_files"):
+                    all_yum_fams.add(fam)
+
+    # ── Phase 3: discover releases per family (parallel) ──
+    fam_ver_combos = [
+        (v, fam) for v in yum_versions for fam in sorted(all_yum_fams)
+    ]
+    release_results = await asyncio.gather(
+        *[_scrape_links(f"{YUM_BASE}/openvox{v}/{fam}/")
+          for v, fam in fam_ver_combos]
+    )
+
     yum_family_data: dict[str, dict[str, dict]] = {}
-    for ver in yum_versions:
-        families_links = await _scrape_links(f"{YUM_BASE}/openvox{ver}/")
-        for fam_link in families_links:
-            if not fam_link.endswith("/"):
+    for (ver, fam), links in zip(fam_ver_combos, release_results):
+        if fam not in yum_family_data:
+            yum_family_data[fam] = {}
+        for rel_link in links:
+            if not rel_link.endswith("/"):
                 continue
-            fam = fam_link.strip("/")
-            if fam in ("lost+found", "repo_files"):
-                continue
-            if fam not in yum_family_data:
-                yum_family_data[fam] = {}
-            releases_links = await _scrape_links(f"{YUM_BASE}/openvox{ver}/{fam}/")
-            for rel_link in releases_links:
-                if not rel_link.endswith("/"):
-                    continue
-                rel = rel_link.strip("/")
-                if rel not in yum_family_data[fam]:
-                    yum_family_data[fam][rel] = {"versions": [], "arches": []}
-                yum_family_data[fam][rel]["versions"].append(ver)
-                # Discover arches for this combo
-                if not yum_family_data[fam][rel]["arches"]:
-                    arch_links = await _scrape_links(
-                        f"{YUM_BASE}/openvox{ver}/{fam}/{rel}/"
-                    )
-                    yum_family_data[fam][rel]["arches"] = sorted(
-                        a.strip("/") for a in arch_links
-                        if a.endswith("/") and a.strip("/") not in ("src", "SRPMS")
-                    )
+            rel = rel_link.strip("/")
+            if rel not in yum_family_data[fam]:
+                yum_family_data[fam][rel] = {"versions": [], "arches": []}
+            yum_family_data[fam][rel]["versions"].append(ver)
+
+    # ── Phase 4: discover arches (parallel, one probe per family/release) ──
+    arch_probes = []
+    arch_keys = []
+    for fam, releases in yum_family_data.items():
+        for rel, data in releases.items():
+            if not data["arches"] and data["versions"]:
+                v = data["versions"][0]
+                arch_probes.append(
+                    _scrape_links(f"{YUM_BASE}/openvox{v}/{fam}/{rel}/")
+                )
+                arch_keys.append((fam, rel))
+
+    if arch_probes:
+        arch_results = await asyncio.gather(*arch_probes)
+        for (fam, rel), links in zip(arch_keys, arch_results):
+            yum_family_data[fam][rel]["arches"] = sorted(
+                a.strip("/") for a in links
+                if a.endswith("/") and a.strip("/") not in ("src", "SRPMS")
+            )
 
     for fam, releases in sorted(yum_family_data.items()):
         label = _YUM_FAMILY_LABELS.get(fam, fam.upper())
@@ -715,24 +745,24 @@ async def _discover_upstream() -> UpstreamInfo:
             id=fam, label=label, repo_type="yum", releases=rel_list,
         ))
 
-    # ── APT distributions ──
-    apt_dists = await _scrape_links(f"{APT_BASE}/dists/")
+    # ── APT distributions (parallel version probes) ──
+    apt_dists = [
+        d.strip("/") for d in sorted(apt_dists_raw)
+        if d.endswith("/")
+    ]
+    apt_comp_results = await asyncio.gather(
+        *[_scrape_links(f"{APT_BASE}/dists/{dist}/") for dist in apt_dists]
+    )
+
     debian_releases: list[UpstreamRelease] = []
     ubuntu_releases: list[UpstreamRelease] = []
-
-    for dist_link in sorted(apt_dists):
-        if not dist_link.endswith("/"):
-            continue
-        dist = dist_link.strip("/")
-        # Find which openvox versions are available
-        comp_links = await _scrape_links(f"{APT_BASE}/dists/{dist}/")
+    for dist, comp_links in zip(apt_dists, apt_comp_results):
         versions = sorted(
             c.strip("/").replace("openvox", "")
             for c in comp_links
             if c.endswith("/") and c.startswith("openvox")
         )
         all_versions.update(versions)
-
         if dist.startswith("debian"):
             num = dist.replace("debian", "")
             codename = _DEBIAN_CODENAMES.get(num, "")
@@ -742,26 +772,27 @@ async def _discover_upstream() -> UpstreamInfo:
             ))
         elif dist.startswith("ubuntu"):
             num = dist.replace("ubuntu", "")
-            label = f"Ubuntu {num}"
             ubuntu_releases.append(UpstreamRelease(
-                id=dist, label=label, openvox_versions=versions,
+                id=dist, label=f"Ubuntu {num}", openvox_versions=versions,
             ))
 
     if debian_releases:
         families.append(UpstreamFamily(
-            id="debian", label="Debian", repo_type="apt", releases=debian_releases,
+            id="debian", label="Debian", repo_type="apt",
+            releases=debian_releases,
         ))
     if ubuntu_releases:
         families.append(UpstreamFamily(
-            id="ubuntu", label="Ubuntu", repo_type="apt", releases=ubuntu_releases,
+            id="ubuntu", label="Ubuntu", repo_type="apt",
+            releases=ubuntu_releases,
         ))
 
-    # ── Downloads (Windows / macOS) ──
-    dl_root = await _scrape_links(f"{DOWNLOADS_BASE}/")
-    for platform in ("windows", "mac"):
-        if f"{platform}/" not in dl_root:
-            continue
-        plat_links = await _scrape_links(f"{DOWNLOADS_BASE}/{platform}/")
+    # ── Downloads (Windows / macOS) -- parallel ──
+    dl_platforms = [p for p in ("windows", "mac") if f"{p}/" in dl_root]
+    dl_results = await asyncio.gather(
+        *[_scrape_links(f"{DOWNLOADS_BASE}/{p}/") for p in dl_platforms]
+    )
+    for platform, plat_links in zip(dl_platforms, dl_results):
         versions = sorted(
             p.strip("/").replace("openvox", "")
             for p in plat_links
@@ -782,7 +813,6 @@ async def _discover_upstream() -> UpstreamInfo:
         cached_at=datetime.now(timezone.utc).isoformat(),
     )
 
-    # Write cache
     try:
         PKG_REPO_DIR.mkdir(parents=True, exist_ok=True)
         UPSTREAM_CACHE.write_text(result.model_dump_json(indent=2))
@@ -792,14 +822,72 @@ async def _discover_upstream() -> UpstreamInfo:
     return result
 
 
+def _detect_mirrored_selections() -> MirrorSelections:
+    """Detect what's already mirrored on disk and return matching
+    selections.  Called when no .mirror-selections.json exists yet
+    so the checkboxes start pre-checked for existing content."""
+    dists: list[str] = []
+    versions: set[str] = set()
+
+    yum_root = PKG_REPO_DIR / "yum"
+    if yum_root.exists():
+        for ver_dir in sorted(yum_root.iterdir()):
+            if not ver_dir.is_dir() or not ver_dir.name.startswith("openvox"):
+                continue
+            ver = ver_dir.name.replace("openvox", "")
+            versions.add(ver)
+            for fam_dir in sorted(ver_dir.iterdir()):
+                if not fam_dir.is_dir():
+                    continue
+                for rel_dir in sorted(fam_dir.iterdir()):
+                    if not rel_dir.is_dir():
+                        continue
+                    key = f"{fam_dir.name}/{rel_dir.name}"
+                    if key not in dists:
+                        dists.append(key)
+
+    apt_root = PKG_REPO_DIR / "apt" / "dists"
+    if apt_root.exists():
+        for dist_dir in sorted(apt_root.iterdir()):
+            if not dist_dir.is_dir():
+                continue
+            name = dist_dir.name
+            for comp in dist_dir.iterdir():
+                if comp.is_dir() and comp.name.startswith("openvox"):
+                    versions.add(comp.name.replace("openvox", ""))
+            if name.startswith("debian"):
+                key = f"debian/{name}"
+            elif name.startswith("ubuntu"):
+                key = f"ubuntu/{name}"
+            else:
+                continue
+            if key not in dists:
+                dists.append(key)
+
+    for platform in ("windows", "mac"):
+        plat_dir = PKG_REPO_DIR / platform
+        if plat_dir.exists() and plat_dir.is_dir():
+            key = f"{platform}/{platform}"
+            if key not in dists:
+                dists.append(key)
+            for sub in plat_dir.iterdir():
+                if sub.is_dir() and sub.name.startswith("openvox"):
+                    versions.add(sub.name.replace("openvox", ""))
+
+    return MirrorSelections(
+        openvox_versions=sorted(versions) if versions else ["8"],
+        distributions=sorted(dists),
+    )
+
+
 def _read_selections() -> MirrorSelections:
     if not SELECTIONS_FILE.exists():
-        return MirrorSelections()
+        return _detect_mirrored_selections()
     try:
         return MirrorSelections(**json.loads(SELECTIONS_FILE.read_text()))
     except Exception as exc:
         logger.warning("Could not read selections: %s", exc)
-        return MirrorSelections()
+        return _detect_mirrored_selections()
 
 
 def _write_selections(sel: MirrorSelections) -> None:
