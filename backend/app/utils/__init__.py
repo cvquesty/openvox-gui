@@ -2,8 +2,7 @@
 Utility modules for OpenVox GUI backend.
 """
 from .http_client import (
-    get_proxy_config,
-    get_proxy_mounts,
+    get_proxy_url,
     should_bypass_proxy,
     create_external_client,
 )
@@ -24,8 +23,7 @@ from .validation import (
 
 __all__ = [
     # HTTP client utilities
-    "get_proxy_config",
-    "get_proxy_mounts",
+    "get_proxy_url",
     "should_bypass_proxy",
     "create_external_client",
     # Validation utilities
