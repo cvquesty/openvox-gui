@@ -40,6 +40,11 @@
 #     │   └── 13/, 14/, 15/                  (per-macOS-major sub-trees)
 #     └── .last-sync                        (UTC timestamp of last successful sync)
 #
+# Transport: rsync is the preferred transport (uses rsync://RSYNC_HOST/
+# RSYNC_MODULE). When rsync is unavailable or blocked, each platform
+# falls back to wget (yum/windows/mac use wget --mirror; apt uses
+# Packages-file-parsing to discover .deb URLs properly).
+#
 # Single-tree apt + single-tree yum match how upstream organises things;
 # the user-facing install URLs become https://<server>:8140/packages/yum/...
 # and .../apt/.... See docs/INSTALLER.md for the full directory layout.
@@ -59,6 +64,8 @@
 #   YUM_BASE            yum.voxpupuli.org URL (default upstream)
 #   APT_BASE            apt.voxpupuli.org URL (default upstream)
 #   DOWNLOADS_BASE      downloads.voxpupuli.org URL (default upstream)
+#   RSYNC_HOST          rsync host for mirroring (default: apt.voxpupuli.org)
+#   RSYNC_MODULE        rsync module name (default: packages)
 #
 # Exit codes:
 #   0  Success (or nothing to do)
@@ -76,6 +83,9 @@ PKG_REPO_LOG="${PKG_REPO_LOG:-/opt/openvox-gui/logs/repo-sync.log}"
 YUM_BASE="${YUM_BASE:-https://yum.voxpupuli.org}"
 APT_BASE="${APT_BASE:-https://apt.voxpupuli.org}"
 DOWNLOADS_BASE="${DOWNLOADS_BASE:-https://downloads.voxpupuli.org}"
+
+RSYNC_HOST="${RSYNC_HOST:-apt.voxpupuli.org}"
+RSYNC_MODULE="${RSYNC_MODULE:-packages}"
 
 # Defaults reflect "latest two only" as chosen at design time. Override
 # with the matching --flag or in /etc/sysconfig/openvox-repo-sync.
@@ -155,6 +165,64 @@ mac_arch() {
         aarch64|arm64) echo arm64 ;;
         *) echo "$1" ;;
     esac
+}
+
+# ─── rsync helpers ────────────────────────────────────────────────────────────
+#
+# rsync is the preferred transport for mirroring. These helpers wrap the
+# rsync binary with the same streaming-log pattern as wget_mirror/fetch_one:
+# every line of rsync output is piped through info() so it appears in the
+# application log, and the real exit code is captured via ${PIPESTATUS[0]}.
+
+# Mirror a remote rsync path (file or directory) into a local path.
+# Args: $1 = rsync source URL, $2 = local destination path
+rsync_tree() {
+    local src="$1"
+    local dest="$2"
+    mkdir -p "$dest"
+    if [ "$DRY_RUN" = "true" ]; then
+        info "DRY-RUN: rsync -av ${src} ${dest}"
+        return 0
+    fi
+    rsync -av -4 --timeout=60 --contimeout=15 \
+        "$src" "$dest" 2>&1 \
+        | while IFS= read -r line; do
+            [ -n "$line" ] && info "  rsync: ${line}"
+          done
+    local rc=${PIPESTATUS[0]}
+    if [ $rc -ne 0 ]; then
+        warn "rsync failed for ${src} (exit ${rc})"
+        return 1
+    fi
+    return 0
+}
+
+# Sync only specific files from a remote directory using --include/--exclude
+# patterns. Useful for picking GPG keys or release RPMs from a tree root
+# without mirroring the entire directory.
+# Args: $1 = rsync source dir, $2 = local dest dir, $3.. = --include patterns
+rsync_files() {
+    local src="$1"
+    local dest="$2"
+    shift 2
+    local includes=("$@")
+    mkdir -p "$dest"
+    if [ "$DRY_RUN" = "true" ]; then
+        info "DRY-RUN: rsync ${includes[*]} ${src} ${dest}"
+        return 0
+    fi
+    rsync -av -4 --timeout=60 --contimeout=15 \
+        "${includes[@]}" --exclude='*/' --exclude='*' \
+        "$src" "$dest" 2>&1 \
+        | while IFS= read -r line; do
+            [ -n "$line" ] && info "  rsync: ${line}"
+          done
+    local rc=${PIPESTATUS[0]}
+    if [ $rc -ne 0 ]; then
+        warn "rsync_files failed for ${src} (exit ${rc})"
+        return 1
+    fi
+    return 0
 }
 
 # wget wrapper that mirrors a remote tree into a local dir.
@@ -353,6 +421,11 @@ if ! command -v wget >/dev/null 2>&1; then
     exit 1
 fi
 
+HAVE_RSYNC="false"
+if command -v rsync >/dev/null 2>&1; then
+    HAVE_RSYNC="true"
+fi
+
 if [ "$(id -u)" -ne 0 ] && [ "$DRY_RUN" != "true" ]; then
     warn "Running as non-root. chown of mirrored files may fail."
 fi
@@ -365,6 +438,11 @@ info "  Target dir : ${PKG_REPO_DIR}"
 info "  Platforms  : ${PLATFORMS}"
 info "  Versions   : ${VERSIONS}"
 info "  Arches     : ${ARCHES}"
+if [ "$HAVE_RSYNC" = "true" ]; then
+    info "  Transport  : rsync (preferred) with wget fallback"
+else
+    info "  Transport  : wget only (rsync not installed)"
+fi
 [ "$DRY_RUN" = "true" ] && info "  Mode       : DRY RUN (no files will be written)"
 
 OVERALL_RESULT="success"
@@ -380,8 +458,47 @@ SYNC_FAILURES=0
 #   yum.voxpupuli.org/openvox{N}-release-el-{R}.noarch.rpm
 #   yum.voxpupuli.org/GPG-KEY-openvox.pub
 #
-sync_yum() {
-    info "Syncing yum.voxpupuli.org -> ${PKG_REPO_DIR}/yum/"
+# rsync: rsync://RSYNC_HOST/RSYNC_MODULE/yum/...
+#
+
+rsync_sync_yum() {
+    local rsync_base="rsync://${RSYNC_HOST}/${RSYNC_MODULE}"
+    local v rel arch
+    local yum_root="${PKG_REPO_DIR}/yum"
+
+    # Quick connectivity probe -- if the rsync server is unreachable,
+    # bail immediately so the dispatcher can fall back to wget.
+    # Skip in DRY_RUN mode so we show the rsync path (preferred).
+    if [ "$DRY_RUN" != "true" ]; then
+        if ! rsync -4 --timeout=10 --contimeout=5 --list-only \
+                "${rsync_base}/yum/" >/dev/null 2>&1; then
+            warn "Cannot reach rsync server at ${RSYNC_HOST} for yum"
+            return 1
+        fi
+    fi
+
+    # GPG key
+    rsync_tree "${rsync_base}/yum/GPG-KEY-openvox.pub" "${yum_root}/" \
+        || warn "Could not rsync GPG-KEY-openvox.pub"
+
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        for rel in $(echo "$EL_RELEASES" | tr ',' ' '); do
+            for arch in $(echo "$ARCHES" | tr ',' ' '); do
+                info "  -> yum/openvox${v}/el/${rel}/${arch}"
+                if ! rsync_tree "${rsync_base}/yum/openvox${v}/el/${rel}/${arch}/" \
+                        "${yum_root}/openvox${v}/el/${rel}/${arch}/"; then
+                    SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                fi
+            done
+            # Release RPM at root
+            rsync_tree "${rsync_base}/yum/openvox${v}-release-el-${rel}.noarch.rpm" \
+                "${yum_root}/" \
+                || warn "Could not rsync openvox${v}-release-el-${rel}.noarch.rpm"
+        done
+    done
+}
+
+wget_sync_yum() {
     local v rel arch
     local yum_root="${PKG_REPO_DIR}/yum"
 
@@ -409,6 +526,17 @@ sync_yum() {
     done
 }
 
+sync_yum() {
+    info "Syncing yum packages -> ${PKG_REPO_DIR}/yum/"
+    if [ "$HAVE_RSYNC" = "true" ]; then
+        if rsync_sync_yum; then
+            return 0
+        fi
+        warn "rsync failed for yum; falling back to wget"
+    fi
+    wget_sync_yum
+}
+
 # ─── apt.voxpupuli.org (Debian + Ubuntu, single shared tree) ─────────────────
 #
 # Upstream layout:
@@ -420,27 +548,120 @@ sync_yum() {
 #
 # Where {numeric} is e.g. debian12, ubuntu24.04 (NOT codenames).
 #
-sync_apt() {
-    info "Syncing apt.voxpupuli.org -> ${PKG_REPO_DIR}/apt/"
+# rsync: rsync://RSYNC_HOST/RSYNC_MODULE/apt/...
+#
+# IMPORTANT: wget --mirror is the WRONG approach for APT repos. APT's
+# two-tree layout (dists/ metadata + pool/ debs) is not designed for
+# directory crawling. The wget fallback (wget_sync_apt) instead parses
+# Packages.gz metadata to discover .deb URLs, which is how apt itself
+# works.
+#
+
+rsync_sync_apt() {
+    local rsync_base="rsync://${RSYNC_HOST}/${RSYNC_MODULE}"
     local v rel arch deb_a dist
     local apt_root="${PKG_REPO_DIR}/apt"
 
-    # GPG keys + keyring (single files, root of apt tree)
+    # Quick connectivity probe (skip in DRY_RUN)
+    if [ "$DRY_RUN" != "true" ]; then
+        if ! rsync -4 --timeout=10 --contimeout=5 --list-only \
+                "${rsync_base}/apt/" >/dev/null 2>&1; then
+            warn "Cannot reach rsync server at ${RSYNC_HOST} for apt"
+            return 1
+        fi
+    fi
+
+    # GPG key + keyring
+    for f in GPG-KEY-openvox.pub openvox-keyring.gpg; do
+        rsync_tree "${rsync_base}/apt/${f}" "${apt_root}/" \
+            || warn "Could not rsync ${f}"
+    done
+
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        # ── Debian releases ──
+        for rel in $(echo "$DEB_RELEASES" | tr ',' ' '); do
+            dist="debian${rel}"
+            # Probe: does this openvox version exist for this dist?
+            if [ "$DRY_RUN" != "true" ] && \
+               ! rsync -4 --timeout=10 --contimeout=5 --list-only \
+                    "${rsync_base}/apt/dists/${dist}/openvox${v}/" >/dev/null 2>&1; then
+                info "  (openvox${v} not published for ${dist} -- skipping)"
+                continue
+            fi
+            for arch in $(echo "$ARCHES" | tr ',' ' '); do
+                deb_a=$(deb_arch "$arch")
+                info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
+                if ! rsync_tree "${rsync_base}/apt/dists/${dist}/openvox${v}/binary-${deb_a}/" \
+                        "${apt_root}/dists/${dist}/openvox${v}/binary-${deb_a}/"; then
+                    SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                fi
+            done
+            # Dist-level Release files
+            for relfile in InRelease Release Release.gpg; do
+                rsync_tree "${rsync_base}/apt/dists/${dist}/${relfile}" \
+                    "${apt_root}/dists/${dist}/" \
+                    || warn "Could not rsync dists/${dist}/${relfile}"
+            done
+            # Release DEB
+            rsync_tree "${rsync_base}/apt/openvox${v}-release-${dist}.deb" \
+                "${apt_root}/" \
+                || warn "Could not rsync openvox${v}-release-${dist}.deb"
+        done
+
+        # ── Ubuntu releases ──
+        for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
+            dist="ubuntu${rel}"
+            if [ "$DRY_RUN" != "true" ] && \
+               ! rsync -4 --timeout=10 --contimeout=5 --list-only \
+                    "${rsync_base}/apt/dists/${dist}/openvox${v}/" >/dev/null 2>&1; then
+                info "  (openvox${v} not published for ${dist} -- skipping)"
+                continue
+            fi
+            for arch in $(echo "$ARCHES" | tr ',' ' '); do
+                deb_a=$(deb_arch "$arch")
+                info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
+                if ! rsync_tree "${rsync_base}/apt/dists/${dist}/openvox${v}/binary-${deb_a}/" \
+                        "${apt_root}/dists/${dist}/openvox${v}/binary-${deb_a}/"; then
+                    SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                fi
+            done
+            for relfile in InRelease Release Release.gpg; do
+                rsync_tree "${rsync_base}/apt/dists/${dist}/${relfile}" \
+                    "${apt_root}/dists/${dist}/" \
+                    || warn "Could not rsync dists/${dist}/${relfile}"
+            done
+            rsync_tree "${rsync_base}/apt/openvox${v}-release-${dist}.deb" \
+                "${apt_root}/" \
+                || warn "Could not rsync openvox${v}-release-${dist}.deb"
+        done
+
+        # ── Pool (shared across all releases for this version) ──
+        info "  -> apt/pool/openvox${v}"
+        if ! rsync_tree "${rsync_base}/apt/pool/openvox${v}/" \
+                "${apt_root}/pool/openvox${v}/"; then
+            SYNC_FAILURES=$((SYNC_FAILURES + 1))
+        fi
+    done
+}
+
+# wget fallback for apt -- uses Packages-file parsing instead of
+# wget --mirror. Fetches Packages.gz, extracts Filename: fields to
+# discover .deb URLs, then downloads each individually. This is how
+# apt itself discovers packages.
+wget_sync_apt() {
+    local v rel arch deb_a dist filename
+    local apt_root="${PKG_REPO_DIR}/apt"
+
+    # Root files
     for f in GPG-KEY-openvox.pub openvox-keyring.gpg; do
         fetch_one "${APT_BASE}/${f}" "${apt_root}" \
             || warn "Could not fetch ${f}"
     done
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
-        # 1. dists/<numeric>/openvox{N}/binary-{arch}/Packages*
-        # 2. dists/<numeric>/{InRelease,Release,Release.gpg}
+        # ── Debian releases ──
         for rel in $(echo "$DEB_RELEASES" | tr ',' ' '); do
             dist="debian${rel}"
-            # Not every openvox version is published for every dist
-            # (e.g. openvox 7 is not available for debian 13). Probe
-            # with a lightweight HEAD request and skip cleanly rather
-            # than letting wget_mirror fail with a noisy 404 after
-            # --timeout seconds of waiting.
             if [ "$DRY_RUN" != "true" ] && \
                ! url_exists "${APT_BASE}/dists/${dist}/openvox${v}/"; then
                 info "  (openvox${v} not published for ${dist} -- skipping)"
@@ -448,23 +669,45 @@ sync_apt() {
             fi
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 deb_a=$(deb_arch "$arch")
-                local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
-                info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
-                if ! wget_mirror "$url" "$apt_root"; then
+                local pkg_url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/Packages.gz"
+                info "  -> parsing ${dist}/openvox${v}/binary-${deb_a}/Packages.gz for .deb URLs"
+                local deb_list
+                deb_list=$(curl -sL --max-time 60 "$pkg_url" 2>/dev/null \
+                    | zcat 2>/dev/null \
+                    | awk '/^Filename:/ {print $2}')
+                if [ -z "$deb_list" ]; then
+                    warn "Could not parse Packages.gz from ${pkg_url}"
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                    continue
                 fi
+                local deb_count=0
+                for filename in $deb_list; do
+                    local dest_dir="${apt_root}/$(dirname "$filename")"
+                    if fetch_one "${APT_BASE}/${filename}" "$dest_dir"; then
+                        deb_count=$((deb_count + 1))
+                    fi
+                done
+                info "    fetched ${deb_count} .deb(s) for ${dist}/openvox${v}/${deb_a}"
+                # Metadata files
+                for f in Packages Packages.gz Release; do
+                    fetch_one \
+                        "${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/${f}" \
+                        "${apt_root}/dists/${dist}/openvox${v}/binary-${deb_a}"
+                done
             done
-            # Release files live at the dist root, not under the component
+            # Dist-level Release files
             for relfile in InRelease Release Release.gpg; do
-                fetch_one \
-                    "${APT_BASE}/dists/${dist}/${relfile}" \
+                fetch_one "${APT_BASE}/dists/${dist}/${relfile}" \
                     "${apt_root}/dists/${dist}" \
                     || warn "Could not fetch dists/${dist}/${relfile}"
             done
+            # Release DEB
             fetch_one "${APT_BASE}/openvox${v}-release-${dist}.deb" \
                 "${apt_root}" \
                 || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
+
+        # ── Ubuntu releases ──
         for rel in $(echo "$UBU_RELEASES" | tr ',' ' '); do
             dist="ubuntu${rel}"
             if [ "$DRY_RUN" != "true" ] && \
@@ -474,15 +717,33 @@ sync_apt() {
             fi
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 deb_a=$(deb_arch "$arch")
-                local url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/"
-                info "  -> apt/dists/${dist}/openvox${v}/binary-${deb_a}"
-                if ! wget_mirror "$url" "$apt_root"; then
+                local pkg_url="${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/Packages.gz"
+                info "  -> parsing ${dist}/openvox${v}/binary-${deb_a}/Packages.gz for .deb URLs"
+                local deb_list
+                deb_list=$(curl -sL --max-time 60 "$pkg_url" 2>/dev/null \
+                    | zcat 2>/dev/null \
+                    | awk '/^Filename:/ {print $2}')
+                if [ -z "$deb_list" ]; then
+                    warn "Could not parse Packages.gz from ${pkg_url}"
                     SYNC_FAILURES=$((SYNC_FAILURES + 1))
+                    continue
                 fi
+                local deb_count=0
+                for filename in $deb_list; do
+                    local dest_dir="${apt_root}/$(dirname "$filename")"
+                    if fetch_one "${APT_BASE}/${filename}" "$dest_dir"; then
+                        deb_count=$((deb_count + 1))
+                    fi
+                done
+                info "    fetched ${deb_count} .deb(s) for ${dist}/openvox${v}/${deb_a}"
+                for f in Packages Packages.gz Release; do
+                    fetch_one \
+                        "${APT_BASE}/dists/${dist}/openvox${v}/binary-${deb_a}/${f}" \
+                        "${apt_root}/dists/${dist}/openvox${v}/binary-${deb_a}"
+                done
             done
             for relfile in InRelease Release Release.gpg; do
-                fetch_one \
-                    "${APT_BASE}/dists/${dist}/${relfile}" \
+                fetch_one "${APT_BASE}/dists/${dist}/${relfile}" \
                     "${apt_root}/dists/${dist}" \
                     || warn "Could not fetch dists/${dist}/${relfile}"
             done
@@ -490,14 +751,18 @@ sync_apt() {
                 "${apt_root}" \
                 || warn "Could not fetch openvox${v}-release-${dist}.deb"
         done
-
-        # 3. pool/openvox{N}/ -- one shared pool per openvox version
-        local url="${APT_BASE}/pool/openvox${v}/"
-        info "  -> apt/pool/openvox${v}"
-        if ! wget_mirror "$url" "$apt_root"; then
-            SYNC_FAILURES=$((SYNC_FAILURES + 1))
-        fi
     done
+}
+
+sync_apt() {
+    info "Syncing apt packages -> ${PKG_REPO_DIR}/apt/"
+    if [ "$HAVE_RSYNC" = "true" ]; then
+        if rsync_sync_apt; then
+            return 0
+        fi
+        warn "rsync failed for apt; falling back to wget (Packages-file parsing)"
+    fi
+    wget_sync_apt
 }
 
 # ─── downloads.voxpupuli.org/windows/ (MSI installers) ───────────────────────
@@ -506,30 +771,69 @@ sync_apt() {
 #   downloads.voxpupuli.org/windows/openvox{N}/openvox-agent-{ver}-x64.msi
 #   downloads.voxpupuli.org/windows/openvox{N}/unsigned/...
 #
+# rsync: rsync://RSYNC_HOST/RSYNC_MODULE/downloads/windows/...
+#
 # install.ps1 needs a stable URL, so after mirroring we copy the
 # highest-version MSI to "openvox-agent-x64.msi" (a real copy, not a
 # symlink, because the puppetserver static-content mount does not
 # follow symlinks -- verified empirically).
 #
-sync_windows() {
-    info "Syncing downloads.voxpupuli.org/windows/ -> ${PKG_REPO_DIR}/windows/"
+
+rsync_sync_windows() {
+    local rsync_base="rsync://${RSYNC_HOST}/${RSYNC_MODULE}"
+    local v
+
+    # Quick connectivity probe (skip in DRY_RUN)
+    if [ "$DRY_RUN" != "true" ]; then
+        if ! rsync -4 --timeout=10 --contimeout=5 --list-only \
+                "${rsync_base}/downloads/windows/" >/dev/null 2>&1; then
+            warn "Cannot reach rsync server at ${RSYNC_HOST} for windows"
+            return 1
+        fi
+    fi
+
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        info "  -> windows/openvox${v}"
+        if ! rsync_tree "${rsync_base}/downloads/windows/openvox${v}/" \
+                "${PKG_REPO_DIR}/windows/openvox${v}/"; then
+            SYNC_FAILURES=$((SYNC_FAILURES + 1))
+        fi
+    done
+}
+
+wget_sync_windows() {
     # Pass downloads root so wget recreates windows/openvox{v}/ underneath
-    local v dest
+    local v
     local downloads_root="${PKG_REPO_DIR}"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         local url="${DOWNLOADS_BASE}/windows/openvox${v}/"
-        dest="${PKG_REPO_DIR}/windows/openvox${v}"
         info "  -> windows/openvox${v}"
         if ! wget_mirror "$url" "$downloads_root" "--accept=*.msi,SHA256SUMS"; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
-            continue
         fi
+    done
+}
 
-        # Pick the newest stable (non-rc) MSI and copy it to the
-        # predictable path install.ps1 fetches. Uses a glob loop +
-        # sort -V to avoid the ls-pipe-grep antipattern.
-        if [ "$DRY_RUN" != "true" ]; then
+sync_windows() {
+    info "Syncing windows packages -> ${PKG_REPO_DIR}/windows/"
+    if [ "$HAVE_RSYNC" = "true" ]; then
+        if rsync_sync_windows; then
+            : # rsync succeeded
+        else
+            warn "rsync failed for windows; falling back to wget"
+            wget_sync_windows
+        fi
+    else
+        wget_sync_windows
+    fi
+
+    # Post-sync: pick the newest stable (non-rc) MSI per version and
+    # copy it to the predictable path install.ps1 fetches.
+    if [ "$DRY_RUN" != "true" ]; then
+        local v dest
+        for v in $(echo "$VERSIONS" | tr ',' ' '); do
+            dest="${PKG_REPO_DIR}/windows/openvox${v}"
             local latest=""
             local f
             shopt -s nullglob
@@ -547,8 +851,8 @@ sync_windows() {
             else
                 warn "No openvox-agent-*-x64.msi found in ${dest}; install.ps1 won't have a stable target"
             fi
-        fi
-    done
+        done
+    fi
 }
 
 # ─── downloads.voxpupuli.org/mac/ (DMG installers) ───────────────────────────
@@ -558,24 +862,65 @@ sync_windows() {
 #   downloads.voxpupuli.org/mac/openvox{N}/{macos-major}/{arch}/...    (per-major
 #                                                                       subtrees)
 #
+# rsync: rsync://RSYNC_HOST/RSYNC_MODULE/downloads/mac/...
+#
 # Same "latest copy" trick as windows for the per-arch DMGs.
 #
-sync_mac() {
-    info "Syncing downloads.voxpupuli.org/mac/ -> ${PKG_REPO_DIR}/mac/"
+
+rsync_sync_mac() {
+    local rsync_base="rsync://${RSYNC_HOST}/${RSYNC_MODULE}"
+    local v
+
+    # Quick connectivity probe (skip in DRY_RUN)
+    if [ "$DRY_RUN" != "true" ]; then
+        if ! rsync -4 --timeout=10 --contimeout=5 --list-only \
+                "${rsync_base}/downloads/mac/" >/dev/null 2>&1; then
+            warn "Cannot reach rsync server at ${RSYNC_HOST} for mac"
+            return 1
+        fi
+    fi
+
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        info "  -> mac/openvox${v}"
+        if ! rsync_tree "${rsync_base}/downloads/mac/openvox${v}/" \
+                "${PKG_REPO_DIR}/mac/openvox${v}/"; then
+            SYNC_FAILURES=$((SYNC_FAILURES + 1))
+        fi
+    done
+}
+
+wget_sync_mac() {
     # Pass downloads root so wget recreates mac/openvox{v}/ underneath
-    local v dest arch m_arch
+    local v
     local downloads_root="${PKG_REPO_DIR}"
 
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         local url="${DOWNLOADS_BASE}/mac/openvox${v}/"
-        dest="${PKG_REPO_DIR}/mac/openvox${v}"
         info "  -> mac/openvox${v}"
         if ! wget_mirror "$url" "$downloads_root" "--accept=*.dmg,*.pkg,SHA256SUMS"; then
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
-            continue
         fi
+    done
+}
 
-        if [ "$DRY_RUN" != "true" ]; then
+sync_mac() {
+    info "Syncing mac packages -> ${PKG_REPO_DIR}/mac/"
+    if [ "$HAVE_RSYNC" = "true" ]; then
+        if rsync_sync_mac; then
+            : # rsync succeeded
+        else
+            warn "rsync failed for mac; falling back to wget"
+            wget_sync_mac
+        fi
+    else
+        wget_sync_mac
+    fi
+
+    # Post-sync: pick the newest DMG per arch and copy to a stable name
+    if [ "$DRY_RUN" != "true" ]; then
+        local v dest arch m_arch
+        for v in $(echo "$VERSIONS" | tr ',' ' '); do
+            dest="${PKG_REPO_DIR}/mac/openvox${v}"
             for arch in $(echo "$ARCHES" | tr ',' ' '); do
                 m_arch=$(mac_arch "$arch")
                 local latest=""
@@ -593,8 +938,8 @@ sync_mac() {
                     info "    latest copy: $(basename "$latest") -> openvox-agent-${m_arch}.dmg"
                 fi
             done
-        fi
-    done
+        done
+    fi
 }
 
 # ─── Drive each requested platform ───────────────────────────────────────────

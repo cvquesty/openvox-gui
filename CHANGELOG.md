@@ -9,6 +9,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.2-6] - 2026-04-27
+
+**Major sync refactor.** Switches from `wget --mirror` (directory
+crawling) to **rsync** as the primary transport for all four
+platforms (yum, apt, windows, mac), with a proper wget fallback
+when rsync is unavailable (port 873 blocked on corp networks).
+
+### Changed
+
+- **rsync is now the primary sync transport.** The script tries
+  rsync first for each platform, using voxpupuli.org's official
+  rsync module (`rsync://apt.voxpupuli.org/packages/`). rsync uses
+  delta transfers (only changed bytes), does not depend on HTML
+  autoindex, and is dramatically faster for incremental syncs.
+  New env vars `RSYNC_HOST` and `RSYNC_MODULE` (default
+  `apt.voxpupuli.org` / `packages`) are overridable via
+  `/etc/sysconfig/openvox-repo-sync`.
+- **New `rsync_tree` helper** mirrors a remote rsync path to a
+  local dir, streaming each line into the app log with an `rsync:`
+  prefix. Same PIPESTATUS pattern as the wget streaming for correct
+  exit code capture.
+- **Preflight rsync check**: script detects whether `rsync` is
+  installed. If not, skips rsync attempts entirely and goes straight
+  to wget fallback with no noisy warnings.
+- **Each platform now follows a dispatcher pattern**:
+  `sync_<platform>` tries `rsync_sync_<platform>`, falls back to
+  `wget_sync_<platform>` on failure. The rsync attempt uses
+  `--contimeout=15` so it fails fast on blackholed corp networks.
+
+### Fixed
+
+- **apt sync no longer uses `wget --mirror`.** `wget --mirror` was
+  the wrong tool for APT repos — it relied on HTML autoindex
+  (directory browsing) which is not part of the APT protocol and
+  only worked on voxpupuli.org by accident. The new wget fallback
+  (`wget_sync_apt`) parses `Packages.gz` metadata to discover
+  `.deb` URLs, which is how `apt` itself works. Downloads each
+  `.deb` individually from `pool/` using its known path from the
+  metadata, then fetches the dists metadata files directly. This
+  is correct regardless of whether the upstream has autoindex
+  enabled.
+
+### Operator notes
+
+- **rsync port 873** must be reachable from the server for the
+  primary transport. On corp networks where port 873 is blocked,
+  the script automatically falls back to wget. For the apt
+  fallback, the Packages-file-parsing approach works through any
+  HTTPS-capable proxy.
+- The existing filter flags (`--versions`, `--el-releases`,
+  `--debian-releases`, `--ubuntu-releases`, `--arches`) are
+  honored by both rsync and wget paths. rsync mirrors specific
+  subtrees (not the entire 62 GB module), matching the same
+  iteration pattern the wget path uses.
+- Post-sync logic (latest-MSI/DMG copy for install scripts) runs
+  after whichever transport succeeds.
+- Script-only change. To pick up: scp `scripts/sync-openvox-repo.sh`
+  into `/opt/openvox-gui/scripts/`. No `daemon-reload` needed.
+
+---
+
 ## [3.6.2-5] - 2026-04-27
 
 **Diagnostic fix.** Eliminates false-alarm WARN lines for
