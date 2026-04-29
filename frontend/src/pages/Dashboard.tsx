@@ -8,7 +8,7 @@ import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
   Badge, Tooltip, Table, ActionIcon, Select, Switch,
 } from '@mantine/core';
-import { IconEye } from '@tabler/icons-react';
+import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
@@ -164,15 +164,41 @@ export function DashboardPage() {
   const { data: rawNodeTrends, refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
   const nodeTrends = (rawNodeTrends || []).map((trend: any) => ({
     timestamp: trend.timestamp,
-    // Only include counts for nodes that still exist
     unchanged: trend.unchanged || 0,
     changed: trend.changed || 0,
     failed: trend.failed || 0,
     noop: trend.noop || 0,
+    unreported: trend.unreported || 0,
   }));
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedNodes = [...(nodeList || [])].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const av = (a as any)[sortField] ?? '';
+    const bv = (b as any)[sortField] ?? '';
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return dir * av.localeCompare(bv);
+    }
+    return dir * (av > bv ? 1 : av < bv ? -1 : 0);
+  });
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    return sortDir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />;
+  };
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [sortField, setSortField] = useState<string>('certname');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
 
   useEffect(() => {
@@ -279,15 +305,23 @@ export function DashboardPage() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Certname</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Environment</Table.Th>
-              <Table.Th>Last Report</Table.Th>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('certname')}>
+                <Group gap={4} wrap="nowrap">Certname <SortIcon field="certname" /></Group>
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('latest_report_status')}>
+                <Group gap={4} wrap="nowrap">Status <SortIcon field="latest_report_status" /></Group>
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('report_environment')}>
+                <Group gap={4} wrap="nowrap">Environment <SortIcon field="report_environment" /></Group>
+              </Table.Th>
+              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('report_timestamp')}>
+                <Group gap={4} wrap="nowrap">Last Report <SortIcon field="report_timestamp" /></Group>
+              </Table.Th>
               <Table.Th style={{ width: 60 }}>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(nodeList || []).map((node) => (
+            {sortedNodes.map((node) => (
               <Table.Tr key={node.certname} style={{ cursor: 'pointer' }}
                 onClick={() => navigate(`/nodes/${node.certname}`)}>
                 <Table.Td><Text fw={500} size="sm">{node.certname}</Text></Table.Td>
