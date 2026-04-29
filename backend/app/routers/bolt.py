@@ -117,6 +117,7 @@ def find_bolt() -> Optional[str]:
 async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any]:
     """Run a bolt command and return stdout/stderr/returncode."""
     import os
+    from ..utils.sudo import run_sudo
 
     bolt = find_bolt()
     if not bolt:
@@ -132,41 +133,32 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
 
     bolt_args = ["sudo", bolt] + args + inventory_flag
 
-    try:
-        env = os.environ.copy()
-        env["TERM"] = "xterm-256color"
+    env = os.environ.copy()
+    env["TERM"] = "xterm-256color"
 
-        if is_rainbow:
-            # Use script(1) to allocate a PTY so bolt emits full ANSI colors
-            bolt_cmd_str = " ".join(shlex_quote(a) for a in bolt_args)
-            cmd = ["script", "-qc", bolt_cmd_str, "/dev/null"]
-        else:
-            cmd = bolt_args
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        out = stdout.decode("utf-8", errors="replace")
-        err = stderr.decode("utf-8", errors="replace")
-
-        # script(1) adds carriage returns - strip them
-        if is_rainbow:
+    if is_rainbow:
+        # Use script(1) to allocate a PTY so bolt emits full ANSI colors
+        bolt_cmd_str = " ".join(shlex_quote(a) for a in bolt_args)
+        cmd = ["script", "-qc", bolt_cmd_str, "/dev/null"]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            out = stdout.decode("utf-8", errors="replace")
+            err = stderr.decode("utf-8", errors="replace")
             out = out.replace("\r\n", "\n").replace("\r", "")
-
-        return {
-            "returncode": proc.returncode,
-            "stdout": out,
-            "stderr": err,
-        }
-    except asyncio.TimeoutError:
-        proc.kill()
-        return {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
-    except Exception as e:
-        return {"returncode": -1, "stdout": "", "stderr": str(e)}
+            return {"returncode": proc.returncode, "stdout": out, "stderr": err}
+        except asyncio.TimeoutError:
+            proc.kill()
+            return {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
+        except Exception as e:
+            return {"returncode": -1, "stdout": "", "stderr": str(e)}
+    else:
+        return await run_sudo(bolt_args, timeout=timeout)
 
 
 # ─── Status ────────────────────────────────────────────────
@@ -174,17 +166,14 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
 @router.get("/status")
 async def bolt_status():
     """Check if Bolt is installed and get version."""
+    from ..utils.sudo import run_sudo
+
     bolt = find_bolt()
     if not bolt:
         return {"installed": False, "path": None, "version": None}
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "sudo", bolt, "--version",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
-        version = stdout.decode().strip() if proc.returncode == 0 else None
+        result = await run_sudo(["sudo", bolt, "--version"], timeout=10)
+        version = result["stdout"].strip() if result["returncode"] == 0 else None
     except Exception:
         version = None
     return {"installed": True, "path": bolt, "version": version}
