@@ -11,7 +11,7 @@ import {
 } from '@mantine/core';
 import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
-import { nodes, enc } from '../services/api';
+import { nodes, enc, certificates } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
@@ -161,10 +161,11 @@ export function NodesPage() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const { data: nodeList, loading: nodesLoading, error: nodesError } = useApi<NodeSummary[]>(nodes.list);
   const { data: hierarchy, loading: hierarchyLoading, error: hierarchyError } = useApi<any>(() => enc.getHierarchy());
+  const { data: certList, loading: certsLoading, error: certsError } = useApi<any>(() => certificates.list());
   const navigate = useNavigate();
 
-  const loading = nodesLoading || hierarchyLoading;
-  const error = nodesError || hierarchyError;
+  const loading = nodesLoading || hierarchyLoading || certsLoading;
+  const error = nodesError || hierarchyError || certsError;
 
   // Build grouped nodes by node groups
   // Use hierarchy.nodes (has groups) merged with nodeList (has full details)
@@ -230,6 +231,53 @@ export function NodesPage() {
     return groups;
   }, [nodeList, hierarchy]);
 
+  // Build unclassified nodes list: signed certs NOT in the ENC hierarchy
+  const unclassifiedNodes = useMemo(() => {
+    if (!certList?.signed) return [];
+
+    // Collect all certnames that appear in the ENC hierarchy
+    const classifiedCertnames = new Set<string>();
+    const hierarchyNodes = hierarchy?.nodes || [];
+    hierarchyNodes.forEach((hNode: any) => {
+      classifiedCertnames.add(hNode.certname.toLowerCase());
+    });
+
+    // PuppetDB node lookup for enriching with status info
+    const nodeByCertname: Record<string, NodeSummary> = {};
+    (nodeList || []).forEach((node: NodeSummary) => {
+      nodeByCertname[node.certname.toLowerCase()] = node;
+    });
+
+    // Signed certs not in the ENC = unclassified
+    const unclassified: (NodeSummary & { fingerprint?: string })[] = [];
+    certList.signed.forEach((cert: any) => {
+      const cn = cert.name?.trim();
+      if (!cn) return;
+      if (classifiedCertnames.has(cn.toLowerCase())) return;
+
+      const pdbNode = nodeByCertname[cn.toLowerCase()];
+      if (pdbNode) {
+        unclassified.push({ ...pdbNode, fingerprint: cert.fingerprint });
+      } else {
+        unclassified.push({
+          certname: cn,
+          latest_report_status: null,
+          report_timestamp: null,
+          report_environment: null,
+          catalog_timestamp: null,
+          facts_timestamp: null,
+          latest_report_noop: null,
+          latest_report_corrective_change: null,
+          deactivated: null,
+          expired: null,
+          fingerprint: cert.fingerprint,
+        } as NodeSummary & { fingerprint?: string });
+      }
+    });
+
+    return unclassified.sort((a, b) => a.certname.localeCompare(b.certname));
+  }, [certList, hierarchy, nodeList]);
+
   // Filter groups and nodes by search
   const filteredGroups = useMemo(() => {
     if (!search) return groupedNodes;
@@ -246,6 +294,15 @@ export function NodesPage() {
     return filtered;
   }, [groupedNodes, search]);
 
+  // Filter unclassified nodes by search
+  const filteredUnclassified = useMemo(() => {
+    if (!search) return unclassifiedNodes;
+    const searchLower = search.toLowerCase();
+    return unclassifiedNodes.filter((n) =>
+      n.certname.toLowerCase().includes(searchLower)
+    );
+  }, [unclassifiedNodes, search]);
+
   const toggleGroup = (groupName: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
@@ -254,7 +311,8 @@ export function NodesPage() {
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
   const groupNames = Object.keys(filteredGroups);
-  const totalNodes = Object.values(filteredGroups).reduce((sum, g) => sum + g.nodes.length, 0);
+  const classifiedCount = Object.values(filteredGroups).reduce((sum, g) => sum + g.nodes.length, 0);
+  const totalNodes = classifiedCount + filteredUnclassified.length;
 
   return (
     <Stack>
@@ -276,10 +334,11 @@ export function NodesPage() {
         </Card>
       )}
 
-      {/* Grouped nodes */}
+      {/* Classified nodes */}
+      <Title order={4}>Classified Nodes ({classifiedCount})</Title>
       {groupNames.length === 0 ? (
         <Card withBorder shadow="sm">
-          <Text c="dimmed" ta="center">No nodes found</Text>
+          <Text c="dimmed" ta="center">No classified nodes found</Text>
         </Card>
       ) : (
         <Stack gap="md">
@@ -347,6 +406,55 @@ export function NodesPage() {
           })}
         </Stack>
       )}
+
+      {/* Unclassified nodes — signed certs not in the ENC */}
+      <Title order={4}>Unclassified Nodes ({filteredUnclassified.length})</Title>
+      <Card withBorder shadow="sm">
+        {filteredUnclassified.length === 0 ? (
+          <Text c="dimmed" ta="center">All known nodes are classified</Text>
+        ) : (
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Certname</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>Environment</Table.Th>
+                <Table.Th>Last Report</Table.Th>
+                <Table.Th>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filteredUnclassified.map((node) => (
+                <Table.Tr
+                  key={node.certname}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => navigate(`/nodes/${node.certname}`)}
+                >
+                  <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
+                  <Table.Td>
+                    {node.latest_report_status
+                      ? <StatusBadge status={node.latest_report_status} />
+                      : <Badge color="gray" variant="light">No reports</Badge>
+                    }
+                  </Table.Td>
+                  <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
+                  <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
+                  <Table.Td>
+                    <Tooltip label="View details">
+                      <ActionIcon variant="subtle" onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/nodes/${node.certname}`);
+                      }}>
+                        <IconEye size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Card>
     </Stack>
   );
 }
