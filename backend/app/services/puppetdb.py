@@ -223,14 +223,16 @@ class PuppetDBService:
 
     async def get_report_trends(self, hours: int = 24) -> List[Dict]:
         """Get report status trends over time."""
-        import json
-        query = f'[">" , "receive_time", "{{0}} hours ago"]'.format(hours)
-        # Use the actual PQL for time-based queries
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         reports = await self._query(
             "reports",
+            query=f'[">" , "receive_time", "{cutoff}"]',
             params={
-                "limit": "500",
-                "order_by": '[{"field": "receive_time", "order": "asc"}]'
+                "limit": "5000",
+                "order_by": '[{"field": "receive_time", "order": "desc"}]'
             }
         )
         # Bucket by hour
@@ -257,13 +259,18 @@ class PuppetDBService:
         nodes that happen to have run recently.
         """
         from collections import defaultdict
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         nodes, reports = await asyncio.gather(
             self.get_nodes(),
             self._query(
                 "reports",
+                query=f'[">" , "receive_time", "{cutoff}"]',
                 params={
-                    "limit": "500",
-                    "order_by": '[{"field": "receive_time", "order": "asc"}]'
+                    "limit": "5000",
+                    "order_by": '[{"field": "receive_time", "order": "desc"}]'
                 }
             ),
         )
