@@ -186,7 +186,18 @@ export function DashboardPage() {
     }
   };
 
-  const sortedNodes = [...(nodeList || [])].sort((a, b) => {
+  // Deduplicate by certname (case-insensitive) then sort.
+  const dedupedNodes = (() => {
+    const seen = new Set<string>();
+    return (nodeList || []).filter(n => {
+      const key = n.certname.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  })();
+
+  const sortedNodes = [...dedupedNodes].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     const av = (a as any)[sortField] ?? '';
     const bv = (b as any)[sortField] ?? '';
@@ -301,7 +312,7 @@ export function DashboardPage() {
       <Card withBorder shadow="sm" padding="lg">
         <Group justify="space-between" mb="md">
           <Title order={4}>Nodes</Title>
-          <Badge variant="light" size="lg">{nodeList?.length || 0} total</Badge>
+          <Badge variant="light" size="lg">{dedupedNodes.length} total</Badge>
         </Group>
         <Table striped highlightOnHover>
           <Table.Thead>
@@ -341,7 +352,7 @@ export function DashboardPage() {
                 </Table.Td>
               </Table.Tr>
             ))}
-            {(!nodeList || nodeList.length === 0) && (
+            {dedupedNodes.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={5}>
                   <Text c="dimmed" ta="center" py="md">No nodes found</Text>
