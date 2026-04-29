@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..dependencies import require_role
+from ..utils.sudo import run_sudo
 from typing import Optional, List
 
 router = APIRouter(prefix="/api/certificates", tags=["certificates"])
@@ -98,22 +99,7 @@ def _validate_certname(certname: str) -> str:
 async def _run_ca_command(args: List[str], timeout: int = 30) -> dict:
     """Run a puppetserver ca command."""
     cmd = ["sudo", PUPPETSERVER_CA, "ca"] + args
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        return {
-            "returncode": proc.returncode,
-            "stdout": stdout.decode("utf-8", errors="replace"),
-            "stderr": stderr.decode("utf-8", errors="replace"),
-        }
-    except asyncio.TimeoutError:
-        return {"returncode": -1, "stdout": "", "stderr": "Command timed out"}
-    except Exception as e:
-        return {"returncode": -1, "stdout": "", "stderr": str(e)}
+    return await run_sudo(cmd, timeout=timeout)
 
 
 # NB: an earlier _parse_cert_list helper was deleted in 3.3.5-22 -- it
@@ -265,19 +251,16 @@ async def get_ca_info():
         return cached
     
     try:
-        # Get CA certificate info (async subprocess to avoid blocking event loop)
+        # Get CA certificate info via PTY-enabled sudo helper
         ca_cert_path = "/etc/puppetlabs/puppet/ssl/ca/ca_crt.pem"
-        proc = await asyncio.create_subprocess_exec(
-            "sudo", "openssl", "x509", "-in", ca_cert_path, "-text", "-noout",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        ca_result = await run_sudo(
+            ["sudo", "openssl", "x509", "-in", ca_cert_path, "-text", "-noout"],
+            timeout=10,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
-        
-        if proc.returncode != 0:
+        if ca_result["returncode"] != 0:
             return {"error": "Could not read CA certificate"}
         
-        cert_text = stdout.decode("utf-8", errors="replace")
+        cert_text = ca_result["stdout"]
         
         # Parse certificate information
         info = {}
@@ -339,37 +322,33 @@ async def get_ca_info():
         if key_size_match:
             info["key_size"] = int(key_size_match.group(1))
         
-        # Extract fingerprints. Run via asyncio.to_thread so the
-        # blocking subprocess.run doesn't freeze the entire uvicorn
-        # event loop for up to 10s per request -- 3.3.5-21 audit BUG-3.
-        sha256_result = await asyncio.to_thread(
-            subprocess.run,
+        # Extract fingerprints via PTY-enabled sudo helper
+        sha256_result = await run_sudo(
             ["sudo", "openssl", "x509", "-in", ca_cert_path, "-fingerprint", "-sha256", "-noout"],
-            capture_output=True, text=True, timeout=10
+            timeout=10,
         )
-        if sha256_result.returncode == 0:
-            fp_match = re.search(r"Fingerprint=(.+)", sha256_result.stdout)
+        if sha256_result["returncode"] == 0:
+            fp_match = re.search(r"Fingerprint=(.+)", sha256_result["stdout"])
             if fp_match:
                 info["sha256_fingerprint"] = fp_match.group(1).strip()
         
-        # Get CA CRL info if available -- same async wrapping.
+        # Get CA CRL info if available
         crl_path = "/etc/puppetlabs/puppet/ssl/ca/ca_crl.pem"
-        crl_result = await asyncio.to_thread(
-            subprocess.run,
+        crl_result = await run_sudo(
             ["sudo", "openssl", "crl", "-in", crl_path, "-text", "-noout"],
-            capture_output=True, text=True, timeout=10
+            timeout=10,
         )
-        if crl_result.returncode == 0:
-            crl_update_match = re.search(r"Last Update:\s*(.+)", crl_result.stdout)
+        if crl_result["returncode"] == 0:
+            crl_update_match = re.search(r"Last Update:\s*(.+)", crl_result["stdout"])
             if crl_update_match:
                 info["crl_last_update"] = crl_update_match.group(1).strip()
             
-            next_update_match = re.search(r"Next Update:\s*(.+)", crl_result.stdout)
+            next_update_match = re.search(r"Next Update:\s*(.+)", crl_result["stdout"])
             if next_update_match:
                 info["crl_next_update"] = next_update_match.group(1).strip()
             
             # Count revoked certs
-            revoked_count = len(re.findall(r"Serial Number:", crl_result.stdout)) - 1  # Subtract CRL's own serial
+            revoked_count = len(re.findall(r"Serial Number:", crl_result["stdout"])) - 1  # Subtract CRL's own serial
             info["revoked_count"] = max(0, revoked_count)
         
         # Count total certificates from the list we already fetched
@@ -412,15 +391,12 @@ async def certificate_info(certname: str):
         if not str(cert_path).startswith(str(ca_signed_dir.resolve())):
             return {"certname": certname, "error": "Path traversal not allowed"}
 
-        # asyncio.to_thread keeps the blocking subprocess.run from
-        # freezing the event loop -- BUG-3 from the 3.3.5-21 audit.
-        result = await asyncio.to_thread(
-            subprocess.run,
+        result = await run_sudo(
             ["sudo", "openssl", "x509", "-in", str(cert_path), "-text", "-noout"],
-            capture_output=True, text=True, timeout=10
+            timeout=10,
         )
-        if result.returncode != 0:
+        if result["returncode"] != 0:
             return {"certname": certname, "error": "Certificate file not found or cannot be read"}
-        return {"certname": certname, "details": result.stdout}
+        return {"certname": certname, "details": result["stdout"]}
     except Exception as e:
         return {"certname": certname, "error": str(e)}

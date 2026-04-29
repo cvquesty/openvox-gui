@@ -1,6 +1,7 @@
 """
 Utility modules for OpenVox GUI backend.
 """
+from .sudo import run_sudo
 from .http_client import (
     get_proxy_url,
     should_bypass_proxy,
@@ -22,6 +23,8 @@ from .validation import (
 )
 
 __all__ = [
+    # Sudo helper
+    "run_sudo",
     # HTTP client utilities
     "get_proxy_url",
     "should_bypass_proxy",

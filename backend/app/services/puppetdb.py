@@ -151,27 +151,20 @@ class PuppetDBService:
         active node queries. PuppetDB will eventually purge the node
         data based on its node-purge-ttl setting.
         """
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-            if proc.returncode == 0:
-                logger.info(f"Deactivated node '{certname}' from PuppetDB")
-                return True
-            logger.warning(
-                f"Failed to deactivate node '{certname}': "
-                f"rc={proc.returncode} stderr={stderr.decode('utf-8', errors='replace')}"
-            )
-            return False
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout deactivating node '{certname}'")
-            return False
-        except Exception as e:
-            logger.error(f"Error deactivating node '{certname}': {e}")
-            return False
+        from ..utils.sudo import run_sudo
+
+        result = await run_sudo(
+            ["sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname],
+            timeout=30,
+        )
+        if result["returncode"] == 0:
+            logger.info(f"Deactivated node '{certname}' from PuppetDB")
+            return True
+        logger.warning(
+            f"Failed to deactivate node '{certname}': "
+            f"rc={result['returncode']} stderr={result['stderr']}"
+        )
+        return False
 
     # ─── Reports ────────────────────────────────────────────
 
