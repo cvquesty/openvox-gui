@@ -104,20 +104,32 @@ class PuppetDBService:
                         include_inactive: bool = False) -> List[Dict]:
         """Get nodes from PuppetDB.
 
-        By default, only returns active nodes (not deactivated or expired).
-        PuppetDB retains deactivated/expired node records until they are
-        purged, so this filter is essential to avoid displaying ghost nodes
-        that have been removed from the Puppet CA but not yet purged from
-        PuppetDB.
+        By default, only returns active nodes (not deactivated or expired)
+        and deduplicates by certname. PuppetDB retains deactivated/expired
+        node records until they are purged, so filtering is essential to
+        avoid displaying ghost nodes that have been removed from the Puppet
+        CA but not yet purged from PuppetDB.
+
+        Filtering is done in Python after fetch to guarantee correctness
+        regardless of PuppetDB version or PQL operator support.
         """
+        all_nodes = await self._query("nodes", query=query)
+
         if not include_inactive:
-            active_filter = '["and", ["null?", "deactivated", true], ["null?", "expired", true]]'
-            if query:
-                # Merge caller's filter with the active-only filter
-                query = f'["and", {active_filter}, {query}]'
-            else:
-                query = active_filter
-        return await self._query("nodes", query=query)
+            all_nodes = [
+                n for n in all_nodes
+                if not n.get("deactivated") and not n.get("expired")
+            ]
+
+        # Deduplicate by certname (case-insensitive, stripped)
+        seen: set = set()
+        unique = []
+        for node in all_nodes:
+            key = node.get("certname", "").strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                unique.append(node)
+        return unique
 
     async def get_node(self, certname: str) -> Dict:
         """Get a single node by certname."""
