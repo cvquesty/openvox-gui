@@ -99,6 +99,8 @@ export const nodes = {
   getResources: (certname: string) => fetchJSON<any[]>(`/nodes/${certname}/resources`),
   deactivate: (certname: string) =>
     fetchJSON<any>(`/nodes/${certname}/deactivate`, { method: 'POST' }),
+  purge: (certname: string) =>
+    fetchJSON<any>(`/nodes/${certname}/purge`, { method: 'POST' }),
   getReports: (certname: string, limit = 20) =>
     fetchJSON<any[]>(`/nodes/${certname}/reports?limit=${limit}`),
 };

@@ -10,12 +10,18 @@ Security note: all filter values are validated against strict allowlists
 or character patterns before being interpolated into PQL query strings
 to prevent PQL injection attacks.
 """
+import logging
 import re
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
+from ..database import get_db
 from ..services.puppetdb import puppetdb_service
+from ..services.enc import enc_service
 from ..models.schemas import NodeSummary, NodeDetail
 from ..dependencies import require_role
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/nodes", tags=["nodes"])
 
@@ -282,22 +288,81 @@ async def get_node_reports(certname: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def _remove_from_enc(certname: str, db: AsyncSession):
+    """Remove a node from the ENC SQLite database if it exists."""
+    try:
+        deleted = await enc_service.delete_node(db, certname)
+        if deleted:
+            await db.commit()
+            logger.info(f"Removed node '{certname}' from ENC")
+        return deleted
+    except Exception as e:
+        logger.warning(f"Could not remove '{certname}' from ENC: {e}")
+        return False
+
+
 @router.post("/{certname}/deactivate")
 async def deactivate_node(
     certname: str,
+    db: AsyncSession = Depends(get_db),
     _user: str = Depends(require_role("admin", "operator")),
 ):
-    """Deactivate a node in PuppetDB.
-
-    Marks the node as deactivated so it no longer appears in node lists,
-    dashboards, or any other view. Use this after cleaning a node's
-    certificate to fully remove it from the GUI.
-    """
+    """Deactivate a node in PuppetDB and remove it from the ENC."""
     certname = _validate_pql_value(certname, "certname")
-    success = await puppetdb_service.deactivate_node(certname)
-    if not success:
+
+    results = {}
+    results["puppetdb"] = await puppetdb_service.deactivate_node(certname)
+    results["enc"] = await _remove_from_enc(certname, db)
+
+    if not results["puppetdb"]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to deactivate node '{certname}' from PuppetDB",
         )
-    return {"status": "success", "message": f"Node '{certname}' deactivated from PuppetDB"}
+    return {"status": "success", "message": f"Node '{certname}' deactivated", "details": results}
+
+
+@router.post("/{certname}/purge")
+async def purge_node(
+    certname: str,
+    db: AsyncSession = Depends(get_db),
+    _user: str = Depends(require_role("admin", "operator")),
+):
+    """Completely remove a node from everywhere: PuppetDB, ENC, and CA.
+
+    This is the single operation that administrators should use when
+    decommissioning a node. It removes the node from:
+      1. PuppetDB (puppet node deactivate)
+      2. ENC SQLite database (classification data)
+      3. Puppet CA (puppetserver ca clean)
+
+    Any individual step that fails is logged but does not prevent the
+    other steps from running. The response includes the result of each
+    step so the administrator can see exactly what succeeded.
+    """
+    from ..utils.sudo import run_sudo
+
+    certname = _validate_pql_value(certname, "certname")
+    results = {}
+
+    # 1. Deactivate from PuppetDB
+    results["puppetdb_deactivated"] = await puppetdb_service.deactivate_node(certname)
+
+    # 2. Remove from ENC SQLite
+    results["enc_removed"] = await _remove_from_enc(certname, db)
+
+    # 3. Clean certificate from CA
+    ca_result = await run_sudo(
+        ["sudo", "/opt/puppetlabs/bin/puppetserver", "ca", "clean", "--certname", certname],
+        timeout=30,
+    )
+    results["ca_cleaned"] = ca_result["returncode"] == 0
+    if not results["ca_cleaned"]:
+        logger.warning(f"CA clean for '{certname}': {ca_result['stderr']}")
+
+    all_ok = all(results.values())
+    return {
+        "status": "success" if all_ok else "partial",
+        "message": f"Node '{certname}' purged" if all_ok else f"Node '{certname}' partially purged — check details",
+        "details": results,
+    }

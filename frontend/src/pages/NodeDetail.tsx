@@ -9,7 +9,7 @@ import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Badge,
   Table, Tabs, Grid, Code, Paper, Button, ScrollArea,
 } from '@mantine/core';
-import { IconServer, IconFileReport, IconList, IconCode, IconPlayerPlay } from '@tabler/icons-react';
+import { IconServer, IconFileReport, IconList, IconCode, IconPlayerPlay, IconTrash } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
@@ -149,6 +149,22 @@ export function NodeDetailPage() {
     setRunningPuppet(false);
   };
 
+  const handlePurge = async () => {
+    if (!certname) return;
+    if (!confirm(`Permanently remove '${certname}' from PuppetDB, ENC, and CA? This cannot be undone.`)) return;
+    try {
+      const r = await nodes.purge(certname);
+      notifications.show({
+        title: 'Node Purged',
+        message: r.message,
+        color: r.status === 'success' ? 'green' : 'yellow',
+      });
+      navigate('/nodes');
+    } catch (e: any) {
+      notifications.show({ title: 'Purge Failed', message: e.message, color: 'red' });
+    }
+  };
+
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
   if (!node) return <Alert color="yellow">Node not found</Alert>;
@@ -167,6 +183,12 @@ export function NodeDetailPage() {
           color="green" size="sm" variant="outline"
           onClick={handleRunPuppet} loading={runningPuppet}>
           Run OpenVox
+        </Button>
+        <Button
+          leftSection={<IconTrash size={14} />}
+          color="red" size="sm" variant="outline"
+          onClick={handlePurge}>
+          Purge Node
         </Button>
       </Group>
 

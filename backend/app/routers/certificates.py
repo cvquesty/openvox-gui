@@ -216,9 +216,11 @@ async def clean_certificate(
     cleaning destroys CA-side state for a node.
 
     After cleaning the certificate, also deactivates the node in
-    PuppetDB so it no longer appears in any node lists or dashboards.
+    PuppetDB and removes it from the ENC so it disappears everywhere.
     """
     from ..services.puppetdb import puppetdb_service
+    from ..services.enc import enc_service
+    from ..database import get_db as _get_db
 
     _validate_certname(request.certname)
     result = await _run_ca_command(["clean", "--certname", request.certname])
@@ -226,16 +228,27 @@ async def clean_certificate(
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
 
-    # Also deactivate the node in PuppetDB so it stops appearing everywhere
+    # Deactivate from PuppetDB
     pdb_deactivated = await puppetdb_service.deactivate_node(request.certname)
 
-    msg = f"Certificate cleaned for {request.certname}"
-    if pdb_deactivated:
-        msg += " and node deactivated from PuppetDB"
-    else:
-        msg += " (note: could not deactivate from PuppetDB — run 'puppet node deactivate' manually)"
+    # Remove from ENC SQLite
+    enc_removed = False
+    try:
+        from ..database import async_session
+        async with async_session() as db:
+            enc_removed = await enc_service.delete_node(db, request.certname)
+            if enc_removed:
+                await db.commit()
+    except Exception as e:
+        logger.warning(f"Could not remove '{request.certname}' from ENC: {e}")
 
-    return {"status": "success", "message": msg, "output": result["stdout"]}
+    parts = [f"Certificate cleaned for {request.certname}"]
+    if pdb_deactivated:
+        parts.append("deactivated from PuppetDB")
+    if enc_removed:
+        parts.append("removed from ENC")
+
+    return {"status": "success", "message": ", ".join(parts), "output": result["stdout"]}
 
 
 @router.get("/ca-info")
