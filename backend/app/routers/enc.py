@@ -3,14 +3,18 @@ ENC API — Hierarchical External Node Classifier.
 
 Hierarchy: Common → Environment → Group → Node
 """
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 import yaml
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..services.enc import enc_service
+from ..services.puppetdb import puppetdb_service
 from ..dependencies import require_role
 
 router = APIRouter(prefix="/api/enc", tags=["enc"])
@@ -104,6 +108,14 @@ async def get_hierarchy(db: AsyncSession = Depends(get_db)):
     envs = await enc_service.list_environments(db)
     groups = await enc_service.list_groups(db)
     nodes = await enc_service.list_nodes(db)
+
+    # Filter ENC nodes against PuppetDB — only include active nodes
+    try:
+        active = await puppetdb_service.get_nodes()
+        active_certnames = {n.get("certname", "").strip().lower() for n in active}
+        nodes = [n for n in nodes if n.certname.strip().lower() in active_certnames]
+    except Exception as e:
+        logger.warning(f"Could not filter hierarchy nodes against PuppetDB: {e}")
 
     return {
         "common": {
@@ -286,13 +298,45 @@ async def delete_group(group_id: int, db: AsyncSession = Depends(get_db), _user:
 @router.get("/nodes")
 async def list_nodes(db: AsyncSession = Depends(get_db)):
     nodes = await enc_service.list_nodes(db)
+
+    # Filter against PuppetDB — only return nodes that actually exist
+    try:
+        active = await puppetdb_service.get_nodes()
+        active_certnames = {n.get("certname", "").strip().lower() for n in active}
+        nodes = [n for n in nodes if n.certname.strip().lower() in active_certnames]
+    except Exception as e:
+        logger.warning(f"Could not filter ENC nodes against PuppetDB: {e}")
+
     return [{"certname": n.certname, "environment": n.environment,
              "classes": n.classes or {}, "parameters": n.parameters or {},
              "groups": [g.name for g in n.groups]}
             for n in nodes]
 
+async def _validate_certname_in_puppetdb(certname: str):
+    """Reject certnames that don't exist as active nodes in PuppetDB.
+
+    PuppetDB is the single source of truth for node existence. The ENC
+    only stores classification metadata — it must not create entries
+    for nodes that Puppet doesn't know about.
+    """
+    try:
+        active_nodes = await puppetdb_service.get_nodes()
+        active_certnames = {n.get("certname", "").strip().lower() for n in active_nodes}
+        if certname.strip().lower() not in active_certnames:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Node '{certname}' does not exist in PuppetDB. "
+                       f"Only active PuppetDB nodes can be classified.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Could not validate certname against PuppetDB: {e}")
+
+
 @router.post("/nodes", status_code=201)
 async def create_node(data: NodeData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
+    await _validate_certname_in_puppetdb(data.certname)
     try:
         node = await enc_service.save_node(db, certname=data.certname,
                                             environment=data.environment,
@@ -307,6 +351,7 @@ async def create_node(data: NodeData, db: AsyncSession = Depends(get_db), _user:
 
 @router.put("/nodes/{certname}")
 async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
+    await _validate_certname_in_puppetdb(certname)
     try:
         node = await enc_service.save_node(db, certname=certname,
                                             environment=data.environment,
