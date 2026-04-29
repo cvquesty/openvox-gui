@@ -145,26 +145,31 @@ class PuppetDBService:
         return await self._query(f"nodes/{certname}/resources")
 
     async def deactivate_node(self, certname: str) -> bool:
-        """Deactivate a node in PuppetDB via the puppet CLI.
+        """Deactivate a node in PuppetDB via the command API.
 
-        This marks the node as deactivated so it no longer appears in
-        active node queries. PuppetDB will eventually purge the node
-        data based on its node-purge-ttl setting.
+        Sends a 'deactivate node' command directly to PuppetDB's
+        /pdb/cmd/v1 endpoint using the existing mTLS connection.
+        No sudo or CLI tools needed.
         """
-        from ..utils.sudo import run_sudo
+        from datetime import datetime, timezone
 
-        result = await run_sudo(
-            ["sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname],
-            timeout=30,
-        )
-        if result["returncode"] == 0:
-            logger.info(f"Deactivated node '{certname}' from PuppetDB")
+        client = await self._get_client()
+        payload = {
+            "command": "deactivate node",
+            "version": 3,
+            "payload": {
+                "certname": certname,
+                "producer_timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+        try:
+            resp = await client.post("/pdb/cmd/v1", json=payload)
+            resp.raise_for_status()
+            logger.info(f"Deactivated node '{certname}' from PuppetDB via command API")
             return True
-        logger.warning(
-            f"Failed to deactivate node '{certname}': "
-            f"rc={result['returncode']} stderr={result['stderr']}"
-        )
-        return False
+        except Exception as e:
+            logger.warning(f"Failed to deactivate node '{certname}' via PuppetDB API: {e}")
+            return False
 
     # ─── Reports ────────────────────────────────────────────
 
