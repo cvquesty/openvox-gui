@@ -159,6 +159,9 @@ export function NodeDetailPage() {
         message: r.message,
         color: r.status === 'success' ? 'green' : 'yellow',
       });
+      // Brief delay so PuppetDB processes the async deactivation
+      // before the Nodes page queries for the updated list
+      await new Promise((res) => setTimeout(res, 1500));
       navigate('/nodes');
     } catch (e: any) {
       notifications.show({ title: 'Purge Failed', message: e.message, color: 'red' });
