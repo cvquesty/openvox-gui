@@ -310,11 +310,19 @@ function NodeOScope() {
 function HierarchyTab() {
   const { isFormal } = useAppTheme();
   const [data, setData] = useState<any>(null);
+  const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await enc.getHierarchy()); } catch {}
+    try {
+      const [hier, pn] = await Promise.all([
+        enc.getHierarchy(),
+        nodesApi.list().catch(() => []),
+      ]);
+      setData(hier);
+      setPuppetNodes(pn.map((x: any) => x.certname));
+    } catch {}
     setLoading(false);
   }, []);
 
@@ -323,9 +331,15 @@ function HierarchyTab() {
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
   if (!data) return <Alert color="red">Failed to load hierarchy</Alert>;
 
+  // Filter hierarchy nodes to only those active in PuppetDB
+  const puppetSet = new Set(puppetNodes.map((cn) => cn.toLowerCase()));
+  const activeHierarchyNodes = (data.nodes || []).filter((n: any) =>
+    puppetSet.has(n.certname.toLowerCase())
+  );
+
   const layers = [
     { level: 4, label: 'Node', icon: IconServer, color: 'red',
-      desc: 'Per-node overrides (highest priority)', count: data.nodes?.length || 0 },
+      desc: 'Per-node overrides (highest priority)', count: activeHierarchyNodes.length },
     { level: 3, label: 'Group', icon: IconTags, color: 'orange',
       desc: 'Logical groupings — webservers, databases, etc.', count: data.groups?.length || 0 },
     { level: 2, label: 'Environment', icon: IconWorld, color: 'blue',
@@ -411,8 +425,8 @@ function HierarchyTab() {
             {(data.groups || []).length === 0 && <Text size="sm" c="dimmed">No groups defined yet</Text>}
             <Divider my="sm" />
 
-            <Text fw={600} size="sm" mb={4}>Classified Nodes ({data.nodes?.length || 0})</Text>
-            {(data.nodes || []).map((n: any) => (
+            <Text fw={600} size="sm" mb={4}>Classified Nodes ({activeHierarchyNodes.length})</Text>
+            {activeHierarchyNodes.map((n: any) => (
               <Paper key={n.certname} p="xs" mb={4} withBorder>
                 <Group justify="space-between">
                   <Group gap="xs">
@@ -424,7 +438,7 @@ function HierarchyTab() {
                 </Group>
               </Paper>
             ))}
-            {(data.nodes || []).length === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
+            {activeHierarchyNodes.length === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
           </Card>
         </Grid.Col>
       </Grid>
@@ -739,9 +753,21 @@ function NodesTab() {
     catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
   };
 
-  const classifiedNames = new Set(classified.map((n) => n.certname));
+  // PuppetDB is the source of truth for node existence. Filter out
+  // ENC entries for nodes no longer in PuppetDB and deduplicate.
+  const puppetSet = new Set(puppetNodes.map((cn) => cn.toLowerCase()));
+  const activeClassified = (() => {
+    const seen = new Set<string>();
+    return classified.filter((n) => {
+      const key = n.certname.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return puppetSet.has(key);
+    });
+  })();
+
+  const classifiedNames = new Set(activeClassified.map((n) => n.certname));
   const unclassified = puppetNodes.filter((cn) => !classifiedNames.has(cn));
-  
 
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
 
@@ -764,7 +790,7 @@ function NodesTab() {
             <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
           </Table.Tr></Table.Thead>
           <Table.Tbody>
-            {classified.map((n) => (
+            {activeClassified.map((n) => (
               <Table.Tr key={n.certname}>
                 <Table.Td><Text fw={500} size="sm">{n.certname}</Text></Table.Td>
                 <Table.Td><Badge variant="outline" size="sm">{n.environment}</Badge></Table.Td>
@@ -782,7 +808,7 @@ function NodesTab() {
                 </Table.Td>
               </Table.Tr>
             ))}
-            {classified.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No nodes classified yet</Text></Table.Td></Table.Tr>}
+            {activeClassified.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No nodes classified yet</Text></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
       </Card>

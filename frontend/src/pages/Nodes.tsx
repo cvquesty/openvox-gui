@@ -7,11 +7,11 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text,
-  ActionIcon, Tooltip, Grid, Collapse, Badge,
+  ActionIcon, Tooltip, Collapse,
 } from '@mantine/core';
 import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
-import { nodes, enc, certificates } from '../services/api';
+import { nodes, enc } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
@@ -161,11 +161,10 @@ export function NodesPage() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const { data: nodeList, loading: nodesLoading, error: nodesError } = useApi<NodeSummary[]>(nodes.list);
   const { data: hierarchy, loading: hierarchyLoading, error: hierarchyError } = useApi<any>(() => enc.getHierarchy());
-  const { data: certList, loading: certsLoading, error: certsError } = useApi<any>(() => certificates.list());
   const navigate = useNavigate();
 
-  const loading = nodesLoading || hierarchyLoading || certsLoading;
-  const error = nodesError || hierarchyError || certsError;
+  const loading = nodesLoading || hierarchyLoading;
+  const error = nodesError || hierarchyError;
 
   // Build grouped nodes by node groups
   // Use hierarchy.nodes (has groups) merged with nodeList (has full details)
@@ -186,13 +185,15 @@ export function NodesPage() {
       groupNodes[group.name] = [];
     });
 
-    // Assign nodes to groups using hierarchy.nodes (same source as Reports page)
+    // Assign nodes to groups using hierarchy.nodes, but ONLY if
+    // the node actually exists in PuppetDB. ENC entries for nodes
+    // that have been removed from puppetserver are skipped.
     const hierarchyNodes = hierarchy?.nodes || [];
     if (hierarchyNodes.length > 0) {
       hierarchyNodes.forEach((hNode: any) => {
         const nodeGroups = hNode.groups || [];
-        // Get full node details from nodeList, or use hierarchy node as fallback
-        const fullNode: NodeSummary = nodeByCertname[hNode.certname] || hNode;
+        const fullNode: NodeSummary | undefined = nodeByCertname[hNode.certname];
+        if (!fullNode) return; // Not in PuppetDB — skip ghost
         
         if (nodeGroups.length > 0) {
           nodeGroups.forEach((g: string) => {
@@ -231,52 +232,20 @@ export function NodesPage() {
     return groups;
   }, [nodeList, hierarchy]);
 
-  // Build unclassified nodes list: signed certs NOT in the ENC hierarchy
+  // Build unclassified nodes list: PuppetDB nodes NOT in the ENC hierarchy.
+  // PuppetDB is the single source of truth for node existence.
   const unclassifiedNodes = useMemo(() => {
-    if (!certList?.signed) return [];
+    if (!nodeList) return [];
 
-    // Collect all certnames that appear in the ENC hierarchy
     const classifiedCertnames = new Set<string>();
-    const hierarchyNodes = hierarchy?.nodes || [];
-    hierarchyNodes.forEach((hNode: any) => {
+    (hierarchy?.nodes || []).forEach((hNode: any) => {
       classifiedCertnames.add(hNode.certname.toLowerCase());
     });
 
-    // PuppetDB node lookup for enriching with status info
-    const nodeByCertname: Record<string, NodeSummary> = {};
-    (nodeList || []).forEach((node: NodeSummary) => {
-      nodeByCertname[node.certname.toLowerCase()] = node;
-    });
-
-    // Signed certs not in the ENC = unclassified
-    const unclassified: (NodeSummary & { fingerprint?: string })[] = [];
-    certList.signed.forEach((cert: any) => {
-      const cn = cert.name?.trim();
-      if (!cn) return;
-      if (classifiedCertnames.has(cn.toLowerCase())) return;
-
-      const pdbNode = nodeByCertname[cn.toLowerCase()];
-      if (pdbNode) {
-        unclassified.push({ ...pdbNode, fingerprint: cert.fingerprint });
-      } else {
-        unclassified.push({
-          certname: cn,
-          latest_report_status: null,
-          report_timestamp: null,
-          report_environment: null,
-          catalog_timestamp: null,
-          facts_timestamp: null,
-          latest_report_noop: null,
-          latest_report_corrective_change: null,
-          deactivated: null,
-          expired: null,
-          fingerprint: cert.fingerprint,
-        } as NodeSummary & { fingerprint?: string });
-      }
-    });
-
-    return unclassified.sort((a, b) => a.certname.localeCompare(b.certname));
-  }, [certList, hierarchy, nodeList]);
+    return nodeList
+      .filter((node) => !classifiedCertnames.has(node.certname.toLowerCase()))
+      .sort((a, b) => a.certname.localeCompare(b.certname));
+  }, [nodeList, hierarchy]);
 
   // Filter groups and nodes by search
   const filteredGroups = useMemo(() => {
@@ -431,12 +400,7 @@ export function NodesPage() {
                   onClick={() => navigate(`/nodes/${node.certname}`)}
                 >
                   <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
-                  <Table.Td>
-                    {node.latest_report_status
-                      ? <StatusBadge status={node.latest_report_status} />
-                      : <Badge color="gray" variant="light">No reports</Badge>
-                    }
-                  </Table.Td>
+                  <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
                   <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
                   <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
                   <Table.Td>
