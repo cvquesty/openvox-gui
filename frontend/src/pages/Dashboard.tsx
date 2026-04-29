@@ -162,6 +162,12 @@ export function DashboardPage() {
   const { data: stats, loading, error, refetch: refetchStats } = useApi<DashboardStats>(dashboard.getStats);
   const { data: nodeList, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
   const { data: rawNodeTrends, refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState('30');
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [sortField, setSortField] = useState<string>('certname');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
   const nodeTrends = (rawNodeTrends || []).map((trend: any) => ({
     timestamp: trend.timestamp,
     unchanged: trend.unchanged || 0,
@@ -194,11 +200,6 @@ export function DashboardPage() {
     if (sortField !== field) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
     return sortDir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />;
   };
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState('30');
-  const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [sortField, setSortField] = useState<string>('certname');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
 
   useEffect(() => {
