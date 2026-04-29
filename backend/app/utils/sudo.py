@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
     """Run a command (typically prefixed with 'sudo') with a pseudo-TTY.
 
+    Allocates a PTY and runs the subprocess in a new session so the PTY
+    becomes the controlling terminal. This satisfies sudo's 'requiretty'
+    check on RHEL/enterprise systems.
+
     Returns a dict with 'returncode', 'stdout', and 'stderr' keys,
     matching the interface used by subprocess helpers throughout the
     application.
@@ -29,6 +33,7 @@ async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             stdin=slave_fd,
+            start_new_session=True,
         )
         os.close(slave_fd)
         slave_fd = -1
