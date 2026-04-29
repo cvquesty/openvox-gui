@@ -9,6 +9,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.3] - 2026-04-28
+
+### Added
+
+- **Distribution Support selector** on the Mirror tab (Infrastructure >
+  Agent Install) lets operators choose exactly which OS distributions
+  to mirror via checkboxes. Selecting a distribution triggers a background
+  sync; deselecting removes its packages from disk to save space. Covers
+  all upstream families: RHEL/Rocky/Alma, Debian, Ubuntu, Amazon Linux,
+  Fedora, SUSE, RHEL FIPS, Windows, macOS. OpenVox version toggles (7/8)
+  control which package generations are mirrored.
+- **Proxy Configuration tab** under Settings > Application Configuration.
+  Configure HTTP/HTTPS proxy settings via the GUI for outbound connections.
+  Includes a "Test Connection" button that validates proxy reachability to
+  yum.voxpupuli.org before saving. Proxy settings flow through to the
+  sync script (via systemd EnvironmentFile), backend httpx clients
+  (upstream discovery, file downloads), and the nightly repo-sync timer.
+- **Live sync log** (tail -f via SSE). The Sync Log tab now streams the
+  repo-sync.log in real time using Server-Sent Events. A green "live"
+  dot shows connection status; the view auto-scrolls as new lines arrive.
+  No more manual refresh.
+- **Sortable Nodes table** on the Dashboard. Click any column header
+  (Certname, Status, Environment, Last Report) to sort ascending; click
+  again to reverse. Active sort column shows a chevron indicator.
+- **Unreported nodes in trends chart.** Active Node Status Trends now
+  includes all known nodes, not just those with recent reports. Nodes
+  that haven't submitted a report in a given time bucket appear as a
+  gray "unreported" area, so the chart always reflects the full fleet.
+- **Sync script: all yum families.** The sync script now supports all
+  upstream yum families (el, amazon, fedora, sles, redhatfips) via
+  `--yum-families` and per-family release flags. The `--from-config`
+  flag reads `.mirror-selections.json` written by the GUI's distribution
+  selector. Auto-reads the config on nightly runs when the file exists.
+- **Upstream discovery with caching.** New `GET /api/installer/upstream`
+  endpoint scrapes voxpupuli.org repos to build the full distribution
+  tree. Results cached for 24 hours. All HTTP scrapes parallelized with
+  `asyncio.gather` so cold-cache discovery completes in seconds.
+- **Auto-detect mirrored selections.** When no `.mirror-selections.json`
+  exists, the backend scans the on-disk mirror tree to pre-check
+  distributions that are already synced, so the UI starts with accurate
+  checkbox state.
+
+### Changed
+
+- **wget replaced with curl** throughout the sync script. All download
+  operations now use `curl_fetch` (single file with conditional GET via
+  `-z`) and `curl_mirror` (recursive HTML-listing parser). Eliminates
+  the `wget` dependency which is not installed by default on RHEL 9.
+  rsync remains the preferred primary transport.
+- **Mirror tab renamed** from "Mirror Status" to "Mirror". Mirror Status
+  panel (sync info, platform breakdown, disk usage) sits at the top;
+  Distribution Support selector sits below.
+- **Systemd repo-sync service** now loads `/opt/openvox-gui/config/.env`
+  as an additional EnvironmentFile so proxy settings from the GUI's
+  Proxy Configuration page are available to the sync script.
+
+### Fixed
+
+- **APT pool deletion bug.** Deselecting a single APT distribution
+  (e.g., Ubuntu 22.04) was removing `apt/pool/openvox{ver}/` which is
+  shared across ALL Debian/Ubuntu distributions. This wiped packages
+  for every dist. Now only removes the per-dist metadata directory;
+  shared pool is never touched during deselection.
+- **Dashboard trends showed only oldest data.** Both `get_report_trends`
+  and `get_node_status_trends` used `order_by: asc` with `limit: 500`,
+  returning the oldest 500 reports. On production fleets with thousands
+  of reports, recent activity was excluded. Fixed: time-based filter
+  (last 48h/24h), `order_by: desc`, limit increased to 5000.
+- **Duplicate nodes on Dashboard.** PuppetDB can occasionally return
+  duplicate certnames from stale/reactivated nodes. The `list_nodes`
+  endpoint now deduplicates by certname before returning results.
+- **Pending CSR errors silently swallowed.** When `puppetserver ca list`
+  failed (e.g., sudo not configured), the backend returned HTTP 200
+  with an `error` field but the frontend only checked `_err` from the
+  catch handler. The real error was hidden; the panel showed "No pending
+  certificate requests." Now surfaces both error sources.
+- **install.bash unbound variable on Debian.** Bash 4.3 (Debian 10/11)
+  treats `${#array[@]}` as unbound when the array was `declare -a` but
+  never assigned. Initialized with `=()` so `set -u` doesn't trip.
+- **httpx 0.28 API change.** The deprecated `proxies=` parameter was
+  replaced with the current `proxy=` (singular) across all httpx client
+  instantiations (installer.py, config.py proxy-test, http_client.py).
+- **Upstream discovery timeout.** Parallelized all HTTP scrapes with
+  `asyncio.gather` (was sequential, 70+ requests). Cold-cache discovery
+  now completes in ~4 seconds instead of minutes. Empty caches from
+  failed pre-proxy attempts are automatically invalidated.
+
+### Operator Notes
+
+- **Proxy setup**: Navigate to Settings > Application Configuration >
+  Proxy Configuration. Enter your proxy URL, test the connection, save,
+  then restart the openvox-gui service. The nightly sync timer will
+  automatically pick up the proxy settings.
+- **Distribution selection**: Navigate to Infrastructure > Agent Install >
+  Mirror tab. Check the distributions you want to mirror, click "Apply
+  Changes". Deselected distributions have their directories removed
+  immediately. The nightly sync respects these selections.
+- **Auth middleware**: Both local and LDAP auth backends now accept a
+  `?token=` query parameter in addition to the Authorization header and
+  cookie, enabling EventSource (SSE) streams that cannot send custom
+  headers.
+
+---
+
 ## [3.6.2-6] - 2026-04-27
 
 **Major sync refactor.** Switches from `wget --mirror` (directory
