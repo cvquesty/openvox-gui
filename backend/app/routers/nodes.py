@@ -11,10 +11,11 @@ or character patterns before being interpolated into PQL query strings
 to prevent PQL injection attacks.
 """
 import re
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List
 from ..services.puppetdb import puppetdb_service
 from ..models.schemas import NodeSummary, NodeDetail
+from ..dependencies import require_role
 
 router = APIRouter(prefix="/api/nodes", tags=["nodes"])
 
@@ -279,3 +280,24 @@ async def get_node_reports(certname: str, limit: int = 20):
         return reports
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{certname}/deactivate")
+async def deactivate_node(
+    certname: str,
+    _user: str = Depends(require_role("admin", "operator")),
+):
+    """Deactivate a node in PuppetDB.
+
+    Marks the node as deactivated so it no longer appears in node lists,
+    dashboards, or any other view. Use this after cleaning a node's
+    certificate to fully remove it from the GUI.
+    """
+    certname = _validate_pql_value(certname, "certname")
+    success = await puppetdb_service.deactivate_node(certname)
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to deactivate node '{certname}' from PuppetDB",
+        )
+    return {"status": "success", "message": f"Node '{certname}' deactivated from PuppetDB"}

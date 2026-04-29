@@ -228,14 +228,28 @@ async def clean_certificate(
     Validates the certname before passing it to the puppetserver ca
     subprocess to prevent command injection. Operator/admin only --
     cleaning destroys CA-side state for a node.
+
+    After cleaning the certificate, also deactivates the node in
+    PuppetDB so it no longer appears in any node lists or dashboards.
     """
+    from ..services.puppetdb import puppetdb_service
+
     _validate_certname(request.certname)
     result = await _run_ca_command(["clean", "--certname", request.certname])
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
-    return {"status": "success", "message": f"Certificate cleaned for {request.certname}",
-            "output": result["stdout"]}
+
+    # Also deactivate the node in PuppetDB so it stops appearing everywhere
+    pdb_deactivated = await puppetdb_service.deactivate_node(request.certname)
+
+    msg = f"Certificate cleaned for {request.certname}"
+    if pdb_deactivated:
+        msg += " and node deactivated from PuppetDB"
+    else:
+        msg += " (note: could not deactivate from PuppetDB — run 'puppet node deactivate' manually)"
+
+    return {"status": "success", "message": msg, "output": result["stdout"]}
 
 
 @router.get("/ca-info")

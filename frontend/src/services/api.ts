@@ -97,6 +97,8 @@ export const nodes = {
     return fetchJSON<any[]>(`/nodes/packages${query ? '?' + query : ''}`);
   },
   getResources: (certname: string) => fetchJSON<any[]>(`/nodes/${certname}/resources`),
+  deactivate: (certname: string) =>
+    fetchJSON<any>(`/nodes/${certname}/deactivate`, { method: 'POST' }),
   getReports: (certname: string, limit = 20) =>
     fetchJSON<any[]>(`/nodes/${certname}/reports?limit=${limit}`),
 };

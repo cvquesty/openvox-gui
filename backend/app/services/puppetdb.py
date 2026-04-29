@@ -100,8 +100,23 @@ class PuppetDBService:
 
     # ─── Nodes ──────────────────────────────────────────────
 
-    async def get_nodes(self, query: Optional[str] = None) -> List[Dict]:
-        """Get all nodes from PuppetDB."""
+    async def get_nodes(self, query: Optional[str] = None,
+                        include_inactive: bool = False) -> List[Dict]:
+        """Get nodes from PuppetDB.
+
+        By default, only returns active nodes (not deactivated or expired).
+        PuppetDB retains deactivated/expired node records until they are
+        purged, so this filter is essential to avoid displaying ghost nodes
+        that have been removed from the Puppet CA but not yet purged from
+        PuppetDB.
+        """
+        if not include_inactive:
+            active_filter = '["and", ["null?", "deactivated", true], ["null?", "expired", true]]'
+            if query:
+                # Merge caller's filter with the active-only filter
+                query = f'["and", {active_filter}, {query}]'
+            else:
+                query = active_filter
         return await self._query("nodes", query=query)
 
     async def get_node(self, certname: str) -> Dict:
@@ -116,6 +131,35 @@ class PuppetDBService:
     async def get_node_resources(self, certname: str) -> List[Dict]:
         """Get all resources for a node."""
         return await self._query(f"nodes/{certname}/resources")
+
+    async def deactivate_node(self, certname: str) -> bool:
+        """Deactivate a node in PuppetDB via the puppet CLI.
+
+        This marks the node as deactivated so it no longer appears in
+        active node queries. PuppetDB will eventually purge the node
+        data based on its node-purge-ttl setting.
+        """
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode == 0:
+                logger.info(f"Deactivated node '{certname}' from PuppetDB")
+                return True
+            logger.warning(
+                f"Failed to deactivate node '{certname}': "
+                f"rc={proc.returncode} stderr={stderr.decode('utf-8', errors='replace')}"
+            )
+            return False
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout deactivating node '{certname}'")
+            return False
+        except Exception as e:
+            logger.error(f"Error deactivating node '{certname}': {e}")
+            return False
 
     # ─── Reports ────────────────────────────────────────────
 
