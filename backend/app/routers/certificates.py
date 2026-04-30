@@ -119,7 +119,12 @@ async def list_certificates():
         # Try alternative: puppet cert list
         return {"signed": [], "requested": [], "error": result["stderr"]}
 
-    output = result["stdout"] + "\n" + result["stderr"]
+    # Strip ANSI escape codes and carriage returns that the PTY may inject
+    import re as _re
+    _ansi_re = _re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+    raw_output = result["stdout"] + "\n" + result["stderr"]
+    output = _ansi_re.sub('', raw_output).replace('\r', '')
+    logger.debug(f"puppetserver ca list --all raw output: {repr(raw_output[:500])}")
     
     signed = []
     requested = []
