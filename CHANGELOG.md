@@ -9,6 +9,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.4] - 2026-04-29
+
+### Added
+
+- **Unclassified Nodes panel** on the Monitoring | Nodes page. Nodes
+  active in PuppetDB but not yet classified in the ENC are displayed in
+  a separate section below the classified groups, with status, environment,
+  and last report data from PuppetDB.
+- **Purge Node** button on the Node Detail page. A single click removes
+  a node from all three stores — PuppetDB, ENC SQLite, and the Puppet
+  CA — with a confirmation dialog. Navigates back to the Nodes list
+  after purge completes. Eliminates the need to run three separate CLI
+  commands to fully decommission a node.
+- **`POST /api/nodes/{certname}/purge` endpoint.** Comprehensive node
+  removal API that deactivates from PuppetDB (via command API), deletes
+  from ENC SQLite, and cleans the CA certificate. Each step runs
+  independently; partial failures are reported without blocking others.
+- **`POST /api/nodes/{certname}/deactivate` endpoint.** Deactivates a
+  node in PuppetDB and removes it from the ENC in one call.
+- **PuppetDB certname validation on ENC classification.** The
+  `POST /api/enc/nodes` and `PUT /api/enc/nodes/{certname}` endpoints
+  now reject certnames that don't exist as active nodes in PuppetDB,
+  preventing ghost entries from typos or stale node names.
+- **`run_sudo` utility** (`backend/app/utils/sudo.py`). Shared helper
+  that allocates a pseudo-TTY for sudo subprocess calls, satisfying
+  `Defaults requiretty` in enterprise sudoers configurations without
+  requiring system-level sudoers changes.
+- **`nodes.purge()` and `nodes.deactivate()` frontend API methods.**
+
+### Changed
+
+- **PuppetDB is the single source of truth for node existence.** All
+  node display surfaces (Dashboard, Monitoring | Nodes, Classification)
+  now filter against PuppetDB's active node list. ENC SQLite entries for
+  nodes not in PuppetDB are excluded from all API responses.
+- **Unclassified Nodes pane moved to top** of the Classification | Nodes
+  tab, so new nodes are immediately visible without scrolling past the
+  classified list.
+- **Certificate clean auto-cleans everywhere.** The `POST /certificates/clean`
+  endpoint now also deactivates the node from PuppetDB and removes it
+  from the ENC SQLite database, preventing ghost nodes from partial
+  cleanup.
+- **Node deactivation uses PuppetDB command API** instead of
+  `puppet node deactivate` CLI. Sends a direct `POST /pdb/cmd/v1`
+  with the existing mTLS connection — no sudo, no shell, no TTY needed.
+- **All sudo subprocess calls use PTY helper.** Certificates (CA list,
+  CA info, sign, revoke, clean), Bolt (commands, tasks, plans, status),
+  and node operations all route through `run_sudo()` for requiretty
+  compatibility.
+
+### Fixed
+
+- **Ghost nodes persisting after removal.** Nodes removed from the
+  Puppet CA via `puppetserver ca clean` remained visible across the GUI
+  because: (a) PuppetDB was not notified of the deactivation, (b) the
+  ENC SQLite database retained stale classification entries, and (c)
+  `get_nodes()` did not filter deactivated/expired nodes. All three
+  gaps are now closed.
+- **Duplicate nodes in Classification page.** ENC entries with near-
+  identical certnames (e.g., dash vs dot typos) appeared as duplicates.
+  Backend now deduplicates by certname (case-insensitive) and frontend
+  filters classified nodes against PuppetDB active nodes.
+- **`Defaults requiretty` breaking CA page and Bolt.** On RHEL/enterprise
+  systems with `requiretty` in sudoers, all sudo-based features (CA
+  certificate display, cert signing/revoking, Bolt orchestration) failed
+  silently. The new `run_sudo()` utility allocates a pseudo-TTY with
+  `start_new_session=True` to satisfy the requirement.
+- **Pending CSRs not appearing on Agent Install page.** The PTY helper
+  could inject ANSI escape codes into `puppetserver ca list --all`
+  output, breaking the section header parser. Output is now stripped of
+  ANSI codes and carriage returns before parsing.
+- **Purge button navigation.** Added a 1.5-second delay after purge
+  before navigating to the Nodes list, allowing PuppetDB's async
+  command processing to complete so the purged node doesn't briefly
+  reappear.
+
+### Operator Notes
+
+- **Purging nodes:** Click any node in Monitoring | Nodes, then click
+  the red "Purge Node" button. This replaces the three-step manual
+  process of `puppetserver ca clean` + `puppet node deactivate` +
+  manual ENC cleanup.
+- **Enterprise sudoers:** Systems with `Defaults requiretty` no longer
+  require sudoers modifications. The GUI handles TTY allocation
+  internally for all sudo operations.
+- **ENC validation:** Attempting to classify a node that doesn't exist
+  in PuppetDB will now return a 400 error with a clear message. Only
+  active PuppetDB nodes can be classified.
+
+---
+
 ## [3.6.3] - 2026-04-28
 
 ### Added
