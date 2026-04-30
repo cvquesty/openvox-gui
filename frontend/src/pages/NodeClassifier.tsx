@@ -781,6 +781,18 @@ function NodesTab() {
         Each node is a "container" that inherits classification from Common → Environment → Groups,
         with its own overrides at the highest priority.
       </Alert>
+      {unclassified.length > 0 && (
+        <Card withBorder shadow="sm">
+          <Text fw={700} mb="sm">Unclassified Nodes ({unclassified.length})</Text>
+          <Text size="xs" c="dimmed" mb="sm">Known to PuppetDB but not yet classified. Click to classify.</Text>
+          <Group gap="xs" wrap="wrap">
+            {unclassified.map((cn) => (
+              <Badge key={cn} variant="outline" color="gray" size="sm" style={{ cursor: 'pointer' }}
+                onClick={() => openCreate(cn)}>{cn}</Badge>
+            ))}
+          </Group>
+        </Card>
+      )}
       <Card withBorder shadow="sm">
         <Text fw={700} mb="sm">Classified Nodes</Text>
         <Table striped highlightOnHover>
@@ -812,18 +824,6 @@ function NodesTab() {
           </Table.Tbody>
         </Table>
       </Card>
-      {unclassified.length > 0 && (
-        <Card withBorder shadow="sm">
-          <Text fw={700} mb="sm">Unclassified Nodes ({unclassified.length})</Text>
-          <Text size="xs" c="dimmed" mb="sm">Known to OpenVoxDB but not yet classified. Click to classify.</Text>
-          <Group gap="xs" wrap="wrap">
-            {unclassified.map((cn) => (
-              <Badge key={cn} variant="outline" color="gray" size="sm" style={{ cursor: 'pointer' }}
-                onClick={() => openCreate(cn)}>{cn}</Badge>
-            ))}
-          </Group>
-        </Card>
-      )}
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Node \u2014 ${editing.certname}` : 'Classify Node'} size="lg">
         <Stack>
