@@ -174,7 +174,6 @@ export function DashboardPage() {
     changed: trend.changed || 0,
     failed: trend.failed || 0,
     noop: trend.noop || 0,
-    unreported: trend.unreported || 0,
   }));
 
   const toggleSort = (field: string) => {
@@ -283,6 +282,7 @@ export function DashboardPage() {
               <Group gap={4}><Badge color="yellow" size="xs" circle /> <Text size="xs">Changed</Text></Group>
               <Group gap={4}><Badge color="red" size="xs" circle /> <Text size="xs">Failed</Text></Group>
               <Group gap={4}><Badge color="blue" size="xs" circle /> <Text size="xs">Noop</Text></Group>
+              <Group gap={4}><Badge color="gray" size="xs" circle /> <Text size="xs">Unreported</Text></Group>
             </Group>
           </Card>
         </Grid.Col>
@@ -298,7 +298,6 @@ export function DashboardPage() {
                 <YAxis allowDecimals={false} />
                 <ReTooltip />
                 <Legend />
-                <Area type="monotone" dataKey="unreported" stroke="#868e96" fill="#868e96" fillOpacity={0.25} strokeWidth={1} name="unreported" />
                 <Area type="monotone" dataKey="unchanged" stroke="#40c057" fill="#40c057" fillOpacity={0.4} strokeWidth={1.5} />
                 <Area type="monotone" dataKey="changed" stroke="#fab005" fill="#fab005" fillOpacity={0.5} strokeWidth={2.5} />
                 <Area type="monotone" dataKey="failed" stroke="#fa5252" fill="#fa5252" fillOpacity={0.5} strokeWidth={2.5} />

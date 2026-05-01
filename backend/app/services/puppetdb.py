@@ -307,29 +307,28 @@ class PuppetDBService:
     async def get_node_status_trends(self) -> List[Dict]:
         """Get node status trends over time (bucketed by hour from reports).
 
-        Includes ALL known nodes in each bucket -- nodes that didn't
-        submit a report in that time window are counted as 'unreported'
-        so the chart always reflects the full fleet size, not just the
-        nodes that happen to have run recently.
+        Shows the count of reports received in each hour bucket grouped by
+        status.  Does NOT pad with "unreported" — per-hour-bucket padding
+        inflates unreported counts because Puppet agents don't align their
+        runs to hour boundaries.  A node that runs at 10:29 and 11:01 would
+        appear "unreported" in the 10:00 bucket despite being perfectly
+        healthy.  The donut chart already shows the authoritative current
+        unreported count; the trend chart should only reflect actual
+        report activity.
         """
         from collections import defaultdict
         from datetime import datetime, timezone, timedelta
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime(
             "%Y-%m-%dT%H:%M:%S.000Z"
         )
-        nodes, reports = await asyncio.gather(
-            self.get_nodes(),
-            self._query(
-                "reports",
-                query=f'[">" , "receive_time", "{cutoff}"]',
-                params={
-                    "limit": "5000",
-                    "order_by": '[{"field": "receive_time", "order": "desc"}]'
-                }
-            ),
+        reports = await self._query(
+            "reports",
+            query=f'[">" , "receive_time", "{cutoff}"]',
+            params={
+                "limit": "5000",
+                "order_by": '[{"field": "receive_time", "order": "desc"}]'
+            }
         )
-        all_certnames = {n.get("certname", "") for n in nodes if n.get("certname")}
-        total_nodes = len(all_certnames)
 
         buckets = defaultdict(lambda: {"unchanged": set(), "changed": set(), "failed": set(), "noop": set()})
         for report in reports:
@@ -344,15 +343,13 @@ class PuppetDBService:
 
         result = []
         for k, v in sorted(buckets.items()):
-            reported = v["unchanged"] | v["changed"] | v["failed"] | v["noop"]
-            unreported = total_nodes - len(reported)
             result.append({
                 "timestamp": k,
                 "unchanged": len(v["unchanged"]),
                 "changed": len(v["changed"]),
                 "failed": len(v["failed"]),
                 "noop": len(v["noop"]),
-                "unreported": max(0, unreported),
+                "unreported": 0,
             })
         return result[-48:]
 
