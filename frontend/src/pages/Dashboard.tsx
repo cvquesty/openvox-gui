@@ -3,7 +3,7 @@
  * 
  * Component documentation to be expanded.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
   Badge, Tooltip, Table, ActionIcon, Select, Switch,
@@ -17,7 +17,7 @@ import { useApi } from '../hooks/useApi';
 import { dashboard, nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAppTheme } from '../hooks/ThemeContext';
-import type { DashboardStats, NodeSummary } from '../types';
+import type { NodeSummary } from '../types';
 
 /* ═══════════════════════════════════════════════════════════════
    COMMAND-CENTER-O-TRON 9000 — mission control cartoon
@@ -159,8 +159,7 @@ function nodeTimeAgo(timestamp: string | null): string {
 export function DashboardPage() {
   const { isFormal } = useAppTheme();
   const navigate = useNavigate();
-  const { data: stats, loading, error, refetch: refetchStats } = useApi<DashboardStats>(dashboard.getStats);
-  const { data: nodeList, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
+  const { data: nodeList, loading, error, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
   const { data: rawNodeTrends, refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
@@ -216,18 +215,36 @@ export function DashboardPage() {
   useEffect(() => {
     if (!autoRefresh) return;
     const iv = setInterval(() => {
-      refetchStats();
       refetchNodes();
+      refetchTrends();
       setLastRefresh(new Date());
     }, parseInt(refreshInterval) * 1000);
     return () => clearInterval(iv);
   }, [autoRefresh, refreshInterval]);
 
+  // Compute donut counts directly from the node list — single source of
+  // truth shared with the table below.  Uses the same noop/status/unreported
+  // categorisation as the backend's get_node_status_counts().
+  const ns = useMemo(() => {
+    const counts = { changed: 0, unchanged: 0, failed: 0, unreported: 0, noop: 0, total: dedupedNodes.length };
+    for (const node of dedupedNodes) {
+      if (node.latest_report_noop) {
+        counts.noop++;
+      } else if (node.latest_report_status && node.latest_report_status in counts) {
+        (counts as any)[node.latest_report_status]++;
+      } else if (!node.latest_report_status) {
+        counts.unreported++;
+      } else {
+        counts.unchanged++;
+      }
+    }
+    return counts;
+  }, [dedupedNodes]);
+
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
-  if (!stats) return null;
+  if (!nodeList) return null;
 
-  const ns = stats.node_status;
   const ringData = [
     { value: ns.total ? (ns.unchanged / ns.total) * 100 : 0, color: 'green', tooltip: `Unchanged: ${ns.unchanged}` },
     { value: ns.total ? (ns.changed / ns.total) * 100 : 0, color: 'yellow', tooltip: `Changed: ${ns.changed}` },
