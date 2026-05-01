@@ -307,50 +307,76 @@ class PuppetDBService:
     async def get_node_status_trends(self) -> List[Dict]:
         """Get node status trends over time (bucketed by hour from reports).
 
-        Shows the count of reports received in each hour bucket grouped by
-        status.  Does NOT pad with "unreported" — per-hour-bucket padding
-        inflates unreported counts because Puppet agents don't align their
-        runs to hour boundaries.  A node that runs at 10:29 and 11:01 would
-        appear "unreported" in the 10:00 bucket despite being perfectly
-        healthy.  The donut chart already shows the authoritative current
-        unreported count; the trend chart should only reflect actual
-        report activity.
+        Uses a rolling-state model so every hour bucket reflects the full
+        fleet, matching the donut chart.  Each node carries its last known
+        status forward until a new report updates it.  Nodes that have
+        genuinely never reported show as 'unreported'.
         """
         from collections import defaultdict
         from datetime import datetime, timezone, timedelta
+
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime(
             "%Y-%m-%dT%H:%M:%S.000Z"
         )
-        reports = await self._query(
-            "reports",
-            query=f'[">" , "receive_time", "{cutoff}"]',
-            params={
-                "limit": "5000",
-                "order_by": '[{"field": "receive_time", "order": "desc"}]'
-            }
+        nodes, reports = await asyncio.gather(
+            self.get_nodes(),
+            self._query(
+                "reports",
+                query=f'[">" , "receive_time", "{cutoff}"]',
+                params={
+                    "limit": "5000",
+                    "order_by": '[{"field": "receive_time", "order": "asc"}]'
+                }
+            ),
         )
 
-        buckets = defaultdict(lambda: {"unchanged": set(), "changed": set(), "failed": set(), "noop": set()})
+        # Seed each node's status from PuppetDB's current record.
+        # This covers nodes whose last report predates the 48h window.
+        node_state: Dict[str, str] = {}
+        for n in nodes:
+            cn = n.get("certname", "")
+            if not cn:
+                continue
+            if n.get("latest_report_noop"):
+                node_state[cn] = "noop"
+            elif n.get("latest_report_status"):
+                node_state[cn] = n["latest_report_status"]
+            else:
+                node_state[cn] = "unreported"
+
+        # Group reports by hour bucket (already sorted ascending)
+        bucket_reports: Dict[str, list] = defaultdict(list)
         for report in reports:
             ts = report.get("receive_time", "")[:13]  # YYYY-MM-DDTHH
-            certname = report.get("certname", "")
-            status = report.get("status", "unchanged")
-            noop = report.get("noop", False)
-            if noop:
-                buckets[ts]["noop"].add(certname)
-            elif status in buckets[ts]:
-                buckets[ts][status].add(certname)
+            bucket_reports[ts].append(report)
+
+        all_buckets = sorted(bucket_reports.keys())
+        if not all_buckets:
+            return []
 
         result = []
-        for k, v in sorted(buckets.items()):
-            result.append({
-                "timestamp": k,
-                "unchanged": len(v["unchanged"]),
-                "changed": len(v["changed"]),
-                "failed": len(v["failed"]),
-                "noop": len(v["noop"]),
-                "unreported": 0,
-            })
+        for bucket in all_buckets:
+            # Apply every report in this hour, updating rolling state
+            for report in bucket_reports[bucket]:
+                cn = report.get("certname", "")
+                if cn not in node_state:
+                    continue
+                if report.get("noop", False):
+                    node_state[cn] = "noop"
+                else:
+                    node_state[cn] = report.get("status", "unchanged")
+
+            # Snapshot the full fleet
+            counts = {"unchanged": 0, "changed": 0, "failed": 0,
+                      "noop": 0, "unreported": 0}
+            for status in node_state.values():
+                if status in counts:
+                    counts[status] += 1
+                else:
+                    counts["unchanged"] += 1
+
+            result.append({"timestamp": bucket, **counts})
+
         return result[-48:]
 
     async def get_aggregate_event_counts(self) -> Dict:
