@@ -69,6 +69,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 // ─── Dashboard ──────────────────────────────────────────────
 
 export const dashboard = {
+  getData: () => fetchJSON<any>('/dashboard/data'),
   getStats: () => fetchJSON<any>('/dashboard/stats'),
   getNodeStatus: () => fetchJSON<any>('/dashboard/node-status'),
   getReportTrends: () => fetchJSON<any[]>('/dashboard/report-trends'),

@@ -14,7 +14,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
-import { dashboard, nodes } from '../services/api';
+import { dashboard } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
@@ -159,15 +159,19 @@ function nodeTimeAgo(timestamp: string | null): string {
 export function DashboardPage() {
   const { isFormal } = useAppTheme();
   const navigate = useNavigate();
-  const { data: nodeList, loading, error, refetch: refetchNodes } = useApi<NodeSummary[]>(nodes.list);
-  const { data: rawNodeTrends, refetch: refetchTrends } = useApi<any[]>(dashboard.getNodeStatusTrends);
+  // Single PuppetDB query — nodes, status counts, and trends all derived
+  // from the same data fetch.  PuppetDB is the CMDB; query it once.
+  const { data: dashData, loading, error, refetch } = useApi<any>(dashboard.getData);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [sortField, setSortField] = useState<string>('certname');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const nodeTrends = (rawNodeTrends || []).map((trend: any) => ({
+  const nodeList: NodeSummary[] = dashData?.nodes || [];
+  const ns = dashData?.node_status || { changed: 0, unchanged: 0, failed: 0, unreported: 0, noop: 0, total: 0 };
+
+  const nodeTrends = (dashData?.node_trends || []).map((trend: any) => ({
     timestamp: trend.timestamp,
     unchanged: trend.unchanged || 0,
     changed: trend.changed || 0,
@@ -186,15 +190,15 @@ export function DashboardPage() {
   };
 
   // Deduplicate by certname (case-insensitive) then sort.
-  const dedupedNodes = (() => {
+  const dedupedNodes = useMemo(() => {
     const seen = new Set<string>();
-    return (nodeList || []).filter(n => {
+    return nodeList.filter(n => {
       const key = n.certname.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  })();
+  }, [nodeList]);
 
   const sortedNodes = [...dedupedNodes].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -215,35 +219,15 @@ export function DashboardPage() {
   useEffect(() => {
     if (!autoRefresh) return;
     const iv = setInterval(() => {
-      refetchNodes();
-      refetchTrends();
+      refetch();
       setLastRefresh(new Date());
     }, parseInt(refreshInterval) * 1000);
     return () => clearInterval(iv);
   }, [autoRefresh, refreshInterval]);
 
-  // Compute donut counts directly from the node list — single source of
-  // truth shared with the table below.  Uses the same noop/status/unreported
-  // categorisation as the backend's get_node_status_counts().
-  const ns = useMemo(() => {
-    const counts = { changed: 0, unchanged: 0, failed: 0, unreported: 0, noop: 0, total: dedupedNodes.length };
-    for (const node of dedupedNodes) {
-      if (node.latest_report_noop) {
-        counts.noop++;
-      } else if (node.latest_report_status && node.latest_report_status in counts) {
-        (counts as any)[node.latest_report_status]++;
-      } else if (!node.latest_report_status) {
-        counts.unreported++;
-      } else {
-        counts.unchanged++;
-      }
-    }
-    return counts;
-  }, [dedupedNodes]);
-
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
-  if (!nodeList) return null;
+  if (!dashData) return null;
 
   const ringData = [
     { value: ns.total ? (ns.unchanged / ns.total) * 100 : 0, color: 'green', tooltip: `Unchanged: ${ns.unchanged}` },
