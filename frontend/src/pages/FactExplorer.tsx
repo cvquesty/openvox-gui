@@ -6,11 +6,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
-  Table, Badge, Select, TextInput, NumberInput, ScrollArea, Grid, Tooltip, Button,
+  Table, Badge, Select, TextInput, NumberInput, ScrollArea, Grid, Tooltip, Button, Chip, Paper,
   Autocomplete, Combobox, useCombobox,
 } from '@mantine/core';
-import { IconSearch, IconFilter, IconInfoCircle, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
-import { facts } from '../services/api';
+import { IconSearch, IconFilter, IconInfoCircle, IconChevronUp, IconChevronDown, IconSelector, IconUsersGroup } from '@tabler/icons-react';
+import { facts, enc } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson, isJsonLike } from '../components/PrettyJson';
 
@@ -123,6 +123,9 @@ export function FactExplorerPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [rowLimit, setRowLimit] = useState<number | ''>('');
   const [showStructure, setShowStructure] = useState(false);
+  const [encGroups, setEncGroups] = useState<string[]>([]);
+  const [nodeGroupMap, setNodeGroupMap] = useState<Record<string, string[]>>({});
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
   useEffect(() => {
     facts.getNames(true)  // Include nested paths
@@ -134,6 +137,19 @@ export function FactExplorerPage() {
       })
       .catch((e: any) => setError('Failed to load fact names: ' + e.message))
       .finally(() => setNamesLoading(false));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([enc.listGroups(), enc.listNodes()])
+      .then(([groups, nodes]) => {
+        setEncGroups(groups.map((g: any) => g.name).sort());
+        const map: Record<string, string[]> = {};
+        for (const n of nodes) {
+          map[n.certname] = n.groups || [];
+        }
+        setNodeGroupMap(map);
+      })
+      .catch(() => {});
   }, []);
 
   const handleFactSelect = async (factName: string | null) => {
@@ -156,6 +172,7 @@ export function FactExplorerPage() {
     setSortDir('asc');
     setRowLimit('');
     setShowStructure(false);
+    setSelectedGroups([]);
 
     setLoading(true);
     try {
@@ -182,8 +199,18 @@ export function FactExplorerPage() {
 
   // Filter → Sort → Limit pipeline
   const processedResults = useMemo(() => {
-    // 1. Filter
-    let rows = results.filter((f: any) => {
+    // 1. Group scope
+    let rows = results;
+    if (selectedGroups.length > 0) {
+      rows = rows.filter((f: any) => {
+        const nodeGroups = nodeGroupMap[f.certname] || [];
+        if (selectedGroups.includes('__ungrouped__') && nodeGroups.length === 0) return true;
+        return selectedGroups.some(sg => sg !== '__ungrouped__' && nodeGroups.includes(sg));
+      });
+    }
+
+    // 2. Filter
+    rows = rows.filter((f: any) => {
       if (!filter) return true;
       const valStr = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
 
@@ -212,7 +239,7 @@ export function FactExplorerPage() {
       }
     });
 
-    // 2. Sort
+    // 3. Sort
     if (sortField) {
       rows = [...rows].sort((a, b) => {
         const dir = sortDir === 'asc' ? 1 : -1;
@@ -229,7 +256,7 @@ export function FactExplorerPage() {
     }
 
     return rows;
-  }, [results, filter, filterOp, sortField, sortDir]);
+  }, [results, filter, filterOp, sortField, sortDir, selectedGroups, nodeGroupMap]);
 
   const matchCount = processedResults.length;
   const limited = rowLimit ? processedResults.slice(0, Number(rowLimit)) : processedResults;
@@ -461,6 +488,34 @@ export function FactExplorerPage() {
           </Grid.Col>
         )}
       </Grid>
+
+      {encGroups.length > 0 && selectedFact && results.length > 0 && !loading && (
+        <Paper withBorder p="xs" radius="sm">
+          <Group gap="sm" align="center">
+            <Group gap={4}>
+              <IconUsersGroup size={16} style={{ opacity: 0.6 }} />
+              <Text size="sm" fw={500} c="dimmed">Node Scope:</Text>
+            </Group>
+            <Chip.Group multiple value={selectedGroups} onChange={setSelectedGroups}>
+              <Group gap={6}>
+                {encGroups.map(g => (
+                  <Chip key={g} value={g} size="xs" variant="outline">
+                    {g}
+                  </Chip>
+                ))}
+                <Chip value="__ungrouped__" size="xs" variant="outline" color="gray">
+                  Ungrouped
+                </Chip>
+              </Group>
+            </Chip.Group>
+            {selectedGroups.length > 0 && (
+              <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setSelectedGroups([])}>
+                Clear
+              </Button>
+            )}
+          </Group>
+        </Paper>
+      )}
 
       {error && <Alert color="red" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
 

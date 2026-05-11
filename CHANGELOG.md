@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.5] - 2026-05-12
+
+### Added
+
+- **Node Scope filter** on the Fact Explorer page. A chip bar appears
+  below the controls card when results are loaded, showing all ENC
+  classification groups (e.g., Production, Canaries, Staging, Testing).
+  Multi-select any combination of groups to scope fact results to only
+  nodes in those groups. Includes an "Ungrouped" chip for nodes not
+  assigned to any ENC group. Resets automatically when querying a new
+  fact. The bar only appears when ENC groups are defined.
+
 ## [3.6.4] - 2026-04-29
 
 ### Added
