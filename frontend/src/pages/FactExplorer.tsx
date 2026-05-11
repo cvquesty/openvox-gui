@@ -3,13 +3,13 @@
  * 
  * Component documentation to be expanded.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
-  Table, Badge, Select, TextInput, ScrollArea, Grid, Tooltip, Button,
+  Table, Badge, Select, TextInput, NumberInput, ScrollArea, Grid, Tooltip, Button,
   Autocomplete, Combobox, useCombobox,
 } from '@mantine/core';
-import { IconSearch, IconFilter, IconInfoCircle } from '@tabler/icons-react';
+import { IconSearch, IconFilter, IconInfoCircle, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { facts } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson, isJsonLike } from '../components/PrettyJson';
@@ -118,6 +118,10 @@ export function FactExplorerPage() {
   const [namesLoading, setNamesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  const [filterOp, setFilterOp] = useState<string>('contains');
+  const [sortField, setSortField] = useState<'certname' | 'value' | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [rowLimit, setRowLimit] = useState<number | ''>('');
   const [showStructure, setShowStructure] = useState(false);
 
   useEffect(() => {
@@ -147,6 +151,10 @@ export function FactExplorerPage() {
     setFactStructure(null);
     setError(null);
     setFilter('');
+    setFilterOp('contains');
+    setSortField(null);
+    setSortDir('asc');
+    setRowLimit('');
     setShowStructure(false);
 
     setLoading(true);
@@ -171,12 +179,74 @@ export function FactExplorerPage() {
   };
 
   const results = factData?.results || [];
-  const filtered = results.filter((f: any) => {
-    if (!filter) return true;
-    const q = filter.toLowerCase();
-    const val = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
-    return f.certname?.toLowerCase().includes(q) || val.toLowerCase().includes(q);
-  });
+
+  // Filter → Sort → Limit pipeline
+  const processedResults = useMemo(() => {
+    // 1. Filter
+    let rows = results.filter((f: any) => {
+      if (!filter) return true;
+      const valStr = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
+
+      if (filterOp === 'contains') {
+        const q = filter.toLowerCase();
+        return f.certname?.toLowerCase().includes(q) || valStr.toLowerCase().includes(q);
+      }
+
+      // Math operators — compare numerically when possible
+      const numFilter = parseFloat(filter);
+      const numVal = typeof f.value === 'number' ? f.value : parseFloat(valStr);
+      if (isNaN(numFilter) || isNaN(numVal)) {
+        // Fall back to string comparison for non-numeric values
+        if (filterOp === '=') return valStr === filter;
+        if (filterOp === '!=') return valStr !== filter;
+        return false;
+      }
+      switch (filterOp) {
+        case '>':  return numVal > numFilter;
+        case '>=': return numVal >= numFilter;
+        case '<':  return numVal < numFilter;
+        case '<=': return numVal <= numFilter;
+        case '=':  return numVal === numFilter;
+        case '!=': return numVal !== numFilter;
+        default:   return true;
+      }
+    });
+
+    // 2. Sort
+    if (sortField) {
+      rows = [...rows].sort((a, b) => {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        if (sortField === 'certname') {
+          return dir * (a.certname || '').localeCompare(b.certname || '');
+        }
+        // Value sort: numeric-aware
+        const av = a.value, bv = b.value;
+        const an = typeof av === 'number' ? av : parseFloat(String(av));
+        const bn = typeof bv === 'number' ? bv : parseFloat(String(bv));
+        if (!isNaN(an) && !isNaN(bn)) return dir * (an - bn);
+        return dir * String(av ?? '').localeCompare(String(bv ?? ''));
+      });
+    }
+
+    return rows;
+  }, [results, filter, filterOp, sortField, sortDir]);
+
+  const matchCount = processedResults.length;
+  const limited = rowLimit ? processedResults.slice(0, Number(rowLimit)) : processedResults;
+
+  const toggleSort = (field: 'certname' | 'value') => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    return sortDir === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />;
+  };
 
   // Generate autocomplete suggestions based on user input
   const getAutocompleteSuggestions = (query: string) => {
@@ -268,14 +338,40 @@ export function FactExplorerPage() {
                   </Button>
                 )}
                 {selectedFact && results.length > 0 && (
-                  <TextInput
-                    label="Filter Results"
-                    placeholder="Filter by node or value..."
-                    leftSection={<IconFilter size={14} />}
-                    value={filter}
-                    onChange={(e) => setFilter(e.currentTarget.value)}
-                    style={{ width: 250 }}
-                  />
+                  <>
+                    <Select
+                      label="Operator"
+                      data={[
+                        { value: 'contains', label: 'contains' },
+                        { value: '=', label: '=' },
+                        { value: '!=', label: '!=' },
+                        { value: '>', label: '>' },
+                        { value: '>=', label: '>=' },
+                        { value: '<', label: '<' },
+                        { value: '<=', label: '<=' },
+                      ]}
+                      value={filterOp}
+                      onChange={(v) => setFilterOp(v || 'contains')}
+                      style={{ width: 110 }}
+                    />
+                    <TextInput
+                      label="Filter Value"
+                      placeholder={filterOp === 'contains' ? 'Filter by node or value...' : 'e.g. 365'}
+                      leftSection={<IconFilter size={14} />}
+                      value={filter}
+                      onChange={(e) => setFilter(e.currentTarget.value)}
+                      style={{ width: 200 }}
+                    />
+                    <NumberInput
+                      label="Limit"
+                      placeholder="All"
+                      value={rowLimit}
+                      onChange={(v) => setRowLimit(v === '' ? '' : Number(v))}
+                      min={1}
+                      max={10000}
+                      style={{ width: 90 }}
+                    />
+                  </>
                 )}
               </Group>
               
@@ -383,21 +479,32 @@ export function FactExplorerPage() {
                 </Text>
               )}
             </Stack>
-            <Badge size="lg" variant="light" color="blue">
-              {filtered.length} node{filtered.length !== 1 ? 's' : ''}
-            </Badge>
+            <Group gap="xs">
+              {rowLimit && matchCount > Number(rowLimit) && (
+                <Badge size="lg" variant="outline" color="gray">
+                  showing {limited.length} of {matchCount}
+                </Badge>
+              )}
+              <Badge size="lg" variant="light" color="blue">
+                {matchCount} match{matchCount !== 1 ? 'es' : ''}
+              </Badge>
+            </Group>
           </Group>
 
           <ScrollArea h="calc(100vh - 400px)" mih={300} mah={700}>
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ width: '30%' }}>Certname</Table.Th>
-                  <Table.Th>Value</Table.Th>
+                  <Table.Th style={{ width: '30%', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('certname')}>
+                    <Group gap={4} wrap="nowrap">Certname <SortIcon field="certname" /></Group>
+                  </Table.Th>
+                  <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('value')}>
+                    <Group gap={4} wrap="nowrap">Value <SortIcon field="value" /></Group>
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {filtered.map((f: any, i: number) => (
+                {limited.map((f: any, i: number) => (
                   <Table.Tr key={i}>
                     <Table.Td>
                       <Text fw={500} size="sm">{f.certname}</Text>
