@@ -496,8 +496,20 @@ export function FactExplorerPage() {
               <IconUsersGroup size={16} style={{ opacity: 0.6 }} />
               <Text size="sm" fw={500} c="dimmed">Node Scope:</Text>
             </Group>
-            <Chip.Group multiple value={selectedGroups} onChange={setSelectedGroups}>
+            <Chip.Group multiple value={selectedGroups} onChange={(val) => {
+              if (val.includes('__all__')) {
+                setSelectedGroups([]);
+              } else {
+                setSelectedGroups(val);
+              }
+            }}>
               <Group gap={6}>
+                <Chip value="__all__" size="xs" variant="outline" color="blue"
+                  checked={selectedGroups.length === 0}
+                  onChange={() => setSelectedGroups([])}
+                >
+                  All Nodes
+                </Chip>
                 {encGroups.map(g => (
                   <Chip key={g} value={g} size="xs" variant="outline">
                     {g}
@@ -508,11 +520,6 @@ export function FactExplorerPage() {
                 </Chip>
               </Group>
             </Chip.Group>
-            {selectedGroups.length > 0 && (
-              <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setSelectedGroups([])}>
-                Clear
-              </Button>
-            )}
           </Group>
         </Paper>
       )}
