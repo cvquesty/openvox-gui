@@ -58,7 +58,7 @@ function DistributionCharts({ data }: { data: FactDistData }) {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper withBorder p="md" radius="sm">
             <Text fw={600} mb="sm">Distribution (Pie)</Text>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
                   data={chartData}
@@ -75,7 +75,7 @@ function DistributionCharts({ data }: { data: FactDistData }) {
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                   ))}
                 </Pie>
-                <ReTooltip />
+                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -85,12 +85,12 @@ function DistributionCharts({ data }: { data: FactDistData }) {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper withBorder p="md" radius="sm">
             <Text fw={600} mb="sm">Distribution (Bar)</Text>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis type="number" allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
-                <ReTooltip />
+                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Bar dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
                   {chartData.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />

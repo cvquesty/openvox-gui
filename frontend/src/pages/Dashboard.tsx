@@ -292,19 +292,42 @@ export function DashboardPage() {
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Active Node Status Trends</Title>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={nodeTrends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }}
-                  tickFormatter={(v) => v.slice(11) || v} />
-                <YAxis allowDecimals={false} />
-                <ReTooltip />
-                <Legend />
-                <Area type="monotone" dataKey="unreported" stroke="#868e96" fill="#868e96" fillOpacity={0.25} strokeWidth={1} name="unreported" />
-                <Area type="monotone" dataKey="unchanged" stroke="#40c057" fill="#40c057" fillOpacity={0.4} strokeWidth={1.5} />
-                <Area type="monotone" dataKey="changed" stroke="#fab005" fill="#fab005" fillOpacity={0.5} strokeWidth={2.5} />
-                <Area type="monotone" dataKey="failed" stroke="#fa5252" fill="#fa5252" fillOpacity={0.5} strokeWidth={2.5} />
-                <Area type="monotone" dataKey="noop" stroke="#4dabf7" fill="#4dabf7" fillOpacity={0.45} strokeWidth={2.5} />
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={nodeTrends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gUnchanged" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2ecc71" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#2ecc71" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="gChanged" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f39c12" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#f39c12" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="gFailed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#e74c3c" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#e74c3c" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="gNoop" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3498db" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#3498db" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+                <XAxis dataKey="timestamp" tick={{ fontSize: 11, fill: '#8899aa' }}
+                  tickFormatter={(v) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11) || v}
+                  axisLine={{ stroke: '#ccc' }} tickLine={{ stroke: '#ccc' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#8899aa' }}
+                  axisLine={{ stroke: '#ccc' }} tickLine={{ stroke: '#ccc' }} />
+                <ReTooltip
+                  contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
+                  labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Area type="monotone" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2.5} dot={false} />
+                <Area type="monotone" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </Card>

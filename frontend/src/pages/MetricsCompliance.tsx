@@ -175,7 +175,7 @@ export function MetricsCompliancePage() {
         <Grid.Col span={{ base: 12, md: 5 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Compliance Distribution</Title>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
                   data={donutData}
@@ -191,7 +191,7 @@ export function MetricsCompliancePage() {
                     <Cell key={idx} fill={entry.color} />
                   ))}
                 </Pie>
-                <ReTooltip />
+                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -205,12 +205,12 @@ export function MetricsCompliancePage() {
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Compliance Trend</Title>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} />
                 <YAxis allowDecimals={false} />
-                <ReTooltip />
+                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Legend />
                 <Area type="monotone" dataKey="compliant" stroke={STATUS_COLORS.compliant} fill={STATUS_COLORS.compliant} fillOpacity={0.4} strokeWidth={2} name="Compliant" />
                 <Area type="monotone" dataKey="drifted" stroke={STATUS_COLORS.drifted} fill={STATUS_COLORS.drifted} fillOpacity={0.4} strokeWidth={2} name="Drifted" />

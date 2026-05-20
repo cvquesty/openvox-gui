@@ -97,9 +97,9 @@ export function MetricsPerformancePage() {
       {/* Run duration trends */}
       <Card withBorder shadow="sm" padding="lg">
         <Title order={4} mb="md">Run Duration Trends</Title>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={400}>
           <LineChart data={trends}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
             <XAxis
               dataKey="timestamp"
               tick={{ fontSize: 10 }}
@@ -123,9 +123,9 @@ export function MetricsPerformancePage() {
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Top 10 Slowest Nodes</Title>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={nodeComparison} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis
                   type="number"
                   tickFormatter={(v: number) => formatSeconds(v)}
@@ -148,7 +148,7 @@ export function MetricsPerformancePage() {
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Timing Phase Breakdown</Title>
             {pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={400}>
                 <PieChart>
                   <Pie
                     data={pieData}

@@ -101,7 +101,7 @@ export function MetricsClassCoveragePage() {
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 28)}>
             <BarChart data={chartData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
               <XAxis type="number" allowDecimals={false} />
               <YAxis
                 dataKey="name"
