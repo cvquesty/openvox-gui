@@ -88,7 +88,23 @@ async def get_logs(
     try:
         log_lines: list = []
 
-        # Try journalctl first
+        # If a log file is configured, prefer it — services like PuppetDB
+        # and PuppetServer write application logs to their own files, not
+        # journald. Journalctl only has systemd lifecycle messages for them.
+        if log_file:
+            log_lines = _read_log_file(log_file, lines, grep or None)
+            if log_lines:
+                # File had content — skip grep below since _read_log_file
+                # already applied it
+                return {
+                    "source": source,
+                    "unit": unit,
+                    "file": log_file,
+                    "count": len(log_lines),
+                    "lines": log_lines,
+                }
+
+        # Use journalctl for services that log to the journal
         if unit is not None or source == "syslog":
             cmd = ["sudo", "journalctl", "--no-pager", "-n", str(lines), "--output", "short-iso"]
             if unit:
@@ -98,12 +114,7 @@ async def get_logs(
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if r.returncode == 0:
                 log_lines = r.stdout.strip().split("\n") if r.stdout.strip() else []
-                # Filter out the "no entries" message journalctl prints
                 log_lines = [ln for ln in log_lines if ln and "-- No entries --" not in ln]
-
-        # Fall back to log file if journalctl returned nothing
-        if not log_lines and log_file:
-            log_lines = _read_log_file(log_file, lines)
 
         if grep:
             grep_lower = grep.lower()
