@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.6.6--1-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.6.7-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -253,6 +253,14 @@ editing paths — the wizard walks you through the entire process:
 - **Certificate Status Dashboard** — the page opens with a real-time health
   overview showing green/yellow/red badges for both the GUI web certificate and
   the Puppet CA, with expiry countdown, key type, and chain status.
+
+### Log Viewer
+- **New "Logs" section** in the navigation — browse OpenVox GUI, Puppet Agent,
+  PuppetServer, PuppetDB, and System Log without shell access. Reads from
+  journalctl with automatic fallback to on-disk log files for services that
+  log to `/var/log/puppetlabs/`. Controls for line count, time range, text
+  filter, auto-refresh every 5 seconds, and download as `.log` file.
+- **"Information" renamed to "Tools"** in the navigation sidebar.
 
 ### Classification & Fact Explorer
 - **Node Scope filter** on the Fact Explorer — chip bar to filter fact results by ENC classification group (Production, Canaries, Staging, etc.) with multi-select and "All Nodes" toggle.

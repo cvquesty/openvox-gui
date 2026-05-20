@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.6.6-3] - 2026-05-20
+## [3.6.7] - 2026-05-20
 
 ### Added
 
@@ -32,9 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Certificate Status Dashboard** — real-time health overview with
     green/yellow/red badges for both the GUI web cert and the Puppet CA,
     expiry countdown, key type, and chain status.
+- **Log Viewer** — new top-level "Logs" page with tabbed access to
+  OpenVox GUI, Puppet Agent, PuppetServer, PuppetDB, and System Log.
+  Reads from journalctl with automatic fallback to log files on disk
+  (`/var/log/puppetlabs/`) for services that don't use journald.
+  Controls for line count, time range, text filter, auto-refresh (5s),
+  and download as `.log` file. No shell access required.
 - **`/api/ssl/*` endpoints** — 11 new endpoints for certificate status,
   validation, upload, placement, Let's Encrypt renewal, and Puppet CA
   intermediate import. All admin-only.
+- **`/api/logs/*` endpoint** — log viewer backend reading from journalctl
+  and log files via sudo. Admin-only.
 - **`@mantine/dropzone`** dependency for file upload UI.
 - **Unclassified Nodes pane** on the Classification page (Nodes tab) now
   always visible (shows "All PuppetDB nodes are classified" when empty).
@@ -49,25 +57,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wildcard rule from SUDOERS.md that was superseding the explicit
   per-subcommand rules introduced in 3.6.0. Also removed legacy
   `openssl x509 *` wildcard from the live server sudoers and replaced
-  with path-restricted rules. Added SSL wizard sudoers rules for cert
-  placement, systemd rewrite, certbot, and `puppetserver ca import`.
+  with path-restricted rules. Added SSL wizard and log viewer sudoers
+  rules for cert placement, systemd rewrite, certbot,
+  `puppetserver ca import`, journalctl, and log file reading.
 - **Broken doc link** — `docs/CONFIGURATION.md` reference in
   TROUBLESHOOTING.md replaced with links to the actual guide files
   (LDAP.md, SUDOERS.md, INSTALLER.md).
+- **SSL cert parse error** — Fixed `get_all_for` → `get_values_for_type`
+  for SAN extraction in cryptography 48.x. Added graceful handling of
+  permission-denied errors when reading Let's Encrypt certs.
 
 ### Changed
 
+- **Renamed "Information" to "Tools"** in the navigation sidebar.
 - **Dependency updates** — Bumped 9 Python packages to latest stable:
   `fastapi` 0.135.1 → 0.136.1, `uvicorn` 0.42.0 → 0.47.0,
   `pydantic` 2.12.5 → 2.13.4, `pydantic-settings` 2.13.1 → 2.14.1,
   `sqlalchemy` 2.0.48 → 2.0.49, `python-multipart` 0.0.27 → 0.0.29,
   `cryptography` 46.0.7 → 48.0.0, `prometheus-client` 0.24.1 → 0.25.0.
   Added `certifi==2026.5.20` pin. Updated `postcss` 8.5.12 → 8.5.15.
-- **Documentation refresh** — Updated version badges in README.md,
-  added comprehensive What's New section for 3.6.4–3.6.6, updated
-  LDAP.md version header from 2.0.0-2 Alpha, updated UPDATE.md
-  version history, updated INSTALL.md SSL section to reference the
-  new wizard.
+- **SSL backup pruning** — only the last 5 backups are retained for
+  both web cert and CA directory backups.
+- **Documentation refresh** — all docs updated to current version,
+  broken links fixed, What's New sections current, INSTALL.md SSL
+  section references the new wizard.
 
 ### Removed
 

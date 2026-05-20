@@ -1,6 +1,6 @@
 # LDAP / Active Directory Authentication Guide
 
-**OpenVox GUI Version 3.6.6**
+**OpenVox GUI Version 3.6.7**
 
 This guide explains how to configure OpenVox GUI to authenticate users against an LDAP directory server (OpenLDAP, 389 Directory Server, Red Hat Directory Server, or Microsoft Active Directory).
 
