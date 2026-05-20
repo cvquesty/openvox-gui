@@ -57,7 +57,7 @@ def _parse_pem_cert(pem_bytes: bytes) -> Dict[str, Any]:
     # SAN
     try:
         san_ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-        sans = san_ext.value.get_all_for(x509.DNSName)
+        sans = san_ext.value.get_values_for_type(x509.DNSName)
     except x509.ExtensionNotFound:
         sans = []
 
