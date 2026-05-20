@@ -189,7 +189,37 @@ EOF
     echo "  updated /etc/sudoers.d/openvox-gui with sync rule"
 fi
 
-# 5g. Make everything in the mirror world-readable so puppetserver
+# 5g. Append log viewer sudoers rules if missing (3.6.7+).
+if [ -f "$SUDOERS_FILE" ] && ! grep -q "journalctl" "$SUDOERS_FILE"; then
+    cat >> "$SUDOERS_FILE" <<EOF
+
+# Log Viewer (3.6.7) — read journalctl and on-disk log files
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
+EOF
+    visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1 || true
+    echo "  updated /etc/sudoers.d/openvox-gui with log viewer rules"
+fi
+
+# 5h. Append SSL wizard sudoers rules if missing (3.6.7+).
+if [ -f "$SUDOERS_FILE" ] && ! grep -q "daemon-reload" "$SUDOERS_FILE"; then
+    cat >> "$SUDOERS_FILE" <<EOF
+
+# SSL Certificate Wizard (3.6.7) — cert placement, systemd rewrite, certbot
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/*/fullchain.pem
+EOF
+    visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1 || true
+    echo "  updated /etc/sudoers.d/openvox-gui with SSL wizard rules"
+fi
+
+# 5i. Make everything in the mirror world-readable so puppetserver
 # (running as the puppet user) and curl/wget can serve them.
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${PKG_REPO_DIR}" 2>/dev/null || true
 chmod -R a+rX "${PKG_REPO_DIR}" 2>/dev/null || true

@@ -945,7 +945,7 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/sync-openvox-repo.sh, ${INSTALL_DIR}/scripts/sync-openvox-repo.sh *
 
 # OpenVox GUI -- Log Viewer: read journalctl and on-disk log files
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
 

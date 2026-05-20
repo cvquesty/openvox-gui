@@ -71,7 +71,7 @@ puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
 
 # Log Viewer — read journalctl and log files for Puppet services
-puppet ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager *
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl *
 puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
 puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
 
