@@ -9,7 +9,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Button, ActionIcon, Tooltip, Collapse, Paper,
-  Modal,
+  Modal, Checkbox,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -44,10 +44,12 @@ export function CertAuditPage() {
   const [showHealthy, setShowHealthy] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkCleaning, setBulkCleaning] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSelected(new Set());
     try {
       const result = await certificates.audit();
       setData(result);
@@ -56,6 +58,24 @@ export function CertAuditPage() {
     }
     setLoading(false);
   }, []);
+
+  const toggleSelect = (certname: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(certname)) next.delete(certname);
+      else next.add(certname);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const orphans = data?.orphaned || [];
+    if (selected.size === orphans.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(orphans.map((c: any) => c.certname)));
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -75,11 +95,13 @@ export function CertAuditPage() {
   const handleBulkClean = async () => {
     setBulkConfirmOpen(false);
     setBulkCleaning(true);
-    const orphans = data?.orphaned || [];
+    const toClean = selected.size > 0
+      ? (data?.orphaned || []).filter((c: any) => selected.has(c.certname))
+      : (data?.orphaned || []);
     let cleaned = 0;
     let failed = 0;
 
-    for (const cert of orphans) {
+    for (const cert of toClean) {
       try {
         await certificates.clean(cert.certname);
         cleaned++;
@@ -137,8 +159,14 @@ export function CertAuditPage() {
             <Button size="xs" leftSection={<IconRefresh size={14} />} variant="light" onClick={load}>
               Refresh
             </Button>
-            {orphaned.length > 0 && (
+            {orphaned.length > 0 && selected.size > 0 && (
               <Button size="xs" color="red" leftSection={<IconTrash size={14} />}
+                onClick={() => setBulkConfirmOpen(true)} loading={bulkCleaning}>
+                Clean Selected ({selected.size})
+              </Button>
+            )}
+            {orphaned.length > 0 && selected.size === 0 && (
+              <Button size="xs" color="red" variant="light" leftSection={<IconTrash size={14} />}
                 onClick={() => setBulkConfirmOpen(true)} loading={bulkCleaning}>
                 Clean All ({orphaned.length})
               </Button>
@@ -161,6 +189,13 @@ export function CertAuditPage() {
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
+                  <Table.Th style={{ width: 40 }}>
+                    <Checkbox
+                      checked={selected.size === orphaned.length && orphaned.length > 0}
+                      indeterminate={selected.size > 0 && selected.size < orphaned.length}
+                      onChange={toggleSelectAll}
+                    />
+                  </Table.Th>
                   <Table.Th>Certname</Table.Th>
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Reason</Table.Th>
@@ -173,6 +208,12 @@ export function CertAuditPage() {
                   const cfg = STATUS_CONFIG[cert.status] || { label: cert.status, color: 'gray', description: '' };
                   return (
                     <Table.Tr key={cert.certname}>
+                      <Table.Td>
+                        <Checkbox
+                          checked={selected.has(cert.certname)}
+                          onChange={() => toggleSelect(cert.certname)}
+                        />
+                      </Table.Td>
                       <Table.Td><Text fw={500} size="sm">{cert.certname}</Text></Table.Td>
                       <Table.Td>
                         <Tooltip label={cfg.description} multiline maw={300}>
@@ -243,32 +284,39 @@ export function CertAuditPage() {
 
       {/* Bulk clean confirmation modal */}
       <Modal opened={bulkConfirmOpen} onClose={() => setBulkConfirmOpen(false)}
-        title="Clean All Orphaned Certificates">
-        <Stack>
-          <Alert color="red" icon={<IconAlertTriangle size={16} />}>
-            This will remove <strong>{orphaned.length}</strong> certificates from the CA,
-            deactivate their nodes in PuppetDB, and remove them from the ENC.
-            This action cannot be undone.
-          </Alert>
-          <Text size="sm">Certificates to be cleaned:</Text>
-          <Table withTableBorder>
-            <Table.Tbody>
-              {orphaned.slice(0, 10).map((c: any) => (
-                <Table.Tr key={c.certname}>
-                  <Table.Td><Text size="xs">{c.certname}</Text></Table.Td>
-                  <Table.Td><Badge size="xs" color={STATUS_CONFIG[c.status]?.color || 'gray'}>{STATUS_CONFIG[c.status]?.label || c.status}</Badge></Table.Td>
-                </Table.Tr>
-              ))}
-              {orphaned.length > 10 && (
-                <Table.Tr><Table.Td colSpan={2}><Text size="xs" c="dimmed">...and {orphaned.length - 10} more</Text></Table.Td></Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
-          <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setBulkConfirmOpen(false)}>Cancel</Button>
-            <Button color="red" onClick={handleBulkClean}>Clean All {orphaned.length} Certificates</Button>
-          </Group>
-        </Stack>
+        title={selected.size > 0 ? `Clean ${selected.size} Selected Certificates` : 'Clean All Orphaned Certificates'}>
+        {(() => {
+          const toClean = selected.size > 0
+            ? orphaned.filter((c: any) => selected.has(c.certname))
+            : orphaned;
+          return (
+            <Stack>
+              <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+                This will remove <strong>{toClean.length}</strong> certificate{toClean.length !== 1 ? 's' : ''} from the CA,
+                deactivate their nodes in PuppetDB, and remove them from the ENC.
+                This action cannot be undone.
+              </Alert>
+              <Text size="sm">Certificates to be cleaned:</Text>
+              <Table withTableBorder>
+                <Table.Tbody>
+                  {toClean.slice(0, 15).map((c: any) => (
+                    <Table.Tr key={c.certname}>
+                      <Table.Td><Text size="xs">{c.certname}</Text></Table.Td>
+                      <Table.Td><Badge size="xs" color={STATUS_CONFIG[c.status]?.color || 'gray'}>{STATUS_CONFIG[c.status]?.label || c.status}</Badge></Table.Td>
+                    </Table.Tr>
+                  ))}
+                  {toClean.length > 15 && (
+                    <Table.Tr><Table.Td colSpan={2}><Text size="xs" c="dimmed">...and {toClean.length - 15} more</Text></Table.Td></Table.Tr>
+                  )}
+                </Table.Tbody>
+              </Table>
+              <Group justify="flex-end">
+                <Button variant="subtle" onClick={() => setBulkConfirmOpen(false)}>Cancel</Button>
+                <Button color="red" onClick={handleBulkClean}>Clean {toClean.length} Certificate{toClean.length !== 1 ? 's' : ''}</Button>
+              </Group>
+            </Stack>
+          );
+        })()}
       </Modal>
     </Stack>
   );
