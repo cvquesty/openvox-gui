@@ -13,6 +13,9 @@ Create a file at `/etc/sudoers.d/openvox-gui` with the following content:
 # This file grants the puppet user passwordless sudo access to the
 # specific commands that the GUI needs to operate.
 
+# The service runs as a daemon without a TTY — sudo must not require one.
+Defaults:puppet !requiretty
+
 # Puppet Bolt orchestration (tasks, plans, commands, inventory)
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt *
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/bolt *

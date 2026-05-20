@@ -883,6 +883,10 @@ log_ok "Installed systemd service unit"
 
 # Sudoers rules — puppet user needs sudo for r10k and reading PuppetDB configs
 cat > /etc/sudoers.d/openvox-gui << SUDOEOF
+# OpenVox GUI — the service runs as a daemon without a TTY, so sudo
+# must not require one for this user.
+Defaults:${SERVICE_USER} !requiretty
+
 # OpenVox GUI — allow the service user to run r10k deployments
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh *
 

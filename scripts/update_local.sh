@@ -258,6 +258,10 @@ log_ok "Updated systemd service file"
 
 # Update sudoers rules
 cat > /etc/sudoers.d/openvox-gui << SUDOEOF
+# OpenVox GUI — the service runs as a daemon without a TTY, so sudo
+# must not require one for this user.
+Defaults:${SERVICE_USER} !requiretty
+
 # OpenVox GUI — allow the service user to run r10k deployments
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh *
 

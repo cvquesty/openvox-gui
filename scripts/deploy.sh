@@ -189,6 +189,14 @@ EOF
     echo "  updated /etc/sudoers.d/openvox-gui with sync rule"
 fi
 
+# 5g-pre. Ensure !requiretty is set for the service user (3.6.7+).
+#         Required for sudo to work from a systemd service (no TTY).
+if [ -f "$SUDOERS_FILE" ] && ! grep -q "!requiretty" "$SUDOERS_FILE"; then
+    sed -i "1i# OpenVox GUI — no TTY required for daemon sudo\nDefaults:${SERVICE_USER} !requiretty\n" "$SUDOERS_FILE"
+    visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1 || true
+    echo "  added !requiretty for ${SERVICE_USER}"
+fi
+
 # 5g. Append log viewer sudoers rules if missing (3.6.7+).
 #     Also fix the stale --no-pager form that doesn't match in some
 #     sudoers implementations.
