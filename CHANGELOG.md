@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.6-2] - 2026-05-20
+
+### Added
+
+- **SSL Certificate Wizard** — complete redesign of the SSL Configuration
+  page (Settings > Application Configuration > SSL Configuration) with
+  three guided workflows:
+  - **Web Certificate Wizard** — upload organization certs (drag-and-drop
+    with PEM validation, key-cert match checking), reuse Puppet certs, or
+    renew Let's Encrypt certs. Auto-restarts the service after placement.
+  - **Let's Encrypt Integration** — detects certbot, triggers renewal,
+    displays DNS-01 challenge value, signals completion.
+  - **Puppet CA Intermediate Wizard** — generate CSR (RSA 4096 or EC P-256),
+    resumable workflow for PKI team turnaround, upload signed bundle + CRL
+    chain, runs `puppetserver ca import`, post-import fleet guidance.
+- **`/api/ssl/*` endpoints** — 11 new endpoints for certificate status,
+  validation, upload, placement, Let's Encrypt renewal, and Puppet CA
+  intermediate import. All admin-only.
+- **`@mantine/dropzone`** dependency for file upload UI.
+- **Unclassified Nodes pane** on the Classification page now always
+  visible (shows "All PuppetDB nodes are classified" when empty).
+
 ## [3.6.6-1] - 2026-05-20
 
 ### Fixed

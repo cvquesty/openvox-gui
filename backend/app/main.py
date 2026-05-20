@@ -34,6 +34,7 @@ from .routers import auth as auth_router
 from .routers import deploy as deploy_router
 from .routers import execution_history as execution_history_router
 from .routers import installer as installer_router
+from .routers import ssl_wizard as ssl_wizard_router
 from .services.puppetdb import puppetdb_service
 
 # Configure logging
@@ -168,6 +169,7 @@ app.include_router(cert_router.router)
 app.include_router(facts_router.router)
 app.include_router(execution_history_router.router)
 app.include_router(installer_router.router)
+app.include_router(ssl_wizard_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"

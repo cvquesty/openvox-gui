@@ -396,6 +396,57 @@ export const facts = {
     fetchJSON<any>('/facts/structure/' + encodeURIComponent(factName) + '?sample_count=' + sampleCount),
 };
 
+// ─── SSL Certificate Wizard ─────────────────────────────────
+
+function sslUpload(url: string, files: Record<string, File | null>, fields?: Record<string, string>) {
+  const formData = new FormData();
+  for (const [key, file] of Object.entries(files)) {
+    if (file) formData.append(key, file);
+  }
+  if (fields) {
+    for (const [key, val] of Object.entries(fields)) {
+      formData.append(key, val);
+    }
+  }
+  const headers: Record<string, string> = {};
+  const token = localStorage.getItem('openvox_token');
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return fetch(`${API_BASE}${url}`, {
+    method: 'POST', headers, body: formData,
+  }).then(async (r) => {
+    if (r.status === 401) {
+      localStorage.removeItem('openvox_token');
+      window.location.reload();
+      throw new Error('Session expired');
+    }
+    if (!r.ok) throw new Error(`API Error ${r.status}: ${await r.text()}`);
+    return r.json();
+  });
+}
+
+export const ssl = {
+  getStatus: () => fetchJSON<any>('/ssl/status'),
+  validate: (certFile: File, keyFile: File, chainFile?: File | null) =>
+    sslUpload('/ssl/validate', { cert_file: certFile, key_file: keyFile, chain_file: chainFile || null }),
+  applyWebCert: (certFile: File, keyFile: File, chainFile?: File | null) =>
+    sslUpload('/ssl/apply-web-cert', { cert_file: certFile, key_file: keyFile, chain_file: chainFile || null }),
+  applyPuppetCerts: () =>
+    fetchJSON<any>('/ssl/apply-puppet-certs', { method: 'POST' }),
+  letsencrypt: {
+    getStatus: () => fetchJSON<any>('/ssl/letsencrypt/status'),
+    renew: () => fetchJSON<any>('/ssl/letsencrypt/renew', { method: 'POST' }),
+    signal: () => fetchJSON<any>('/ssl/letsencrypt/signal', { method: 'POST' }),
+  },
+  puppetCA: {
+    getStatus: () => fetchJSON<any>('/ssl/puppet-ca/status'),
+    generateCSR: (keyType: string = 'rsa') =>
+      sslUpload('/ssl/puppet-ca/generate-csr', {}, { key_type: keyType }),
+    getPending: () => fetchJSON<any>('/ssl/puppet-ca/pending'),
+    importCA: (certBundle: File, crlChain: File, keyFile?: File | null) =>
+      sslUpload('/ssl/puppet-ca/import', { cert_bundle: certBundle, crl_chain: crlChain, key_file: keyFile || null }),
+  },
+};
+
 // ─── Resource Explorer ──────────────────────────────────────
 // Searches for Puppet resources by type and optional title using a PQL
 // query against PuppetDB. The type and title are embedded in the query

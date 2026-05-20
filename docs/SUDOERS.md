@@ -54,6 +54,25 @@ puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 # owned by root, so the sync script must run with elevated privileges.
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh *
+
+# SSL Certificate Wizard — allow placing uploaded certs, rewriting
+# the systemd service file, and reloading/restarting the service.
+puppet ALL=(root) NOPASSWD: /usr/bin/cp /opt/openvox-gui/data/ssl-uploads/* /etc/puppetlabs/puppet/ssl/certs/*
+puppet ALL=(root) NOPASSWD: /usr/bin/cp /opt/openvox-gui/data/ssl-uploads/* /etc/puppetlabs/puppet/ssl/private_keys/*
+puppet ALL=(root) NOPASSWD: /usr/bin/chmod 0644 /etc/puppetlabs/puppet/ssl/certs/*
+puppet ALL=(root) NOPASSWD: /usr/bin/chmod 0600 /etc/puppetlabs/puppet/ssl/private_keys/*
+puppet ALL=(root) NOPASSWD: /usr/bin/chown puppet\:puppet /etc/puppetlabs/puppet/ssl/certs/* /etc/puppetlabs/puppet/ssl/private_keys/*
+puppet ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+
+# SSL Certificate Wizard — Puppet CA intermediate import
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import *
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
+
+# SSL Certificate Wizard — Let's Encrypt renewal
+puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
+puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
 ```
 
 ## Security Notes
