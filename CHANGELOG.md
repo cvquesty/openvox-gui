@@ -66,6 +66,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SSL cert parse error** — Fixed `get_all_for` → `get_values_for_type`
   for SAN extraction in cryptography 48.x. Added graceful handling of
   permission-denied errors when reading Let's Encrypt certs.
+- **`manage_users.py` shebang** — Changed from `#!/usr/bin/env python3`
+  (system Python) to `#!/opt/openvox-gui/venv/bin/python3`. The script
+  imports venv-only packages (passlib, sqlalchemy, jwt) and crashed with
+  `ModuleNotFoundError` on production systems.
+- **`install.sh` missing Bolt sudoers rules** — Added 8 missing rules
+  for `bolt file upload/download`, `bolt script run`, and
+  `bolt inventory show` (both `/opt/puppetlabs` and `/usr/local` paths)
+  to match `update_local.sh`.
+- **Sudoers `Defaults:puppet !requiretty`** — Added to all three scripts
+  (`install.sh`, `update_local.sh`, `deploy.sh`) and `SUDOERS.md`.
+  Required for sudo to work from systemd services on servers with
+  `Defaults requiretty` in the main sudoers file.
+- **Log viewer file-first strategy** — PuppetDB and PuppetServer
+  application logs are read from their on-disk log files first, falling
+  back to journalctl only if the files are empty. Fixes empty log display
+  on servers where these services log to files, not journald.
+- **Deploy script sudoers management** — `deploy.sh` now auto-appends
+  missing log viewer and SSL wizard sudoers rules on every deploy, and
+  auto-fixes the stale `journalctl --no-pager` rule form.
 
 ### Changed
 

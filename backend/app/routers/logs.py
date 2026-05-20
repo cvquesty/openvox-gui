@@ -116,21 +116,6 @@ async def get_logs(
                 log_lines = r.stdout.strip().split("\n") if r.stdout.strip() else []
                 log_lines = [ln for ln in log_lines if ln and "-- No entries --" not in ln]
 
-        # If still empty, capture diagnostic info
-        debug_info = None
-        if not log_lines:
-            diag_cmd = ["sudo", "journalctl", "--no-pager", "-n", "3", "-u", "openvox-gui"] if source == "openvox-gui" else None
-            if log_file:
-                diag_cmd = ["sudo", "tail", "-n", "3", log_file]
-            if diag_cmd:
-                dr = subprocess.run(diag_cmd, capture_output=True, text=True, timeout=10)
-                debug_info = {
-                    "cmd": " ".join(diag_cmd),
-                    "returncode": dr.returncode,
-                    "stdout_len": len(dr.stdout),
-                    "stderr": dr.stderr.strip()[:500] if dr.stderr else None,
-                }
-
         if grep:
             grep_lower = grep.lower()
             log_lines = [ln for ln in log_lines if grep_lower in ln.lower()]
@@ -138,7 +123,6 @@ async def get_logs(
         return {
             "source": source,
             "unit": unit,
-            "debug": debug_info,
             "file": log_file if not log_lines or (log_file and log_lines) else None,
             "count": len(log_lines),
             "lines": log_lines,
