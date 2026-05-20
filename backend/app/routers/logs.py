@@ -18,15 +18,46 @@ router = APIRouter(prefix="/api/logs", tags=["logs"])
 
 _ADMIN_ONLY = require_role("admin")
 
-# Allowed log sources mapped to their journalctl unit names.
-# "syslog" is special — no unit filter, shows the full system journal.
+# Log sources: each maps to a journalctl unit AND/OR a log file on disk.
+# Some services (PuppetDB, PuppetServer) write to their own log files
+# rather than journald, so we check both and prefer whichever has content.
 _LOG_SOURCES = {
-    "puppet": "puppet",
-    "puppetdb": "puppetdb",
-    "puppetserver": "puppetserver",
-    "openvox-gui": "openvox-gui",
-    "syslog": None,
+    "puppet": {
+        "unit": "puppet",
+        "file": None,
+    },
+    "puppetdb": {
+        "unit": "puppetdb",
+        "file": "/var/log/puppetlabs/puppetdb/puppetdb.log",
+    },
+    "puppetserver": {
+        "unit": "puppetserver",
+        "file": "/var/log/puppetlabs/puppetserver/puppetserver.log",
+    },
+    "openvox-gui": {
+        "unit": "openvox-gui",
+        "file": None,
+    },
+    "syslog": {
+        "unit": None,
+        "file": None,
+    },
 }
+
+
+def _read_log_file(path: str, lines: int, grep_str: Optional[str] = None) -> list:
+    """Read the last N lines from a log file via sudo tail."""
+    r = subprocess.run(
+        ["sudo", "tail", "-n", str(lines), path],
+        capture_output=True, text=True, timeout=15,
+    )
+    if r.returncode != 0:
+        return []
+    result = r.stdout.strip().split("\n") if r.stdout.strip() else []
+    if grep_str:
+        grep_lower = grep_str.lower()
+        result = [ln for ln in result if grep_lower in ln.lower()]
+    return result
 
 
 @router.get("/sources")
@@ -50,20 +81,29 @@ async def get_logs(
             detail=f"Unknown log source '{source}'. Available: {', '.join(_LOG_SOURCES.keys())}",
         )
 
-    unit = _LOG_SOURCES[source]
-
-    cmd = ["sudo", "journalctl", "--no-pager", "-n", str(lines), "--output", "short-iso"]
-    if unit:
-        cmd.extend(["-u", unit])
-    if since:
-        cmd.extend(["--since", since])
+    src_config = _LOG_SOURCES[source]
+    unit = src_config["unit"]
+    log_file = src_config["file"]
 
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        if r.returncode != 0:
-            raise HTTPException(status_code=502, detail=f"journalctl failed: {r.stderr.strip()}")
+        log_lines: list = []
 
-        log_lines = r.stdout.strip().split("\n") if r.stdout.strip() else []
+        # Try journalctl first
+        if unit is not None or source == "syslog":
+            cmd = ["sudo", "journalctl", "--no-pager", "-n", str(lines), "--output", "short-iso"]
+            if unit:
+                cmd.extend(["-u", unit])
+            if since:
+                cmd.extend(["--since", since])
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                log_lines = r.stdout.strip().split("\n") if r.stdout.strip() else []
+                # Filter out the "no entries" message journalctl prints
+                log_lines = [ln for ln in log_lines if ln and "-- No entries --" not in ln]
+
+        # Fall back to log file if journalctl returned nothing
+        if not log_lines and log_file:
+            log_lines = _read_log_file(log_file, lines)
 
         if grep:
             grep_lower = grep.lower()
@@ -72,11 +112,12 @@ async def get_logs(
         return {
             "source": source,
             "unit": unit,
+            "file": log_file if not log_lines or (log_file and log_lines) else None,
             "count": len(log_lines),
             "lines": log_lines,
         }
     except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="journalctl timed out")
+        raise HTTPException(status_code=504, detail="Log read timed out")
     except HTTPException:
         raise
     except Exception as e:
