@@ -268,21 +268,127 @@ function WebCertWizard({
           <Stack mt="md">
             {source === 'organization' && (
               <>
-                <Alert variant="light" color="blue" title="Before we begin, gather these files from your certificate team:">
-                  <Stack gap="xs" mt="xs">
-                    <Text size="sm"><strong>1. Server Certificate</strong> — The certificate issued for this server. Your IT team may call it a "signed cert" or "SSL cert". Usually a <Code>.pem</Code> or <Code>.crt</Code> file.</Text>
-                    <Text size="sm"><strong>2. Private Key</strong> — The key file generated when the certificate was requested. Usually <Code>.pem</Code> or <Code>.key</Code>.</Text>
-                    <Text size="sm"><strong>3. CA Chain</strong> (optional) — Your organization's certificate chain. Sometimes called "CA bundle". If your IT team gave you a single file with multiple certificates, that's this one.</Text>
-                  </Stack>
+                <Alert variant="light" color="blue" title="Before we begin, you need to gather 3 files">
+                  <Text size="sm" mt="xs">
+                    To set up HTTPS, you need files that prove your server's identity to web browsers.
+                    Think of it like a driver's license for your server — it proves "I am who I say I am"
+                    to anyone who connects. Your IT or security team creates these files. Below is exactly
+                    what to ask for and what each piece is.
+                  </Text>
                 </Alert>
-                <Alert variant="light" color="gray" title="Example email to your IT team:">
+
+                <Card withBorder padding="md">
+                  <Stack gap="md">
+                    <div>
+                      <Group gap="xs" mb={4}>
+                        <Badge color="blue" variant="filled" size="lg">1</Badge>
+                        <Text fw={700}>Server Certificate</Text>
+                        <Badge variant="outline" size="sm" color="green">Required</Badge>
+                      </Group>
+                      <Text size="sm" mb="xs">
+                        This is the digital ID card for your server. It contains your server's name
+                        and is "signed" (approved) by your organization's certificate authority, which
+                        makes browsers trust it.
+                      </Text>
+                      <Card withBorder padding="xs" style={{ background: 'var(--mantine-color-dark-7, var(--mantine-color-gray-0))' }}>
+                        <Text size="xs" fw={600} c="dimmed" mb={4}>Your IT team might call this:</Text>
+                        <Group gap={4} wrap="wrap">
+                          <Badge size="xs" variant="light">"SSL certificate"</Badge>
+                          <Badge size="xs" variant="light">"signed cert"</Badge>
+                          <Badge size="xs" variant="light">"server cert"</Badge>
+                          <Badge size="xs" variant="light">"public cert"</Badge>
+                          <Badge size="xs" variant="light">"TLS certificate"</Badge>
+                          <Badge size="xs" variant="light">"x509 certificate"</Badge>
+                          <Badge size="xs" variant="light">"host certificate"</Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" mt={4}>File extensions: <Code>.pem</Code>, <Code>.crt</Code>, <Code>.cer</Code>, <Code>.cert</Code></Text>
+                        <Text size="xs" c="dimmed">If you open it in a text editor, it starts with: <Code>-----BEGIN CERTIFICATE-----</Code></Text>
+                      </Card>
+                    </div>
+
+                    <Divider />
+
+                    <div>
+                      <Group gap="xs" mb={4}>
+                        <Badge color="blue" variant="filled" size="lg">2</Badge>
+                        <Text fw={700}>Private Key</Text>
+                        <Badge variant="outline" size="sm" color="green">Required</Badge>
+                      </Group>
+                      <Text size="sm" mb="xs">
+                        This is the secret half of your server's identity. The certificate is the public
+                        half (anyone can see it), and the private key is the secret half (only your server
+                        should have it). They must be a matching pair — created together. Without the
+                        matching key, the certificate won't work.
+                      </Text>
+                      <Card withBorder padding="xs" style={{ background: 'var(--mantine-color-dark-7, var(--mantine-color-gray-0))' }}>
+                        <Text size="xs" fw={600} c="dimmed" mb={4}>Your IT team might call this:</Text>
+                        <Group gap={4} wrap="wrap">
+                          <Badge size="xs" variant="light">"private key"</Badge>
+                          <Badge size="xs" variant="light">"key file"</Badge>
+                          <Badge size="xs" variant="light">"SSL key"</Badge>
+                          <Badge size="xs" variant="light">"server key"</Badge>
+                          <Badge size="xs" variant="light">"RSA key" or "EC key"</Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" mt={4}>File extensions: <Code>.pem</Code>, <Code>.key</Code></Text>
+                        <Text size="xs" c="dimmed">If you open it in a text editor, it starts with: <Code>-----BEGIN PRIVATE KEY-----</Code> or <Code>-----BEGIN RSA PRIVATE KEY-----</Code></Text>
+                        <Alert variant="light" color="yellow" mt={4} p="xs">
+                          <Text size="xs">This file is sensitive. Never email it unencrypted or share it publicly. Your IT team should provide it through a secure channel (encrypted file share, in-person USB handoff, etc.).</Text>
+                        </Alert>
+                      </Card>
+                    </div>
+
+                    <Divider />
+
+                    <div>
+                      <Group gap="xs" mb={4}>
+                        <Badge color="gray" variant="filled" size="lg">3</Badge>
+                        <Text fw={700}>CA Chain / Bundle</Text>
+                        <Badge variant="outline" size="sm" color="gray">Optional</Badge>
+                      </Group>
+                      <Text size="sm" mb="xs">
+                        This file proves that the authority who signed your certificate is itself
+                        trustworthy. It's a "chain of trust" — your cert was signed by an intermediate
+                        authority, which was signed by a root authority that browsers already trust.
+                        If your IT team gave you one file with multiple certificates stacked together,
+                        that's this file. You don't always need this — some organizations include the
+                        chain inside the server certificate file itself.
+                      </Text>
+                      <Card withBorder padding="xs" style={{ background: 'var(--mantine-color-dark-7, var(--mantine-color-gray-0))' }}>
+                        <Text size="xs" fw={600} c="dimmed" mb={4}>Your IT team might call this:</Text>
+                        <Group gap={4} wrap="wrap">
+                          <Badge size="xs" variant="light">"CA bundle"</Badge>
+                          <Badge size="xs" variant="light">"certificate chain"</Badge>
+                          <Badge size="xs" variant="light">"intermediate cert"</Badge>
+                          <Badge size="xs" variant="light">"chain file"</Badge>
+                          <Badge size="xs" variant="light">"root + intermediate"</Badge>
+                          <Badge size="xs" variant="light">"fullchain"</Badge>
+                          <Badge size="xs" variant="light">"ca-certificates"</Badge>
+                          <Badge size="xs" variant="light">"trust chain"</Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" mt={4}>File extensions: <Code>.pem</Code>, <Code>.crt</Code>, <Code>.ca-bundle</Code></Text>
+                        <Text size="xs" c="dimmed">Contains multiple <Code>-----BEGIN CERTIFICATE-----</Code> blocks stacked together</Text>
+                      </Card>
+                    </div>
+                  </Stack>
+                </Card>
+
+                <Alert variant="light" color="gray" title="Example email to your IT / security team:">
+                  <Text size="xs" c="dimmed" mb="xs">Copy and paste this into an email to your certificate team. Fill in the hostname.</Text>
                   <Code block style={{ fontSize: 12 }}>
 {`Hi,
 
-I need a TLS certificate for ${status?.hostname || 'our OpenVox server'}.
-Please provide the signed cert, private key, and CA chain in PEM format.
+I need an SSL/TLS certificate for our OpenVox server.
 
-Server hostname: ${status?.hostname || '(hostname)'}
+Server hostname (FQDN): ${status?.hostname || 'openvox.example.com'}
+
+What I need:
+  1. The signed server certificate (PEM format, .pem or .crt file)
+  2. The private key that goes with it (PEM format, .pem or .key file)
+  3. The CA chain / intermediate certificate bundle (PEM format)
+
+If you need me to generate a CSR (Certificate Signing Request) first,
+please let me know what key type and key size you require, and I will
+generate one and send it to you for signing.
 
 Thank you!`}
                   </Code>
@@ -365,7 +471,7 @@ Thank you!`}
           <Stack mt="md">
             <CertUploadZone
               label="Server Certificate"
-              description="The certificate file your IT team provided (.pem or .crt)"
+              description="The signed certificate file from your IT team. This is the 'public' half of your server's identity. Look for a .pem or .crt file — it starts with '-----BEGIN CERTIFICATE-----' if opened in a text editor."
               file={certFile}
               onDrop={setCertFile}
               onClear={() => { setCertFile(null); setValidation(null); }}
@@ -373,15 +479,15 @@ Thank you!`}
             />
             <CertUploadZone
               label="Private Key"
-              description="The private key file (.pem or .key)"
+              description="The secret key that matches your certificate — the 'private' half. This is the most sensitive file. It's a .pem or .key file that starts with '-----BEGIN PRIVATE KEY-----' or '-----BEGIN RSA PRIVATE KEY-----'."
               file={keyFile}
               onDrop={setKeyFile}
               onClear={() => { setKeyFile(null); setValidation(null); }}
               validation={validation?.key}
             />
             <CertUploadZone
-              label="CA Chain"
-              description="Your organization's CA bundle / chain file (if provided)"
+              label="CA Chain / Bundle"
+              description="The certificate chain from your IT team — proves the signer of your cert is trustworthy. If they gave you a file called 'ca-bundle', 'chain', 'intermediate', or 'fullchain', upload it here. Skip this if your IT team said the chain is already included in your certificate file."
               file={chainFile}
               onDrop={setChainFile}
               onClear={() => setChainFile(null)}
@@ -506,46 +612,132 @@ function PuppetCAWizard({
         <Stepper.Step label="Overview" description="What you'll need">
           <Stack mt="md">
             <Alert variant="light" color="blue" title="Connect OpenVox to your organization's certificate authority">
-              <Stack gap="xs" mt="xs">
-                <Text size="sm">This process chains your OpenVox server's internal CA to your organization's PKI, so all Puppet certificates are trusted by your corporate infrastructure.</Text>
-                <Divider my="xs" />
-                <Text size="sm" fw={600}>Here's how it works:</Text>
-                <Text size="sm">1. We'll generate a <strong>certificate request</strong> that you send to your PKI or security team</Text>
-                <Text size="sm">2. They'll sign it and send back a <strong>signed certificate bundle</strong></Text>
-                <Text size="sm">3. You'll also need their <strong>CRL files</strong> (revocation lists)</Text>
-                <Text size="sm">4. Upload everything here and we handle the rest</Text>
-              </Stack>
+              <Text size="sm" mt="xs">
+                Right now, your OpenVox server has its own built-in certificate authority (CA)
+                — think of it as a self-contained ID-card-printing office. It creates and signs
+                certificates for every Puppet agent in your fleet.
+              </Text>
+              <Text size="sm" mt="xs">
+                Many organizations require that <em>all</em> certificates chain back to the company's
+                root certificate authority. This wizard makes your OpenVox CA an <strong>intermediate CA</strong>
+                — it still creates certificates for agents, but those certificates are now trusted by
+                your entire organization because they chain through your company's PKI.
+              </Text>
             </Alert>
 
+            {/* Mini tutorial */}
             <Card withBorder padding="md">
-              <Text fw={600} mb="xs">What to ask your PKI team for:</Text>
+              <Text fw={700} mb="xs">Quick Primer: How Certificate Chains Work</Text>
+              <Text size="sm" mb="xs">
+                Imagine a chain of trust, like a notary system:
+              </Text>
+              <Card withBorder padding="xs" mb="xs" style={{ background: 'var(--mantine-color-dark-7, var(--mantine-color-gray-0))' }}>
+                <Text size="sm" ta="center" style={{ fontFamily: 'monospace' }}>
+                  Your Company's Root CA (the ultimate authority)
+                </Text>
+                <Text size="sm" ta="center" c="dimmed">signed ↓</Text>
+                <Text size="sm" ta="center" style={{ fontFamily: 'monospace' }}>
+                  Your Company's Intermediate CA (a delegated authority)
+                </Text>
+                <Text size="sm" ta="center" c="dimmed">signed ↓</Text>
+                <Text size="sm" ta="center" style={{ fontFamily: 'monospace' }} fw={700} c="blue">
+                  OpenVox Puppet CA (your server — what we're setting up)
+                </Text>
+                <Text size="sm" ta="center" c="dimmed">signs ↓</Text>
+                <Text size="sm" ta="center" style={{ fontFamily: 'monospace' }}>
+                  Agent Certificates (every managed server in your fleet)
+                </Text>
+              </Card>
+              <Text size="sm">
+                After this setup, every Puppet agent certificate is automatically trusted by anything
+                that trusts your organization's root — corporate firewalls, monitoring systems, security
+                scanners, and other infrastructure.
+              </Text>
+            </Card>
+
+            {/* Step-by-step process overview */}
+            <Card withBorder padding="md">
+              <Text fw={700} mb="xs">How This Process Works (4 steps)</Text>
+              <Stack gap="xs">
+                <Group gap="xs" align="flex-start">
+                  <Badge color="blue" variant="filled" circle>1</Badge>
+                  <Text size="sm"><strong>We generate a "Certificate Signing Request" (CSR)</strong> — a formal request that says "please approve this CA." You don't need to know how to create this; we do it for you.</Text>
+                </Group>
+                <Group gap="xs" align="flex-start">
+                  <Badge color="blue" variant="filled" circle>2</Badge>
+                  <Text size="sm"><strong>You send the CSR to your PKI / security team</strong> — they review it, approve it, and send you back a signed certificate. This usually takes 1-5 business days.</Text>
+                </Group>
+                <Group gap="xs" align="flex-start">
+                  <Badge color="blue" variant="filled" circle>3</Badge>
+                  <Text size="sm"><strong>You also ask them for CRL files</strong> — these are "revocation lists" that track any certificates your organization has cancelled. Don't worry about the details; just ask for them.</Text>
+                </Group>
+                <Group gap="xs" align="flex-start">
+                  <Badge color="blue" variant="filled" circle>4</Badge>
+                  <Text size="sm"><strong>Upload everything here</strong> — we validate the files, install them in the right locations, and restart OpenVox Server. You're done.</Text>
+                </Group>
+              </Stack>
+            </Card>
+
+            {/* What to say to your PKI team */}
+            <Card withBorder padding="md">
+              <Text fw={700} mb="xs">Exactly What to Ask Your PKI / Security Team</Text>
+              <Text size="sm" mb="xs" c="dimmed">
+                Your PKI team may use different words for the same things. Here's a translation table
+                so you can speak their language:
+              </Text>
               <Table withTableBorder withColumnBorders>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>What to request</Table.Th>
-                    <Table.Th>What they'll call it</Table.Th>
-                    <Table.Th>What it looks like</Table.Th>
+                    <Table.Th>What you need</Table.Th>
+                    <Table.Th>What to say to your PKI team</Table.Th>
+                    <Table.Th>They might call it</Table.Th>
+                    <Table.Th>What the file looks like</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   <Table.Tr>
-                    <Table.Td>"Sign this CSR as an intermediate CA"</Table.Td>
-                    <Table.Td>CSR signing</Table.Td>
-                    <Table.Td>You give them a <Code>.pem</Code> file, they return a signed cert</Table.Td>
+                    <Table.Td><Text size="sm" fw={600}>Signed CA cert</Text></Table.Td>
+                    <Table.Td><Text size="sm">"I have a CSR for an intermediate CA that needs to be signed. It needs the CA:TRUE basic constraint and keyCertSign + cRLSign key usage."</Text></Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="wrap">
+                        <Badge size="xs" variant="light">"signed certificate"</Badge>
+                        <Badge size="xs" variant="light">"intermediate CA cert"</Badge>
+                        <Badge size="xs" variant="light">"subordinate CA"</Badge>
+                        <Badge size="xs" variant="light">"issuing CA certificate"</Badge>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td><Text size="xs"><Code>.pem</Code> file starting with <Code>-----BEGIN CERTIFICATE-----</Code></Text></Table.Td>
                   </Table.Tr>
                   <Table.Tr>
-                    <Table.Td>"The full certificate chain"</Table.Td>
-                    <Table.Td>CA bundle / chain file</Table.Td>
-                    <Table.Td>A <Code>.pem</Code> file with multiple certificates</Table.Td>
+                    <Table.Td><Text size="sm" fw={600}>Certificate chain</Text></Table.Td>
+                    <Table.Td><Text size="sm">"I also need the full certificate chain — your intermediate CA cert and your root CA cert, all in one PEM file."</Text></Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="wrap">
+                        <Badge size="xs" variant="light">"CA bundle"</Badge>
+                        <Badge size="xs" variant="light">"chain file"</Badge>
+                        <Badge size="xs" variant="light">"trust chain"</Badge>
+                        <Badge size="xs" variant="light">"root + intermediate bundle"</Badge>
+                        <Badge size="xs" variant="light">"ca-certificates"</Badge>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td><Text size="xs"><Code>.pem</Code> file with multiple <Code>-----BEGIN CERTIFICATE-----</Code> blocks</Text></Table.Td>
                   </Table.Tr>
                   <Table.Tr>
-                    <Table.Td>"Your CRL chain"</Table.Td>
-                    <Table.Td>Certificate Revocation List(s)</Table.Td>
-                    <Table.Td>A <Code>.pem</Code> file — ask for "PEM format"</Table.Td>
+                    <Table.Td><Text size="sm" fw={600}>CRL chain</Text></Table.Td>
+                    <Table.Td><Text size="sm">"And your CRL chain — the Certificate Revocation Lists for your intermediate and root CAs, concatenated in PEM format."</Text></Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="wrap">
+                        <Badge size="xs" variant="light">"CRL"</Badge>
+                        <Badge size="xs" variant="light">"revocation list"</Badge>
+                        <Badge size="xs" variant="light">"CRL bundle"</Badge>
+                        <Badge size="xs" variant="light">"CRL chain"</Badge>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td><Text size="xs"><Code>.pem</Code> file with <Code>-----BEGIN X509 CRL-----</Code> blocks</Text></Table.Td>
                   </Table.Tr>
                 </Table.Tbody>
               </Table>
-              <Text size="xs" c="dimmed" mt="xs">Typical turnaround: 1-5 business days. You can generate the request now and come back later.</Text>
+              <Text size="xs" c="dimmed" mt="xs">Typical turnaround: 1-5 business days. You can generate the CSR now and come back when your PKI team responds.</Text>
             </Card>
 
             {caStatus?.cert && (
@@ -557,26 +749,81 @@ function PuppetCAWizard({
             )}
 
             <Group justify="flex-end">
-              <Button onClick={() => setStep(1)}>Generate Certificate Request</Button>
+              <Button onClick={() => setStep(1)}>Next: Choose Key Type</Button>
             </Group>
           </Stack>
         </Stepper.Step>
 
         {/* Step 1: Generate CSR */}
-        <Stepper.Step label="Generate" description="Create request">
+        <Stepper.Step label="Key Type" description="Choose encryption">
           <Stack mt="md">
+            <Alert variant="light" color="blue" title="Choose a key type for your Puppet CA">
+              <Text size="sm" mt="xs">
+                The "key type" determines the kind of cryptography your CA will use. Think of it
+                like choosing between two brands of lock — both are secure, but they have different
+                strengths. OpenVox supports two types:
+              </Text>
+            </Alert>
+
+            <Card withBorder padding="md">
+              <Text fw={700} mb="xs">Supported Key Types</Text>
+              <Table withTableBorder withColumnBorders>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Key Type</Table.Th>
+                    <Table.Th>Full Name</Table.Th>
+                    <Table.Th>Strengths</Table.Th>
+                    <Table.Th>Best For</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  <Table.Tr style={keyType === 'rsa' ? { background: 'var(--mantine-color-blue-light)' } : undefined}>
+                    <Table.Td><Badge color="blue" variant="filled">RSA 4096-bit</Badge></Table.Td>
+                    <Table.Td><Text size="sm">Rivest-Shamir-Adleman</Text></Table.Td>
+                    <Table.Td>
+                      <Stack gap={2}>
+                        <Text size="xs">Universally supported — works with everything</Text>
+                        <Text size="xs">Your PKI team will almost certainly accept it</Text>
+                        <Text size="xs">4096-bit keys are strong for decades</Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td><Text size="sm">Most organizations, especially if you're unsure what your PKI team requires</Text></Table.Td>
+                  </Table.Tr>
+                  <Table.Tr style={keyType === 'ec' ? { background: 'var(--mantine-color-green-light)' } : undefined}>
+                    <Table.Td><Badge color="green" variant="filled">EC P-256</Badge></Table.Td>
+                    <Table.Td><Text size="sm">Elliptic Curve (ECDSA)</Text></Table.Td>
+                    <Table.Td>
+                      <Stack gap={2}>
+                        <Text size="xs">Smaller keys, faster operations</Text>
+                        <Text size="xs">Same security as RSA with less overhead</Text>
+                        <Text size="xs">Modern — preferred by security-forward orgs</Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td><Text size="sm">Organizations that have moved to EC, or if your PKI team specifically requests it</Text></Table.Td>
+                  </Table.Tr>
+                </Table.Tbody>
+              </Table>
+
+              <Alert variant="light" color="gray" mt="md" p="xs">
+                <Text size="xs"><strong>Not sure which to pick?</strong> Choose RSA 4096-bit. It's the safe default that every PKI team in the world supports. You can always switch later. If your PKI team has specific requirements, they'll tell you — ask them "do you have a preference for RSA or ECDSA for intermediate CA keys?"</Text>
+              </Alert>
+
+              <Alert variant="light" color="yellow" mt="xs" p="xs">
+                <Text size="xs"><strong>Note:</strong> OpenVox does not support Ed25519 keys for CA certificates. Ed25519 is only used for SSH host keys, not for the Puppet SSL infrastructure.</Text>
+              </Alert>
+            </Card>
+
             <Select
-              label="Key Type"
-              description="RSA 4096 has the widest compatibility. EC P-256 is modern and faster."
+              label="Select Key Type"
               data={[
-                { value: 'rsa', label: 'RSA 4096-bit (recommended)' },
-                { value: 'ec', label: 'EC P-256 (modern)' },
+                { value: 'rsa', label: 'RSA 4096-bit (recommended — widest compatibility)' },
+                { value: 'ec', label: 'EC P-256 / ECDSA (modern, faster, smaller keys)' },
               ]}
               value={keyType}
               onChange={(v) => setKeyType(v || 'rsa')}
             />
             <Button onClick={handleGenerateCSR} loading={generating}>
-              Generate Certificate Request
+              Generate Certificate Request ({keyType === 'ec' ? 'EC P-256' : 'RSA 4096-bit'})
             </Button>
           </Stack>
         </Stepper.Step>
@@ -652,21 +899,21 @@ Thank you!`}
           <Stack mt="md">
             <CertUploadZone
               label="Signed Certificate Bundle"
-              description="The file your PKI team sent back — your signed cert plus their CA chain"
+              description="The file your PKI team sent back after signing your CSR. It should contain your signed Puppet CA certificate AND their intermediate and root CA certificates, all in one PEM file. They may call it a 'CA bundle', 'cert chain', or 'signed intermediate'. It has multiple '-----BEGIN CERTIFICATE-----' blocks."
               file={bundleFile}
               onDrop={setBundleFile}
               onClear={() => setBundleFile(null)}
             />
             <CertUploadZone
               label="CRL Chain"
-              description="The revocation list files from your PKI team (PEM format)"
+              description="Certificate Revocation Lists from your PKI team — these track any certificates your organization has cancelled. Ask for 'the CRL for your intermediate CA and root CA in PEM format'. They may call it 'CRL', 'revocation list', or 'CRL bundle'. The file contains '-----BEGIN X509 CRL-----' blocks."
               file={crlFile}
               onDrop={setCrlFile}
               onClear={() => setCrlFile(null)}
             />
             <CertUploadZone
               label="CA Private Key"
-              description="Only needed if you provided your own key instead of generating one here"
+              description="If you generated the CSR in the previous step, we already have the matching private key stored securely — you can skip this. Only upload a key here if your PKI team generated the key for you, or if you used an external tool to create the CSR."
               file={caKeyFile}
               onDrop={setCaKeyFile}
               onClear={() => setCaKeyFile(null)}
