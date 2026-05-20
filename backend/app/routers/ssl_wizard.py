@@ -147,6 +147,23 @@ def _read_cert_file(path: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+_MAX_BACKUPS = 5
+
+
+def _prune_backups(pattern_dir: Path, prefix: str, keep: int = _MAX_BACKUPS):
+    """Keep only the most recent `keep` backups matching a prefix, remove the rest."""
+    matches = sorted(pattern_dir.glob(f"{prefix}*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for old in matches[keep:]:
+        try:
+            if old.is_dir():
+                _run_sudo(["rm", "-rf", str(old)])
+            else:
+                _run_sudo(["rm", "-f", str(old)])
+            logger.info(f"Pruned old backup: {old}")
+        except Exception as e:
+            logger.warning(f"Failed to prune backup {old}: {e}")
+
+
 def _run_sudo(cmd: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
     """Run a command with sudo."""
     return subprocess.run(
@@ -312,6 +329,10 @@ async def apply_web_cert(
             _run_sudo(["cp", str(cert_dest), f"{cert_dest}.backup-{ts}"])
         if key_dest.exists():
             _run_sudo(["cp", str(key_dest), f"{key_dest}.backup-{ts}"])
+
+        # Prune old backups — keep only the last 5
+        _prune_backups(cert_dest.parent, f"{cert_dest.name}.backup-")
+        _prune_backups(key_dest.parent, f"{key_dest.name}.backup-")
 
         # Place new files
         r = _run_sudo(["cp", str(staged_cert), str(cert_dest)])
@@ -636,6 +657,9 @@ async def import_puppet_ca(
         if ca_dir.exists():
             backup_dir = _SSL_DIR / f"ca-backup-{ts}"
             _run_sudo(["cp", "-a", str(ca_dir), str(backup_dir)])
+
+        # Prune old CA backups — keep only the last 5
+        _prune_backups(_SSL_DIR, "ca-backup-")
 
         # Stop puppetserver
         _run_sudo(["systemctl", "stop", "puppetserver"], timeout=60)
