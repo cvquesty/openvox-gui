@@ -479,6 +479,7 @@ if [ "$UNINSTALL" = "true" ]; then
     rm -f /etc/systemd/system/openvox-gui.service
     systemctl daemon-reload
     echo -e "${CYAN}→${NC} Removing sudoers rules..."
+    rm -f /etc/sudoers.d/openvox-gui
     rm -f /etc/sudoers.d/openvox-gui-r10k
     rm -f /etc/sudoers.d/openvox-gui-puppetdb
     echo -e "${CYAN}→${NC} Removing installation directory..."
@@ -942,6 +943,21 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 # the Installer page. The sync script writes into ${PKG_REPO_DIR} which
 # is owned by root, so it must run with elevated privileges.
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/sync-openvox-repo.sh, ${INSTALL_DIR}/scripts/sync-openvox-repo.sh *
+
+# OpenVox GUI -- Log Viewer: read journalctl and on-disk log files
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
+
+# OpenVox GUI -- SSL Certificate Wizard: place certs, rewrite systemd,
+# reload daemon, and run certbot / puppetserver ca import
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/*/fullchain.pem
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1
