@@ -59,6 +59,16 @@ const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m =
 const InstallerPage = lazyWithRetry(() => import('./pages/Installer').then(m => ({ default: m.InstallerPage })));
 const LogsPage = lazyWithRetry(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })));
 const CertAuditPage = lazyWithRetry(() => import('./pages/CertAudit').then(m => ({ default: m.CertAuditPage })));
+const MetricsCompliancePage = lazyWithRetry(() => import('./pages/MetricsCompliance').then(m => ({ default: m.MetricsCompliancePage })));
+const MetricsPerformancePage = lazyWithRetry(() => import('./pages/MetricsPerformance').then(m => ({ default: m.MetricsPerformancePage })));
+const MetricsTimelinePage = lazyWithRetry(() => import('./pages/MetricsTimeline').then(m => ({ default: m.MetricsTimelinePage })));
+const MetricsFactDistPage = lazyWithRetry(() => import('./pages/MetricsFactDist').then(m => ({ default: m.MetricsFactDistPage })));
+const MetricsClassificationPage = lazyWithRetry(() => import('./pages/MetricsClassification').then(m => ({ default: m.MetricsClassificationPage })));
+const MetricsCatalogPage = lazyWithRetry(() => import('./pages/MetricsCatalog').then(m => ({ default: m.MetricsCatalogPage })));
+const MetricsPuppetDBHealthPage = lazyWithRetry(() => import('./pages/MetricsPuppetDBHealth').then(m => ({ default: m.MetricsPuppetDBHealthPage })));
+const MetricsHeatmapPage = lazyWithRetry(() => import('./pages/MetricsHeatmap').then(m => ({ default: m.MetricsHeatmapPage })));
+const MetricsEnvironmentsPage = lazyWithRetry(() => import('./pages/MetricsEnvironments').then(m => ({ default: m.MetricsEnvironmentsPage })));
+const MetricsClassCoveragePage = lazyWithRetry(() => import('./pages/MetricsClassCoverage').then(m => ({ default: m.MetricsClassCoveragePage })));
 
 function PageLoader() {
   return <Center h={400}><Loader size="xl" /></Center>;
@@ -126,6 +136,18 @@ function AppRoutes() {
 
           {/* Certificate Audit */}
           <Route path="/cert-audit" element={<CertAuditPage />} />
+
+          {/* Metrics */}
+          <Route path="/metrics/compliance" element={<MetricsCompliancePage />} />
+          <Route path="/metrics/performance" element={<MetricsPerformancePage />} />
+          <Route path="/metrics/timeline" element={<MetricsTimelinePage />} />
+          <Route path="/metrics/facts" element={<MetricsFactDistPage />} />
+          <Route path="/metrics/classification" element={<MetricsClassificationPage />} />
+          <Route path="/metrics/catalog" element={<MetricsCatalogPage />} />
+          <Route path="/metrics/health" element={<MetricsPuppetDBHealthPage />} />
+          <Route path="/metrics/heatmap" element={<MetricsHeatmapPage />} />
+          <Route path="/metrics/environments" element={<MetricsEnvironmentsPage />} />
+          <Route path="/metrics/classes" element={<MetricsClassCoveragePage />} />
 
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />

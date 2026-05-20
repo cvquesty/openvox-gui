@@ -448,6 +448,35 @@ export const ssl = {
   },
 };
 
+// ─── Performance Metrics ────────────────────────────────────
+
+export const performance = {
+  getOverview: () => fetchJSON<any>('/performance/overview'),
+  getNode: (certname: string) => fetchJSON<any>(`/performance/node/${certname}`),
+};
+
+// ─── Metrics / Visualization ────────────────────────────────
+
+export const metrics = {
+  compliance: (hours: number = 24) => fetchJSON<any>(`/metrics/compliance?hours=${hours}`),
+  events: (params?: { limit?: number; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', params.limit.toString());
+    if (params?.status) qs.set('status', params.status);
+    const query = qs.toString();
+    return fetchJSON<any>(`/metrics/events${query ? '?' + query : ''}`);
+  },
+  factDistribution: (factPath: string) =>
+    fetchJSON<any>(`/metrics/fact-distribution/${encodeURIComponent(factPath)}`),
+  catalog: (certname: string) =>
+    fetchJSON<any>(`/metrics/catalog/${certname}`),
+  puppetdbHealth: () => fetchJSON<any>('/metrics/puppetdb-health'),
+  heatmap: () => fetchJSON<any>('/metrics/heatmap'),
+  environments: () => fetchJSON<any>('/metrics/environments'),
+  classCoverage: (limit: number = 50) =>
+    fetchJSON<any>(`/metrics/class-coverage?limit=${limit}`),
+};
+
 // ─── Log Viewer ─────────────────────────────────────────────
 
 export const logs = {

@@ -399,5 +399,51 @@ class PuppetDBService:
             return None
 
 
+    # ─── Events (fleet-wide) ─────────────────────────────────
+
+    async def get_events(self, query: Optional[str] = None,
+                         limit: int = 500) -> List[Dict]:
+        """Get resource events across all nodes."""
+        params = {
+            "limit": str(limit),
+            "order_by": '[{"field": "timestamp", "order": "desc"}]',
+        }
+        return await self._query("events", query=query, params=params)
+
+    # ─── Catalogs ────────────────────────────────────────────
+
+    async def get_catalog_edges(self, certname: str) -> List[Dict]:
+        """Get dependency edges from a node's compiled catalog."""
+        return await self._query(f"catalogs/{certname}/edges")
+
+    async def get_catalog_resources(self, certname: str) -> List[Dict]:
+        """Get resources from a node's compiled catalog."""
+        return await self._query(f"catalogs/{certname}/resources")
+
+    # ─── PuppetDB Health ─────────────────────────────────────
+
+    async def get_pdb_status(self) -> Dict:
+        """Query PuppetDB's status endpoint for health info."""
+        try:
+            client = await self._get_client()
+            resp = await client.get("/status/v1/services/puppetdb-status")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to get PuppetDB status: {e}")
+            return {}
+
+    async def get_pdb_metrics(self, metric_name: str) -> Dict:
+        """Query PuppetDB's JMX metrics endpoint."""
+        try:
+            client = await self._get_client()
+            resp = await client.get(f"/metrics/v2/read/{metric_name}")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to get PuppetDB metric {metric_name}: {e}")
+            return {}
+
+
 # Singleton
 puppetdb_service = PuppetDBService()

@@ -39,6 +39,16 @@ import {
   IconDownload,
   IconFileText,
   IconTool,
+  IconChartBar,
+  IconHeartRateMonitor,
+  IconTimeline,
+  IconChartPie,
+  IconBinaryTree,
+  IconTopologyRing,
+  IconActivity,
+  IconGridDots,
+  IconWorld as IconWorldNav,
+  IconStack2,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -83,6 +93,19 @@ const explorerNav: NavItem[] = [
   { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
   { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
+];
+
+const metricsNav: NavItem[] = [
+  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/metrics/compliance' },
+  { label: 'Run Performance', icon: IconActivity, path: '/metrics/performance' },
+  { label: 'Change Timeline', icon: IconTimeline, path: '/metrics/timeline' },
+  { label: 'Fact Distribution', icon: IconChartPie, path: '/metrics/facts' },
+  { label: 'Classification Tree', icon: IconBinaryTree, path: '/metrics/classification' },
+  { label: 'Catalog Graph', icon: IconTopologyRing, path: '/metrics/catalog' },
+  { label: 'PuppetDB Health', icon: IconHeartRateMonitor, path: '/metrics/health' },
+  { label: 'Node Heatmap', icon: IconGridDots, path: '/metrics/heatmap' },
+  { label: 'Environments', icon: IconWorldNav, path: '/metrics/environments' },
+  { label: 'Class Coverage', icon: IconStack2, path: '/metrics/classes' },
 ];
 
 const logsNav: NavItem[] = [
@@ -272,6 +295,7 @@ export function AppShellLayout() {
           {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
           {renderNavGroup('Data', IconPackage, dataNav)}
+          {renderNavGroup('Metrics', IconChartBar, metricsNav)}
           {renderNavGroup('Tools', IconTool, explorerNav)}
           {renderNavGroup('Logs', IconFileText, logsNav)}
           {renderNavGroup('Settings', IconSettings, configNav)}
