@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..dependencies import require_role
+from ..services.puppetdb import puppetdb_service
 from ..utils.sudo import run_sudo
 from typing import Optional, List
 
