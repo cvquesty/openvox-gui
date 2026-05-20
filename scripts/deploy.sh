@@ -190,6 +190,13 @@ EOF
 fi
 
 # 5g. Append log viewer sudoers rules if missing (3.6.7+).
+#     Also fix the stale --no-pager form that doesn't match in some
+#     sudoers implementations.
+if [ -f "$SUDOERS_FILE" ] && grep -q "journalctl --no-pager" "$SUDOERS_FILE"; then
+    sed -i 's|/usr/bin/journalctl --no-pager \*|/usr/bin/journalctl *|' "$SUDOERS_FILE"
+    visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1 || true
+    echo "  fixed journalctl sudoers rule (removed --no-pager prefix)"
+fi
 if [ -f "$SUDOERS_FILE" ] && ! grep -q "journalctl" "$SUDOERS_FILE"; then
     cat >> "$SUDOERS_FILE" <<EOF
 
