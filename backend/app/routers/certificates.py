@@ -182,7 +182,7 @@ async def sign_certificate(
     signing a CSR adds a node to the trusted fleet.
     """
     _validate_certname(request.certname)
-    result = await _run_ca_command(["sign", "--certname", request.certname])
+    result = await _run_ca_command(["sign", "--certname", request.certname], timeout=120)
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
@@ -202,7 +202,7 @@ async def revoke_certificate(
     revoking a cert immediately stops a node from getting catalogs.
     """
     _validate_certname(request.certname)
-    result = await _run_ca_command(["revoke", "--certname", request.certname])
+    result = await _run_ca_command(["revoke", "--certname", request.certname], timeout=120)
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
@@ -229,7 +229,7 @@ async def clean_certificate(
     from ..database import get_db as _get_db
 
     _validate_certname(request.certname)
-    result = await _run_ca_command(["clean", "--certname", request.certname])
+    result = await _run_ca_command(["clean", "--certname", request.certname], timeout=120)
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
