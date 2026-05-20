@@ -207,24 +207,33 @@ async def get_ssl_status(_user: str = Depends(_ADMIN_ONLY)):
     if result["puppet_ca"]["cert"]:
         result["puppet_ca"]["is_intermediate"] = not result["puppet_ca"]["cert"].get("self_signed", True)
 
-    # LE cert (if exists)
-    le_dir = Path("/etc/letsencrypt/live")
-    result["letsencrypt"] = {"available": False}
-    if le_dir.exists():
-        for d in le_dir.iterdir():
-            if d.is_dir() and (d / "fullchain.pem").exists():
-                le_cert = _read_cert_file(str(d / "fullchain.pem"))
-                result["letsencrypt"] = {
-                    "available": True,
-                    "domain": d.name,
-                    "cert": le_cert,
-                    "cert_path": str(d / "fullchain.pem"),
-                    "key_path": str(d / "privkey.pem"),
-                }
-                break
-
-    # Certbot availability
-    result["letsencrypt"]["certbot_installed"] = shutil.which("certbot") is not None
+    # LE cert (if exists) — /etc/letsencrypt is root-owned, read via sudo
+    result["letsencrypt"] = {"available": False, "certbot_installed": shutil.which("certbot") is not None}
+    try:
+        r = _run_sudo(["ls", "/etc/letsencrypt/live"])
+        if r.returncode == 0:
+            for domain in r.stdout.strip().split("\n"):
+                domain = domain.strip()
+                if not domain or domain == "README":
+                    continue
+                cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+                cr = _run_sudo(["cat", cert_path])
+                if cr.returncode == 0:
+                    try:
+                        le_cert = _parse_pem_cert(cr.stdout.encode())
+                        result["letsencrypt"] = {
+                            "available": True,
+                            "domain": domain,
+                            "cert": le_cert,
+                            "cert_path": cert_path,
+                            "key_path": f"/etc/letsencrypt/live/{domain}/privkey.pem",
+                            "certbot_installed": result["letsencrypt"]["certbot_installed"],
+                        }
+                        break
+                    except Exception:
+                        pass
+    except Exception:
+        pass
 
     # Pending CA CSR
     pending_csr = _CA_PENDING_DIR / "pending.csr"
