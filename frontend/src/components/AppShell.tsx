@@ -53,10 +53,9 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const monitoringNav: NavItem[] = [
-  { label: 'Dashboard', icon: IconDashboard, path: '/' },
+const dashboardNav: NavItem[] = [
+  { label: 'Overview', icon: IconDashboard, path: '/' },
   { label: 'Nodes', icon: IconServer, path: '/nodes' },
-  { label: 'Reports', icon: IconFileReport, path: '/reports' },
 ];
 
 // Infrastructure was promoted from a sub-group of Monitoring to a
@@ -87,6 +86,7 @@ const explorerNav: NavItem[] = [
 
 const logsNav: NavItem[] = [
   { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
+  { label: 'Reports', icon: IconFileReport, path: '/reports' },
 ];
 
 const configNav: NavItem[] = [
@@ -267,7 +267,7 @@ export function AppShellLayout() {
 
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
-          {renderNavGroup('Monitoring', IconDashboard, monitoringNav)}
+          {renderNavGroup('Dashboard', IconDashboard, dashboardNav)}
           {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
           {renderNavGroup('Data', IconPackage, dataNav)}

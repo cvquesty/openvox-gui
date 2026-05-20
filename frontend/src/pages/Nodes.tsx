@@ -272,6 +272,14 @@ export function NodesPage() {
     );
   }, [unclassifiedNodes, search]);
 
+  // All nodes filtered by search (for the All Nodes section)
+  const filtered = useMemo(() => {
+    if (!nodeList) return [];
+    if (!search) return nodeList;
+    const searchLower = search.toLowerCase();
+    return nodeList.filter((n) => n.certname.toLowerCase().includes(searchLower));
+  }, [nodeList, search]);
+
   const toggleGroup = (groupName: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
@@ -375,6 +383,50 @@ export function NodesPage() {
           })}
         </Stack>
       )}
+
+      {/* All nodes — complete fleet view */}
+      <Title order={4}>All Nodes ({totalNodes})</Title>
+      <Card withBorder shadow="sm">
+        {filtered.length === 0 ? (
+          <Text c="dimmed" ta="center">No nodes found</Text>
+        ) : (
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Certname</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>Environment</Table.Th>
+                <Table.Th>Last Report</Table.Th>
+                <Table.Th>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filtered.map((node) => (
+                <Table.Tr
+                  key={node.certname}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => navigate(`/nodes/${node.certname}`)}
+                >
+                  <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
+                  <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
+                  <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
+                  <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
+                  <Table.Td>
+                    <Tooltip label="View details">
+                      <ActionIcon variant="subtle" onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/nodes/${node.certname}`);
+                      }}>
+                        <IconEye size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </Card>
 
       {/* Unclassified nodes — signed certs not in the ENC */}
       <Title order={4}>Unclassified Nodes ({filteredUnclassified.length})</Title>
