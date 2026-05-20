@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.6] - 2026-05-20
+
+### Fixed
+
+- **sqlite3 crash** — Server crash (`undefined symbol: sqlite3_deserialize`)
+  caused by mismatched `sqlite-libs` (el9_7) and `python3.11` (el9_8)
+  packages after a partial RHEL update. Resolved by updating
+  `sqlite-libs` to `3.34.1-10.el9_8`.
+
+### Changed
+
+- **Dependency updates** — Bumped 9 Python packages to latest stable:
+  `fastapi` 0.135.1 → 0.136.1, `uvicorn` 0.42.0 → 0.47.0,
+  `pydantic` 2.12.5 → 2.13.4, `pydantic-settings` 2.13.1 → 2.14.1,
+  `sqlalchemy` 2.0.48 → 2.0.49, `python-multipart` 0.0.27 → 0.0.29,
+  `cryptography` 46.0.7 → 48.0.0, `prometheus-client` 0.24.1 → 0.25.0.
+  Added `certifi==2026.5.20` pin.
+
+### Removed
+
+- **Removed `betavox-gui`** — Decommissioned leftover v2.0 LDAP beta
+  service (port 4568) and deleted `/opt/betavox-gui/` from the server.
+
 ## [3.6.5] - 2026-05-12
 
 ### Added
