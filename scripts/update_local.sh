@@ -301,9 +301,17 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt script run *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
 
-# OpenVox GUI -- allow certificate management
-${SERVICE_USER} ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca *
-${SERVICE_USER} ALL=(ALL) NOPASSWD: /usr/bin/openssl x509 *
+# OpenVox GUI -- allow certificate management. Each subcommand is
+# listed explicitly rather than wildcards (3.6.0 hardening).
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list, /opt/puppetlabs/bin/puppetserver ca list *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -text -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -fingerprint -sha256 -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/signed/* -text -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem -text -noout
 
 # OpenVox GUI -- allow puppet lookup
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
@@ -311,6 +319,20 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
 # OpenVox GUI -- allow triggering the OpenVox package mirror sync
 # (agent installer feature, 3.3.5-1+).
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/sync-openvox-repo.sh, ${INSTALL_DIR}/scripts/sync-openvox-repo.sh *
+
+# Log Viewer (3.6.7) — read journalctl and on-disk log files
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
+
+# SSL Certificate Wizard (3.6.7) — cert placement, systemd rewrite, certbot
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/*/fullchain.pem
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1
