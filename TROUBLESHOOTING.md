@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.6.6**
+**OpenVox GUI Version 3.6.6-1**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.6.6"}
+   # Should return: {"status":"ok","version":"3.6.6-1"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -790,7 +790,9 @@ tar czf /tmp/openvox-diagnostic.tar.gz /tmp/openvox-diag/
 3. **Documentation**:
    - [Installation Guide](INSTALL.md)
    - [Update Guide](UPDATE.md)
-   - [Configuration Guide](docs/CONFIGURATION.md)
+   - [LDAP Guide](docs/LDAP.md)
+   - [Sudoers Guide](docs/SUDOERS.md)
+   - [Agent Installer Guide](docs/INSTALLER.md)
 
 ### Emergency Recovery
 

@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.6.6-1] - 2026-05-20
+
+### Fixed
+
+- **Sudoers security hardening** — Removed duplicate `puppetserver ca *`
+  wildcard rule from SUDOERS.md that was superseding the explicit
+  per-subcommand rules introduced in 3.6.0. Also removed legacy
+  `openssl x509 *` wildcard from the live server sudoers and replaced
+  with path-restricted rules. Both the documentation and the live
+  server now use explicit per-subcommand rules only.
+- **Broken doc link** — `docs/CONFIGURATION.md` reference in
+  TROUBLESHOOTING.md replaced with links to the actual guide files
+  (LDAP.md, SUDOERS.md, INSTALLER.md).
+
+### Changed
+
+- **Documentation refresh** — Updated version badges in README.md
+  (3.6.4 → 3.6.7, FastAPI 0.135 → 0.136). Added What's New section
+  for 3.6.4–3.6.6. Updated LDAP.md version header from 2.0.0-2 Alpha.
+  Updated UPDATE.md version history through 3.6.6. Updated postcss
+  8.5.12 → 8.5.15.
+
 ## [3.6.6] - 2026-05-20
 
 ### Fixed

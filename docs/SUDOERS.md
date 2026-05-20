@@ -13,9 +13,6 @@ Create a file at `/etc/sudoers.d/openvox-gui` with the following content:
 # This file grants the puppet user passwordless sudo access to the
 # specific commands that the GUI needs to operate.
 
-# Certificate Authority management (sign, revoke, clean, list)
-puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca *
-
 # Puppet Bolt orchestration (tasks, plans, commands, inventory)
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt *
 puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/bolt *

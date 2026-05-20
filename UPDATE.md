@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.6.6**
+**OpenVox GUI Version 3.6.6-1**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -171,7 +171,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.6.6"}
+# {"status":"ok","version":"3.6.6-1"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -601,7 +601,29 @@ Examples:
 
 ### Recent Versions
 
-**Version 3.3.0 (Current)**
+**Version 3.6.6 (Current)**
+- Security & maintenance: 9 Python dependency updates including cryptography 48.0.0
+- sqlite3 crash fix for RHEL 9 partial OS updates
+- Sudoers hardening: removed duplicate CA wildcard rule
+- Removed decommissioned betavox-gui service
+
+**Version 3.6.5**
+- Node Scope filter on Fact Explorer (ENC group chip bar with multi-select)
+- "All Nodes" chip for clearing group filters
+
+**Version 3.6.4**
+- Unclassified Nodes panel on the Nodes page
+- Purge Node button on Node Detail (PuppetDB + ENC + CA removal)
+- PuppetDB certname validation for ENC operations
+- Fact Explorer sorting, operator filtering, and row limiting
+
+**Version 3.6.0**
+- OpenVox Agent Installer with local package mirror
+- Webhook HMAC security hardening
+- Per-subcommand sudoers rules replacing CA wildcards
+- Fernet-encrypted LDAP bind password at rest
+
+**Version 3.3.0**
 - Orchestration targets resolved from PuppetDB in real-time instead of static inventory
 - Deploy health checks use HTTPS when SSL is enabled (fixes false "not healthy" errors)
 - Dashboard status trends chart layered with green background field
