@@ -447,6 +447,20 @@ export const ssl = {
   },
 };
 
+// ─── Log Viewer ─────────────────────────────────────────────
+
+export const logs = {
+  getSources: () => fetchJSON<any>('/logs/sources'),
+  get: (source: string, params?: { lines?: number; since?: string; grep?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.lines) qs.set('lines', params.lines.toString());
+    if (params?.since) qs.set('since', params.since);
+    if (params?.grep) qs.set('grep', params.grep);
+    const query = qs.toString();
+    return fetchJSON<any>(`/logs/${source}${query ? '?' + query : ''}`);
+  },
+};
+
 // ─── Resource Explorer ──────────────────────────────────────
 // Searches for Puppet resources by type and optional title using a PQL
 // query against PuppetDB. The type and title are embedded in the query

@@ -57,6 +57,7 @@ const PackagesPage = lazyWithRetry(() => import('./pages/Packages').then(m => ({
 const DataHieraPage = lazyWithRetry(() => import('./pages/DataHiera').then(m => ({ default: m.DataHieraPage })));
 const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m => ({ default: m.DataLookupPage })));
 const InstallerPage = lazyWithRetry(() => import('./pages/Installer').then(m => ({ default: m.InstallerPage })));
+const LogsPage = lazyWithRetry(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })));
 
 function PageLoader() {
   return <Center h={400}><Loader size="xl" /></Center>;
@@ -118,6 +119,9 @@ function AppRoutes() {
 
           {/* Installer (agent bootstrap + package mirror) */}
           <Route path="/installer" element={<InstallerPage />} />
+
+          {/* Logs */}
+          <Route path="/logs" element={<LogsPage />} />
 
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />

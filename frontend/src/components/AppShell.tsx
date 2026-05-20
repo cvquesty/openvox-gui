@@ -37,6 +37,8 @@ import {
   IconSearch,
   IconPackage,
   IconDownload,
+  IconFileText,
+  IconTool,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -81,6 +83,10 @@ const explorerNav: NavItem[] = [
   { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
   { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
+];
+
+const logsNav: NavItem[] = [
+  { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
 ];
 
 const configNav: NavItem[] = [
@@ -265,7 +271,8 @@ export function AppShellLayout() {
           {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav)}
           {renderNavGroup('Code', IconRocket, codeNav)}
           {renderNavGroup('Data', IconPackage, dataNav)}
-          {renderNavGroup('Information', IconSearch, explorerNav)}
+          {renderNavGroup('Tools', IconTool, explorerNav)}
+          {renderNavGroup('Logs', IconFileText, logsNav)}
           {renderNavGroup('Settings', IconSettings, configNav)}
         </MantineAppShell.Section>
 

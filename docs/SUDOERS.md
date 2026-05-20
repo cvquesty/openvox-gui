@@ -70,6 +70,9 @@ puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import *
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
 
+# Log Viewer — read journalctl output for Puppet services and system log
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager *
+
 # SSL Certificate Wizard — Let's Encrypt renewal
 puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
 puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
