@@ -418,3 +418,71 @@ async def certificate_info(certname: str):
         return {"certname": certname, "details": result["stdout"]}
     except Exception as e:
         return {"certname": certname, "error": str(e)}
+
+
+@router.get("/audit")
+async def audit_certificates(
+    current_user: str = Depends(require_role("admin")),
+):
+    """Cross-reference signed CA certs against PuppetDB nodes to find orphans."""
+    # Get all signed certs
+    cert_data = await list_certificates()
+    signed_certs = cert_data.get("signed", [])
+
+    # Get all PuppetDB nodes (including inactive)
+    all_nodes = await puppetdb_service.get_nodes(include_inactive=True)
+
+    # Build lookup maps
+    active_nodes = {}
+    deactivated_nodes = {}
+    expired_nodes = {}
+    for node in all_nodes:
+        cn = node.get("certname", "").strip().lower()
+        if node.get("deactivated"):
+            deactivated_nodes[cn] = node
+        elif node.get("expired"):
+            expired_nodes[cn] = node
+        else:
+            active_nodes[cn] = node
+
+    # Categorize each cert
+    active = []
+    orphaned = []
+
+    for cert in signed_certs:
+        cn = cert.get("name", "").strip()
+        cn_lower = cn.lower()
+
+        entry = {
+            "certname": cn,
+            "fingerprint": cert.get("fingerprint", ""),
+        }
+
+        if cn_lower in active_nodes:
+            node = active_nodes[cn_lower]
+            entry["status"] = "active"
+            entry["latest_report_status"] = node.get("latest_report_status")
+            entry["report_timestamp"] = node.get("report_timestamp")
+            active.append(entry)
+        elif cn_lower in deactivated_nodes:
+            node = deactivated_nodes[cn_lower]
+            entry["status"] = "orphaned_deactivated"
+            entry["reason"] = "Node was deactivated in PuppetDB but certificate was not cleaned"
+            entry["deactivated"] = node.get("deactivated")
+            orphaned.append(entry)
+        elif cn_lower in expired_nodes:
+            entry["status"] = "orphaned_expired"
+            entry["reason"] = "Node expired in PuppetDB (exceeded node-ttl) but certificate remains"
+            orphaned.append(entry)
+        else:
+            entry["status"] = "orphaned_never_reported"
+            entry["reason"] = "Certificate exists but node has never reported to PuppetDB"
+            orphaned.append(entry)
+
+    return {
+        "total_signed": len(signed_certs),
+        "total_active_nodes": len(active_nodes),
+        "total_orphaned": len(orphaned),
+        "orphaned": orphaned,
+        "active": active,
+    }

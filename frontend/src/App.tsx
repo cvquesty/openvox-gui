@@ -58,6 +58,7 @@ const DataHieraPage = lazyWithRetry(() => import('./pages/DataHiera').then(m => 
 const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m => ({ default: m.DataLookupPage })));
 const InstallerPage = lazyWithRetry(() => import('./pages/Installer').then(m => ({ default: m.InstallerPage })));
 const LogsPage = lazyWithRetry(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })));
+const CertAuditPage = lazyWithRetry(() => import('./pages/CertAudit').then(m => ({ default: m.CertAuditPage })));
 
 function PageLoader() {
   return <Center h={400}><Loader size="xl" /></Center>;
@@ -122,6 +123,9 @@ function AppRoutes() {
 
           {/* Logs */}
           <Route path="/logs" element={<LogsPage />} />
+
+          {/* Certificate Audit */}
+          <Route path="/cert-audit" element={<CertAuditPage />} />
 
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />

@@ -82,6 +82,7 @@ const explorerNav: NavItem[] = [
   { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
   { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
+  { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
 ];
 
 const logsNav: NavItem[] = [

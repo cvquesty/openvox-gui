@@ -377,6 +377,7 @@ export const certificates = {
       body: JSON.stringify({ certname }),
     }),
   info: (certname: string) => fetchJSON<any>('/certificates/info/' + certname),
+  audit: () => fetchJSON<any>('/certificates/audit'),
 };
 
 // ─── Facts Explorer ─────────────────────────────────────────
