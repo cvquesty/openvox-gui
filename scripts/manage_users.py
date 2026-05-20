@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/opt/openvox-gui/venv/bin/python3
 """
 OpenVox GUI — User Management CLI
 
