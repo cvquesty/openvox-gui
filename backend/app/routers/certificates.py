@@ -141,12 +141,15 @@ async def list_certificates():
         if "Signed Certificates" in line:
             current_section = "signed"
             continue
+        if "Revoked Certificates" in line:
+            current_section = "revoked"
+            continue
         
         # Parse cert entry
         parts = line.split()
         if len(parts) >= 1:
             name = parts[0].strip('"').strip()
-            if not name or name in ('Requested', 'Signed', 'Certificates'):
+            if not name or name in ('Requested', 'Signed', 'Revoked', 'Certificates', 'Certificates:'):
                 continue
             fingerprint = ""
             for i, p in enumerate(parts):
