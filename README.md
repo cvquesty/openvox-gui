@@ -225,17 +225,47 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py l
 
 ## What's New in Version 3.6.6
 
+### SSL Certificate Wizard (the headline feature)
+
+The SSL Configuration page (Settings > Application Configuration > SSL Configuration)
+has been completely redesigned as a guided wizard experience. No more manually
+editing paths — the wizard walks you through the entire process:
+
+- **Web Certificate Wizard** — three source options:
+  - **Organization Certificate**: a step-by-step flow that tells you exactly what
+    files to request from your IT/security team (with alternate terminology your
+    PKI team might use), provides a copy-paste email template, then lets you
+    drag-and-drop the files. The wizard validates PEM format, checks key-cert
+    match, places files in the right locations, and restarts the service automatically.
+  - **Let's Encrypt**: detects `certbot`, triggers renewal, displays DNS-01
+    challenge TXT record with a copy button, and signals completion.
+  - **Puppet Certificates**: one-click reuse of the OpenVox Server's own certs.
+
+- **Puppet CA Intermediate Wizard** — for enterprise environments that require
+  all certificates to chain to a corporate root CA. Includes:
+  - A plain-English tutorial on how certificate chains work
+  - Key type selection (RSA 4096-bit or EC P-256) with comparison table
+  - CSR generation with copy/download and an email template for your PKI team
+  - Resumable workflow — generate the CSR today, come back when your PKI team responds
+  - Upload signed bundle + CRL chain, automatic import via `puppetserver ca import`
+  - Post-import guidance with fleet re-enrollment instructions
+
+- **Certificate Status Dashboard** — the page opens with a real-time health
+  overview showing green/yellow/red badges for both the GUI web certificate and
+  the Puppet CA, with expiry countdown, key type, and chain status.
+
+### Classification & Fact Explorer
+- **Node Scope filter** on the Fact Explorer — chip bar to filter fact results by ENC classification group (Production, Canaries, Staging, etc.) with multi-select and "All Nodes" toggle.
+- **Unclassified Nodes pane** on the Classification page (Code > Classification > Nodes tab) now always visible, showing "All PuppetDB nodes are classified" when empty. Nodes not yet classified appear as clickable badges for quick classification.
+- **Unclassified Nodes panel** on the Monitoring > Nodes page — nodes active in PuppetDB but not yet classified in the ENC are shown separately.
+- **Purge Node button** on Node Detail — one-click removal from PuppetDB, ENC, and CA with confirmation dialog.
+- **Sorting, operator filtering, and row limiting** on the Fact Explorer.
+
 ### Maintenance & Security
 - **Dependency updates** — 9 Python packages bumped including `cryptography` 48.0.0, `fastapi` 0.136.1, `uvicorn` 0.47.0. Added `certifi` CA bundle pin. Zero known CVEs.
 - **sqlite3 crash fix** — Resolved `sqlite3_deserialize` import error caused by mismatched RHEL 9 package versions after a partial OS update.
-- **Sudoers hardening** — Removed duplicate `puppetserver ca *` wildcard rule that was superseding the explicit per-subcommand rules introduced in 3.6.0.
-- **Removed betavox-gui** — Decommissioned leftover v2.0 LDAP beta service.
-
-### Features (3.6.4 — 3.6.5)
-- **Node Scope filter** on the Fact Explorer — chip bar to filter fact results by ENC classification group (Production, Canaries, Staging, etc.) with multi-select and "All Nodes" toggle.
-- **Unclassified Nodes panel** on the Nodes page — nodes active in PuppetDB but not yet classified in the ENC are shown separately.
-- **Purge Node button** on Node Detail — one-click removal from PuppetDB, ENC, and CA with confirmation dialog.
-- **Sorting, operator filtering, and row limiting** on the Fact Explorer.
+- **Sudoers hardening** — Removed duplicate `puppetserver ca *` wildcard rule and legacy `openssl x509 *` wildcard from the live server, replaced with explicit per-subcommand rules.
+- **Documentation refresh** — all docs updated to current version, broken links fixed, version history current through 3.6.6.
 
 ## What's New in Version 3.6.0
 

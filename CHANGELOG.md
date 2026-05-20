@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.6.6-2] - 2026-05-20
+## [3.6.6-3] - 2026-05-20
 
 ### Added
 
@@ -18,42 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   three guided workflows:
   - **Web Certificate Wizard** — upload organization certs (drag-and-drop
     with PEM validation, key-cert match checking), reuse Puppet certs, or
-    renew Let's Encrypt certs. Auto-restarts the service after placement.
+    renew Let's Encrypt certs. Includes hyper-detailed educational content
+    explaining each file type, IT team terminology cross-reference badges,
+    file format examples, and a copy-paste email template. Auto-restarts
+    the service after placement.
   - **Let's Encrypt Integration** — detects certbot, triggers renewal,
-    displays DNS-01 challenge value, signals completion.
-  - **Puppet CA Intermediate Wizard** — generate CSR (RSA 4096 or EC P-256),
-    resumable workflow for PKI team turnaround, upload signed bundle + CRL
-    chain, runs `puppetserver ca import`, post-import fleet guidance.
+    displays DNS-01 challenge value with copy button, signals completion.
+  - **Puppet CA Intermediate Wizard** — plain-English chain-of-trust
+    tutorial, key type comparison table (RSA 4096-bit vs EC P-256),
+    CSR generation with copy/download and email template, resumable
+    workflow for PKI team turnaround, upload signed bundle + CRL chain,
+    runs `puppetserver ca import`, post-import fleet guidance.
+  - **Certificate Status Dashboard** — real-time health overview with
+    green/yellow/red badges for both the GUI web cert and the Puppet CA,
+    expiry countdown, key type, and chain status.
 - **`/api/ssl/*` endpoints** — 11 new endpoints for certificate status,
   validation, upload, placement, Let's Encrypt renewal, and Puppet CA
   intermediate import. All admin-only.
 - **`@mantine/dropzone`** dependency for file upload UI.
-- **Unclassified Nodes pane** on the Classification page now always
-  visible (shows "All PuppetDB nodes are classified" when empty).
-
-## [3.6.6-1] - 2026-05-20
-
-### Fixed
-
-- **Sudoers security hardening** — Removed duplicate `puppetserver ca *`
-  wildcard rule from SUDOERS.md that was superseding the explicit
-  per-subcommand rules introduced in 3.6.0. Also removed legacy
-  `openssl x509 *` wildcard from the live server sudoers and replaced
-  with path-restricted rules. Both the documentation and the live
-  server now use explicit per-subcommand rules only.
-- **Broken doc link** — `docs/CONFIGURATION.md` reference in
-  TROUBLESHOOTING.md replaced with links to the actual guide files
-  (LDAP.md, SUDOERS.md, INSTALLER.md).
-
-### Changed
-
-- **Documentation refresh** — Updated version badges in README.md
-  (3.6.4 → 3.6.7, FastAPI 0.135 → 0.136). Added What's New section
-  for 3.6.4–3.6.6. Updated LDAP.md version header from 2.0.0-2 Alpha.
-  Updated UPDATE.md version history through 3.6.6. Updated postcss
-  8.5.12 → 8.5.15.
-
-## [3.6.6] - 2026-05-20
+- **Unclassified Nodes pane** on the Classification page (Nodes tab) now
+  always visible (shows "All PuppetDB nodes are classified" when empty).
 
 ### Fixed
 
@@ -61,6 +45,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   caused by mismatched `sqlite-libs` (el9_7) and `python3.11` (el9_8)
   packages after a partial RHEL update. Resolved by updating
   `sqlite-libs` to `3.34.1-10.el9_8`.
+- **Sudoers security hardening** — Removed duplicate `puppetserver ca *`
+  wildcard rule from SUDOERS.md that was superseding the explicit
+  per-subcommand rules introduced in 3.6.0. Also removed legacy
+  `openssl x509 *` wildcard from the live server sudoers and replaced
+  with path-restricted rules. Added SSL wizard sudoers rules for cert
+  placement, systemd rewrite, certbot, and `puppetserver ca import`.
+- **Broken doc link** — `docs/CONFIGURATION.md` reference in
+  TROUBLESHOOTING.md replaced with links to the actual guide files
+  (LDAP.md, SUDOERS.md, INSTALLER.md).
 
 ### Changed
 
@@ -69,7 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pydantic` 2.12.5 → 2.13.4, `pydantic-settings` 2.13.1 → 2.14.1,
   `sqlalchemy` 2.0.48 → 2.0.49, `python-multipart` 0.0.27 → 0.0.29,
   `cryptography` 46.0.7 → 48.0.0, `prometheus-client` 0.24.1 → 0.25.0.
-  Added `certifi==2026.5.20` pin.
+  Added `certifi==2026.5.20` pin. Updated `postcss` 8.5.12 → 8.5.15.
+- **Documentation refresh** — Updated version badges in README.md,
+  added comprehensive What's New section for 3.6.4–3.6.6, updated
+  LDAP.md version header from 2.0.0-2 Alpha, updated UPDATE.md
+  version history, updated INSTALL.md SSL section to reference the
+  new wizard.
 
 ### Removed
 

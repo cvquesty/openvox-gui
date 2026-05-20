@@ -602,10 +602,16 @@ Examples:
 ### Recent Versions
 
 **Version 3.6.6 (Current)**
-- Security & maintenance: 9 Python dependency updates including cryptography 48.0.0
-- sqlite3 crash fix for RHEL 9 partial OS updates
-- Sudoers hardening: removed duplicate CA wildcard rule
-- Removed decommissioned betavox-gui service
+- **SSL Certificate Wizard** — complete redesign of the SSL Configuration page with
+  guided workflows for web certificate upload (corporate PKI, Let's Encrypt, Puppet
+  certs) and Puppet CA intermediate setup (CSR generation, PKI team handoff, import).
+  Drag-and-drop file upload with PEM validation and key-cert matching. Educational
+  content explains certificate concepts in plain English with IT team terminology
+  cross-reference. 11 new `/api/ssl/*` backend endpoints.
+- **Unclassified Nodes pane** on Classification page now always visible
+- Security & maintenance: 9 Python dependency updates (cryptography 48.0.0, fastapi
+  0.136.1, uvicorn 0.47.0), sqlite3 crash fix, sudoers hardening (removed duplicate
+  CA and openssl wildcards), decommissioned betavox-gui service
 
 **Version 3.6.5**
 - Node Scope filter on Fact Explorer (ENC group chip bar with multi-select)

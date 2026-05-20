@@ -358,10 +358,17 @@ You should see `{"status":"ok","version":"3.6.6-3"}` if everything is working.
    sudo ufw allow 4567/tcp
    ```
 
-5. **Review SSL Configuration** (if using HTTPS):
-   - Go to **Settings** → **Application Configuration** → **SSL Configuration** tab
-   - View configured certificate paths and browse certificates on disk
-   - See instructions for accepting self-signed certs on Mac/Windows
+5. **Configure SSL Certificates** (if using HTTPS):
+   - Go to **Settings** → **Application Configuration** → **SSL Configuration**
+   - The **SSL Certificate Wizard** guides you through the entire process:
+     - **Organization Certificate**: upload cert files from your IT/security team
+       with drag-and-drop. The wizard validates files, checks key-cert match,
+       and installs them automatically.
+     - **Let's Encrypt**: renew certs via built-in certbot integration.
+     - **Puppet Certificates**: one-click reuse of OpenVox Server's own certs.
+   - The page shows real-time certificate health (expiry, key type, chain status)
+   - For enterprise environments, use **Configure Puppet CA** to set up an
+     intermediate CA that chains to your corporate PKI.
 
 ### Starting and Stopping the Service
 
