@@ -142,8 +142,10 @@ def _read_cert_file(path: str) -> Optional[Dict[str, Any]]:
         p = Path(path)
         if p.exists() and p.is_file():
             return _parse_pem_cert(p.read_bytes())
-    except Exception:
-        pass
+        else:
+            logger.warning(f"Cert file not found or not a file: {path}")
+    except Exception as e:
+        logger.warning(f"Failed to parse cert at {path}: {e}")
     return None
 
 
