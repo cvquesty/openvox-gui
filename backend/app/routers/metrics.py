@@ -207,12 +207,17 @@ async def get_catalog_graph(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch catalog: {e}")
 
-    # Build unique resource set
+    # Build unique resource set (filter Puppet-internal classes)
+    _INTERNAL = {"main", "settings"}
     resource_map: Dict[str, Dict] = {}
     for r in resources:
         rtype = r.get("type")
         rtitle = r.get("title")
         if not rtype or not rtitle:
+            continue
+        if rtype == "Class" and rtitle.lower() in _INTERNAL:
+            continue
+        if rtype == "Stage":
             continue
         key = f"{rtype}[{rtitle}]"
         resource_map[key] = {
@@ -231,6 +236,13 @@ async def get_catalog_graph(
         tgt_type = tgt.get("type")
         tgt_title = tgt.get("title")
         if not src_type or not src_title or not tgt_type or not tgt_title:
+            continue
+        # Skip edges involving internal Puppet classes/stages
+        if src_type == "Stage" or tgt_type == "Stage":
+            continue
+        if src_type == "Class" and src_title.lower() in _INTERNAL:
+            continue
+        if tgt_type == "Class" and tgt_title.lower() in _INTERNAL:
             continue
         src_id = f"{src_type}[{src_title}]"
         tgt_id = f"{tgt_type}[{tgt_title}]"
@@ -253,7 +265,9 @@ async def get_catalog_graph(
     #    (the most specific class-name tag that isn't a namespace ancestor)
     #
     # This produces the full role → profile → module → subclass tree.
-    class_resources = [r for r in resources if r.get("type") == "Class" and r.get("title")]
+    # Filter out Puppet-internal classes that exist in every catalog
+    _INTERNAL_CLASSES = {"main", "settings"}
+    class_resources = [r for r in resources if r.get("type") == "Class" and r.get("title") and r["title"].lower() not in _INTERNAL_CLASSES]
     class_titles_lower = {r["title"].lower(): r["title"] for r in class_resources}
 
     class_hierarchy_edges = []
@@ -423,8 +437,10 @@ async def get_class_coverage(
         resp = await client.get("/pdb/query/v4", params={"query": query})
         resp.raise_for_status()
         result = resp.json()
+        _SKIP = {"main", "settings"}
         classes = sorted(
-            [{"class_name": r.get("title", ""), "node_count": r.get("count", 0)} for r in result],
+            [{"class_name": r.get("title", ""), "node_count": r.get("count", 0)}
+             for r in result if r.get("title", "").lower() not in _SKIP],
             key=lambda x: x["node_count"],
             reverse=True,
         )[:limit]
