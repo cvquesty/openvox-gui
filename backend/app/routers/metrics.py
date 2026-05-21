@@ -347,6 +347,64 @@ async def get_puppetdb_metric(
     return result
 
 
+@router.get("/puppetdb-performance")
+async def get_puppetdb_performance(_user: str = Depends(_AUTH)):
+    """Server-side performance metrics from PuppetDB's Jolokia/JMX interface."""
+    metric_names = {
+        # Command processing pipeline
+        "cmd_processing": "puppetlabs.puppetdb.mq:name=global.processing-time",
+        "cmd_queue_time": "puppetlabs.puppetdb.mq:name=global.queue-time",
+        "cmd_depth": "puppetlabs.puppetdb.mq:name=global.depth",
+        "cmd_processed": "puppetlabs.puppetdb.mq:name=global.processed",
+        # Per-command processing
+        "catalog_processing": "puppetlabs.puppetdb.mq:name=replace catalog.9.processing-time",
+        "facts_processing": "puppetlabs.puppetdb.mq:name=replace facts.5.processing-time",
+        "report_processing": "puppetlabs.puppetdb.mq:name=store report.8.processing-time",
+        # Storage timing
+        "store_catalog": "puppetlabs.puppetdb.storage:name=replace-catalog-time",
+        "store_facts": "puppetlabs.puppetdb.storage:name=replace-facts-time",
+        "store_report": "puppetlabs.puppetdb.storage:name=store-report-time",
+        # Catalog dedup
+        "dedup_pct": "puppetlabs.puppetdb.storage:name=duplicate-pct",
+        "catalog_hash_match": "puppetlabs.puppetdb.storage:name=catalog-hash-match-time",
+        "catalog_hash_miss": "puppetlabs.puppetdb.storage:name=catalog-hash-miss-time",
+        # DB connection pools
+        "write_pool_active": "puppetlabs.puppetdb.database:name=PDBWritePool.pool.ActiveConnections",
+        "write_pool_idle": "puppetlabs.puppetdb.database:name=PDBWritePool.pool.IdleConnections",
+        "write_pool_pending": "puppetlabs.puppetdb.database:name=PDBWritePool.pool.PendingConnections",
+        "write_pool_total": "puppetlabs.puppetdb.database:name=PDBWritePool.pool.TotalConnections",
+        "write_pool_max": "puppetlabs.puppetdb.database:name=PDBWritePool.pool.MaxConnections",
+        "write_pool_usage": "puppetlabs.puppetdb.database:name=PDBWritePool.pool.Usage",
+        "read_pool_active": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.ActiveConnections",
+        "read_pool_idle": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.IdleConnections",
+        "read_pool_pending": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.PendingConnections",
+        "read_pool_total": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.TotalConnections",
+        "read_pool_max": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.MaxConnections",
+        "read_pool_usage": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.Usage",
+        # HTTP latency
+        "http_query_time": "puppetlabs.puppetdb.http:name=/pdb/query/v4.service-time",
+        "http_cmd_time": "puppetlabs.puppetdb.http:name=/pdb/cmd/v1.service-time",
+        # GC
+        "gc_young": "java.lang:name=G1 Young Generation,type=GarbageCollector",
+        "gc_old": "java.lang:name=G1 Old Generation,type=GarbageCollector",
+        # Population
+        "population_nodes": "puppetlabs.puppetdb.population:name=num-nodes",
+        "population_resources": "puppetlabs.puppetdb.population:name=num-resources",
+        "population_avg_resources": "puppetlabs.puppetdb.population:name=avg-resources-per-node",
+    }
+
+    import asyncio
+    results: Dict[str, Any] = {}
+
+    async def fetch_metric(key: str, mbean: str):
+        data = await puppetdb_service.get_pdb_metrics(mbean)
+        val = data.get("value", data) if isinstance(data, dict) else data
+        results[key] = val
+
+    await asyncio.gather(*[fetch_metric(k, v) for k, v in metric_names.items()])
+    return results
+
+
 @router.get("/puppetdb-health")
 async def get_puppetdb_health(_user: str = Depends(_AUTH)):
     """PuppetDB service health: queue depth, command stats, JVM heap."""

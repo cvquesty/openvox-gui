@@ -471,6 +471,7 @@ export const metrics = {
   catalog: (certname: string) =>
     fetchJSON<any>(`/metrics/catalog/${certname}`),
   puppetdbHealth: () => fetchJSON<any>('/metrics/puppetdb-health'),
+  puppetdbPerformance: () => fetchJSON<any>('/metrics/puppetdb-performance'),
   heatmap: () => fetchJSON<any>('/metrics/heatmap'),
   environments: () => fetchJSON<any>('/metrics/environments'),
   classCoverage: (limit: number = 50) =>

@@ -1,21 +1,23 @@
 /**
  * OpenVox GUI - MetricsPerformance.tsx
  *
- * Run Performance page — shows run duration trends, node comparison
- * (top 10 slowest), timing phase breakdown, and stat cards.
+ * Run Performance — 10 charts in a thumbnail grid (2 per row).
+ * Click any chart to expand it full-width. Click again to collapse.
+ * Combines agent-side metrics (from PuppetDB reports) with server-side
+ * metrics (from PuppetDB Jolokia/JMX).
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, Cell,
 } from 'recharts';
-import { IconChartLine } from '@tabler/icons-react';
-import { performance } from '../services/api';
+import { IconChartLine, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
+import { performance as perfApi, metrics } from '../services/api';
 
-const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db'];
+const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#95a5a6'];
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -23,20 +25,88 @@ const TOOLTIP_STYLE = {
     borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
     padding: '10px 14px', fontSize: 12, color: '#e0e0e0',
   },
-  labelStyle: { fontWeight: 600, color: '#fff', marginBottom: 4 },
+  labelStyle: { fontWeight: 600, color: '#fff', marginBottom: 4 } as const,
+  itemStyle: { color: '#e0e0e0' } as const,
 };
 
+const formatSeconds = (v: number) => {
+  if (v >= 60) return `${(v / 60).toFixed(1)}m`;
+  return `${v.toFixed(1)}s`;
+};
+const formatMs = (v: number) => {
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}s`;
+  return `${v.toFixed(0)}ms`;
+};
+const shortName = (cn: string) => {
+  if (cn.length <= 22) return cn;
+  const parts = cn.split('.');
+  return parts[0].length <= 20 ? parts[0] : parts[0].substring(0, 18) + '...';
+};
+const tickTime = (v: string) => {
+  const s = String(v || '');
+  if (s.includes('T')) return s.split('T')[1]?.substring(0, 5) || s;
+  return s.slice(11, 16) || s;
+};
+
+// Extract a simple value from a Jolokia metric response
+function jmxVal(obj: any, attr?: string): number {
+  if (obj == null) return 0;
+  if (typeof obj === 'number') return obj;
+  if (attr && typeof obj === 'object') return obj[attr] ?? 0;
+  // Timer/Meter: look for common attributes
+  if (typeof obj === 'object') {
+    return obj.Mean ?? obj.Value ?? obj.Count ?? obj.FiveMinuteRate ?? 0;
+  }
+  return 0;
+}
+
+interface ChartPanelProps {
+  title: string;
+  expanded: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  stats?: Array<{ label: string; value: string; color?: string }>;
+}
+
+function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelProps) {
+  const height = expanded ? 450 : 200;
+  return (
+    <Card withBorder shadow="sm" padding="sm" style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+      onClick={onClick}>
+      <Group justify="space-between" mb={4}>
+        <Text size={expanded ? 'md' : 'sm'} fw={700}>{title}</Text>
+        {expanded ? <IconArrowsMinimize size={14} color="#8899aa" /> : <IconArrowsMaximize size={14} color="#8899aa" />}
+      </Group>
+      {stats && expanded && (
+        <Group gap="xs" mb="xs">
+          {stats.map((s, i) => (
+            <Badge key={i} size="sm" variant="light" color={s.color || 'blue'}>{s.label}: {s.value}</Badge>
+          ))}
+        </Group>
+      )}
+      <ResponsiveContainer width="100%" height={height}>
+        {children as any}
+      </ResponsiveContainer>
+    </Card>
+  );
+}
+
 export function MetricsPerformancePage() {
-  const [data, setData] = useState<any>(null);
+  const [perfData, setPerfData] = useState<any>(null);
+  const [serverData, setServerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-      const result = await performance.getOverview();
-      setData(result);
+      const [perf, server] = await Promise.all([
+        perfApi.getOverview(),
+        metrics.puppetdbPerformance().catch(() => null),
+      ]);
+      setPerfData(perf);
+      setServerData(server);
     } catch (err: any) {
       setError(err.message || 'Failed to load performance data');
     } finally {
@@ -46,56 +116,251 @@ export function MetricsPerformancePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error loading performance data">{error}</Alert>;
-  if (!data) return null;
+  const toggleExpand = (id: string) => {
+    setExpanded(prev => prev === id ? null : id);
+  };
 
-  // Thin out trends — show every other data point for readability
-  const rawTrends = data.run_time_trends || [];
+  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (!perfData) return null;
+
+  // Agent-side data
+  const rawTrends = perfData.run_time_trends || [];
   const trends = rawTrends.filter((_: any, i: number) => i % 2 === 0).slice(-120);
-  const nodeComparison = (data.node_comparison || [])
+  const nodeComparison = (perfData.node_comparison || [])
     .sort((a: any, b: any) => (b.avg_total || 0) - (a.avg_total || 0))
     .slice(0, 10);
-  const breakdownArr: any[] = Array.isArray(data.timing_breakdown) ? data.timing_breakdown : [];
-  const stats = data.stats || {};
+  const stats = perfData.stats || {};
 
-  // Build top-10 node time series from the SAME thinned trends data
-  // so all three charts share the same X axis
   const top10Names = nodeComparison.map((n: any) => n.certname);
-  const top10Data = (() => {
+  const top10Data = useMemo(() => {
     const timeMap: Record<string, any> = {};
-    // Seed all timestamps from the shared trends array
     for (const run of trends) {
-      const t = run.time;
-      if (!timeMap[t]) timeMap[t] = { time: t };
+      if (!timeMap[run.time]) timeMap[run.time] = { time: run.time };
     }
-    // Fill in node values where they exist
     for (const run of trends) {
-      if (!top10Names.includes(run.certname)) continue;
-      timeMap[run.time][run.certname] = run.total;
+      if (top10Names.includes(run.certname)) {
+        timeMap[run.time][run.certname] = run.total;
+      }
     }
     return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
-  })();
+  }, [trends, top10Names]);
 
-  // Build pie data from timing breakdown array
-  const pieData = breakdownArr
-    .filter((d: any) => d.avg_seconds > 0)
-    .map((d: any) => ({
-      name: d.category || d.key?.replace(/_/g, ' ') || 'Unknown',
-      value: Number(d.avg_seconds) || 0,
-    }));
+  // Server-side data
+  const s = serverData || {};
 
-  const formatSeconds = (v: number) => {
-    if (v >= 60) return `${(v / 60).toFixed(1)}m`;
-    return `${v.toFixed(1)}s`;
-  };
+  // Build server metric bars for storage timing
+  const storageData = [
+    { name: 'Catalog', mean: jmxVal(s.store_catalog, 'Mean') / 1000 },
+    { name: 'Facts', mean: jmxVal(s.store_facts, 'Mean') / 1000 },
+    { name: 'Report', mean: jmxVal(s.store_report, 'Mean') / 1000 },
+  ].filter(d => d.mean > 0);
 
-  // Shorten certname for bar chart labels
-  const shortName = (cn: string) => {
-    if (cn.length <= 25) return cn;
-    const parts = cn.split('.');
-    return parts[0].length <= 20 ? parts[0] : parts[0].substring(0, 20) + '...';
-  };
+  // DB pool data
+  const poolData = [
+    { name: 'Write Active', value: jmxVal(s.write_pool_active, 'Value') },
+    { name: 'Write Idle', value: jmxVal(s.write_pool_idle, 'Value') },
+    { name: 'Write Pending', value: jmxVal(s.write_pool_pending, 'Value') },
+    { name: 'Read Active', value: jmxVal(s.read_pool_active, 'Value') },
+    { name: 'Read Idle', value: jmxVal(s.read_pool_idle, 'Value') },
+    { name: 'Read Pending', value: jmxVal(s.read_pool_pending, 'Value') },
+  ];
+
+  // Command processing data
+  const cmdData = [
+    { name: 'Catalog', mean: jmxVal(s.catalog_processing, 'Mean') / 1000, p95: (s.catalog_processing?.['95thPercentile'] ?? 0) / 1000 },
+    { name: 'Facts', mean: jmxVal(s.facts_processing, 'Mean') / 1000, p95: (s.facts_processing?.['95thPercentile'] ?? 0) / 1000 },
+    { name: 'Report', mean: jmxVal(s.report_processing, 'Mean') / 1000, p95: (s.report_processing?.['95thPercentile'] ?? 0) / 1000 },
+  ].filter(d => d.mean > 0);
+
+  // HTTP latency
+  const httpData = [
+    { name: 'Query API', mean: jmxVal(s.http_query_time, 'Mean'), p95: s.http_query_time?.['95thPercentile'] ?? 0 },
+    { name: 'Command API', mean: jmxVal(s.http_cmd_time, 'Mean'), p95: s.http_cmd_time?.['95thPercentile'] ?? 0 },
+  ].filter(d => d.mean > 0);
+
+  // Define all 10 chart panels
+  const charts: Array<{ id: string; title: string; stats?: any[]; render: (h: number) => ReactNode }> = [
+    {
+      id: 'run-trends', title: 'Run Duration Trends',
+      stats: [{ label: 'Avg', value: formatSeconds(stats.avg_run_time || 0) }, { label: 'Max', value: formatSeconds(stats.max_run_time || 0), color: 'red' }],
+      render: () => (
+        <AreaChart data={trends} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <defs><linearGradient id="gT" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.3}/><stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.02}/></linearGradient></defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={tickTime} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="total" stroke="#0D6EFD" fill="url(#gT)" strokeWidth={2} dot={false} name="Total" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'phase-breakdown', title: 'Timing Phase Breakdown',
+      render: () => (
+        <AreaChart data={trends} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={tickTime} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Fact Gen" />
+          <Area type="natural" dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} dot={false} name="Plugin Sync" />
+          <Area type="natural" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} dot={false} name="Config Retrieval" />
+          <Area type="natural" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} dot={false} name="Catalog Apply" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'top10-nodes', title: 'Top 10 Slowest Nodes',
+      render: () => (
+        <AreaChart data={top10Data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={tickTime} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 9 }} />
+          {nodeComparison.map((n: any, i: number) => (
+            <Area key={n.certname} type="natural" dataKey={n.certname}
+              stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5}
+              dot={false} connectNulls name={shortName(n.certname)} />
+          ))}
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'cmd-processing', title: 'Command Processing Time',
+      stats: cmdData.map(d => ({ label: d.name, value: formatMs(d.mean), color: 'cyan' })),
+      render: () => (
+        <BarChart data={cmdData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Bar dataKey="mean" fill="#0D6EFD" name="Mean" radius={[4,4,0,0]} />
+          <Bar dataKey="p95" fill="#e67e22" name="95th Percentile" radius={[4,4,0,0]} />
+        </BarChart>
+      ),
+    },
+    {
+      id: 'storage-timing', title: 'Storage Operation Timing',
+      render: () => (
+        <BarChart data={storageData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatMs(v), 'Mean']} />
+          <Bar dataKey="mean" name="Mean Time" radius={[4,4,0,0]}>
+            {storageData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
+          </Bar>
+        </BarChart>
+      ),
+    },
+    {
+      id: 'db-pool', title: 'Database Connection Pool',
+      render: () => (
+        <BarChart data={poolData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Bar dataKey="value" name="Connections" radius={[4,4,0,0]}>
+            {poolData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+          </Bar>
+        </BarChart>
+      ),
+    },
+    {
+      id: 'http-latency', title: 'HTTP API Latency',
+      render: () => (
+        <BarChart data={httpData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Bar dataKey="mean" fill="#3498db" name="Mean" radius={[4,4,0,0]} />
+          <Bar dataKey="p95" fill="#e74c3c" name="95th Pct" radius={[4,4,0,0]} />
+        </BarChart>
+      ),
+    },
+    {
+      id: 'catalog-dedup', title: 'Catalog Deduplication',
+      stats: [{ label: 'Dedup Rate', value: `${((jmxVal(s.dedup_pct, 'Value') || 0) * 100).toFixed(1)}%`, color: 'green' }],
+      render: () => {
+        const dedupData = [
+          { name: 'Hash Match', value: jmxVal(s.catalog_hash_match, 'Mean') / 1000 },
+          { name: 'Hash Miss', value: jmxVal(s.catalog_hash_miss, 'Mean') / 1000 },
+        ].filter(d => d.value > 0);
+        return (
+          <BarChart data={dedupData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+            <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
+            <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatMs(v), 'Time']} />
+            <Bar dataKey="value" name="Time" radius={[4,4,0,0]}>
+              <Cell fill="#2ecc71" />
+              <Cell fill="#e74c3c" />
+            </Bar>
+          </BarChart>
+        );
+      },
+    },
+    {
+      id: 'gc-pressure', title: 'GC Pressure',
+      stats: [
+        { label: 'Young GC', value: `${jmxVal(s.gc_young, 'CollectionCount')} collections`, color: 'cyan' },
+        { label: 'Old GC', value: `${jmxVal(s.gc_old, 'CollectionCount')} collections`, color: 'orange' },
+      ],
+      render: () => {
+        const gcData = [
+          { name: 'Young Gen', count: jmxVal(s.gc_young, 'CollectionCount'), time_ms: jmxVal(s.gc_young, 'CollectionTime') },
+          { name: 'Old Gen', count: jmxVal(s.gc_old, 'CollectionCount'), time_ms: jmxVal(s.gc_old, 'CollectionTime') },
+        ];
+        return (
+          <BarChart data={gcData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+            <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+            <ReTooltip {...TOOLTIP_STYLE} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            <Bar dataKey="count" fill="#3498db" name="Collections" radius={[4,4,0,0]} />
+            <Bar dataKey="time_ms" fill="#e67e22" name="Time (ms)" radius={[4,4,0,0]} />
+          </BarChart>
+        );
+      },
+    },
+    {
+      id: 'population', title: 'Fleet Population',
+      stats: [
+        { label: 'Nodes', value: `${jmxVal(s.population_nodes, 'Value')}` },
+        { label: 'Resources', value: `${jmxVal(s.population_resources, 'Value')}` },
+        { label: 'Avg/Node', value: `${jmxVal(s.population_avg_resources, 'Value').toFixed(0)}` },
+      ],
+      render: () => {
+        const popData = [
+          { name: 'Nodes', value: jmxVal(s.population_nodes, 'Value') },
+          { name: 'Resources', value: jmxVal(s.population_resources, 'Value') },
+          { name: 'Avg/Node', value: jmxVal(s.population_avg_resources, 'Value') },
+        ];
+        return (
+          <BarChart data={popData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+            <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+            <ReTooltip {...TOOLTIP_STYLE} />
+            <Bar dataKey="value" name="Count" radius={[4,4,0,0]}>
+              <Cell fill="#0D6EFD" />
+              <Cell fill="#2ecc71" />
+              <Cell fill="#e67e22" />
+            </Bar>
+          </BarChart>
+        );
+      },
+    },
+  ];
 
   return (
     <Stack>
@@ -106,125 +371,38 @@ export function MetricsPerformancePage() {
       </Group>
 
       {/* Stat cards */}
-      <Grid>
-        {[
-          { label: 'Average Run Time', value: stats.avg_run_time, color: 'blue', badge: 'AVG' },
-          { label: 'Max Run Time', value: stats.max_run_time, color: 'red', badge: 'MAX' },
-          { label: 'Min Run Time', value: stats.min_run_time, color: 'green', badge: 'MIN' },
-          { label: 'Failed Runs', value: stats.failed_runs, color: stats.failed_runs > 0 ? 'red' : 'green', badge: stats.failed_runs > 0 ? 'ALERT' : 'OK', raw: true },
-          { label: 'Changed Runs', value: stats.changed_runs, color: 'yellow', badge: 'CHG', raw: true },
-        ].map((stat) => (
-          <Grid.Col span={{ base: 6, sm: 4, md: 2.4 }} key={stat.label}>
-            <Paper withBorder p="md" radius="md" ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>{stat.label}</Text>
-              <Text size="xl" fw={700} mt={4}>
-                {stat.raw ? (stat.value ?? 0) : (typeof stat.value === 'number' ? formatSeconds(stat.value) : '--')}
-              </Text>
-              <Badge color={stat.color} variant="light" size="sm" mt={4}>{stat.badge}</Badge>
-            </Paper>
-          </Grid.Col>
-        ))}
-      </Grid>
+      <Group grow>
+        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Avg Run</Text><Text size="lg" fw={700}>{formatSeconds(stats.avg_run_time || 0)}</Text></Paper>
+        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Max Run</Text><Text size="lg" fw={700} c="red">{formatSeconds(stats.max_run_time || 0)}</Text></Paper>
+        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Min Run</Text><Text size="lg" fw={700} c="green">{formatSeconds(stats.min_run_time || 0)}</Text></Paper>
+        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Failed</Text><Text size="lg" fw={700} c={stats.failed_runs > 0 ? 'red' : 'green'}>{stats.failed_runs || 0}</Text></Paper>
+        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Queue</Text><Text size="lg" fw={700}>{jmxVal(s.cmd_depth, 'Count')}</Text></Paper>
+      </Group>
 
-      {/* Run duration trends */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Title order={4} mb="md">Run Duration Trends</Title>
-        <ResponsiveContainer width="100%" height={400}>
-          <AreaChart data={trends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gTotal" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
-              tickFormatter={(v: string) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11, 16) || v} />
-            <YAxis tick={{ fontSize: 11, fill: '#8899aa' }}
-              tickFormatter={(v: number) => formatSeconds(v)} />
-            <ReTooltip {...TOOLTIP_STYLE}
-              formatter={(value: number, name: string) => [formatSeconds(value), name]}
-              labelFormatter={(label: string) => label?.includes('T') ? new Date(label + ':00Z').toLocaleString() : label} />
-            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-            <Area type="monotone" dataKey="total" stroke="#0D6EFD" fill="url(#gTotal)" strokeWidth={2} dot={false} name="Total" />
-            <Area type="monotone" dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Fact Generation" />
-            <Area type="monotone" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} dot={false} name="Config Retrieval" />
-            <Area type="monotone" dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} dot={false} name="Plugin Sync" />
-            <Area type="monotone" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1} dot={false} name="Catalog Application" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </Card>
-
-      {/* Timing phase breakdown over time */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Group justify="space-between" mb="md">
-          <Title order={4}>Timing Phase Breakdown Over Time</Title>
-          {breakdownArr.length > 0 && (
-            <Group gap="xs">
-              {breakdownArr.map((d: any, i: number) => (
-                <Badge key={i} size="sm" variant="light" leftSection={
-                  <div style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: COLORS[i % COLORS.length] }} />
-                }>{d.category}: {formatSeconds(d.avg_seconds)} avg</Badge>
-              ))}
-            </Group>
-          )}
-        </Group>
-        <ResponsiveContainer width="100%" height={400}>
-          <AreaChart data={trends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gFact" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2ecc71" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#2ecc71" stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="gPlugin" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#9b59b6" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#9b59b6" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
-              tickFormatter={(v: string) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11, 16) || v} />
-            <YAxis tick={{ fontSize: 11, fill: '#8899aa' }}
-              tickFormatter={(v: number) => formatSeconds(v)} />
-            <ReTooltip {...TOOLTIP_STYLE}
-              formatter={(value: number, name: string) => [formatSeconds(value), name]} />
-            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-            <Area type="monotone" dataKey="fact_generation" stroke="#2ecc71" fill="url(#gFact)" strokeWidth={2} dot={false} name="Fact Generation" />
-            <Area type="monotone" dataKey="plugin_sync" stroke="#9b59b6" fill="url(#gPlugin)" strokeWidth={2} dot={false} name="Plugin Sync" />
-            <Area type="monotone" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} dot={false} name="Config Retrieval" />
-            <Area type="monotone" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} dot={false} name="Catalog Application" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </Card>
-
-      {/* Top 10 slowest nodes over time */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Title order={4} mb="md">Top 10 Slowest Nodes Over Time</Title>
-        {nodeComparison.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-              data={top10Data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-              <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
-                tickFormatter={(v: string) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11, 16) || v} />
-              <YAxis tick={{ fontSize: 11, fill: '#8899aa' }}
-                tickFormatter={(v: number) => formatSeconds(v)} />
-              <ReTooltip {...TOOLTIP_STYLE}
-                formatter={(value: number, name: string) => [formatSeconds(value), name]} />
-              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-              {nodeComparison.map((n: any, i: number) => (
-                <Area key={n.certname} type="natural" dataKey={n.certname}
-                  stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5}
-                  dot={false}
-                  connectNulls
-                  name={shortName(n.certname)} />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <Center h={300}><Text c="dimmed">No node comparison data available</Text></Center>
-        )}
-      </Card>
+      {/* Chart grid — 2 per row, expandable */}
+      {expanded ? (
+        // Expanded view — single chart full width
+        (() => {
+          const chart = charts.find(c => c.id === expanded);
+          if (!chart) return null;
+          return (
+            <ChartPanel title={chart.title} expanded={true} onClick={() => toggleExpand(chart.id)} stats={chart.stats}>
+              {chart.render(450)}
+            </ChartPanel>
+          );
+        })()
+      ) : (
+        // Grid view — 2 per row
+        <Grid>
+          {charts.map(chart => (
+            <Grid.Col key={chart.id} span={6}>
+              <ChartPanel title={chart.title} expanded={false} onClick={() => toggleExpand(chart.id)} stats={chart.stats}>
+                {chart.render(200)}
+              </ChartPanel>
+            </Grid.Col>
+          ))}
+        </Grid>
+      )}
     </Stack>
   );
 }
