@@ -6,13 +6,13 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select,
+  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select, Button,
 } from '@mantine/core';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip, Legend,
 } from 'recharts';
-import { IconGitBranch, IconRefresh } from '@tabler/icons-react';
+import { IconGitBranch, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -69,6 +69,8 @@ export function MetricsEnvironmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
+  const [refreshRate, setRefreshRate] = useState<string>('30');
+  const [lastRefresh, setLastRefresh] = useState(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -95,15 +97,17 @@ export function MetricsEnvironmentsPage() {
       setError(err.message || 'Failed to load environment data');
     }
     setLoading(false);
+    setLastRefresh(new Date());
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Auto-refresh every 30 seconds
   useEffect(() => {
-    intervalRef.current = setInterval(fetchData, 30000);
+    const rate = parseInt(refreshRate) * 1000;
+    if (rate <= 0) return;
+    intervalRef.current = setInterval(fetchData, rate);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fetchData]);
+  }, [fetchData, refreshRate]);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
@@ -129,7 +133,15 @@ export function MetricsEnvironmentsPage() {
           <Select size="xs" data={[{ value: '__all__', label: 'All Environments' }, ...envNames.map(n => ({ value: n, label: n }))]}
             value={selectedEnv || '__all__'} onChange={(v) => setSelectedEnv(v === '__all__' ? null : v)}
             style={{ width: 180 }} />
-          <Text size="xs" c="dimmed"><IconRefresh size={12} /> 30s</Text>
+          <Select size="xs" data={[
+            { value: '5', label: '5 seconds' }, { value: '10', label: '10 seconds' },
+            { value: '15', label: '15 seconds' }, { value: '30', label: '30 seconds' },
+            { value: '60', label: '1 minute' }, { value: '0', label: 'Off' },
+          ]} value={refreshRate} onChange={(v) => setRefreshRate(v || '30')} style={{ width: 120 }} />
+          <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={fetchData}>Refresh</Button>
+          <Button size="xs" variant="subtle" color="gray" leftSection={<IconTrash size={14} />}
+            onClick={() => { setHistory([]); saveHistory([]); }}>Clear</Button>
+          <Text size="xs" c="dimmed">{lastRefresh.toLocaleTimeString()}</Text>
         </Group>
       </Group>
 
