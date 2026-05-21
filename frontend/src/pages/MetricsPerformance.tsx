@@ -152,6 +152,12 @@ export function MetricsPerformancePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Auto-refresh server metrics every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
   const toggleExpand = (id: string) => {
     setExpanded(prev => prev === id ? null : id);
   };
@@ -299,9 +305,9 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="catalog_ms" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.1} strokeWidth={2} dot={false} name="Catalog" />
-          <Area type="natural" dataKey="facts_ms" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.1} strokeWidth={2} dot={false} name="Facts" />
-          <Area type="natural" dataKey="report_ms" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="Report" />
+          <Area type="natural" dataKey="catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Catalog" />
+          <Area type="natural" dataKey="facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Facts" />
+          <Area type="natural" dataKey="report_ms" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Report" />
         </AreaChart>
       ),
     },
@@ -314,9 +320,9 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.1} strokeWidth={2} dot={false} name="Catalog" />
-          <Area type="natural" dataKey="store_facts_ms" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.1} strokeWidth={2} dot={false} name="Facts" />
-          <Area type="natural" dataKey="store_report_ms" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="Report" />
+          <Area type="natural" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Catalog" />
+          <Area type="natural" dataKey="store_facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Facts" />
+          <Area type="natural" dataKey="store_report_ms" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Report" />
         </AreaChart>
       ),
     },
@@ -341,8 +347,8 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="http_query_ms" stroke="#3498db" fill="#3498db" fillOpacity={0.1} strokeWidth={2} dot={false} name="Query API" />
-          <Area type="natural" dataKey="http_cmd_ms" stroke="#e74c3c" fill="#e74c3c" fillOpacity={0.1} strokeWidth={2} dot={false} name="Command API" />
+          <Area type="natural" dataKey="http_query_ms" stroke="#3498db" fill="none" strokeWidth={2} dot={false} name="Query API" />
+          <Area type="natural" dataKey="http_cmd_ms" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Command API" />
         </AreaChart>
       ),
     },
