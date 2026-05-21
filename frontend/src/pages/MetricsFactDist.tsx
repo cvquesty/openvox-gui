@@ -1,221 +1,297 @@
 /**
  * OpenVox GUI - MetricsFactDist.tsx
  *
- * Fact Distribution Charts — pre-built tabs for common Puppet facts
- * (os.family, os.release.full, kernelrelease, processors.count,
- * memory.system.total) displayed as PieChart + BarChart pairs.
- * Includes a custom fact input for querying arbitrary fact paths.
+ * Fleet Fact Overview — auto-detects interesting facts across the fleet,
+ * displays as a thumbnail grid with click-to-expand. Highlights outliers
+ * (nodes with unusual values). Includes a custom fact explorer.
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
-  TextInput, Tabs, Grid, Paper,
+  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
+  TextInput, Button, Table, Collapse, ActionIcon, Tooltip,
 } from '@mantine/core';
-import { IconChartPie, IconSearch } from '@tabler/icons-react';
 import {
   ResponsiveContainer, PieChart, Pie, Cell,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
 } from 'recharts';
+import {
+  IconChartPie, IconArrowsMaximize, IconArrowsMinimize,
+  IconSearch, IconAlertTriangle,
+} from '@tabler/icons-react';
 import { metrics } from '../services/api';
 
-const COLORS = ['#0D6EFD', '#28a745', '#dc3545', '#ffc107', '#6c757d', '#17a2b8', '#fd7e14', '#6f42c1'];
+const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#95a5a6'];
 
-const COMMON_FACTS = [
-  { key: 'os.family', label: 'OS Family' },
-  { key: 'os.release.full', label: 'OS Release' },
-  { key: 'kernelrelease', label: 'Kernel Release' },
-  { key: 'processors.count', label: 'Processor Count' },
-  { key: 'memory.system.total', label: 'System Memory' },
-];
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    padding: '10px 14px', fontSize: 12, color: '#e0e0e0',
+  },
+  itemStyle: { color: '#e0e0e0' },
+};
 
-interface FactDistData {
+interface FactCard {
   fact: string;
   total_nodes: number;
   unique_values: number;
-  distribution: { value: string; count: number }[];
-  chart_distribution?: { value: string; count: number }[];
+  dominant: { value: string; count: number } | null;
+  dominant_pct: number;
+  chart_distribution: Array<{ value: string; count: number }>;
+  distribution: Array<{ value: string; count: number }>;
+  outliers: Array<{ value: string; count: number; nodes: string[] }>;
 }
 
-function DistributionCharts({ data }: { data: FactDistData }) {
-  // Use chart_distribution (top 7 + Other) for pie, full distribution for bar
-  const dist = (data.chart_distribution || data.distribution || []).slice(0, 10);
-
-  if (dist.length === 0) {
-    return <Alert color="yellow">No distribution data available for this fact.</Alert>;
-  }
-
-  const pieData = dist.map((d) => ({
-    name: String(d.value ?? 'null'),
-    value: d.count,
-  }));
-  const barData = (data.distribution || []).slice(0, 20).map((d) => ({
-    name: String(d.value ?? 'null'),
-    value: d.count,
-  }));
+function FactThumbnail({ data, expanded, onClick }: {
+  data: FactCard; expanded: boolean; onClick: () => void;
+}) {
+  const chartData = data.chart_distribution.map(d => ({ name: d.value, value: d.count }));
+  const pieSize = expanded ? 160 : 70;
 
   return (
-    <Stack>
-      <Group gap="lg" mb="xs">
-        <Badge variant="light" color="blue" size="lg">{data.total_nodes} nodes</Badge>
-        <Badge variant="light" color="cyan" size="lg">{data.unique_values} unique values</Badge>
+    <Card withBorder shadow="sm" padding="sm" style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+      onClick={onClick}>
+      <Group justify="space-between" mb={4}>
+        <Group gap="xs">
+          <Text size={expanded ? 'md' : 'sm'} fw={700}>{data.fact}</Text>
+          {data.outliers.length > 0 && (
+            <Tooltip label={`${data.outliers.length} outlier${data.outliers.length > 1 ? 's' : ''}`}>
+              <Badge size="xs" color="orange" variant="filled">{data.outliers.length}</Badge>
+            </Tooltip>
+          )}
+        </Group>
+        {expanded ? <IconArrowsMinimize size={14} color="#8899aa" /> : <IconArrowsMaximize size={14} color="#8899aa" />}
       </Group>
 
-      <Grid>
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Paper withBorder p="md" radius="sm">
-            <Text fw={600} mb="sm">Distribution (Pie)</Text>
-            <ResponsiveContainer width="100%" height={420}>
-              <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="40%"
-                  outerRadius={100}
-                  innerRadius={40}
-                  dataKey="value"
-                  nameKey="name"
-                  label={false}
-                >
-                  {pieData.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-                  ))}
-                </Pie>
-                <ReTooltip
-                  contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }}
-                  labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }}
-                  itemStyle={{ color: "#e0e0e0" }}
-                  formatter={(value: number, name: string) => [`${value} nodes (${((value / (data.total_nodes || 1)) * 100).toFixed(1)}%)`, name]}
-                />
-                <Legend
-                  layout="horizontal"
-                  verticalAlign="bottom"
-                  align="center"
-                  wrapperStyle={{ fontSize: 11, paddingTop: 12, overflow: 'hidden' }}
-                  formatter={(value: string) => value.length > 25 ? value.substring(0, 22) + '...' : value}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </Paper>
-        </Grid.Col>
+      {!expanded && (
+        <Group gap="xs" mb={4}>
+          <Text size="xs" c="dimmed">{data.unique_values} values across {data.total_nodes} nodes</Text>
+          {data.dominant && (
+            <Badge size="xs" variant="light">{data.dominant.value}: {data.dominant_pct}%</Badge>
+          )}
+        </Group>
+      )}
 
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Paper withBorder p="md" radius="sm">
-            <Text fw={600} mb="sm">Distribution (Bar)</Text>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={barData} layout="vertical" margin={{ left: 100 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                <XAxis type="number" allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={95} />
-                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} itemStyle={{ color: "#e0e0e0" }} />
-                <Bar dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
-                  {barData.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+      {expanded ? (
+        <Stack gap="md">
+          <Group gap="lg" mb="xs">
+            <Badge variant="light" color="blue" size="lg">{data.total_nodes} nodes</Badge>
+            <Badge variant="light" color="cyan" size="lg">{data.unique_values} unique values</Badge>
+            {data.dominant && (
+              <Badge variant="light" color="green" size="lg">
+                Dominant: {data.dominant.value} ({data.dominant_pct}%)
+              </Badge>
+            )}
+          </Group>
+
+          <Grid>
+            <Grid.Col span={5}>
+              <Text size="sm" fw={600} mb="xs">Distribution</Text>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={pieSize / 2 + 40}
+                    dataKey="value" label={false}>
+                    {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <ReTooltip {...TOOLTIP_STYLE}
+                    formatter={(value: number, name: string) => [
+                      `${value} nodes (${((value / data.total_nodes) * 100).toFixed(1)}%)`, name
+                    ]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </Grid.Col>
+            <Grid.Col span={7}>
+              <Text size="sm" fw={600} mb="xs">Values ({data.distribution.length})</Text>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={data.distribution.slice(0, 15)} layout="vertical" margin={{ left: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: '#8899aa' }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="value" tick={{ fontSize: 10, fill: '#8899aa' }} width={75}
+                    tickFormatter={(v: string) => v.length > 18 ? v.substring(0, 16) + '...' : v} />
+                  <ReTooltip {...TOOLTIP_STYLE} />
+                  <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
+                    {data.distribution.slice(0, 15).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Grid.Col>
+          </Grid>
+
+          {data.outliers.length > 0 && (
+            <Card withBorder padding="sm" style={{ borderColor: 'var(--mantine-color-orange-6)' }}>
+              <Group gap="xs" mb="xs">
+                <IconAlertTriangle size={16} color="var(--mantine-color-orange-6)" />
+                <Text size="sm" fw={700} c="orange">Outliers — unusual values ({data.outliers.length})</Text>
+              </Group>
+              <Table striped withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Value</Table.Th>
+                    <Table.Th>Count</Table.Th>
+                    <Table.Th>Nodes</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {data.outliers.map((o, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td><Badge size="sm" variant="light" color="orange">{o.value}</Badge></Table.Td>
+                      <Table.Td>{o.count}</Table.Td>
+                      <Table.Td><Text size="xs">{o.nodes.join(', ')}</Text></Table.Td>
+                    </Table.Tr>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
-        </Grid.Col>
-      </Grid>
-    </Stack>
+                </Table.Tbody>
+              </Table>
+            </Card>
+          )}
+        </Stack>
+      ) : (
+        <ResponsiveContainer width="100%" height={100}>
+          <PieChart>
+            <Pie data={chartData} cx="50%" cy="50%" innerRadius={20} outerRadius={40}
+              dataKey="value" label={false}>
+              {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      )}
+    </Card>
   );
 }
 
-function FactTab({ factPath }: { factPath: string }) {
-  const [data, setData] = useState<FactDistData | null>(null);
+export function MetricsFactDistPage() {
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    metrics.factDistribution(factPath)
-      .then((result) => { if (!cancelled) setData(result); })
-      .catch((e: any) => { if (!cancelled) setError(e.message || 'Failed to load distribution'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [factPath]);
-
-  if (loading) return <Center h={300}><Loader size="lg" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
-  if (!data) return null;
-
-  return <DistributionCharts data={data} />;
-}
-
-export function MetricsFactDistPage() {
-  const [activeTab, setActiveTab] = useState<string>(COMMON_FACTS[0].key);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [customFact, setCustomFact] = useState('');
-  const [customData, setCustomData] = useState<FactDistData | null>(null);
+  const [customData, setCustomData] = useState<any>(null);
   const [customLoading, setCustomLoading] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
 
-  const fetchCustom = useCallback(async () => {
-    const fact = customFact.trim();
-    if (!fact) return;
+  const fetchOverview = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await metrics.factOverview();
+      setData(result);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchOverview(); }, [fetchOverview]);
+
+  const handleCustomQuery = async () => {
+    if (!customFact.trim()) return;
     setCustomLoading(true);
     setCustomError(null);
     setCustomData(null);
     try {
-      const result = await metrics.factDistribution(fact);
+      const result = await metrics.factDistribution(customFact.trim());
       setCustomData(result);
     } catch (e: any) {
-      setCustomError(e.message || 'Failed to load distribution');
+      setCustomError(e.message);
     }
     setCustomLoading(false);
-  }, [customFact]);
+  };
+
+  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+
+  const facts: FactCard[] = data?.facts || [];
 
   return (
     <Stack>
       <Group gap="sm">
         <IconChartPie size={28} />
-        <Title order={2}>Fact Distribution Charts</Title>
+        <Title order={2}>Fleet Fact Overview</Title>
+        <Badge variant="light" color="blue" size="lg">{facts.length} facts analyzed</Badge>
       </Group>
 
-      <Card withBorder shadow="sm" padding="lg">
-        <Tabs value={activeTab} onChange={(v) => setActiveTab(v || COMMON_FACTS[0].key)}>
-          <Tabs.List>
-            {COMMON_FACTS.map((f) => (
-              <Tabs.Tab key={f.key} value={f.key}>{f.label}</Tabs.Tab>
-            ))}
-          </Tabs.List>
+      <Alert variant="light" color="blue" mb="xs">
+        Auto-detected facts with variety across your fleet, ranked by interestingness.
+        Facts where every node has the same value are hidden. Outliers (values on 1-2 nodes)
+        are highlighted in orange — these are often misconfigured or legacy systems.
+      </Alert>
 
-          {COMMON_FACTS.map((f) => (
-            <Tabs.Panel key={f.key} value={f.key} pt="md">
-              <FactTab factPath={f.key} />
-            </Tabs.Panel>
+      {/* Fact grid or expanded view */}
+      {expanded ? (
+        (() => {
+          const fact = facts.find(f => f.fact === expanded);
+          if (!fact) return null;
+          return <FactThumbnail data={fact} expanded={true} onClick={() => setExpanded(null)} />;
+        })()
+      ) : (
+        <Grid>
+          {facts.map(fact => (
+            <Grid.Col key={fact.fact} span={6}>
+              <FactThumbnail data={fact} expanded={false} onClick={() => setExpanded(fact.fact)} />
+            </Grid.Col>
           ))}
-        </Tabs>
-      </Card>
+        </Grid>
+      )}
 
-      {/* Custom fact query */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Title order={4} mb="md">Query Custom Fact</Title>
-        <Group align="flex-end" mb="md">
+      {/* Custom fact explorer */}
+      <Card withBorder shadow="sm" padding="md">
+        <Text fw={700} mb="sm">Custom Fact Explorer</Text>
+        <Text size="xs" c="dimmed" mb="sm">
+          Query any fact path to see its distribution. Use dot notation for nested facts
+          (e.g., networking.ip, disks.sda.size, processors.models).
+        </Text>
+        <Group>
           <TextInput
-            label="Fact Path"
-            placeholder="e.g., networking.ip, uptime_hours, os.architecture"
+            placeholder="Type a fact path... (e.g., networking.domain)"
             leftSection={<IconSearch size={14} />}
             value={customFact}
             onChange={(e) => setCustomFact(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') fetchCustom(); }}
-            style={{ flex: 1, minWidth: 300 }}
+            onKeyDown={(e) => e.key === 'Enter' && handleCustomQuery()}
+            style={{ flex: 1 }}
           />
-          <Text
-            size="sm"
-            fw={600}
-            c="blue"
-            style={{ cursor: 'pointer' }}
-            onClick={fetchCustom}
-          >
-            Query
-          </Text>
+          <Button onClick={handleCustomQuery} loading={customLoading}>Query</Button>
         </Group>
-
-        {customLoading && <Center h={200}><Loader size="lg" /></Center>}
-        {customError && <Alert color="red" title="Error">{customError}</Alert>}
-        {customData && <DistributionCharts data={customData} />}
+        {customError && <Alert color="red" mt="sm">{customError}</Alert>}
+        {customData && (
+          <Stack mt="md">
+            <Group gap="lg">
+              <Badge variant="light" color="blue">{customData.total_nodes} nodes</Badge>
+              <Badge variant="light" color="cyan">{customData.unique_values} unique values</Badge>
+            </Group>
+            <Grid>
+              <Grid.Col span={5}>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie data={(customData.chart_distribution || customData.distribution || []).map((d: any) => ({ name: d.value, value: d.count }))}
+                      cx="50%" cy="50%" innerRadius={40} outerRadius={90} dataKey="value" label={false}>
+                      {(customData.chart_distribution || customData.distribution || []).map((_: any, i: number) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <ReTooltip {...TOOLTIP_STYLE}
+                      formatter={(value: number, name: string) => [
+                        `${value} nodes (${((value / (customData.total_nodes || 1)) * 100).toFixed(1)}%)`, name
+                      ]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Grid.Col>
+              <Grid.Col span={7}>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={(customData.distribution || []).slice(0, 15)} layout="vertical" margin={{ left: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: '#8899aa' }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="value" tick={{ fontSize: 10, fill: '#8899aa' }} width={75}
+                      tickFormatter={(v: string) => v.length > 18 ? v.substring(0, 16) + '...' : v} />
+                    <ReTooltip {...TOOLTIP_STYLE} />
+                    <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
+                      {(customData.distribution || []).slice(0, 15).map((_: any, i: number) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Grid.Col>
+            </Grid>
+          </Stack>
+        )}
       </Card>
     </Stack>
   );

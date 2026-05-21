@@ -214,6 +214,111 @@ async def get_fact_distribution(
     }
 
 
+# ─── 4b. Fleet Fact Overview ───────────────────────────────
+
+@router.get("/fact-overview")
+async def get_fact_overview(_user: str = Depends(_AUTH)):
+    """Auto-detect interesting facts and return distributions with outliers."""
+    cached = _get_cached("fact_overview")
+    if cached is not None:
+        return cached
+
+    from .facts import get_nested_value
+
+    # Facts to analyze — common fleet-differentiating facts
+    fact_paths = [
+        "os.family", "os.name", "os.release.full", "kernelrelease",
+        "processors.count", "memory.system.total", "networking.domain",
+        "system_uptime.days", "virtual", "is_virtual",
+        "os.architecture", "ruby.version", "aio_agent_build",
+    ]
+
+    results = []
+    for fact_path in fact_paths:
+        try:
+            parts = fact_path.split(".")
+            base_fact = parts[0]
+            nested_path = ".".join(parts[1:]) if len(parts) > 1 else None
+
+            facts = await puppetdb_service.get_facts(fact_name=base_fact)
+            counts: Counter = Counter()
+            node_values: Dict[str, str] = {}
+
+            for f in facts:
+                value = f.get("value")
+                if nested_path:
+                    value = get_nested_value(value, nested_path)
+                    if value is None:
+                        continue
+                if isinstance(value, (dict, list)):
+                    value = str(value)
+                val_str = str(value)
+                counts[val_str] += 1
+                node_values[f.get("certname", "")] = val_str
+
+            if not counts:
+                continue
+
+            total = sum(counts.values())
+            unique = len(counts)
+
+            # Skip uniform facts (only 1 value = boring)
+            if unique < 2:
+                continue
+
+            # Sort by count descending
+            sorted_dist = sorted(
+                [{"value": k, "count": v} for k, v in counts.items()],
+                key=lambda x: x["count"],
+                reverse=True,
+            )
+
+            # Top 7 + Other for chart
+            if len(sorted_dist) > 7:
+                top = sorted_dist[:7]
+                other_count = sum(d["count"] for d in sorted_dist[7:])
+                top.append({"value": "Other", "count": other_count})
+                chart_dist = top
+            else:
+                chart_dist = sorted_dist
+
+            # Find outliers: values with <= 2 nodes
+            outliers = [
+                {"value": d["value"], "count": d["count"],
+                 "nodes": [cn for cn, v in node_values.items() if v == d["value"]]}
+                for d in sorted_dist if d["count"] <= 2 and d["value"] != "Other"
+            ][:10]
+
+            # Interestingness score: more unique values + outliers = more interesting
+            score = unique + len(outliers) * 2
+
+            # Dominant value
+            dominant = sorted_dist[0] if sorted_dist else None
+            dominant_pct = round(dominant["count"] / total * 100, 1) if dominant else 0
+
+            results.append({
+                "fact": fact_path,
+                "total_nodes": total,
+                "unique_values": unique,
+                "score": score,
+                "dominant": dominant,
+                "dominant_pct": dominant_pct,
+                "chart_distribution": chart_dist,
+                "distribution": sorted_dist[:20],
+                "outliers": outliers,
+            })
+        except Exception as e:
+            logger.warning(f"Fact overview failed for {fact_path}: {e}")
+            continue
+
+    # Sort by interestingness
+    results.sort(key=lambda x: x["score"], reverse=True)
+
+    response = {"facts": results, "total_facts_analyzed": len(fact_paths)}
+    _set_cached("fact_overview", response)
+    return response
+
+
 # ─── 6. Catalog Graph ─────────────────────────────────────
 
 @router.get("/catalog/{certname}")

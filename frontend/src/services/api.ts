@@ -468,6 +468,7 @@ export const metrics = {
   },
   factDistribution: (factPath: string) =>
     fetchJSON<any>(`/metrics/fact-distribution/${encodeURIComponent(factPath)}`),
+  factOverview: () => fetchJSON<any>('/metrics/fact-overview'),
   catalog: (certname: string) =>
     fetchJSON<any>(`/metrics/catalog/${certname}`),
   puppetdbHealth: () => fetchJSON<any>('/metrics/puppetdb-health'),
