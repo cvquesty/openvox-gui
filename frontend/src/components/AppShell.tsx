@@ -206,8 +206,9 @@ export function AppShellLayout() {
   };
 
   // Render a top-level nav group (label + items)
-  const renderNavGroup = (label: string, icon: any, items: NavItem[]) => {
+  const renderNavGroup = (label: string, icon: any, items: NavItem[], color?: string) => {
     const GroupIcon = icon;
+    const iconColor = color || undefined;
 
     // Single-item group without children — render directly
     if (items.length === 1 && !items[0].children) {
@@ -217,7 +218,7 @@ export function AppShellLayout() {
         <NavLink
           key={item.path}
           label={label}
-          leftSection={<ItemIcon size={18} />}
+          leftSection={<ItemIcon size={18} color={iconColor} />}
           active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
           onClick={() => { navigate(item.path); setOpened(false); }}
           variant="filled"
@@ -241,7 +242,7 @@ export function AppShellLayout() {
     return (
       <NavLink
         label={label}
-        leftSection={<GroupIcon size={18} />}
+        leftSection={<GroupIcon size={18} color={iconColor} />}
         childrenOffset={24}
         opened={isOpen}
         onChange={(opened) => setOpenGroups((prev) => ({ ...prev, [label]: opened }))}
@@ -291,14 +292,14 @@ export function AppShellLayout() {
 
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
-          {renderNavGroup('Dashboard', IconDashboard, dashboardNav)}
-          {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav)}
-          {renderNavGroup('Code', IconRocket, codeNav)}
-          {renderNavGroup('Data', IconPackage, dataNav)}
-          {renderNavGroup('Metrics', IconChartBar, metricsNav)}
-          {renderNavGroup('Tools', IconTool, explorerNav)}
-          {renderNavGroup('Logs', IconFileText, logsNav)}
-          {renderNavGroup('Settings', IconSettings, configNav)}
+          {renderNavGroup('Dashboard', IconDashboard, dashboardNav, '#3498db')}
+          {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav, '#e67e22')}
+          {renderNavGroup('Code', IconRocket, codeNav, '#2ecc71')}
+          {renderNavGroup('Data', IconPackage, dataNav, '#9b59b6')}
+          {renderNavGroup('Metrics', IconChartBar, metricsNav, '#1abc9c')}
+          {renderNavGroup('Tools', IconTool, explorerNav, '#f39c12')}
+          {renderNavGroup('Logs', IconFileText, logsNav, '#e74c3c')}
+          {renderNavGroup('Settings', IconSettings, configNav, '#95a5a6')}
         </MantineAppShell.Section>
 
         <MantineAppShell.Section>
