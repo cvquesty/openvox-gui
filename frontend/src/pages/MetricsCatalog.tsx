@@ -120,13 +120,13 @@ function buildFlowGraph(
         label: (
           <div style={{ fontSize: mode === 'hierarchy' ? 12 : 11, lineHeight: 1.4, textAlign: 'center', padding: '6px 8px' }}>
             {isClass && mode === 'hierarchy' ? (
-              <div style={{ fontWeight: 700, color: classColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 20 }}>
+              <div style={{ fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 20 }}>
                 {r.title}
               </div>
             ) : (
               <>
-                <div style={{ fontWeight: 800, color: getTypeColor(r.type), fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>{r.type}</div>
-                <div style={{ fontWeight: 500, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 20 }}>
+                <div style={{ fontWeight: 800, color: '#FFFFFF', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.85 }}>{r.type}</div>
+                <div style={{ fontWeight: 500, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 20 }}>
                   {r.title}
                 </div>
               </>
@@ -138,11 +138,11 @@ function buildFlowGraph(
         width: nodeWidth,
         borderRadius: 8,
         border: `2px solid ${classColor}`,
-        backgroundColor: '#ffffff',
-        color: '#1a1a2e',
+        backgroundColor: classColor,
+        color: '#FFFFFF',
         fontSize: 11,
         padding: 0,
-        boxShadow: `0 2px 8px ${classColor}33`,
+        boxShadow: `0 3px 12px ${classColor}55`,
       },
     };
   });
