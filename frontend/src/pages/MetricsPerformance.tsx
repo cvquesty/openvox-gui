@@ -206,7 +206,9 @@ export function MetricsPerformancePage() {
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
               {nodeComparison.map((n: any, i: number) => (
                 <Area key={n.certname} type="monotone" dataKey={n.certname}
-                  stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5} dot={false}
+                  stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={2}
+                  dot={{ r: 3, fill: COLORS[i % COLORS.length] }}
+                  connectNulls
                   name={shortName(n.certname)} />
               ))}
             </AreaChart>
