@@ -325,6 +325,25 @@ async def get_catalog_graph(
 
 # ─── 7. PuppetDB Health ───────────────────────────────────
 
+@router.get("/puppetdb-metrics-list")
+async def list_puppetdb_metrics(_user: str = Depends(_AUTH)):
+    """List all available JMX metric beans from PuppetDB."""
+    try:
+        client = await puppetdb_service._get_client()
+        resp = await client.get("/metrics/v2/list")
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/puppetdb-metric/{metric_path:path}")
+async def get_puppetdb_metric(metric_path: str, _user: str = Depends(_AUTH)):
+    """Read a specific JMX metric from PuppetDB."""
+    result = await puppetdb_service.get_pdb_metrics(metric_path)
+    return result
+
+
 @router.get("/puppetdb-health")
 async def get_puppetdb_health(_user: str = Depends(_AUTH)):
     """PuppetDB service health: queue depth, command stats, JVM heap."""
