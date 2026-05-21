@@ -245,33 +245,58 @@ async def get_catalog_graph(
             resource_map[tgt_id] = {"id": tgt_id, "type": tgt_type, "title": tgt_title}
 
     # Build class hierarchy from tags.
-    # Puppet tags each resource with the full chain of classes that declared it.
-    # By finding which class tags appear on each Class resource, we can infer
-    # the include/contain hierarchy (role → profile → module class).
+    # Puppet tags each Class resource with the full containment chain of
+    # classes that declared it. We use two strategies to find the parent:
+    #
+    # 1. Namespace parent: Apache::Mod::Ssl → Apache (shares :: prefix)
+    # 2. Tag-based parent: Apache → Profiles::Openvox::Puppetboard
+    #    (the most specific class-name tag that isn't a namespace ancestor)
+    #
+    # This produces the full role → profile → module → subclass tree.
     class_resources = [r for r in resources if r.get("type") == "Class" and r.get("title")]
     class_titles_lower = {r["title"].lower(): r["title"] for r in class_resources}
 
     class_hierarchy_edges = []
+    assigned_children: set = set()
+
     for r in class_resources:
         title = r["title"]
+        title_lower = title.lower()
         tags = r.get("tags", [])
-        # Find tags that match other class names (= ancestors in the include chain)
-        ancestors = []
+
+        # Strategy 1: namespace parent (e.g., Chrony::Config → Chrony)
+        if "::" in title:
+            ns_parent = "::".join(title.split("::")[:-1])
+            if ns_parent.lower() in class_titles_lower:
+                parent = class_titles_lower[ns_parent.lower()]
+                class_hierarchy_edges.append({
+                    "source": f"Class[{parent}]",
+                    "target": f"Class[{title}]",
+                    "relationship": "contains",
+                })
+                assigned_children.add(title_lower)
+                continue
+
+        # Strategy 2: tag-based parent (cross-module include)
+        ancestor_tags = []
         for tag in tags:
             tag_lower = tag.lower()
-            if tag_lower in class_titles_lower and tag_lower != title.lower() and tag_lower != "class":
-                ancestors.append(class_titles_lower[tag_lower])
-        if ancestors:
-            # The most specific ancestor (longest name) is the direct parent
-            ancestors.sort(key=lambda x: -len(x))
-            parent = ancestors[0]
-            parent_id = f"Class[{parent}]"
-            child_id = f"Class[{title}]"
+            if (tag_lower in class_titles_lower
+                    and tag_lower != title_lower
+                    and tag_lower != "class"
+                    and not title_lower.startswith(tag_lower + "::")):
+                ancestor_tags.append(class_titles_lower[tag_lower])
+
+        if ancestor_tags:
+            # Pick the most specific (longest name = closest in the chain)
+            ancestor_tags.sort(key=lambda x: -len(x))
+            parent = ancestor_tags[0]
             class_hierarchy_edges.append({
-                "source": parent_id,
-                "target": child_id,
+                "source": f"Class[{parent}]",
+                "target": f"Class[{title}]",
                 "relationship": "includes",
             })
+            assigned_children.add(title_lower)
 
     return {
         "certname": certname,
