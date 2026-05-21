@@ -1,15 +1,16 @@
 /**
  * OpenVox GUI - MetricsCatalog.tsx
  *
- * Catalog Graph — select a node to view its compiled catalog as a
- * directed dependency graph. Resources are nodes, Puppet relationships
- * (requires, before, notifies, subscribes) are directed edges.
- * Uses @xyflow/react with dagre for automatic hierarchical layout.
+ * Catalog Graph — two views:
+ *   1. Class Hierarchy: tree showing which classes include/contain other
+ *      classes, visualizing the Puppet role → profile → module structure.
+ *   2. Dependency Graph: full resource dependency graph with requires/
+ *      before/notifies/subscribes edges.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
-  Select, Paper,
+  Select, Paper, Tabs,
 } from '@mantine/core';
 import { IconSitemap } from '@tabler/icons-react';
 import {
@@ -20,7 +21,6 @@ import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { metrics, nodes } from '../services/api';
 
-// Color by resource type
 const TYPE_COLORS: Record<string, string> = {
   Class: '#0D6EFD',
   File: '#2ecc71',
@@ -32,10 +32,11 @@ const TYPE_COLORS: Record<string, string> = {
   Cron: '#f39c12',
   Mount: '#95a5a6',
   Notify: '#fd7e14',
+  Stage: '#6c757d',
 };
 
 const EDGE_COLORS: Record<string, string> = {
-  contains: '#95a5a6',
+  contains: '#556677',
   before: '#0D6EFD',
   requires: '#2ecc71',
   notifies: '#e67e22',
@@ -46,47 +47,99 @@ function getTypeColor(type: string): string {
   return TYPE_COLORS[type] || '#6c757d';
 }
 
-function layoutGraph(
+function buildFlowGraph(
   resources: any[],
   edges: any[],
+  mode: 'hierarchy' | 'dependencies',
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60, marginx: 20, marginy: 20 });
+  g.setGraph({ rankdir: 'TB', nodesep: 30, ranksep: 50, marginx: 20, marginy: 20 });
 
-  // Add nodes
-  for (const r of resources) {
-    g.setNode(r.id, { width: 200, height: 40 });
+  let filteredResources: any[];
+  let filteredEdges: any[];
+
+  if (mode === 'hierarchy') {
+    // Only Class resources + contains edges between them
+    const classIds = new Set(
+      resources.filter(r => r.type === 'Class').map(r => r.id)
+    );
+    filteredResources = resources.filter(r => r.type === 'Class');
+    filteredEdges = edges.filter(e =>
+      e.relationship === 'contains' && classIds.has(e.source) && classIds.has(e.target)
+    );
+  } else {
+    // All resources, non-contains edges
+    filteredResources = resources;
+    filteredEdges = edges.filter(e => e.relationship !== 'contains');
   }
 
-  // Add edges
-  for (const e of edges) {
-    // Skip 'contains' edges for cleaner layout — they're structural, not dependency
-    if (e.relationship === 'contains') continue;
-    g.setEdge(e.source, e.target);
+  if (filteredResources.length === 0) return { nodes: [], edges: [] };
+
+  // Determine which resources are connected
+  const connectedIds = new Set<string>();
+  for (const e of filteredEdges) {
+    connectedIds.add(e.source);
+    connectedIds.add(e.target);
+  }
+
+  // For hierarchy mode, include all classes even if unconnected
+  // For dependency mode, only show connected resources
+  const visibleResources = mode === 'hierarchy'
+    ? filteredResources
+    : filteredResources.filter(r => connectedIds.has(r.id));
+
+  const nodeWidth = mode === 'hierarchy' ? 220 : 180;
+  const nodeHeight = mode === 'hierarchy' ? 50 : 40;
+
+  for (const r of visibleResources) {
+    g.setNode(r.id, { width: nodeWidth, height: nodeHeight });
+  }
+  for (const e of filteredEdges) {
+    if (g.hasNode(e.source) && g.hasNode(e.target)) {
+      g.setEdge(e.source, e.target);
+    }
   }
 
   dagre.layout(g);
 
-  const flowNodes: FlowNode[] = resources.map((r) => {
+  const flowNodes: FlowNode[] = visibleResources.map((r) => {
     const pos = g.node(r.id);
+    const isClass = r.type === 'Class';
+    const displayTitle = isClass ? r.title : `${r.type}[${r.title}]`;
+    // Color classes by depth: roles=darker, profiles=medium, modules=lighter
+    let classColor = getTypeColor(r.type);
+    if (isClass && mode === 'hierarchy') {
+      if (r.title.match(/^Role/i)) classColor = '#e74c3c';
+      else if (r.title.match(/^Profile/i)) classColor = '#e67e22';
+      else if (r.title === 'main' || r.title === 'Settings') classColor = '#95a5a6';
+    }
+
     return {
       id: r.id,
-      position: { x: (pos?.x ?? 0) - 100, y: (pos?.y ?? 0) - 20 },
+      position: { x: (pos?.x ?? 0) - nodeWidth / 2, y: (pos?.y ?? 0) - nodeHeight / 2 },
       data: {
         label: (
-          <div style={{ fontSize: 10, lineHeight: 1.3, textAlign: 'center', padding: '2px 4px' }}>
-            <div style={{ fontWeight: 700, color: getTypeColor(r.type) }}>{r.type}</div>
-            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 190 }}>
-              {r.title}
-            </div>
+          <div style={{ fontSize: mode === 'hierarchy' ? 11 : 10, lineHeight: 1.3, textAlign: 'center', padding: '4px 6px' }}>
+            {isClass && mode === 'hierarchy' ? (
+              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 16 }}>
+                {r.title}
+              </div>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, color: getTypeColor(r.type), fontSize: 9 }}>{r.type}</div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 16 }}>
+                  {r.title}
+                </div>
+              </>
+            )}
           </div>
         ),
       },
       style: {
-        width: 200,
+        width: nodeWidth,
         borderRadius: 6,
-        border: `2px solid ${getTypeColor(r.type)}`,
+        border: `2px solid ${classColor}`,
         backgroundColor: 'rgba(20, 20, 33, 0.85)',
         color: '#e0e0e0',
         fontSize: 10,
@@ -95,18 +148,21 @@ function layoutGraph(
     };
   });
 
-  const flowEdges: FlowEdge[] = edges
-    .filter((e) => e.relationship !== 'contains')
+  const flowEdges: FlowEdge[] = filteredEdges
+    .filter(e => g.hasNode(e.source) && g.hasNode(e.target))
     .map((e, i) => ({
       id: `e-${i}`,
       source: e.source,
       target: e.target,
-      label: e.relationship,
+      label: mode === 'dependencies' ? e.relationship : undefined,
       labelStyle: { fontSize: 8, fill: '#8899aa' },
       labelBgStyle: { fill: 'rgba(20,20,33,0.8)' },
       labelBgPadding: [4, 2] as [number, number],
       markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLORS[e.relationship] || '#6c757d' },
-      style: { stroke: EDGE_COLORS[e.relationship] || '#6c757d', strokeWidth: 1.5 },
+      style: {
+        stroke: EDGE_COLORS[e.relationship] || '#6c757d',
+        strokeWidth: mode === 'hierarchy' ? 2 : 1.5,
+      },
       animated: e.relationship === 'notifies',
     }));
 
@@ -120,6 +176,7 @@ export function MetricsCatalogPage() {
   const [catalogData, setCatalogData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<string>('hierarchy');
 
   useEffect(() => {
     nodes.list()
@@ -153,22 +210,33 @@ export function MetricsCatalogPage() {
 
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
     if (!catalogData?.resources || !catalogData?.edges) return { nodes: [], edges: [] };
-    return layoutGraph(catalogData.resources, catalogData.edges);
-  }, [catalogData]);
+    return buildFlowGraph(catalogData.resources, catalogData.edges, mode as 'hierarchy' | 'dependencies');
+  }, [catalogData, mode]);
 
-  // Count dependency edges (non-contains)
-  const depEdgeCount = flowEdges.length;
+  // Stats
+  const classCount = catalogData?.resources?.filter((r: any) => r.type === 'Class').length || 0;
   const resourceCount = catalogData?.resource_count || 0;
 
   // Unique types for legend
-  const types = useMemo(() => {
-    if (!catalogData?.resources) return [];
-    const seen = new Set<string>();
-    return catalogData.resources
-      .map((r: any) => r.type)
-      .filter((t: string) => { if (seen.has(t)) return false; seen.add(t); return true; })
-      .sort();
-  }, [catalogData]);
+  const legendItems = useMemo(() => {
+    if (mode === 'hierarchy') {
+      return [
+        { label: 'Role', color: '#e74c3c' },
+        { label: 'Profile', color: '#e67e22' },
+        { label: 'Module Class', color: '#0D6EFD' },
+        { label: 'Internal', color: '#95a5a6' },
+      ];
+    }
+    const types = new Set<string>();
+    flowNodes.forEach(n => {
+      const border = n.style?.border;
+      if (typeof border === 'string') {
+        const typeMatch = String((n.data as any)?.label?.props?.children?.[0]?.props?.children || '');
+        if (typeMatch) types.add(typeMatch);
+      }
+    });
+    return [...types].map(t => ({ label: t, color: getTypeColor(t) }));
+  }, [flowNodes, mode]);
 
   return (
     <Stack>
@@ -192,9 +260,8 @@ export function MetricsCatalogPage() {
           />
           {catalogData && (
             <Group gap="xs">
-              <Badge variant="light" color="blue" size="lg">{resourceCount} resources</Badge>
-              <Badge variant="light" color="cyan" size="lg">{depEdgeCount} dependencies</Badge>
-              <Badge variant="light" color="gray" size="lg">{types.length} types</Badge>
+              <Badge variant="light" color="blue" size="lg">{classCount} classes</Badge>
+              <Badge variant="light" color="cyan" size="lg">{resourceCount} resources</Badge>
             </Group>
           )}
         </Group>
@@ -203,61 +270,91 @@ export function MetricsCatalogPage() {
       {error && <Alert color="red" title="Error">{error}</Alert>}
       {loading && <Center h={400}><Loader size="xl" /></Center>}
 
-      {catalogData && flowNodes.length > 0 && (
+      {catalogData && (
         <>
+          <Tabs value={mode} onChange={(v) => setMode(v || 'hierarchy')}>
+            <Tabs.List>
+              <Tabs.Tab value="hierarchy">Class Hierarchy</Tabs.Tab>
+              <Tabs.Tab value="dependencies">Resource Dependencies</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+
           {/* Legend */}
           <Paper withBorder p="xs">
             <Group gap="md" wrap="wrap">
-              <Text size="xs" fw={600} c="dimmed">Resource Types:</Text>
-              {types.map((t: string) => (
-                <Group key={t} gap={4}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: getTypeColor(t) }} />
-                  <Text size="xs">{t}</Text>
-                </Group>
-              ))}
-              <Text size="xs" c="dimmed" ml="md">Edge Types:</Text>
-              {Object.entries(EDGE_COLORS).filter(([k]) => k !== 'contains').map(([rel, color]) => (
-                <Group key={rel} gap={4}>
-                  <div style={{ width: 16, height: 2, backgroundColor: color }} />
-                  <Text size="xs">{rel}</Text>
-                </Group>
-              ))}
+              <Text size="xs" fw={600} c="dimmed">
+                {mode === 'hierarchy' ? 'Class Types:' : 'Resource Types:'}
+              </Text>
+              {mode === 'hierarchy' ? (
+                <>
+                  {legendItems.map(item => (
+                    <Group key={item.label} gap={4}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: item.color }} />
+                      <Text size="xs">{item.label}</Text>
+                    </Group>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {Object.entries(TYPE_COLORS).slice(0, 8).map(([type, color]) => (
+                    <Group key={type} gap={4}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: color }} />
+                      <Text size="xs">{type}</Text>
+                    </Group>
+                  ))}
+                </>
+              )}
+              {mode === 'dependencies' && (
+                <>
+                  <Text size="xs" c="dimmed" ml="md">Edges:</Text>
+                  {Object.entries(EDGE_COLORS).filter(([k]) => k !== 'contains').map(([rel, color]) => (
+                    <Group key={rel} gap={4}>
+                      <div style={{ width: 16, height: 2, backgroundColor: color }} />
+                      <Text size="xs">{rel}</Text>
+                    </Group>
+                  ))}
+                </>
+              )}
             </Group>
           </Paper>
 
           {/* Graph */}
-          <Card withBorder shadow="sm" padding={0} style={{ height: 600 }}>
-            <ReactFlow
-              nodes={flowNodes}
-              edges={flowEdges}
-              fitView
-              fitViewOptions={{ padding: 0.2 }}
-              minZoom={0.1}
-              maxZoom={2}
-              nodesDraggable
-              nodesConnectable={false}
-              elementsSelectable
-            >
-              <Background gap={20} size={1} color="rgba(255,255,255,0.05)" />
-              <Controls />
-              <MiniMap
-                nodeColor={(n) => {
-                  const border = n.style?.border;
-                  if (typeof border === 'string') {
-                    const match = border.match(/#[0-9a-fA-F]{6}/);
-                    return match ? match[0] : '#6c757d';
-                  }
-                  return '#6c757d';
-                }}
-                style={{ backgroundColor: 'rgba(20,20,33,0.9)' }}
-              />
-            </ReactFlow>
-          </Card>
+          {flowNodes.length > 0 ? (
+            <Card withBorder shadow="sm" padding={0} style={{ height: 650 }}>
+              <ReactFlow
+                nodes={flowNodes}
+                edges={flowEdges}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                minZoom={0.05}
+                maxZoom={2.5}
+                nodesDraggable
+                nodesConnectable={false}
+                elementsSelectable
+              >
+                <Background gap={20} size={1} color="rgba(255,255,255,0.05)" />
+                <Controls />
+                <MiniMap
+                  nodeColor={(n) => {
+                    const border = n.style?.border;
+                    if (typeof border === 'string') {
+                      const match = border.match(/#[0-9a-fA-F]{6}/);
+                      return match ? match[0] : '#6c757d';
+                    }
+                    return '#6c757d';
+                  }}
+                  style={{ backgroundColor: 'rgba(20,20,33,0.9)' }}
+                />
+              </ReactFlow>
+            </Card>
+          ) : (
+            <Alert color="yellow">
+              {mode === 'hierarchy'
+                ? 'No class containment relationships found in this catalog.'
+                : 'No dependency relationships found (all edges are containment edges).'}
+            </Alert>
+          )}
         </>
-      )}
-
-      {catalogData && flowNodes.length === 0 && !loading && (
-        <Alert color="yellow">No dependency relationships found in this node's catalog. The catalog may only contain 'contains' edges (structural, not dependency).</Alert>
       )}
     </Stack>
   );
