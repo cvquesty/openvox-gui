@@ -224,7 +224,16 @@ export function MetricsCompliancePage() {
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                <XAxis dataKey="timestamp" tick={{ fontSize: 10 }} />
+                <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: '#8899aa' }}
+                  tickFormatter={(v: string) => {
+                    if (!v) return '';
+                    // Format "2026-05-20T07" → "07:00" or "2026-05-20T15" → "15:00"
+                    const hourMatch = v.match(/T(\d{2})$/);
+                    if (hourMatch) return `${hourMatch[1]}:00`;
+                    const timeMatch = v.match(/T(\d{2}:\d{2})/);
+                    if (timeMatch) return timeMatch[1];
+                    return v.slice(-5);
+                  }} />
                 <YAxis allowDecimals={false} />
                 <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Legend />
