@@ -132,13 +132,13 @@ export function MetricsPerformancePage() {
 
   // Catch render errors from bad JMX data
   try {
-    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} />;
+    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} expanded={expanded} toggleExpand={toggleExpand} />;
   } catch (e: any) {
     return <Alert color="red" title="Render Error">{String(e?.message || e)}</Alert>;
   }
 }
 
-function MetricsPerformanceContent({ perfData, serverData }: { perfData: any; serverData: any }) {
+function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpand }: { perfData: any; serverData: any; expanded: string | null; toggleExpand: (id: string) => void }) {
 
   // Agent-side data
   const rawTrends = perfData.run_time_trends || [];
