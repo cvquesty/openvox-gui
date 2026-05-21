@@ -64,26 +64,34 @@ function DistributionCharts({ data }: { data: FactDistData }) {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper withBorder p="md" radius="sm">
             <Text fw={600} mb="sm">Distribution (Pie)</Text>
-            <ResponsiveContainer width="100%" height={400}>
-              <PieChart>
+            <ResponsiveContainer width="100%" height={420}>
+              <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                 <Pie
                   data={pieData}
                   cx="50%"
-                  cy="50%"
-                  outerRadius={120}
+                  cy="40%"
+                  outerRadius={100}
+                  innerRadius={40}
                   dataKey="value"
                   nameKey="name"
-                  label={({ name, percent }) =>
-                    percent > 0.04 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''
-                  }
-                  labelLine={{ strokeWidth: 1 }}
+                  label={false}
                 >
                   {pieData.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                   ))}
                 </Pie>
-                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
-                <Legend />
+                <ReTooltip
+                  contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }}
+                  labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }}
+                  formatter={(value: number, name: string) => [`${value} nodes (${((value / (data.total_nodes || 1)) * 100).toFixed(1)}%)`, name]}
+                />
+                <Legend
+                  layout="horizontal"
+                  verticalAlign="bottom"
+                  align="center"
+                  wrapperStyle={{ fontSize: 11, paddingTop: 12, overflow: 'hidden' }}
+                  formatter={(value: string) => value.length > 25 ? value.substring(0, 22) + '...' : value}
+                />
               </PieChart>
             </ResponsiveContainer>
           </Paper>
