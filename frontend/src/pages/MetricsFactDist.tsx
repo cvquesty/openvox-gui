@@ -33,16 +33,22 @@ interface FactDistData {
   total_nodes: number;
   unique_values: number;
   distribution: { value: string; count: number }[];
+  chart_distribution?: { value: string; count: number }[];
 }
 
 function DistributionCharts({ data }: { data: FactDistData }) {
-  const dist = (data.distribution || []).slice(0, 20); // Cap at 20 slices
+  // Use chart_distribution (top 7 + Other) for pie, full distribution for bar
+  const dist = (data.chart_distribution || data.distribution || []).slice(0, 10);
 
   if (dist.length === 0) {
     return <Alert color="yellow">No distribution data available for this fact.</Alert>;
   }
 
-  const chartData = dist.map((d) => ({
+  const pieData = dist.map((d) => ({
+    name: String(d.value ?? 'null'),
+    value: d.count,
+  }));
+  const barData = (data.distribution || []).slice(0, 20).map((d) => ({
     name: String(d.value ?? 'null'),
     value: d.count,
   }));
@@ -61,17 +67,18 @@ function DistributionCharts({ data }: { data: FactDistData }) {
             <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
-                  data={chartData}
+                  data={pieData}
                   cx="50%"
                   cy="50%"
-                  outerRadius={100}
+                  outerRadius={120}
                   dataKey="value"
                   nameKey="name"
                   label={({ name, percent }) =>
-                    percent > 0.05 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''
+                    percent > 0.04 ? `${name} (${(percent * 100).toFixed(0)}%)` : ''
                   }
+                  labelLine={{ strokeWidth: 1 }}
                 >
-                  {chartData.map((_, idx) => (
+                  {pieData.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                   ))}
                 </Pie>
@@ -86,13 +93,13 @@ function DistributionCharts({ data }: { data: FactDistData }) {
           <Paper withBorder p="md" radius="sm">
             <Text fw={600} mb="sm">Distribution (Bar)</Text>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={chartData} layout="vertical" margin={{ left: 80 }}>
+              <BarChart data={barData} layout="vertical" margin={{ left: 100 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis type="number" allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={75} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={95} />
                 <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Bar dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
-                  {chartData.map((_, idx) => (
+                  {barData.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                   ))}
                 </Bar>

@@ -119,6 +119,7 @@ export function MetricsCatalogPage() {
     nodes.list()
       .then((result) => {
         const list = Array.isArray(result) ? result : [];
+        list.sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || ''));
         setNodeList(list);
       })
       .catch((e: any) => setError('Failed to load node list: ' + e.message))

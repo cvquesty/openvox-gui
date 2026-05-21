@@ -168,17 +168,28 @@ async def get_fact_distribution(
             value = str(value)
         counts[str(value)] += 1
 
-    distribution = sorted(
+    full_distribution = sorted(
         [{"value": k, "count": v} for k, v in counts.items()],
         key=lambda x: x["count"],
         reverse=True,
     )
 
+    # Top 7 for pie chart + "Other" bucket
+    top_n = 7
+    if len(full_distribution) > top_n:
+        top = full_distribution[:top_n]
+        other_count = sum(d["count"] for d in full_distribution[top_n:])
+        top.append({"value": "Other", "count": other_count})
+        chart_distribution = top
+    else:
+        chart_distribution = full_distribution
+
     return {
         "fact": fact_path,
-        "total_nodes": sum(c["count"] for c in distribution),
-        "unique_values": len(distribution),
-        "distribution": distribution,
+        "total_nodes": sum(c["count"] for c in full_distribution),
+        "unique_values": len(full_distribution),
+        "distribution": full_distribution,
+        "chart_distribution": chart_distribution,
     }
 
 
@@ -244,15 +255,19 @@ async def get_puppetdb_health(_user: str = Depends(_AUTH)):
         "jvm_heap": None,
     }
 
-    # Status endpoint
-    status = await puppetdb_service.get_pdb_status()
-    if status:
-        svc = status.get("status", status)
-        result["status"] = status.get("state", "unknown")
+    # Status endpoint — PuppetDB returns nested structure:
+    # {"puppetdb-status": {"state": "running", "status": {...}}}
+    raw_status = await puppetdb_service.get_pdb_status()
+    if raw_status:
+        pdb = raw_status.get("puppetdb-status", raw_status)
+        result["status"] = pdb.get("state", "unknown")
+        svc = pdb.get("status", {})
         result["queue_depth"] = svc.get("queue_depth")
         result["processed"] = svc.get("processed")
         result["retried"] = svc.get("retried")
         result["discarded"] = svc.get("discarded")
+        result["version"] = pdb.get("active_version") or svc.get("version")
+        result["raw_status"] = svc
 
     # JVM heap
     heap = await puppetdb_service.get_pdb_metrics("java.lang:type=Memory")
@@ -337,10 +352,10 @@ async def get_class_coverage(
 
     try:
         query = 'resources[title, count()] { type = "Class" group by title order by count() desc limit ' + str(limit) + ' }'
-        result = await puppetdb_service._query(
-            "query",
-            query=query,
-        )
+        client = await puppetdb_service._get_client()
+        resp = await client.get("/pdb/query/v4", params={"query": query})
+        resp.raise_for_status()
+        result = resp.json()
         classes = [
             {"class_name": r.get("title", ""), "node_count": r.get("count", 0)}
             for r in result
