@@ -4,6 +4,7 @@
  * Component documentation to be expanded.
  */
 import { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
   Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid,
@@ -122,6 +123,7 @@ function CertOStamp() {
 }
 
 export function CertificatesPage() {
+  const navigate = useNavigate();
   const { isFormal } = useAppTheme();
   const [data, setData] = useState<any>(null);
   const [caInfo, setCaInfo] = useState<any>(null);
@@ -378,6 +380,7 @@ export function CertificatesPage() {
           <Title order={4}>Signed Certificates</Title>
           <Badge color="green" size="lg">{signed.length}</Badge>
         </Group>
+        <ScrollArea mah={500}>
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
@@ -387,9 +390,10 @@ export function CertificatesPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {signed.map((cert: any) => (
+            {[...signed].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')).map((cert: any) => (
               <Table.Tr key={cert.name}>
-                <Table.Td><Text fw={500}>{cert.name}</Text></Table.Td>
+                <Table.Td><Text fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                  onClick={() => navigate(`/nodes/${cert.name}`)}>{cert.name}</Text></Table.Td>
                 <Table.Td><Code style={{ fontSize: 11 }}>{cert.fingerprint || 'N/A'}</Code></Table.Td>
                 <Table.Td>
                   <Group gap="xs" justify="flex-end">
@@ -419,6 +423,7 @@ export function CertificatesPage() {
             )}
           </Table.Tbody>
         </Table>
+        </ScrollArea>
       </Card>
 
       <Modal opened={detailOpen} onClose={() => setDetailOpen(false)}
