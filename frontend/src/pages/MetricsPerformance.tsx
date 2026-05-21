@@ -11,8 +11,8 @@ import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, Cell,
+  ResponsiveContainer, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { IconChartLine, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { performance as perfApi, metrics } from '../services/api';
@@ -254,57 +254,53 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
       id: 'cmd-processing', title: 'Command Processing Time',
       stats: cmdData.map(d => ({ label: d.name, value: String(formatMs(d.mean)), color: 'cyan' })),
       render: () => (
-        <BarChart data={cmdData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={cmdData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Bar dataKey="mean" fill="#0D6EFD" name="Mean" radius={[4,4,0,0]} />
-          <Bar dataKey="p95" fill="#e67e22" name="95th Percentile" radius={[4,4,0,0]} />
-        </BarChart>
+          <Area type="natural" dataKey="mean" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} dot={false} name="Mean" />
+          <Area type="natural" dataKey="p95" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="95th Percentile" />
+        </AreaChart>
       ),
     },
     {
       id: 'storage-timing', title: 'Storage Operation Timing',
       render: () => (
-        <BarChart data={storageData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={storageData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatMs(v), 'Mean']} />
-          <Bar dataKey="mean" name="Mean Time" radius={[4,4,0,0]}>
-            {storageData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
-          </Bar>
-        </BarChart>
+          <Area type="natural" dataKey="mean" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.15} strokeWidth={2} dot={false} name="Mean Time" />
+        </AreaChart>
       ),
     },
     {
       id: 'db-pool', title: 'Database Connection Pool',
       render: () => (
-        <BarChart data={poolData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={poolData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Bar dataKey="value" name="Connections" radius={[4,4,0,0]}>
-            {poolData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-          </Bar>
-        </BarChart>
+          <Area type="natural" dataKey="value" stroke="#3498db" fill="#3498db" fillOpacity={0.15} strokeWidth={2} dot={false} name="Connections" />
+        </AreaChart>
       ),
     },
     {
       id: 'http-latency', title: 'HTTP API Latency',
       render: () => (
-        <BarChart data={httpData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={httpData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Bar dataKey="mean" fill="#3498db" name="Mean" radius={[4,4,0,0]} />
-          <Bar dataKey="p95" fill="#e74c3c" name="95th Pct" radius={[4,4,0,0]} />
-        </BarChart>
+          <Area type="natural" dataKey="mean" stroke="#3498db" fill="#3498db" fillOpacity={0.15} strokeWidth={2} dot={false} name="Mean" />
+          <Area type="natural" dataKey="p95" stroke="#e74c3c" fill="#e74c3c" fillOpacity={0.1} strokeWidth={2} dot={false} name="95th Pct" />
+        </AreaChart>
       ),
     },
     {
@@ -312,20 +308,17 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
       stats: [{ label: 'Dedup Rate', value: `${(Number(jmxVal(s.dedup_pct, 'Value') || 0) * 100).toFixed(1)}%`, color: 'green' }],
       render: () => {
         const dedupData = [
-          { name: 'Hash Match', value: jmxVal(s.catalog_hash_match, 'Mean') / 1000 },
-          { name: 'Hash Miss', value: jmxVal(s.catalog_hash_miss, 'Mean') / 1000 },
-        ].filter(d => d.value > 0);
+          { name: 'Hash Match', value: Number(jmxVal(s.catalog_hash_match, 'Mean')) / 1000 || 0 },
+          { name: 'Hash Miss', value: Number(jmxVal(s.catalog_hash_miss, 'Mean')) / 1000 || 0 },
+        ];
         return (
-          <BarChart data={dedupData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart data={dedupData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
             <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
             <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatMs(v), 'Time']} />
-            <Bar dataKey="value" name="Time" radius={[4,4,0,0]}>
-              <Cell fill="#2ecc71" />
-              <Cell fill="#e74c3c" />
-            </Bar>
-          </BarChart>
+            <Area type="natural" dataKey="value" stroke="#9b59b6" fill="#9b59b6" fillOpacity={0.15} strokeWidth={2} dot={false} name="Time" />
+          </AreaChart>
         );
       },
     },
@@ -341,15 +334,15 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
           { name: 'Old Gen', count: Number(jmxVal(s.gc_old, 'CollectionCount')) || 0, time_ms: Number(jmxVal(s.gc_old, 'CollectionTime')) || 0 },
         ];
         return (
-          <BarChart data={gcData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart data={gcData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
             <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
             <ReTooltip {...TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Bar dataKey="count" fill="#3498db" name="Collections" radius={[4,4,0,0]} />
-            <Bar dataKey="time_ms" fill="#e67e22" name="Time (ms)" radius={[4,4,0,0]} />
-          </BarChart>
+            <Area type="natural" dataKey="count" stroke="#3498db" fill="#3498db" fillOpacity={0.15} strokeWidth={2} dot={false} name="Collections" />
+            <Area type="natural" dataKey="time_ms" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="Time (ms)" />
+          </AreaChart>
         );
       },
     },
@@ -367,17 +360,13 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
           { name: 'Avg/Node', value: Number(jmxVal(s.population_avg_resources, 'Value')) || 0 },
         ];
         return (
-          <BarChart data={popData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart data={popData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
             <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
             <ReTooltip {...TOOLTIP_STYLE} />
-            <Bar dataKey="value" name="Count" radius={[4,4,0,0]}>
-              <Cell fill="#0D6EFD" />
-              <Cell fill="#2ecc71" />
-              <Cell fill="#e67e22" />
-            </Bar>
-          </BarChart>
+            <Area type="natural" dataKey="value" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} dot={false} name="Count" />
+          </AreaChart>
         );
       },
     },
