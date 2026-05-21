@@ -97,9 +97,20 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
   );
 }
 
+const SERVER_HISTORY_KEY = 'openvox_perf_server_history';
+const MAX_SERVER_POINTS = 120;
+
+function loadServerHistory(): any[] {
+  try { const raw = localStorage.getItem(SERVER_HISTORY_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+function saveServerHistory(pts: any[]) {
+  try { localStorage.setItem(SERVER_HISTORY_KEY, JSON.stringify(pts)); } catch {}
+}
+
 export function MetricsPerformancePage() {
   const [perfData, setPerfData] = useState<any>(null);
   const [serverData, setServerData] = useState<any>(null);
+  const [serverHistory, setServerHistory] = useState<any[]>(loadServerHistory);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -113,6 +124,25 @@ export function MetricsPerformancePage() {
       ]);
       setPerfData(perf);
       setServerData(server);
+      // Accumulate server metrics history for time-series charts
+      if (server) {
+        const point: any = { time: new Date().toLocaleTimeString() };
+        point.catalog_ms = Number(server.catalog_processing?.Mean) || 0;
+        point.facts_ms = Number(server.facts_processing?.Mean) || 0;
+        point.report_ms = Number(server.report_processing?.Mean) || 0;
+        point.store_catalog_ms = Number(server.store_catalog?.Mean) / 1000 || 0;
+        point.store_facts_ms = Number(server.store_facts?.Mean) / 1000 || 0;
+        point.store_report_ms = Number(server.store_report?.Mean) / 1000 || 0;
+        point.http_query_ms = Number(server.http_query_time?.Mean) || 0;
+        point.http_cmd_ms = Number(server.http_cmd_time?.Mean) || 0;
+        point.queue_depth = Number(server.cmd_depth?.Count) || 0;
+        setServerHistory(prev => {
+          const updated = [...prev, point];
+          const trimmed = updated.length > MAX_SERVER_POINTS ? updated.slice(-MAX_SERVER_POINTS) : updated;
+          saveServerHistory(trimmed);
+          return trimmed;
+        });
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load performance data');
     } finally {
@@ -132,13 +162,13 @@ export function MetricsPerformancePage() {
 
   // Catch render errors from bad JMX data
   try {
-    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} expanded={expanded} toggleExpand={toggleExpand} />;
+    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} />;
   } catch (e: any) {
     return <Alert color="red" title="Render Error">{String(e?.message || e)}</Alert>;
   }
 }
 
-function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpand }: { perfData: any; serverData: any; expanded: string | null; toggleExpand: (id: string) => void }) {
+function MetricsPerformanceContent({ perfData, serverData, serverHistory, expanded, toggleExpand }: { perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void }) {
 
   // Agent-side data
   const rawTrends = perfData.run_time_trends || [];
@@ -263,26 +293,30 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
       id: 'cmd-processing', title: 'Command Processing Time',
       stats: cmdData.map(d => ({ label: d.name, value: String(formatMs(d.mean)), color: 'cyan' })),
       render: () => (
-        <AreaChart data={cmdData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="mean" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} dot={false} name="Mean" />
-          <Area type="natural" dataKey="p95" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="95th Percentile" />
+          <Area type="natural" dataKey="catalog_ms" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.1} strokeWidth={2} dot={false} name="Catalog" />
+          <Area type="natural" dataKey="facts_ms" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.1} strokeWidth={2} dot={false} name="Facts" />
+          <Area type="natural" dataKey="report_ms" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="Report" />
         </AreaChart>
       ),
     },
     {
       id: 'storage-timing', title: 'Storage Operation Timing',
       render: () => (
-        <AreaChart data={storageData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
-          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatMs(v), 'Mean']} />
-          <Area type="natural" dataKey="mean" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.15} strokeWidth={2} dot={false} name="Mean Time" />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.1} strokeWidth={2} dot={false} name="Catalog" />
+          <Area type="natural" dataKey="store_facts_ms" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.1} strokeWidth={2} dot={false} name="Facts" />
+          <Area type="natural" dataKey="store_report_ms" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="Report" />
         </AreaChart>
       ),
     },
@@ -301,14 +335,14 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
     {
       id: 'http-latency', title: 'HTTP API Latency',
       render: () => (
-        <AreaChart data={httpData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="mean" stroke="#3498db" fill="#3498db" fillOpacity={0.15} strokeWidth={2} dot={false} name="Mean" />
-          <Area type="natural" dataKey="p95" stroke="#e74c3c" fill="#e74c3c" fillOpacity={0.1} strokeWidth={2} dot={false} name="95th Pct" />
+          <Area type="natural" dataKey="http_query_ms" stroke="#3498db" fill="#3498db" fillOpacity={0.1} strokeWidth={2} dot={false} name="Query API" />
+          <Area type="natural" dataKey="http_cmd_ms" stroke="#e74c3c" fill="#e74c3c" fillOpacity={0.1} strokeWidth={2} dot={false} name="Command API" />
         </AreaChart>
       ),
     },
