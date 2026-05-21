@@ -10,7 +10,7 @@ import {
   TextInput, ScrollArea, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip,
 } from 'recharts';
 import { IconShieldCheck, IconSearch } from '@tabler/icons-react';
@@ -99,24 +99,22 @@ export function MetricsClassCoveragePage() {
       <Card withBorder shadow="sm" padding="lg">
         <Title order={4} mb="md">Top Classes by Deployment Count</Title>
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 28)}>
-            <BarChart data={chartData} layout="vertical">
+          <ResponsiveContainer width="100%" height={400}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-              <XAxis type="number" allowDecimals={false} />
-              <YAxis
-                dataKey="name"
-                type="category"
-                width={240}
-                tick={{ fontSize: 11 }}
-              />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} angle={-35} textAnchor="end" height={80} />
+              <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
               <ReTooltip
+                contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
+                labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
+                itemStyle={{ color: '#e0e0e0' }}
                 formatter={(value: number, _name: string, props: any) => [
                   `${value} nodes`,
                   props.payload.fullName,
                 ]}
               />
-              <Bar dataKey="nodes" fill={COLORS[0]} name="Nodes" radius={[0, 4, 4, 0]} />
-            </BarChart>
+              <Area type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={{ r: 3, fill: '#0D6EFD' }} name="Nodes" />
+            </AreaChart>
           </ResponsiveContainer>
         ) : (
           <Center h={300}>
