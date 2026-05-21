@@ -191,8 +191,24 @@ export function MetricsCompliancePage() {
                     <Cell key={idx} fill={entry.color} />
                   ))}
                 </Pie>
-                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
-                <Legend />
+                <ReTooltip
+                  contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
+                  labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
+                  formatter={(value: number, name: string) => [`${value} nodes`, name]}
+                  active={undefined}
+                  content={({ active, payload }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const entry = payload[0];
+                    if (!entry || !entry.value) return null;
+                    return (
+                      <div style={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}>
+                        <div style={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}>{entry.name}</div>
+                        <div>{entry.value} nodes ({((entry.payload?.percent ?? 0) * 100).toFixed(1)}%)</div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
               </PieChart>
             </ResponsiveContainer>
             <Text ta="center" size="lg" fw={700} c={compliantPct >= 90 ? 'green' : compliantPct >= 70 ? 'yellow' : 'red'}>
