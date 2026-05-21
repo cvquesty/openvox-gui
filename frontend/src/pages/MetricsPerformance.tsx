@@ -8,13 +8,13 @@
  */
 import { useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
+  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select, Button,
 } from '@mantine/core';
 import {
   ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
-import { IconChartLine, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
+import { IconChartLine, IconArrowsMaximize, IconArrowsMinimize, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { performance as perfApi, metrics } from '../services/api';
 
 const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#95a5a6'];
@@ -103,12 +103,32 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
 const SERVER_HISTORY_KEY = 'openvox_perf_server_history';
 const MAX_SERVER_POINTS = 120;
 
+const HISTORY_VERSION = 3; // Bump when new fields are added to force a reset
+
 function loadServerHistory(): any[] {
-  try { const raw = localStorage.getItem(SERVER_HISTORY_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  try {
+    const ver = localStorage.getItem(SERVER_HISTORY_KEY + '_v');
+    if (ver !== String(HISTORY_VERSION)) {
+      localStorage.removeItem(SERVER_HISTORY_KEY);
+      localStorage.setItem(SERVER_HISTORY_KEY + '_v', String(HISTORY_VERSION));
+      return [];
+    }
+    const raw = localStorage.getItem(SERVER_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 function saveServerHistory(pts: any[]) {
   try { localStorage.setItem(SERVER_HISTORY_KEY, JSON.stringify(pts)); } catch {}
 }
+
+const REFRESH_OPTIONS = [
+  { value: '5', label: '5 seconds' },
+  { value: '10', label: '10 seconds' },
+  { value: '15', label: '15 seconds' },
+  { value: '30', label: '30 seconds' },
+  { value: '60', label: '1 minute' },
+  { value: '0', label: 'Off' },
+];
 
 export function MetricsPerformancePage() {
   const [perfData, setPerfData] = useState<any>(null);
@@ -117,6 +137,8 @@ export function MetricsPerformancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [refreshRate, setRefreshRate] = useState<string>('15');
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
     try {
@@ -166,16 +188,19 @@ export function MetricsPerformancePage() {
       setError(err.message || 'Failed to load performance data');
     } finally {
       setLoading(false);
+      setLastRefresh(new Date());
     }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Auto-refresh server metrics every 15 seconds
+  // Auto-refresh at configurable rate
   useEffect(() => {
-    const interval = setInterval(fetchData, 15000);
+    const rate = parseInt(refreshRate) * 1000;
+    if (rate <= 0) return;
+    const interval = setInterval(fetchData, rate);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, refreshRate]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => prev === id ? null : id);
@@ -187,13 +212,13 @@ export function MetricsPerformancePage() {
 
   // Catch render errors from bad JMX data
   try {
-    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} />;
+    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} refreshRate={refreshRate} setRefreshRate={setRefreshRate} lastRefresh={lastRefresh} fetchData={fetchData} clearHistory={() => { setServerHistory([]); saveServerHistory([]); localStorage.setItem(SERVER_HISTORY_KEY + '_v', String(HISTORY_VERSION)); }} />;
   } catch (e: any) {
     return <Alert color="red" title="Render Error">{String(e?.message || e)}</Alert>;
   }
 }
 
-function MetricsPerformanceContent({ perfData, serverData, serverHistory, expanded, toggleExpand }: { perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void }) {
+function MetricsPerformanceContent({ perfData, serverData, serverHistory, expanded, toggleExpand, refreshRate, setRefreshRate, lastRefresh, fetchData, clearHistory }: { perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void; refreshRate: string; setRefreshRate: (v: string) => void; lastRefresh: Date; fetchData: () => void; clearHistory: () => void }) {
 
   // Agent-side data
   const rawTrends = perfData.run_time_trends || [];
@@ -433,10 +458,23 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
 
   return (
     <Stack>
-      <Group gap="sm">
-        <IconChartLine size={28} />
-        <Title order={2}>Run Performance</Title>
-        <Badge variant="light" color="blue" size="lg">{stats.total_runs || 0} runs / {stats.total_nodes || 0} nodes</Badge>
+      <Group justify="space-between">
+        <Group gap="sm">
+          <IconChartLine size={28} />
+          <Title order={2}>Run Performance</Title>
+          <Badge variant="light" color="blue" size="lg">{stats.total_runs || 0} runs / {stats.total_nodes || 0} nodes</Badge>
+        </Group>
+        <Group gap="xs">
+          <Select size="xs" data={REFRESH_OPTIONS} value={refreshRate}
+            onChange={(v) => setRefreshRate(v || '15')} style={{ width: 120 }} />
+          <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />}
+            onClick={fetchData}>Refresh</Button>
+          <Button size="xs" variant="subtle" color="gray" leftSection={<IconTrash size={14} />}
+            onClick={clearHistory}>
+            Clear History
+          </Button>
+          <Text size="xs" c="dimmed">{lastRefresh.toLocaleTimeString()}</Text>
+        </Group>
       </Group>
 
       {/* Stat cards */}
