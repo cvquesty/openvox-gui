@@ -337,10 +337,13 @@ async def list_puppetdb_metrics(_user: str = Depends(_AUTH)):
         return {"error": str(e)}
 
 
-@router.get("/puppetdb-metric/{metric_path:path}")
-async def get_puppetdb_metric(metric_path: str, _user: str = Depends(_AUTH)):
+@router.get("/puppetdb-metric")
+async def get_puppetdb_metric(
+    name: str = Query(..., description="JMX metric bean name, e.g. java.lang:type=Memory"),
+    _user: str = Depends(_AUTH),
+):
     """Read a specific JMX metric from PuppetDB."""
-    result = await puppetdb_service.get_pdb_metrics(metric_path)
+    result = await puppetdb_service.get_pdb_metrics(name)
     return result
 
 
