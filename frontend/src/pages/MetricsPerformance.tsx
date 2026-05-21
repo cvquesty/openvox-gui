@@ -164,12 +164,12 @@ export function MetricsPerformancePage() {
 
   // DB pool data
   const poolData = [
-    { name: 'Write Active', value: jmxVal(s.write_pool_active, 'Value') },
-    { name: 'Write Idle', value: jmxVal(s.write_pool_idle, 'Value') },
-    { name: 'Write Pending', value: jmxVal(s.write_pool_pending, 'Value') },
-    { name: 'Read Active', value: jmxVal(s.read_pool_active, 'Value') },
-    { name: 'Read Idle', value: jmxVal(s.read_pool_idle, 'Value') },
-    { name: 'Read Pending', value: jmxVal(s.read_pool_pending, 'Value') },
+    { name: 'Write Active', value: Number(jmxVal(s.write_pool_active, 'Value')) || 0 },
+    { name: 'Write Idle', value: Number(jmxVal(s.write_pool_idle, 'Value')) || 0 },
+    { name: 'Write Pending', value: Number(jmxVal(s.write_pool_pending, 'Value')) || 0 },
+    { name: 'Read Active', value: Number(jmxVal(s.read_pool_active, 'Value')) || 0 },
+    { name: 'Read Idle', value: Number(jmxVal(s.read_pool_idle, 'Value')) || 0 },
+    { name: 'Read Pending', value: Number(jmxVal(s.read_pool_pending, 'Value')) || 0 },
   ];
 
   // Command processing data
@@ -237,7 +237,7 @@ export function MetricsPerformancePage() {
     },
     {
       id: 'cmd-processing', title: 'Command Processing Time',
-      stats: cmdData.map(d => ({ label: d.name, value: formatMs(d.mean), color: 'cyan' })),
+      stats: cmdData.map(d => ({ label: d.name, value: String(formatMs(d.mean)), color: 'cyan' })),
       render: () => (
         <BarChart data={cmdData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
@@ -317,13 +317,13 @@ export function MetricsPerformancePage() {
     {
       id: 'gc-pressure', title: 'GC Pressure',
       stats: [
-        { label: 'Young GC', value: `${jmxVal(s.gc_young, 'CollectionCount')} collections`, color: 'cyan' },
-        { label: 'Old GC', value: `${jmxVal(s.gc_old, 'CollectionCount')} collections`, color: 'orange' },
+        { label: 'Young GC', value: `${Number(jmxVal(s.gc_young, 'CollectionCount')) || 0} collections`, color: 'cyan' },
+        { label: 'Old GC', value: `${Number(jmxVal(s.gc_old, 'CollectionCount')) || 0} collections`, color: 'orange' },
       ],
       render: () => {
         const gcData = [
-          { name: 'Young Gen', count: jmxVal(s.gc_young, 'CollectionCount'), time_ms: jmxVal(s.gc_young, 'CollectionTime') },
-          { name: 'Old Gen', count: jmxVal(s.gc_old, 'CollectionCount'), time_ms: jmxVal(s.gc_old, 'CollectionTime') },
+          { name: 'Young Gen', count: Number(jmxVal(s.gc_young, 'CollectionCount')) || 0, time_ms: Number(jmxVal(s.gc_young, 'CollectionTime')) || 0 },
+          { name: 'Old Gen', count: Number(jmxVal(s.gc_old, 'CollectionCount')) || 0, time_ms: Number(jmxVal(s.gc_old, 'CollectionTime')) || 0 },
         ];
         return (
           <BarChart data={gcData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -341,15 +341,15 @@ export function MetricsPerformancePage() {
     {
       id: 'population', title: 'Fleet Population',
       stats: [
-        { label: 'Nodes', value: `${jmxVal(s.population_nodes, 'Value')}` },
-        { label: 'Resources', value: `${jmxVal(s.population_resources, 'Value')}` },
-        { label: 'Avg/Node', value: `${(jmxVal(s.population_avg_resources, 'Value') || 0).toFixed(0)}` },
+        { label: 'Nodes', value: `${Number(jmxVal(s.population_nodes, 'Value')) || 0}` },
+        { label: 'Resources', value: `${Number(jmxVal(s.population_resources, 'Value')) || 0}` },
+        { label: 'Avg/Node', value: `${(Number(jmxVal(s.population_avg_resources, 'Value')) || 0).toFixed(0)}` },
       ],
       render: () => {
         const popData = [
-          { name: 'Nodes', value: jmxVal(s.population_nodes, 'Value') },
-          { name: 'Resources', value: jmxVal(s.population_resources, 'Value') },
-          { name: 'Avg/Node', value: jmxVal(s.population_avg_resources, 'Value') },
+          { name: 'Nodes', value: Number(jmxVal(s.population_nodes, 'Value')) || 0 },
+          { name: 'Resources', value: Number(jmxVal(s.population_resources, 'Value')) || 0 },
+          { name: 'Avg/Node', value: Number(jmxVal(s.population_avg_resources, 'Value')) || 0 },
         ];
         return (
           <BarChart data={popData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -382,7 +382,7 @@ export function MetricsPerformancePage() {
         <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Max Run</Text><Text size="lg" fw={700} c="red">{formatSeconds(stats.max_run_time || 0)}</Text></Paper>
         <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Min Run</Text><Text size="lg" fw={700} c="green">{formatSeconds(stats.min_run_time || 0)}</Text></Paper>
         <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Failed</Text><Text size="lg" fw={700} c={stats.failed_runs > 0 ? 'red' : 'green'}>{stats.failed_runs || 0}</Text></Paper>
-        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Queue</Text><Text size="lg" fw={700}>{jmxVal(s.cmd_depth, 'Count')}</Text></Paper>
+        <Paper withBorder p="sm" ta="center"><Text size="xs" c="dimmed">Queue</Text><Text size="lg" fw={700}>{String(jmxVal(s.cmd_depth, 'Count'))}</Text></Paper>
       </Group>
 
       {/* Chart grid — 2 per row, expandable */}
