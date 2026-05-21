@@ -52,10 +52,16 @@ const tickTime = (v: string) => {
 function jmxVal(obj: any, attr?: string): number {
   if (obj == null) return 0;
   if (typeof obj === 'number') return obj;
-  if (attr && typeof obj === 'object') return obj[attr] ?? 0;
-  // Timer/Meter: look for common attributes
+  if (attr && typeof obj === 'object') {
+    const v = obj[attr];
+    return typeof v === 'number' ? v : 0;
+  }
   if (typeof obj === 'object') {
-    return obj.Mean ?? obj.Value ?? obj.Count ?? obj.FiveMinuteRate ?? 0;
+    for (const key of ['Mean', 'Value', 'Count', 'FiveMinuteRate']) {
+      const v = obj[key];
+      if (typeof v === 'number') return v;
+    }
+    return 0;
   }
   return 0;
 }
@@ -173,10 +179,10 @@ export function MetricsPerformancePage() {
     { name: 'Report', mean: jmxVal(s.report_processing, 'Mean') / 1000, p95: (s.report_processing?.['95thPercentile'] ?? 0) / 1000 },
   ].filter(d => d.mean > 0);
 
-  // HTTP latency
+  // HTTP latency — may not be available (returns error object on some PuppetDB versions)
   const httpData = [
-    { name: 'Query API', mean: jmxVal(s.http_query_time, 'Mean'), p95: s.http_query_time?.['95thPercentile'] ?? 0 },
-    { name: 'Command API', mean: jmxVal(s.http_cmd_time, 'Mean'), p95: s.http_cmd_time?.['95thPercentile'] ?? 0 },
+    { name: 'Query API', mean: jmxVal(s.http_query_time, 'Mean'), p95: Number(s.http_query_time?.['95thPercentile']) || 0 },
+    { name: 'Command API', mean: jmxVal(s.http_cmd_time, 'Mean'), p95: Number(s.http_cmd_time?.['95thPercentile']) || 0 },
   ].filter(d => d.mean > 0);
 
   // Define all 10 chart panels
@@ -288,7 +294,7 @@ export function MetricsPerformancePage() {
     },
     {
       id: 'catalog-dedup', title: 'Catalog Deduplication',
-      stats: [{ label: 'Dedup Rate', value: `${((jmxVal(s.dedup_pct, 'Value') || 0) * 100).toFixed(1)}%`, color: 'green' }],
+      stats: [{ label: 'Dedup Rate', value: `${(Number(jmxVal(s.dedup_pct, 'Value') || 0) * 100).toFixed(1)}%`, color: 'green' }],
       render: () => {
         const dedupData = [
           { name: 'Hash Match', value: jmxVal(s.catalog_hash_match, 'Mean') / 1000 },
@@ -337,7 +343,7 @@ export function MetricsPerformancePage() {
       stats: [
         { label: 'Nodes', value: `${jmxVal(s.population_nodes, 'Value')}` },
         { label: 'Resources', value: `${jmxVal(s.population_resources, 'Value')}` },
-        { label: 'Avg/Node', value: `${jmxVal(s.population_avg_resources, 'Value').toFixed(0)}` },
+        { label: 'Avg/Node', value: `${(jmxVal(s.population_avg_resources, 'Value') || 0).toFixed(0)}` },
       ],
       render: () => {
         const popData = [
