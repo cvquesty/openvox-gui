@@ -186,14 +186,13 @@ export function MetricsPerformancePage() {
           <ResponsiveContainer width="100%" height={400}>
             <AreaChart margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
               data={(() => {
-                // Build time-series: for each timestamp, show the run time of each top-10 node
                 const top10Names = nodeComparison.map((n: any) => n.certname);
                 const timeMap: Record<string, any> = {};
                 for (const run of (data.run_time_trends || [])) {
                   if (!top10Names.includes(run.certname)) continue;
                   const t = run.time;
                   if (!timeMap[t]) timeMap[t] = { time: t };
-                  timeMap[t][shortName(run.certname)] = run.total;
+                  timeMap[t][run.certname] = run.total;
                 }
                 return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
               })()}>
@@ -204,9 +203,9 @@ export function MetricsPerformancePage() {
                 tickFormatter={(v: number) => formatSeconds(v)} />
               <ReTooltip {...TOOLTIP_STYLE}
                 formatter={(value: number, name: string) => [formatSeconds(value), name]} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
               {nodeComparison.map((n: any, i: number) => (
-                <Area key={n.certname} type="monotone" dataKey={shortName(n.certname)}
+                <Area key={n.certname} type="monotone" dataKey={n.certname}
                   stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5} dot={false}
                   name={shortName(n.certname)} />
               ))}
