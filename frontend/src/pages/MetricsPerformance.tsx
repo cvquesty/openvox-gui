@@ -139,6 +139,12 @@ export function MetricsPerformancePage() {
         point.http_query_ms = Number(server.http_query_time?.Mean) || 0;
         point.http_cmd_ms = Number(server.http_cmd_time?.Mean) || 0;
         point.queue_depth = Number(server.cmd_depth?.Count) || 0;
+        point.write_active = Number(server.write_pool_active?.Value) || 0;
+        point.write_idle = Number(server.write_pool_idle?.Value) || 0;
+        point.read_active = Number(server.read_pool_active?.Value) || 0;
+        point.read_idle = Number(server.read_pool_idle?.Value) || 0;
+        point.write_pending = Number(server.write_pool_pending?.Value) || 0;
+        point.read_pending = Number(server.read_pool_pending?.Value) || 0;
         setServerHistory(prev => {
           const updated = [...prev, point];
           const trimmed = updated.length > MAX_SERVER_POINTS ? updated.slice(-MAX_SERVER_POINTS) : updated;
@@ -332,12 +338,18 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
     {
       id: 'db-pool', title: 'Database Connection Pool',
       render: () => (
-        <AreaChart data={poolData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-          <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="value" stroke="#3498db" fill="#3498db" fillOpacity={0.15} strokeWidth={2} dot={false} name="Connections" />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="write_active" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Write Active" />
+          <Area type="natural" dataKey="write_idle" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Write Idle" />
+          <Area type="natural" dataKey="read_active" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Read Active" />
+          <Area type="natural" dataKey="read_idle" stroke="#1abc9c" fill="none" strokeWidth={1.5} dot={false} name="Read Idle" />
+          <Area type="natural" dataKey="write_pending" stroke="#f39c12" fill="none" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Write Pending" />
+          <Area type="natural" dataKey="read_pending" stroke="#9b59b6" fill="none" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Read Pending" />
         </AreaChart>
       ),
     },
