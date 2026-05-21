@@ -145,6 +145,13 @@ export function MetricsPerformancePage() {
         point.read_idle = Number(server.read_pool_idle?.Value) || 0;
         point.write_pending = Number(server.write_pool_pending?.Value) || 0;
         point.read_pending = Number(server.read_pool_pending?.Value) || 0;
+        point.hash_match_ms = Number(server.catalog_hash_match?.Mean) / 1000 || 0;
+        point.hash_miss_ms = Number(server.catalog_hash_miss?.Mean) / 1000 || 0;
+        point.dedup_pct = (Number(server.dedup_pct?.Value) || 0) * 100;
+        point.gc_young_count = Number(server.gc_young?.CollectionCount) || 0;
+        point.gc_young_time = Number(server.gc_young?.CollectionTime) || 0;
+        point.gc_old_count = Number(server.gc_old?.CollectionCount) || 0;
+        point.gc_old_time = Number(server.gc_old?.CollectionTime) || 0;
         setServerHistory(prev => {
           const updated = [...prev, point];
           const trimmed = updated.length > MAX_SERVER_POINTS ? updated.slice(-MAX_SERVER_POINTS) : updated;
@@ -370,21 +377,17 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
     {
       id: 'catalog-dedup', title: 'Catalog Deduplication',
       stats: [{ label: 'Dedup Rate', value: `${(Number(jmxVal(s.dedup_pct, 'Value') || 0) * 100).toFixed(1)}%`, color: 'green' }],
-      render: () => {
-        const dedupData = [
-          { name: 'Hash Match', value: Number(jmxVal(s.catalog_hash_match, 'Mean')) / 1000 || 0 },
-          { name: 'Hash Miss', value: Number(jmxVal(s.catalog_hash_miss, 'Mean')) / 1000 || 0 },
-        ];
-        return (
-          <AreaChart data={dedupData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
-            <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
-            <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatMs(v), 'Time']} />
-            <Area type="natural" dataKey="value" stroke="#9b59b6" fill="#9b59b6" fillOpacity={0.15} strokeWidth={2} dot={false} name="Time" />
-          </AreaChart>
-        );
-      },
+      render: () => (
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="hash_match_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Hash Match" />
+          <Area type="natural" dataKey="hash_miss_ms" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Hash Miss" />
+        </AreaChart>
+      ),
     },
     {
       id: 'gc-pressure', title: 'GC Pressure',
@@ -392,23 +395,17 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
         { label: 'Young GC', value: `${Number(jmxVal(s.gc_young, 'CollectionCount')) || 0} collections`, color: 'cyan' },
         { label: 'Old GC', value: `${Number(jmxVal(s.gc_old, 'CollectionCount')) || 0} collections`, color: 'orange' },
       ],
-      render: () => {
-        const gcData = [
-          { name: 'Young Gen', count: Number(jmxVal(s.gc_young, 'CollectionCount')) || 0, time_ms: Number(jmxVal(s.gc_young, 'CollectionTime')) || 0 },
-          { name: 'Old Gen', count: Number(jmxVal(s.gc_old, 'CollectionCount')) || 0, time_ms: Number(jmxVal(s.gc_old, 'CollectionTime')) || 0 },
-        ];
-        return (
-          <AreaChart data={gcData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
-            <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
-            <ReTooltip {...TOOLTIP_STYLE} />
-            <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="count" stroke="#3498db" fill="#3498db" fillOpacity={0.15} strokeWidth={2} dot={false} name="Collections" />
-            <Area type="natural" dataKey="time_ms" stroke="#e67e22" fill="#e67e22" fillOpacity={0.1} strokeWidth={2} dot={false} name="Time (ms)" />
-          </AreaChart>
-        );
-      },
+      render: () => (
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="gc_young_count" stroke="#3498db" fill="none" strokeWidth={2} dot={false} name="Young Gen Collections" />
+          <Area type="natural" dataKey="gc_old_count" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Old Gen Collections" />
+        </AreaChart>
+      ),
     },
     {
       id: 'population', title: 'Fleet Population',
