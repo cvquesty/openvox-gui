@@ -381,9 +381,9 @@ async def get_puppetdb_performance(_user: str = Depends(_AUTH)):
         "read_pool_total": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.TotalConnections",
         "read_pool_max": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.MaxConnections",
         "read_pool_usage": "puppetlabs.puppetdb.database:name=PDBReadPool.pool.Usage",
-        # HTTP latency
-        "http_query_time": "puppetlabs.puppetdb.http:name=/pdb/query/v4.service-time",
-        "http_cmd_time": "puppetlabs.puppetdb.http:name=/pdb/cmd/v1.service-time",
+        # HTTP latency — slashes escaped as !/ for Jolokia path parsing
+        "http_query_time": "puppetlabs.puppetdb.http:name=!/pdb!/query.service-time",
+        "http_cmd_time": "puppetlabs.puppetdb.http:name=!/pdb!/cmd.service-time",
         # GC
         "gc_young": "java.lang:name=G1 Young Generation,type=GarbageCollector",
         "gc_old": "java.lang:name=G1 Old Generation,type=GarbageCollector",
