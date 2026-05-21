@@ -59,6 +59,24 @@ export function MetricsPerformancePage() {
   const breakdownArr: any[] = Array.isArray(data.timing_breakdown) ? data.timing_breakdown : [];
   const stats = data.stats || {};
 
+  // Build top-10 node time series from the SAME thinned trends data
+  // so all three charts share the same X axis
+  const top10Names = nodeComparison.map((n: any) => n.certname);
+  const top10Data = (() => {
+    const timeMap: Record<string, any> = {};
+    // Seed all timestamps from the shared trends array
+    for (const run of trends) {
+      const t = run.time;
+      if (!timeMap[t]) timeMap[t] = { time: t };
+    }
+    // Fill in node values where they exist
+    for (const run of trends) {
+      if (!top10Names.includes(run.certname)) continue;
+      timeMap[run.time][run.certname] = run.total;
+    }
+    return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
+  })();
+
   // Build pie data from timing breakdown array
   const pieData = breakdownArr
     .filter((d: any) => d.avg_seconds > 0)
@@ -185,17 +203,7 @@ export function MetricsPerformancePage() {
         {nodeComparison.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
             <AreaChart margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-              data={(() => {
-                const top10Names = nodeComparison.map((n: any) => n.certname);
-                const timeMap: Record<string, any> = {};
-                for (const run of (data.run_time_trends || [])) {
-                  if (!top10Names.includes(run.certname)) continue;
-                  const t = run.time;
-                  if (!timeMap[t]) timeMap[t] = { time: t };
-                  timeMap[t][run.certname] = run.total;
-                }
-                return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
-              })()}>
+              data={top10Data}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
                 tickFormatter={(v: string) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11, 16) || v} />
