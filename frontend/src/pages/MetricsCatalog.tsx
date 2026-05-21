@@ -109,7 +109,7 @@ function buildFlowGraph(
     let classColor = getTypeColor(r.type);
     if (isClass && mode === 'hierarchy') {
       if (r.title.match(/^Role/i)) classColor = '#e74c3c';
-      else if (r.title.match(/^Profile/i)) classColor = '#e67e22';
+      else if (r.title.match(/^Profile/i)) classColor = '#27ae60';
       else if (r.title === 'main' || r.title === 'Settings') classColor = '#95a5a6';
     }
 
@@ -226,7 +226,7 @@ export function MetricsCatalogPage() {
     if (mode === 'hierarchy') {
       return [
         { label: 'Role', color: '#e74c3c' },
-        { label: 'Profile', color: '#e67e22' },
+        { label: 'Profile', color: '#27ae60' },
         { label: 'Module Class', color: '#0D6EFD' },
         { label: 'Internal', color: '#95a5a6' },
       ];
