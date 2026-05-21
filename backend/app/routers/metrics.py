@@ -210,28 +210,38 @@ async def get_catalog_graph(
     # Build unique resource set from edges
     resource_map: Dict[str, Dict] = {}
     for r in resources:
-        key = f"{r.get('type', '')}[{r.get('title', '')}]"
+        rtype = r.get("type")
+        rtitle = r.get("title")
+        if not rtype or not rtitle:
+            continue
+        key = f"{rtype}[{rtitle}]"
         resource_map[key] = {
             "id": key,
-            "type": r.get("type"),
-            "title": r.get("title"),
+            "type": rtype,
+            "title": rtitle,
         }
 
     graph_edges = []
     for edge in edges:
         src = edge.get("source", {})
         tgt = edge.get("target", {})
-        src_id = f"{src.get('type', '')}[{src.get('title', '')}]"
-        tgt_id = f"{tgt.get('type', '')}[{tgt.get('title', '')}]"
+        src_type = src.get("type")
+        src_title = src.get("title")
+        tgt_type = tgt.get("type")
+        tgt_title = tgt.get("title")
+        if not src_type or not src_title or not tgt_type or not tgt_title:
+            continue
+        src_id = f"{src_type}[{src_title}]"
+        tgt_id = f"{tgt_type}[{tgt_title}]"
         graph_edges.append({
             "source": src_id,
             "target": tgt_id,
             "relationship": edge.get("relationship"),
         })
         if src_id not in resource_map:
-            resource_map[src_id] = {"id": src_id, "type": src.get("type"), "title": src.get("title")}
+            resource_map[src_id] = {"id": src_id, "type": src_type, "title": src_title}
         if tgt_id not in resource_map:
-            resource_map[tgt_id] = {"id": tgt_id, "type": tgt.get("type"), "title": tgt.get("title")}
+            resource_map[tgt_id] = {"id": tgt_id, "type": tgt_type, "title": tgt_title}
 
     return {
         "certname": certname,
