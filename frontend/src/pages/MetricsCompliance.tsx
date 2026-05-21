@@ -15,7 +15,7 @@ import {
   IconShieldCheck, IconChevronDown, IconChevronRight,
 } from '@tabler/icons-react';
 import {
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, BarChart, Bar, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { metrics } from '../services/api';
@@ -71,7 +71,7 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
         </Group>
       </Group>
       <Collapse in={open}>
-        <ScrollArea mah={240} mt="xs">
+        <ScrollArea mah={400} mt="xs">
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -81,12 +81,12 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {nodes.map((n: any, i: number) => (
+              {[...nodes].sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || '')).map((n: any, i: number) => (
                 <Table.Tr key={i}>
                   <Table.Td><Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
                     onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text></Table.Td>
                   <Table.Td><Text size="sm">{n.environment || '\u2014'}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{n.timestamp ? timeAgo(n.timestamp) : '\u2014'}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{n.report_timestamp ? timeAgo(n.report_timestamp) : '\u2014'}</Text></Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -174,49 +174,33 @@ export function MetricsCompliancePage() {
       </Grid>
 
       <Grid>
-        {/* Donut chart */}
+        {/* Compliance distribution bar chart */}
         <Grid.Col span={{ base: 12, md: 5 }}>
           <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Compliance Distribution</Title>
-            <ResponsiveContainer width="100%" height={400}>
-              <PieChart>
-                <Pie
-                  data={donutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={110}
-                  dataKey="value"
-                  nameKey="name"
-                  label={false}
-                >
-                  {donutData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.color} />
-                  ))}
-                </Pie>
+            <Group justify="space-between" mb="md">
+              <Title order={4}>Compliance Distribution</Title>
+              <Badge size="lg" variant="filled" color={compliantPct >= 90 ? 'green' : compliantPct >= 70 ? 'yellow' : 'red'}>
+                {compliantPct}% Compliant
+              </Badge>
+            </Group>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={donutData.filter(d => d.value > 0)} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12, fill: '#8899aa' }} />
                 <ReTooltip
                   contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
                   labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
-                  formatter={(value: number, name: string) => [`${value} nodes`, name]}
-                  active={undefined}
-                  content={({ active, payload }) => {
-                    if (!active || !payload || payload.length === 0) return null;
-                    const entry = payload[0];
-                    if (!entry || !entry.value) return null;
-                    return (
-                      <div style={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}>
-                        <div style={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}>{entry.name}</div>
-                        <div>{entry.value} nodes ({((entry.payload?.percent ?? 0) * 100).toFixed(1)}%)</div>
-                      </div>
-                    );
-                  }}
+                  itemStyle={{ color: '#e0e0e0' }}
+                  formatter={(value: number) => [`${value} nodes`, 'Count']}
                 />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-              </PieChart>
+                <Bar dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
+                  {donutData.filter(d => d.value > 0).map((entry, idx) => (
+                    <Cell key={idx} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
-            <Text ta="center" size="lg" fw={700} c={compliantPct >= 90 ? 'green' : compliantPct >= 70 ? 'yellow' : 'red'}>
-              {compliantPct}% Compliant
-            </Text>
           </Card>
         </Grid.Col>
 
