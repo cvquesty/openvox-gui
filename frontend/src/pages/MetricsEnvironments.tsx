@@ -1,28 +1,57 @@
 /**
  * OpenVox GUI - MetricsEnvironments.tsx
  *
- * Environment Comparison — stacked bar chart and stat cards per environment.
+ * Environment Comparison — time-series line chart showing node status
+ * per environment over time. Accumulates in localStorage.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
+  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select,
 } from '@mantine/core';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip, Legend,
 } from 'recharts';
-import { IconGitBranch } from '@tabler/icons-react';
+import { IconGitBranch, IconRefresh } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 
-const COLORS = ['#0D6EFD', '#28a745', '#dc3545', '#ffc107', '#6c757d', '#17a2b8', '#fd7e14', '#6f42c1'];
-
 const STATUS_COLORS: Record<string, string> = {
-  unchanged: '#28a745',
+  unchanged: '#2ecc71',
   changed: '#0D6EFD',
-  failed: '#dc3545',
-  noop: '#ffc107',
-  unreported: '#6c757d',
+  failed: '#e74c3c',
+  noop: '#f39c12',
+  unreported: '#95a5a6',
 };
+
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    padding: '10px 14px', fontSize: 12, color: '#e0e0e0',
+  },
+  labelStyle: { fontWeight: 600, color: '#fff', marginBottom: 4 } as const,
+  itemStyle: { color: '#e0e0e0' } as const,
+};
+
+const STORAGE_KEY = 'openvox_env_history';
+const STORAGE_VER_KEY = 'openvox_env_history_v';
+const HISTORY_VERSION = 1;
+const MAX_POINTS = 240;
+
+function loadHistory(): any[] {
+  try {
+    if (localStorage.getItem(STORAGE_VER_KEY) !== String(HISTORY_VERSION)) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_VER_KEY, String(HISTORY_VERSION));
+      return [];
+    }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function saveHistory(pts: any[]) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pts)); } catch {}
+}
 
 interface EnvironmentData {
   name: string;
@@ -36,170 +65,117 @@ interface EnvironmentData {
 
 export function MetricsEnvironmentsPage() {
   const [data, setData] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>(loadHistory);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
       const result = await metrics.environments();
       setData(result);
+
+      // Accumulate history point
+      const envs: EnvironmentData[] = result.environments || [];
+      const point: any = { time: new Date().toLocaleTimeString() };
+      for (const env of envs) {
+        point[`${env.name}_total`] = env.total;
+        point[`${env.name}_unchanged`] = env.unchanged;
+        point[`${env.name}_changed`] = env.changed;
+        point[`${env.name}_failed`] = env.failed;
+      }
+      setHistory(prev => {
+        const updated = [...prev, point];
+        const trimmed = updated.length > MAX_POINTS ? updated.slice(-MAX_POINTS) : updated;
+        saveHistory(trimmed);
+        return trimmed;
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to load environment data');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, []);
 
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Auto-refresh every 30 seconds
   useEffect(() => {
-    fetchData();
+    intervalRef.current = setInterval(fetchData, 30000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchData]);
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error loading environments">{error}</Alert>;
+  if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
   const environments: EnvironmentData[] = data.environments || [];
-
-  const chartData = environments.map((env) => ({
-    name: env.name,
-    Unchanged: env.unchanged,
-    Changed: env.changed,
-    Failed: env.failed,
-    Noop: env.noop,
-    Unreported: env.unreported,
-  }));
-
+  const envNames = environments.map(e => e.name);
   const totalNodes = environments.reduce((sum, e) => sum + e.total, 0);
   const totalFailed = environments.reduce((sum, e) => sum + e.failed, 0);
 
+  // Build per-environment charts or combined view
+  const activeEnvs = selectedEnv ? [selectedEnv] : envNames;
+
   return (
     <Stack>
-      <Group gap="sm">
-        <IconGitBranch size={28} />
-        <Title order={2}>Environment Comparison</Title>
-        <Badge variant="light" size="lg">{environments.length} environments</Badge>
+      <Group justify="space-between">
+        <Group gap="sm">
+          <IconGitBranch size={28} />
+          <Title order={2}>Environment Comparison</Title>
+          <Badge variant="light" size="lg">{environments.length} environments</Badge>
+        </Group>
+        <Group gap="xs">
+          <Select size="xs" data={[{ value: '__all__', label: 'All Environments' }, ...envNames.map(n => ({ value: n, label: n }))]}
+            value={selectedEnv || '__all__'} onChange={(v) => setSelectedEnv(v === '__all__' ? null : v)}
+            style={{ width: 180 }} />
+          <Text size="xs" c="dimmed"><IconRefresh size={12} /> 30s</Text>
+        </Group>
       </Group>
 
       {/* Summary stats */}
-      <Grid>
-        <Grid.Col span={{ base: 12, sm: 4 }}>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total Nodes</Text>
-            <Text size="xl" fw={700} mt="xs">{totalNodes}</Text>
-          </Paper>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 4 }}>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Environments</Text>
-            <Text size="xl" fw={700} mt="xs">{environments.length}</Text>
-          </Paper>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 4 }}>
-          <Paper withBorder p="md" radius="md">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total Failed</Text>
-            <Group justify="space-between" mt="xs">
-              <Text size="xl" fw={700} c={totalFailed > 0 ? 'red' : undefined}>
-                {totalFailed}
-              </Text>
-              {totalFailed > 0 && <Badge color="red" variant="light">Attention</Badge>}
+      <Group grow>
+        {environments.map(env => (
+          <Paper key={env.name} withBorder p="sm" ta="center"
+            style={{ cursor: 'pointer', border: selectedEnv === env.name ? '2px solid #0D6EFD' : undefined }}
+            onClick={() => setSelectedEnv(selectedEnv === env.name ? null : env.name)}>
+            <Text size="xs" c="dimmed" fw={700}>{env.name}</Text>
+            <Text size="lg" fw={700}>{env.total} nodes</Text>
+            <Group justify="center" gap={4} mt={2}>
+              <Badge size="xs" color="green" variant="light">{env.unchanged}</Badge>
+              <Badge size="xs" color="blue" variant="light">{env.changed}</Badge>
+              {env.failed > 0 && <Badge size="xs" color="red" variant="filled">{env.failed}</Badge>}
             </Group>
           </Paper>
-        </Grid.Col>
-      </Grid>
+        ))}
+      </Group>
 
-      {/* Stacked bar chart */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Title order={4} mb="md">Node Status by Environment</Title>
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+      {/* Per-environment time-series charts */}
+      {activeEnvs.map(envName => (
+        <Card key={envName} withBorder shadow="sm" padding="lg">
+          <Group justify="space-between" mb="md">
+            <Title order={4}>{envName} — Node Status Over Time</Title>
+            <Text size="xs" c="dimmed">{history.length} data points</Text>
+          </Group>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={history} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#8899aa' }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#8899aa' }} />
-              <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} itemStyle={{ color: '#e0e0e0' }} />
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-              <Area type="natural" dataKey="Unchanged" stroke={STATUS_COLORS.unchanged} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.unchanged }} name="Unchanged" />
-              <Area type="natural" dataKey="Changed" stroke={STATUS_COLORS.changed} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.changed }} name="Changed" />
-              <Area type="natural" dataKey="Failed" stroke={STATUS_COLORS.failed} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.failed }} name="Failed" />
-              <Area type="natural" dataKey="Noop" stroke={STATUS_COLORS.noop} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.noop }} name="Noop" />
-              <Area type="natural" dataKey="Unreported" stroke={STATUS_COLORS.unreported} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.unreported }} name="Unreported" />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
+              <ReTooltip {...TOOLTIP_STYLE} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              <Area type="natural" dataKey={`${envName}_unchanged`} stroke={STATUS_COLORS.unchanged} fill="none" strokeWidth={2} dot={false} connectNulls name="Unchanged" />
+              <Area type="natural" dataKey={`${envName}_changed`} stroke={STATUS_COLORS.changed} fill="none" strokeWidth={2} dot={false} connectNulls name="Changed" />
+              <Area type="natural" dataKey={`${envName}_failed`} stroke={STATUS_COLORS.failed} fill="none" strokeWidth={2} dot={false} connectNulls name="Failed" />
             </AreaChart>
           </ResponsiveContainer>
-        ) : (
-          <Center h={300}>
-            <Text c="dimmed">No environment data available</Text>
-          </Center>
-        )}
-      </Card>
-
-      {/* Per-environment stat cards */}
-      <Title order={4}>Environment Details</Title>
-      <Grid>
-        {environments.map((env) => {
-          const failRate = env.total > 0 ? ((env.failed / env.total) * 100).toFixed(1) : '0';
-          return (
-            <Grid.Col span={{ base: 12, sm: 6, md: 4 }} key={env.name}>
-              <Card withBorder shadow="sm" padding="lg">
-                <Group justify="space-between" mb="sm">
-                  <Title order={5}>{env.name}</Title>
-                  <Badge variant="light">{env.total} nodes</Badge>
-                </Group>
-                <Stack gap="xs">
-                  <Group justify="space-between">
-                    <Group gap={6}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: STATUS_COLORS.unchanged }} />
-                      <Text size="sm">Unchanged</Text>
-                    </Group>
-                    <Text size="sm" fw={600}>{env.unchanged}</Text>
-                  </Group>
-                  <Group justify="space-between">
-                    <Group gap={6}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: STATUS_COLORS.changed }} />
-                      <Text size="sm">Changed</Text>
-                    </Group>
-                    <Text size="sm" fw={600}>{env.changed}</Text>
-                  </Group>
-                  <Group justify="space-between">
-                    <Group gap={6}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: STATUS_COLORS.failed }} />
-                      <Text size="sm">Failed</Text>
-                    </Group>
-                    <Text size="sm" fw={600} c={env.failed > 0 ? 'red' : undefined}>{env.failed}</Text>
-                  </Group>
-                  <Group justify="space-between">
-                    <Group gap={6}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: STATUS_COLORS.noop }} />
-                      <Text size="sm">Noop</Text>
-                    </Group>
-                    <Text size="sm" fw={600}>{env.noop}</Text>
-                  </Group>
-                  <Group justify="space-between">
-                    <Group gap={6}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: STATUS_COLORS.unreported }} />
-                      <Text size="sm">Unreported</Text>
-                    </Group>
-                    <Text size="sm" fw={600}>{env.unreported}</Text>
-                  </Group>
-                  <Group justify="space-between" mt="xs" pt="xs" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
-                    <Text size="xs" c="dimmed">Failure rate</Text>
-                    <Badge color={parseFloat(failRate) > 0 ? 'red' : 'green'} variant="light" size="sm">
-                      {failRate}%
-                    </Badge>
-                  </Group>
-                </Stack>
-              </Card>
-            </Grid.Col>
-          );
-        })}
-      </Grid>
-
-      {environments.length === 0 && (
-        <Center h={200}>
-          <Text c="dimmed" size="lg">No environments found</Text>
-        </Center>
-      )}
+          {history.length < 3 && (
+            <Text size="xs" c="dimmed" ta="center" mt="xs">
+              Chart populates as data is collected (one point every 30 seconds)
+            </Text>
+          )}
+        </Card>
+      ))}
     </Stack>
   );
 }
