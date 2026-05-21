@@ -118,15 +118,15 @@ function buildFlowGraph(
       position: { x: (pos?.x ?? 0) - nodeWidth / 2, y: (pos?.y ?? 0) - nodeHeight / 2 },
       data: {
         label: (
-          <div style={{ fontSize: mode === 'hierarchy' ? 11 : 10, lineHeight: 1.3, textAlign: 'center', padding: '4px 6px' }}>
+          <div style={{ fontSize: mode === 'hierarchy' ? 12 : 11, lineHeight: 1.4, textAlign: 'center', padding: '6px 8px' }}>
             {isClass && mode === 'hierarchy' ? (
-              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 16 }}>
+              <div style={{ fontWeight: 700, color: classColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 20 }}>
                 {r.title}
               </div>
             ) : (
               <>
-                <div style={{ fontWeight: 700, color: getTypeColor(r.type), fontSize: 9 }}>{r.type}</div>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 16 }}>
+                <div style={{ fontWeight: 800, color: getTypeColor(r.type), fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>{r.type}</div>
+                <div style={{ fontWeight: 500, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: nodeWidth - 20 }}>
                   {r.title}
                 </div>
               </>
@@ -136,12 +136,13 @@ function buildFlowGraph(
       },
       style: {
         width: nodeWidth,
-        borderRadius: 6,
+        borderRadius: 8,
         border: `2px solid ${classColor}`,
-        backgroundColor: 'rgba(20, 20, 33, 0.85)',
-        color: '#e0e0e0',
-        fontSize: 10,
+        backgroundColor: '#ffffff',
+        color: '#1a1a2e',
+        fontSize: 11,
         padding: 0,
+        boxShadow: `0 2px 8px ${classColor}33`,
       },
     };
   });
@@ -153,8 +154,8 @@ function buildFlowGraph(
       source: e.source,
       target: e.target,
       label: mode === 'dependencies' ? e.relationship : undefined,
-      labelStyle: { fontSize: 8, fill: '#8899aa' },
-      labelBgStyle: { fill: 'rgba(20,20,33,0.8)' },
+      labelStyle: { fontSize: 9, fill: '#555', fontWeight: 500 },
+      labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
       labelBgPadding: [4, 2] as [number, number],
       markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLORS[e.relationship] || '#6c757d' },
       style: {
@@ -323,19 +324,19 @@ export function MetricsCatalogPage() {
 
           {/* Graph */}
           {flowNodes.length > 0 ? (
-            <Card withBorder shadow="sm" padding={0} style={{ height: 650 }}>
+            <Card withBorder shadow="sm" padding={0} style={{ height: 'calc(100vh - 280px)', minHeight: 500 }}>
               <ReactFlow
                 nodes={flowNodes}
                 edges={flowEdges}
                 fitView
-                fitViewOptions={{ padding: 0.15 }}
-                minZoom={0.05}
-                maxZoom={2.5}
+                fitViewOptions={{ padding: 0.08, maxZoom: 1.5 }}
+                minZoom={0.02}
+                maxZoom={3}
                 nodesDraggable
                 nodesConnectable={false}
                 elementsSelectable
               >
-                <Background gap={20} size={1} color="rgba(255,255,255,0.05)" />
+                <Background gap={24} size={1} color="#e8ecf0" />
                 <Controls />
                 <MiniMap
                   nodeColor={(n) => {
@@ -346,7 +347,7 @@ export function MetricsCatalogPage() {
                     }
                     return '#6c757d';
                   }}
-                  style={{ backgroundColor: 'rgba(20,20,33,0.9)' }}
+                  style={{ backgroundColor: '#f5f5f5', border: '1px solid #ddd' }}
                 />
               </ReactFlow>
             </Card>
