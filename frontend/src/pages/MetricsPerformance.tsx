@@ -127,8 +127,18 @@ export function MetricsPerformancePage() {
   };
 
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (error && !perfData) return <Alert color="red" title="Error">{String(error)}</Alert>;
   if (!perfData) return null;
+
+  // Catch render errors from bad JMX data
+  try {
+    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} />;
+  } catch (e: any) {
+    return <Alert color="red" title="Render Error">{String(e?.message || e)}</Alert>;
+  }
+}
+
+function MetricsPerformanceContent({ perfData, serverData }: { perfData: any; serverData: any }) {
 
   // Agent-side data
   const rawTrends = perfData.run_time_trends || [];
@@ -152,8 +162,13 @@ export function MetricsPerformancePage() {
     return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
   }, [trends, top10Names]);
 
-  // Server-side data
-  const s = serverData || {};
+  // Server-side data — safely default all fields to prevent render crashes
+  const s: Record<string, any> = {};
+  if (serverData && typeof serverData === 'object') {
+    for (const [k, v] of Object.entries(serverData)) {
+      s[k] = v;
+    }
+  }
 
   // Build server metric bars for storage timing
   const storageData = [
@@ -174,9 +189,9 @@ export function MetricsPerformancePage() {
 
   // Command processing data
   const cmdData = [
-    { name: 'Catalog', mean: jmxVal(s.catalog_processing, 'Mean') / 1000, p95: (s.catalog_processing?.['95thPercentile'] ?? 0) / 1000 },
-    { name: 'Facts', mean: jmxVal(s.facts_processing, 'Mean') / 1000, p95: (s.facts_processing?.['95thPercentile'] ?? 0) / 1000 },
-    { name: 'Report', mean: jmxVal(s.report_processing, 'Mean') / 1000, p95: (s.report_processing?.['95thPercentile'] ?? 0) / 1000 },
+    { name: 'Catalog', mean: Number(jmxVal(s.catalog_processing, 'Mean')) / 1000 || 0, p95: Number(s.catalog_processing?.['95thPercentile'] ?? 0) / 1000 || 0 },
+    { name: 'Facts', mean: Number(jmxVal(s.facts_processing, 'Mean')) / 1000 || 0, p95: Number(s.facts_processing?.['95thPercentile'] ?? 0) / 1000 || 0 },
+    { name: 'Report', mean: Number(jmxVal(s.report_processing, 'Mean')) / 1000 || 0, p95: Number(s.report_processing?.['95thPercentile'] ?? 0) / 1000 || 0 },
   ].filter(d => d.mean > 0);
 
   // HTTP latency — may not be available (returns error object on some PuppetDB versions)
