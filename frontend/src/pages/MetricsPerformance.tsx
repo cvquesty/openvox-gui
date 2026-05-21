@@ -35,7 +35,10 @@ const formatSeconds = (v: number) => {
 };
 const formatMs = (v: number) => {
   if (v >= 1000) return `${(v / 1000).toFixed(1)}s`;
-  return `${v.toFixed(0)}ms`;
+  if (v >= 10) return `${v.toFixed(0)}ms`;
+  if (v >= 1) return `${v.toFixed(1)}ms`;
+  if (v >= 0.01) return `${(v * 1000).toFixed(0)}µs`;
+  return `${v.toFixed(2)}ms`;
 };
 const shortName = (cn: string) => {
   if (cn.length <= 22) return cn;
