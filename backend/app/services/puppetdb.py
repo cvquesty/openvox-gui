@@ -413,12 +413,29 @@ class PuppetDBService:
     # ─── Catalogs ────────────────────────────────────────────
 
     async def get_catalog_edges(self, certname: str) -> List[Dict]:
-        """Get dependency edges from a node's compiled catalog."""
-        return await self._query(f"catalogs/{certname}/edges")
+        """Get dependency edges from a node's compiled catalog via PQL."""
+        client = await self._get_client()
+        query = f'edges {{ certname = "{certname}" }}'
+        resp = await client.get("/pdb/query/v4", params={"query": query})
+        resp.raise_for_status()
+        raw = resp.json()
+        # PQL edges return flat fields; normalize to source/target dicts
+        edges = []
+        for e in raw:
+            edges.append({
+                "source": {"type": e.get("source_type"), "title": e.get("source_title")},
+                "target": {"type": e.get("target_type"), "title": e.get("target_title")},
+                "relationship": e.get("relationship"),
+            })
+        return edges
 
     async def get_catalog_resources(self, certname: str) -> List[Dict]:
-        """Get resources from a node's compiled catalog."""
-        return await self._query(f"catalogs/{certname}/resources")
+        """Get resources from a node's compiled catalog via PQL."""
+        client = await self._get_client()
+        query = f'resources {{ certname = "{certname}" }}'
+        resp = await client.get("/pdb/query/v4", params={"query": query})
+        resp.raise_for_status()
+        return resp.json()
 
     # ─── PuppetDB Health ─────────────────────────────────────
 
