@@ -266,6 +266,16 @@ async def get_fact_overview(_user: str = Depends(_AUTH)):
             if unique < 2:
                 continue
 
+            # Detect if values are numeric
+            numeric_values = []
+            for val_str, cnt in counts.items():
+                try:
+                    numeric_values.append(float(val_str))
+                except (ValueError, TypeError):
+                    numeric_values = []
+                    break
+            is_numeric = len(numeric_values) > 0
+
             # Sort by count descending
             sorted_dist = sorted(
                 [{"value": k, "count": v} for k, v in counts.items()],
@@ -296,16 +306,27 @@ async def get_fact_overview(_user: str = Depends(_AUTH)):
             dominant = sorted_dist[0] if sorted_dist else None
             dominant_pct = round(dominant["count"] / total * 100, 1) if dominant else 0
 
+            # For numeric facts, include per-node values for scatter plot
+            scatter_data = []
+            if is_numeric:
+                scatter_data = sorted(
+                    [{"certname": cn, "value": float(v)} for cn, v in node_values.items()],
+                    key=lambda x: x["value"],
+                    reverse=True,
+                )
+
             results.append({
                 "fact": fact_path,
                 "total_nodes": total,
                 "unique_values": unique,
                 "score": score,
+                "is_numeric": is_numeric,
                 "dominant": dominant,
                 "dominant_pct": dominant_pct,
                 "chart_distribution": chart_dist,
                 "distribution": sorted_dist[:20],
                 "outliers": outliers,
+                "scatter": scatter_data[:200] if is_numeric else [],
             })
         except Exception as e:
             logger.warning(f"Fact overview failed for {fact_path}: {e}")
