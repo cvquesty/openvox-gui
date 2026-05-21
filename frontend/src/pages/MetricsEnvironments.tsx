@@ -8,7 +8,7 @@ import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { IconGitBranch } from '@tabler/icons-react';
@@ -114,18 +114,18 @@ export function MetricsEnvironmentsPage() {
         <Title order={4} mb="md">Node Status by Environment</Title>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} />
-              <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
-              <Legend />
-              <Bar dataKey="Unchanged" stackId="status" fill={STATUS_COLORS.unchanged} />
-              <Bar dataKey="Changed" stackId="status" fill={STATUS_COLORS.changed} />
-              <Bar dataKey="Failed" stackId="status" fill={STATUS_COLORS.failed} />
-              <Bar dataKey="Noop" stackId="status" fill={STATUS_COLORS.noop} />
-              <Bar dataKey="Unreported" stackId="status" fill={STATUS_COLORS.unreported} />
-            </BarChart>
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#8899aa' }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#8899aa' }} />
+              <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} itemStyle={{ color: '#e0e0e0' }} />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+              <Area type="natural" dataKey="Unchanged" stroke={STATUS_COLORS.unchanged} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.unchanged }} name="Unchanged" />
+              <Area type="natural" dataKey="Changed" stroke={STATUS_COLORS.changed} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.changed }} name="Changed" />
+              <Area type="natural" dataKey="Failed" stroke={STATUS_COLORS.failed} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.failed }} name="Failed" />
+              <Area type="natural" dataKey="Noop" stroke={STATUS_COLORS.noop} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.noop }} name="Noop" />
+              <Area type="natural" dataKey="Unreported" stroke={STATUS_COLORS.unreported} fill="none" strokeWidth={2} dot={{ r: 4, fill: STATUS_COLORS.unreported }} name="Unreported" />
+            </AreaChart>
           </ResponsiveContainer>
         ) : (
           <Center h={300}>
