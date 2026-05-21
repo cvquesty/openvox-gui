@@ -4,6 +4,7 @@
  * Component documentation to be expanded.
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Select, TextInput, NumberInput, ScrollArea, Grid, Tooltip, Button, Chip, Paper,
@@ -108,6 +109,7 @@ function FactOScope() {
 }
 
 export function FactExplorerPage() {
+  const navigate = useNavigate();
   const { isFormal } = useAppTheme();
   const [factNames, setFactNames] = useState<string[]>([]);
   const [selectedFact, setSelectedFact] = useState<string | null>(null);
@@ -569,7 +571,8 @@ export function FactExplorerPage() {
                 {limited.map((f: any, i: number) => (
                   <Table.Tr key={i}>
                     <Table.Td>
-                      <Text fw={500} size="sm">{f.certname}</Text>
+                      <Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => navigate(`/nodes/${f.certname}`)}>{f.certname}</Text>
                     </Table.Td>
                     <Table.Td style={{ maxWidth: 500 }}>
                       {isJsonLike(f.value) ? (

@@ -5,6 +5,7 @@
  * Green = unchanged, Blue = changed, Red = failed, Yellow = noop, Gray = unreported.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Tooltip,
   Paper, ScrollArea, Select,
@@ -37,6 +38,7 @@ interface HeatmapNode {
 }
 
 export function MetricsHeatmapPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +183,7 @@ export function MetricsHeatmapPage() {
                         onMouseLeave={(e) => {
                           (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
                         }}
+                        onClick={() => navigate(`/nodes/${node.certname}`)}
                       />
                     </Tooltip>
                   );

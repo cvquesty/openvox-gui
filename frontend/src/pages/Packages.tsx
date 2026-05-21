@@ -4,6 +4,7 @@
  * Component documentation to be expanded.
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text,
   TextInput, Button, Badge, Code,
@@ -25,6 +26,7 @@ import { nodes } from '../services/api';
  * package name, version, and provider (yum, apt, etc.).
  */
 export function PackagesPage() {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [version, setVersion] = useState('');
   const [results, setResults] = useState<any[] | null>(null);
@@ -119,7 +121,8 @@ export function PackagesPage() {
             <Table.Tbody>
               {results.map((pkg, i) => (
                 <Table.Tr key={i}>
-                  <Table.Td><Text fw={500} size="sm">{pkg.certname}</Text></Table.Td>
+                  <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate(`/nodes/${pkg.certname}`)}>{pkg.certname}</Text></Table.Td>
                   <Table.Td><Code>{pkg.package_name}</Code></Table.Td>
                   <Table.Td><Badge variant="outline" size="sm">{pkg.version}</Badge></Table.Td>
                   <Table.Td><Text size="sm" c="dimmed">{pkg.provider || '—'}</Text></Table.Td>

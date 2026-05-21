@@ -4,6 +4,7 @@
  * Component documentation to be expanded.
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
   Table, Badge, Code, TextInput, ScrollArea, Select, Grid, Box,
@@ -124,6 +125,7 @@ function ResourceOMatic() {
 }
 
 export function ResourceExplorerPage() {
+  const navigate = useNavigate();
   const { isFormal } = useAppTheme();
   const [resourceType, setResourceType] = useState('');
   const [titleFilter, setTitleFilter] = useState('');
@@ -264,7 +266,8 @@ export function ResourceExplorerPage() {
                 <Table.Tbody>
                   {filtered.map((r: any, i: number) => (
                     <Table.Tr key={i}>
-                      <Table.Td><Text fw={500} size="sm">{r.certname}</Text></Table.Td>
+                      <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => navigate(`/nodes/${r.certname}`)}>{r.certname}</Text></Table.Td>
                       <Table.Td>
                         <Code style={{ fontSize: 12, maxWidth: 400, display: 'inline-block', wordBreak: 'break-word' }}>
                           {r.title}

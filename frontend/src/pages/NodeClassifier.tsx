@@ -4,6 +4,7 @@
  * Component documentation to be expanded.
  */
 import { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, Modal, TextInput, Badge, ActionIcon, Tooltip, Code,
@@ -308,6 +309,7 @@ function NodeOScope() {
    TAB 1: HIERARCHY OVERVIEW
    ═══════════════════════════════════════════════════════════════ */
 function HierarchyTab() {
+  const navigate = useNavigate();
   const { isFormal } = useAppTheme();
   const [data, setData] = useState<any>(null);
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
@@ -430,7 +432,8 @@ function HierarchyTab() {
               <Paper key={n.certname} p="xs" mb={4} withBorder>
                 <Group justify="space-between">
                   <Group gap="xs">
-                    <Text size="sm" fw={500}>{n.certname}</Text>
+                    <Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text>
                     <Badge variant="outline" size="xs">{n.environment}</Badge>
                     {(n.groups || []).map((g: string) => <Badge key={g} variant="light" color="orange" size="xs">{g}</Badge>)}
                   </Group>
