@@ -338,17 +338,15 @@ export function MetricsCatalogPage() {
               >
                 <Background gap={24} size={1} color="#e8ecf0" />
                 <Controls />
-                <MiniMap
-                  nodeColor={(n) => {
-                    const border = n.style?.border;
-                    if (typeof border === 'string') {
-                      const match = border.match(/#[0-9a-fA-F]{6}/);
-                      return match ? match[0] : '#6c757d';
-                    }
-                    return '#6c757d';
-                  }}
-                  style={{ backgroundColor: '#f5f5f5', border: '1px solid #ddd' }}
-                />
+                {flowNodes.length > 30 && (
+                  <MiniMap
+                    nodeColor={(n) => {
+                      const bg = n.style?.backgroundColor;
+                      return typeof bg === 'string' ? bg : '#6c757d';
+                    }}
+                    style={{ backgroundColor: '#f5f5f5', border: '1px solid #ddd' }}
+                  />
+                )}
               </ReactFlow>
             </Card>
           ) : (
