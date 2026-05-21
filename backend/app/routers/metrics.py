@@ -207,7 +207,7 @@ async def get_catalog_graph(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch catalog: {e}")
 
-    # Build unique resource set from edges
+    # Build unique resource set
     resource_map: Dict[str, Dict] = {}
     for r in resources:
         rtype = r.get("type")
@@ -221,6 +221,7 @@ async def get_catalog_graph(
             "title": rtitle,
         }
 
+    # Build dependency edges from PuppetDB edges
     graph_edges = []
     for edge in edges:
         src = edge.get("source", {})
@@ -243,12 +244,43 @@ async def get_catalog_graph(
         if tgt_id not in resource_map:
             resource_map[tgt_id] = {"id": tgt_id, "type": tgt_type, "title": tgt_title}
 
+    # Build class hierarchy from tags.
+    # Puppet tags each resource with the full chain of classes that declared it.
+    # By finding which class tags appear on each Class resource, we can infer
+    # the include/contain hierarchy (role → profile → module class).
+    class_resources = [r for r in resources if r.get("type") == "Class" and r.get("title")]
+    class_titles_lower = {r["title"].lower(): r["title"] for r in class_resources}
+
+    class_hierarchy_edges = []
+    for r in class_resources:
+        title = r["title"]
+        tags = r.get("tags", [])
+        # Find tags that match other class names (= ancestors in the include chain)
+        ancestors = []
+        for tag in tags:
+            tag_lower = tag.lower()
+            if tag_lower in class_titles_lower and tag_lower != title.lower() and tag_lower != "class":
+                ancestors.append(class_titles_lower[tag_lower])
+        if ancestors:
+            # The most specific ancestor (longest name) is the direct parent
+            ancestors.sort(key=lambda x: -len(x))
+            parent = ancestors[0]
+            parent_id = f"Class[{parent}]"
+            child_id = f"Class[{title}]"
+            class_hierarchy_edges.append({
+                "source": parent_id,
+                "target": child_id,
+                "relationship": "includes",
+            })
+
     return {
         "certname": certname,
         "resources": list(resource_map.values()),
         "edges": graph_edges,
+        "class_hierarchy": class_hierarchy_edges,
         "resource_count": len(resource_map),
         "edge_count": len(graph_edges),
+        "class_hierarchy_count": len(class_hierarchy_edges),
     }
 
 

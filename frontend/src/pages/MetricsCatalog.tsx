@@ -36,9 +36,11 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const EDGE_COLORS: Record<string, string> = {
+  includes: '#3498db',
   contains: '#556677',
   before: '#0D6EFD',
   requires: '#2ecc71',
+  'required-by': '#27ae60',
   notifies: '#e67e22',
   'subscription-of': '#9b59b6',
 };
@@ -50,6 +52,7 @@ function getTypeColor(type: string): string {
 function buildFlowGraph(
   resources: any[],
   edges: any[],
+  classHierarchy: any[],
   mode: 'hierarchy' | 'dependencies',
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const g = new dagre.graphlib.Graph();
@@ -60,14 +63,9 @@ function buildFlowGraph(
   let filteredEdges: any[];
 
   if (mode === 'hierarchy') {
-    // Only Class resources + contains edges between them
-    const classIds = new Set(
-      resources.filter(r => r.type === 'Class').map(r => r.id)
-    );
+    // Use pre-computed class_hierarchy edges (built from tags on the backend)
     filteredResources = resources.filter(r => r.type === 'Class');
-    filteredEdges = edges.filter(e =>
-      e.relationship === 'contains' && classIds.has(e.source) && classIds.has(e.target)
-    );
+    filteredEdges = classHierarchy;
   } else {
     // All resources, non-contains edges
     filteredResources = resources;
@@ -209,8 +207,13 @@ export function MetricsCatalogPage() {
   };
 
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
-    if (!catalogData?.resources || !catalogData?.edges) return { nodes: [], edges: [] };
-    return buildFlowGraph(catalogData.resources, catalogData.edges, mode as 'hierarchy' | 'dependencies');
+    if (!catalogData?.resources) return { nodes: [], edges: [] };
+    return buildFlowGraph(
+      catalogData.resources,
+      catalogData.edges || [],
+      catalogData.class_hierarchy || [],
+      mode as 'hierarchy' | 'dependencies',
+    );
   }, [catalogData, mode]);
 
   // Stats
