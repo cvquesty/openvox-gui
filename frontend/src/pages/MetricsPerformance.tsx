@@ -50,7 +50,9 @@ export function MetricsPerformancePage() {
   if (error) return <Alert color="red" title="Error loading performance data">{error}</Alert>;
   if (!data) return null;
 
-  const trends = data.run_time_trends || [];
+  // Thin out trends — show every other data point for readability
+  const rawTrends = data.run_time_trends || [];
+  const trends = rawTrends.filter((_: any, i: number) => i % 2 === 0).slice(-120);
   const nodeComparison = (data.node_comparison || [])
     .sort((a: any, b: any) => (b.avg_total || 0) - (a.avg_total || 0))
     .slice(0, 10);

@@ -323,11 +323,11 @@ export function DashboardPage() {
                   labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <Area type="monotone" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2.5} dot={false} />
-                <Area type="monotone" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={2} dot={false} />
+                <Area type="natural" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} />
+                <Area type="natural" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} />
+                <Area type="natural" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} />
+                <Area type="natural" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} />
+                <Area type="natural" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </Card>

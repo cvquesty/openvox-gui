@@ -418,15 +418,16 @@ async def get_class_coverage(
     from .pql import router as pql_router
 
     try:
-        query = 'resources[title, count()] { type = "Class" group by title order by count() desc limit ' + str(limit) + ' }'
+        query = 'resources[title, count()] { type = "Class" group by title }'
         client = await puppetdb_service._get_client()
         resp = await client.get("/pdb/query/v4", params={"query": query})
         resp.raise_for_status()
         result = resp.json()
-        classes = [
-            {"class_name": r.get("title", ""), "node_count": r.get("count", 0)}
-            for r in result
-        ]
+        classes = sorted(
+            [{"class_name": r.get("title", ""), "node_count": r.get("count", 0)} for r in result],
+            key=lambda x: x["node_count"],
+            reverse=True,
+        )[:limit]
     except Exception as e:
         logger.warning(f"Class coverage PQL failed, falling back: {e}")
         classes = []

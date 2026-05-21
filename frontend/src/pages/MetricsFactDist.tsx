@@ -83,6 +83,7 @@ function DistributionCharts({ data }: { data: FactDistData }) {
                 <ReTooltip
                   contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }}
                   labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }}
+                  itemStyle={{ color: "#e0e0e0" }}
                   formatter={(value: number, name: string) => [`${value} nodes (${((value / (data.total_nodes || 1)) * 100).toFixed(1)}%)`, name]}
                 />
                 <Legend
@@ -105,7 +106,7 @@ function DistributionCharts({ data }: { data: FactDistData }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis type="number" allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={95} />
-                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
+                <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} itemStyle={{ color: "#e0e0e0" }} />
                 <Bar dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
                   {barData.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} />

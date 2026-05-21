@@ -139,6 +139,9 @@ export function MetricsTimelinePage() {
           <IconTimeline size={28} />
           <Title order={2}>Resource Change Timeline</Title>
         </Group>
+        <Alert variant="light" color="blue" mb="xs">
+          This page shows a real-time feed of every resource change across your entire fleet — what changed, when, on which node, and whether it was an intentional change or corrective drift. Use it to monitor fleet activity after a code deployment, investigate unexpected changes, or audit what Puppet modified during a specific time window.
+        </Alert>
         <Group gap="sm">
           <Select
             size="sm"

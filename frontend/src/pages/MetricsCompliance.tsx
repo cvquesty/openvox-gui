@@ -185,7 +185,7 @@ export function MetricsCompliancePage() {
                   outerRadius={110}
                   dataKey="value"
                   nameKey="name"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={false}
                 >
                   {donutData.map((entry, idx) => (
                     <Cell key={idx} fill={entry.color} />

@@ -86,6 +86,10 @@ export function MetricsClassificationPage() {
         <Title order={2}>Classification Tree</Title>
       </Group>
 
+      <Alert variant="light" color="blue" mb="xs">
+        This page visualizes the ENC (External Node Classifier) hierarchy — how classification flows from global defaults (Common) through Environments and Groups down to individual Nodes. Each level can define Puppet classes and parameters that are inherited by the levels below it, with deeper levels overriding higher ones. Use this view to understand which classes are assigned at each level and how many nodes are affected by each group.
+      </Alert>
+
       {/* Summary stats */}
       <Group>
         <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
