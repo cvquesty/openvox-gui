@@ -293,11 +293,17 @@ async def get_fact_overview(_user: str = Depends(_AUTH)):
                 chart_dist = sorted_dist
 
             # Find outliers: values with <= 2 nodes
-            outliers = [
+            outlier_list = [
                 {"value": d["value"], "count": d["count"],
                  "nodes": [cn for cn, v in node_values.items() if v == d["value"]]}
                 for d in sorted_dist if d["count"] <= 2 and d["value"] != "Other"
-            ][:10]
+            ]
+            # Sort outliers by value high-to-low (numeric-aware)
+            try:
+                outlier_list.sort(key=lambda x: float(x["value"]), reverse=True)
+            except (ValueError, TypeError):
+                outlier_list.sort(key=lambda x: x["value"], reverse=True)
+            outliers = outlier_list[:10]
 
             # Interestingness score: more unique values + outliers = more interesting
             score = unique + len(outliers) * 2
