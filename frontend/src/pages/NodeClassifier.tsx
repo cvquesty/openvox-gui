@@ -323,7 +323,7 @@ function HierarchyTab() {
         nodesApi.list().catch(() => []),
       ]);
       setData(hier);
-      setPuppetNodes(pn.map((x: any) => x.certname));
+      setPuppetNodes(pn.map((x: any) => x.certname).sort());
     } catch {}
     setLoading(false);
   }, []);
@@ -714,7 +714,7 @@ function NodesTab() {
     try {
       const [n, e, g] = await Promise.all([enc.listNodes(), enc.listEnvironments(), enc.listGroups()]);
       setClassified(n); setEnvs(e); setGroups(g);
-      try { const pn = await nodesApi.list(); setPuppetNodes(pn.map((x: any) => x.certname)); } catch { setPuppetNodes([]); }
+      try { const pn = await nodesApi.list(); setPuppetNodes(pn.map((x: any) => x.certname).sort()); } catch { setPuppetNodes([]); }
     } catch {}
     setLoading(false);
   }, []);
@@ -879,7 +879,7 @@ function LookupTab() {
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
 
   useEffect(() => {
-    nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
+    nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n: any) => n.certname).sort())).catch(() => {});
   }, []);
 
   const handleLookup = async () => {
