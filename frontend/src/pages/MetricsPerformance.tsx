@@ -9,7 +9,7 @@ import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
+  ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { IconChartLine } from '@tabler/icons-react';
@@ -137,84 +137,85 @@ export function MetricsPerformancePage() {
         </ResponsiveContainer>
       </Card>
 
-      <Grid>
-        {/* Node comparison — top 10 slowest */}
-        <Grid.Col span={{ base: 12, md: 7 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Top 10 Slowest Nodes (avg)</Title>
-            {nodeComparison.length > 0 ? (
-              <ResponsiveContainer width="100%" height={420}>
-                <BarChart data={nodeComparison} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#8899aa' }}
-                    tickFormatter={(v: number) => formatSeconds(v)} />
-                  <YAxis dataKey="certname" type="category" width={160}
-                    tick={{ fontSize: 10, fill: '#8899aa' }}
-                    tickFormatter={shortName} />
-                  <ReTooltip {...TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [formatSeconds(value), name]}
-                    labelFormatter={(cn: string) => cn} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                  <Bar dataKey="avg_fact_generation" stackId="stack" fill="#2ecc71" name="Fact Gen" />
-                  <Bar dataKey="avg_plugin_sync" stackId="stack" fill="#9b59b6" name="Plugin Sync" />
-                  <Bar dataKey="avg_config_retrieval" stackId="stack" fill="#e67e22" name="Config Retrieval" />
-                  <Bar dataKey="avg_catalog_application" stackId="stack" fill="#e74c3c" name="Catalog Apply" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <Center h={300}><Text c="dimmed">No node comparison data available</Text></Center>
-            )}
-          </Card>
-        </Grid.Col>
+      {/* Timing phase breakdown over time */}
+      <Card withBorder shadow="sm" padding="lg">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>Timing Phase Breakdown Over Time</Title>
+          {breakdownArr.length > 0 && (
+            <Group gap="xs">
+              {breakdownArr.map((d: any, i: number) => (
+                <Badge key={i} size="sm" variant="light" leftSection={
+                  <div style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: COLORS[i % COLORS.length] }} />
+                }>{d.category}: {formatSeconds(d.avg_seconds)} avg</Badge>
+              ))}
+            </Group>
+          )}
+        </Group>
+        <ResponsiveContainer width="100%" height={400}>
+          <AreaChart data={trends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="gFact" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2ecc71" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#2ecc71" stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="gPlugin" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#9b59b6" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#9b59b6" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
+              tickFormatter={(v: string) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11, 16) || v} />
+            <YAxis tick={{ fontSize: 11, fill: '#8899aa' }}
+              tickFormatter={(v: number) => formatSeconds(v)} />
+            <ReTooltip {...TOOLTIP_STYLE}
+              formatter={(value: number, name: string) => [formatSeconds(value), name]} />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+            <Area type="monotone" dataKey="fact_generation" stroke="#2ecc71" fill="url(#gFact)" strokeWidth={2} dot={false} name="Fact Generation" />
+            <Area type="monotone" dataKey="plugin_sync" stroke="#9b59b6" fill="url(#gPlugin)" strokeWidth={2} dot={false} name="Plugin Sync" />
+            <Area type="monotone" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} dot={false} name="Config Retrieval" />
+            <Area type="monotone" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} dot={false} name="Catalog Application" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </Card>
 
-        {/* Timing phase breakdown */}
-        <Grid.Col span={{ base: 12, md: 5 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Timing Phase Breakdown (fleet avg)</Title>
-            {pieData.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={320}>
-                  <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-                    <Pie data={pieData} cx="50%" cy="45%" innerRadius={50} outerRadius={100}
-                      paddingAngle={2} dataKey="value" label={false}>
-                      {pieData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <ReTooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const e = payload[0];
-                        return (
-                          <div style={{ ...TOOLTIP_STYLE.contentStyle }}>
-                            <div style={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}>{e.name}</div>
-                            <div>{formatSeconds(Number(e.value))}</div>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Legend layout="horizontal" verticalAlign="bottom" align="center"
-                      wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Detail table */}
-                {breakdownArr.map((d: any, i: number) => (
-                  <Group key={i} justify="space-between" px="sm" py={4}
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <Group gap="xs">
-                      <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: COLORS[i % COLORS.length] }} />
-                      <Text size="sm">{d.category}</Text>
-                    </Group>
-                    <Text size="sm" fw={500}>{formatSeconds(d.avg_seconds)}</Text>
-                  </Group>
-                ))}
-              </>
-            ) : (
-              <Center h={300}><Text c="dimmed">No breakdown data available</Text></Center>
-            )}
-          </Card>
-        </Grid.Col>
-      </Grid>
+      {/* Top 10 slowest nodes over time */}
+      <Card withBorder shadow="sm" padding="lg">
+        <Title order={4} mb="md">Top 10 Slowest Nodes Over Time</Title>
+        {nodeComparison.length > 0 ? (
+          <ResponsiveContainer width="100%" height={400}>
+            <AreaChart margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+              data={(() => {
+                // Build time-series: for each timestamp, show the run time of each top-10 node
+                const top10Names = nodeComparison.map((n: any) => n.certname);
+                const timeMap: Record<string, any> = {};
+                for (const run of (data.run_time_trends || [])) {
+                  if (!top10Names.includes(run.certname)) continue;
+                  const t = run.time;
+                  if (!timeMap[t]) timeMap[t] = { time: t };
+                  timeMap[t][shortName(run.certname)] = run.total;
+                }
+                return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
+              })()}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+              <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
+                tickFormatter={(v: string) => v?.includes('T') ? v.split('T')[1]?.substring(0, 5) : v?.slice(11, 16) || v} />
+              <YAxis tick={{ fontSize: 11, fill: '#8899aa' }}
+                tickFormatter={(v: number) => formatSeconds(v)} />
+              <ReTooltip {...TOOLTIP_STYLE}
+                formatter={(value: number, name: string) => [formatSeconds(value), name]} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              {nodeComparison.map((n: any, i: number) => (
+                <Area key={n.certname} type="monotone" dataKey={shortName(n.certname)}
+                  stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5} dot={false}
+                  name={shortName(n.certname)} />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <Center h={300}><Text c="dimmed">No node comparison data available</Text></Center>
+        )}
+      </Card>
     </Stack>
   );
 }
