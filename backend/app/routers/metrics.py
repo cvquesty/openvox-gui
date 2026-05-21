@@ -12,6 +12,7 @@ Provides aggregated data for the Metrics section:
   8. Class coverage
 """
 import logging
+import time as _time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -27,6 +28,20 @@ router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 _AUTH = require_role("admin", "operator", "viewer")
 
+# ─── Response cache (TTL-based) ──────────────────────────
+_cache: Dict[str, Any] = {}
+_cache_ts: Dict[str, float] = {}
+_CACHE_TTL = 30  # seconds
+
+def _get_cached(key: str) -> Any:
+    if key in _cache and (_time.time() - _cache_ts.get(key, 0)) < _CACHE_TTL:
+        return _cache[key]
+    return None
+
+def _set_cached(key: str, value: Any):
+    _cache[key] = value
+    _cache_ts[key] = _time.time()
+
 
 # ─── 1. Fleet Compliance & Drift ──────────────────────────
 
@@ -36,6 +51,10 @@ async def get_compliance(
     _user: str = Depends(_AUTH),
 ):
     """Fleet-wide compliance summary: compliant vs drifted vs failed nodes."""
+    cached = _get_cached(f"compliance_{hours}")
+    if cached is not None:
+        return cached
+
     nodes = await puppetdb_service.get_nodes()
 
     compliant = []
@@ -89,7 +108,7 @@ async def get_compliance(
     except Exception:
         trend = []
 
-    return {
+    result = {
         "total": len(nodes),
         "compliant": len(compliant),
         "drifted": len(drifted),
@@ -105,6 +124,8 @@ async def get_compliance(
         },
         "trend": trend,
     }
+    _set_cached(f"compliance_{hours}", result)
+    return result
 
 
 # ─── 3. Resource Change Timeline ──────────────────────────
@@ -349,7 +370,11 @@ async def get_puppetdb_metric(
 
 @router.get("/puppetdb-performance")
 async def get_puppetdb_performance(_user: str = Depends(_AUTH)):
-    """Server-side performance metrics from PuppetDB's Jolokia/JMX interface."""
+    """Server-side performance metrics from PuppetDB's Jolokia/JMX interface. Cached 15s."""
+    cached = _get_cached("pdb_performance")
+    if cached is not None:
+        return cached
+
     metric_names = {
         # Command processing pipeline
         "cmd_processing": "puppetlabs.puppetdb.mq:name=global.processing-time",
@@ -402,6 +427,7 @@ async def get_puppetdb_performance(_user: str = Depends(_AUTH)):
         results[key] = val
 
     await asyncio.gather(*[fetch_metric(k, v) for k, v in metric_names.items()])
+    _set_cached("pdb_performance", results)
     return results
 
 

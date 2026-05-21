@@ -13,6 +13,7 @@ against a strict allowlist before interpolating it into PQL queries to
 prevent injection attacks.
 """
 import re
+import time
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
@@ -23,6 +24,22 @@ from ..services.puppetdb import puppetdb_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/performance", tags=["performance"])
+
+# ─── Response cache (TTL-based) ──────────────────────────
+# Caches expensive PuppetDB queries so multiple users or rapid
+# page refreshes don't each trigger a fresh query.
+_cache: Dict[str, Any] = {}
+_cache_ts: Dict[str, float] = {}
+_CACHE_TTL = 30  # seconds
+
+def _get_cached(key: str) -> Any:
+    if key in _cache and (time.time() - _cache_ts.get(key, 0)) < _CACHE_TTL:
+        return _cache[key]
+    return None
+
+def _set_cached(key: str, value: Any):
+    _cache[key] = value
+    _cache_ts[key] = time.time()
 
 # Strict pattern for values interpolated into PQL queries (certnames).
 _SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
@@ -101,7 +118,13 @@ async def performance_overview(
     """
     Comprehensive performance overview.
     Returns aggregated performance data suitable for all dashboard charts.
+    Cached for 30 seconds to reduce PuppetDB load.
     """
+    cache_key = f"perf_overview_{hours}_{limit}"
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         reports = await puppetdb_service.get_reports(
             limit=limit,
@@ -236,7 +259,7 @@ async def performance_overview(
             "noop_runs": sum(1 for p in processed if p["noop"]),
         }
 
-        return {
+        result = {
             "run_time_trends": run_time_trends,
             "node_comparison": node_comparison,
             "timing_breakdown": timing_breakdown,
@@ -244,6 +267,8 @@ async def performance_overview(
             "recent_runs": recent_runs,
             "stats": stats,
         }
+        _set_cached(cache_key, result)
+        return result
 
     except Exception as e:
         logger.error(f"Performance overview error: {e}", exc_info=True)
