@@ -2,17 +2,17 @@
  * OpenVox GUI - MetricsFactDist.tsx
  *
  * Fleet Fact Overview — auto-detects interesting facts across the fleet,
- * displays as a thumbnail grid with click-to-expand. Highlights outliers
- * (nodes with unusual values). Includes a custom fact explorer.
+ * displays as a thumbnail grid with click-to-expand. Highlights outliers.
+ * All charts are horizontal bar charts — no donuts.
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper,
-  TextInput, Button, Table, Collapse, ActionIcon, Tooltip,
+  Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid,
+  TextInput, Button, Table, Tooltip,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, PieChart, Pie, Cell,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as ReTooltip, Cell,
 } from 'recharts';
 import {
   IconChartPie, IconArrowsMaximize, IconArrowsMinimize,
@@ -28,7 +28,8 @@ const TOOLTIP_STYLE = {
     borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
     padding: '10px 14px', fontSize: 12, color: '#e0e0e0',
   },
-  itemStyle: { color: '#e0e0e0' },
+  itemStyle: { color: '#e0e0e0' } as const,
+  labelStyle: { fontWeight: 600, color: '#fff', marginBottom: 4 } as const,
 };
 
 interface FactCard {
@@ -42,12 +43,34 @@ interface FactCard {
   outliers: Array<{ value: string; count: number; nodes: string[] }>;
 }
 
+function DistributionBar({ data, height, maxItems }: { data: Array<{ value: string; count: number }>; height: number; maxItems: number }) {
+  const chartData = data.slice(0, maxItems).map(d => ({
+    name: String(d.value ?? 'null'),
+    count: d.count,
+  }));
+  const barHeight = Math.max(height, chartData.length * 28 + 40);
+
+  return (
+    <ResponsiveContainer width="100%" height={barHeight}>
+      <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: '#8899aa' }} allowDecimals={false} />
+        <YAxis type="category" dataKey="name" width={120}
+          tick={{ fontSize: 11, fill: '#8899aa' }}
+          tickFormatter={(v: string) => v.length > 22 ? v.substring(0, 20) + '...' : v} />
+        <ReTooltip {...TOOLTIP_STYLE}
+          formatter={(value: number) => [`${value} nodes`, 'Count']} />
+        <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
+          {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 function FactThumbnail({ data, expanded, onClick }: {
   data: FactCard; expanded: boolean; onClick: () => void;
 }) {
-  const chartData = data.chart_distribution.map(d => ({ name: d.value, value: d.count }));
-  const pieSize = expanded ? 160 : 70;
-
   return (
     <Card withBorder shadow="sm" padding="sm" style={{ cursor: 'pointer', transition: 'all 0.2s' }}
       onClick={onClick}>
@@ -64,17 +87,20 @@ function FactThumbnail({ data, expanded, onClick }: {
       </Group>
 
       {!expanded && (
-        <Group gap="xs" mb={4}>
-          <Text size="xs" c="dimmed">{data.unique_values} values across {data.total_nodes} nodes</Text>
-          {data.dominant && (
-            <Badge size="xs" variant="light">{data.dominant.value}: {data.dominant_pct}%</Badge>
-          )}
-        </Group>
+        <>
+          <Group gap="xs" mb={4}>
+            <Text size="xs" c="dimmed">{data.unique_values} values / {data.total_nodes} nodes</Text>
+            {data.dominant && (
+              <Badge size="xs" variant="light">{data.dominant.value}: {data.dominant_pct}%</Badge>
+            )}
+          </Group>
+          <DistributionBar data={data.chart_distribution} height={120} maxItems={5} />
+        </>
       )}
 
-      {expanded ? (
-        <Stack gap="md">
-          <Group gap="lg" mb="xs">
+      {expanded && (
+        <Stack gap="md" onClick={(e) => e.stopPropagation()}>
+          <Group gap="lg">
             <Badge variant="light" color="blue" size="lg">{data.total_nodes} nodes</Badge>
             <Badge variant="light" color="cyan" size="lg">{data.unique_values} unique values</Badge>
             {data.dominant && (
@@ -84,38 +110,7 @@ function FactThumbnail({ data, expanded, onClick }: {
             )}
           </Group>
 
-          <Grid>
-            <Grid.Col span={5}>
-              <Text size="sm" fw={600} mb="xs">Distribution</Text>
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={pieSize / 2 + 40}
-                    dataKey="value" label={false}>
-                    {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <ReTooltip {...TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [
-                      `${value} nodes (${((value / data.total_nodes) * 100).toFixed(1)}%)`, name
-                    ]} />
-                </PieChart>
-              </ResponsiveContainer>
-            </Grid.Col>
-            <Grid.Col span={7}>
-              <Text size="sm" fw={600} mb="xs">Values ({data.distribution.length})</Text>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={data.distribution.slice(0, 15)} layout="vertical" margin={{ left: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: '#8899aa' }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="value" tick={{ fontSize: 10, fill: '#8899aa' }} width={75}
-                    tickFormatter={(v: string) => v.length > 18 ? v.substring(0, 16) + '...' : v} />
-                  <ReTooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
-                    {data.distribution.slice(0, 15).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Grid.Col>
-          </Grid>
+          <DistributionBar data={data.distribution} height={350} maxItems={20} />
 
           {data.outliers.length > 0 && (
             <Card withBorder padding="sm" style={{ borderColor: 'var(--mantine-color-orange-6)' }}>
@@ -123,6 +118,10 @@ function FactThumbnail({ data, expanded, onClick }: {
                 <IconAlertTriangle size={16} color="var(--mantine-color-orange-6)" />
                 <Text size="sm" fw={700} c="orange">Outliers — unusual values ({data.outliers.length})</Text>
               </Group>
+              <Text size="xs" c="dimmed" mb="xs">
+                These values appear on only 1-2 nodes. They may indicate legacy systems,
+                misconfigured nodes, or systems pending upgrade.
+              </Text>
               <Table striped withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
@@ -143,16 +142,9 @@ function FactThumbnail({ data, expanded, onClick }: {
               </Table>
             </Card>
           )}
+
+          <Button variant="subtle" color="gray" size="xs" onClick={onClick}>Collapse</Button>
         </Stack>
-      ) : (
-        <ResponsiveContainer width="100%" height={100}>
-          <PieChart>
-            <Pie data={chartData} cx="50%" cy="50%" innerRadius={20} outerRadius={40}
-              dataKey="value" label={false}>
-              {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
       )}
     </Card>
   );
@@ -210,11 +202,10 @@ export function MetricsFactDistPage() {
 
       <Alert variant="light" color="blue" mb="xs">
         Auto-detected facts with variety across your fleet, ranked by interestingness.
-        Facts where every node has the same value are hidden. Outliers (values on 1-2 nodes)
-        are highlighted in orange — these are often misconfigured or legacy systems.
+        Uniform facts (same value on every node) are hidden. Outliers (values on 1-2 nodes)
+        are highlighted — these often indicate legacy systems or misconfigured nodes.
       </Alert>
 
-      {/* Fact grid or expanded view */}
       {expanded ? (
         (() => {
           const fact = facts.find(f => f.fact === expanded);
@@ -256,40 +247,11 @@ export function MetricsFactDistPage() {
               <Badge variant="light" color="blue">{customData.total_nodes} nodes</Badge>
               <Badge variant="light" color="cyan">{customData.unique_values} unique values</Badge>
             </Group>
-            <Grid>
-              <Grid.Col span={5}>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={(customData.chart_distribution || customData.distribution || []).map((d: any) => ({ name: d.value, value: d.count }))}
-                      cx="50%" cy="50%" innerRadius={40} outerRadius={90} dataKey="value" label={false}>
-                      {(customData.chart_distribution || customData.distribution || []).map((_: any, i: number) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <ReTooltip {...TOOLTIP_STYLE}
-                      formatter={(value: number, name: string) => [
-                        `${value} nodes (${((value / (customData.total_nodes || 1)) * 100).toFixed(1)}%)`, name
-                      ]} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Grid.Col>
-              <Grid.Col span={7}>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={(customData.distribution || []).slice(0, 15)} layout="vertical" margin={{ left: 80 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: '#8899aa' }} allowDecimals={false} />
-                    <YAxis type="category" dataKey="value" tick={{ fontSize: 10, fill: '#8899aa' }} width={75}
-                      tickFormatter={(v: string) => v.length > 18 ? v.substring(0, 16) + '...' : v} />
-                    <ReTooltip {...TOOLTIP_STYLE} />
-                    <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
-                      {(customData.distribution || []).slice(0, 15).map((_: any, i: number) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Grid.Col>
-            </Grid>
+            <DistributionBar
+              data={customData.chart_distribution || customData.distribution || []}
+              height={300}
+              maxItems={15}
+            />
           </Stack>
         )}
       </Card>
