@@ -205,9 +205,9 @@ export function MetricsPerformancePage() {
                 formatter={(value: number, name: string) => [formatSeconds(value), name]} />
               <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
               {nodeComparison.map((n: any, i: number) => (
-                <Area key={n.certname} type="monotone" dataKey={n.certname}
-                  stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={2}
-                  dot={{ r: 3, fill: COLORS[i % COLORS.length] }}
+                <Area key={n.certname} type="natural" dataKey={n.certname}
+                  stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5}
+                  dot={false}
                   connectNulls
                   name={shortName(n.certname)} />
               ))}
