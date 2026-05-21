@@ -152,6 +152,9 @@ export function MetricsPerformancePage() {
         point.gc_young_time = Number(server.gc_young?.CollectionTime) || 0;
         point.gc_old_count = Number(server.gc_old?.CollectionCount) || 0;
         point.gc_old_time = Number(server.gc_old?.CollectionTime) || 0;
+        point.nodes = Number(server.population_nodes?.Value) || 0;
+        point.resources = Number(server.population_resources?.Value) || 0;
+        point.avg_resources = Number(server.population_avg_resources?.Value) || 0;
         setServerHistory(prev => {
           const updated = [...prev, point];
           const trimmed = updated.length > MAX_SERVER_POINTS ? updated.slice(-MAX_SERVER_POINTS) : updated;
@@ -414,22 +417,17 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
         { label: 'Resources', value: `${Number(jmxVal(s.population_resources, 'Value')) || 0}` },
         { label: 'Avg/Node', value: `${(Number(jmxVal(s.population_avg_resources, 'Value')) || 0).toFixed(0)}` },
       ],
-      render: () => {
-        const popData = [
-          { name: 'Nodes', value: Number(jmxVal(s.population_nodes, 'Value')) || 0 },
-          { name: 'Resources', value: Number(jmxVal(s.population_resources, 'Value')) || 0 },
-          { name: 'Avg/Node', value: Number(jmxVal(s.population_avg_resources, 'Value')) || 0 },
-        ];
-        return (
-          <AreaChart data={popData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} />
-            <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
-            <ReTooltip {...TOOLTIP_STYLE} />
-            <Area type="natural" dataKey="value" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} dot={false} name="Count" />
-          </AreaChart>
-        );
-      },
+      render: () => (
+        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Nodes" />
+          <Area type="natural" dataKey="avg_resources" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Avg Resources/Node" />
+        </AreaChart>
+      ),
     },
   ];
 
