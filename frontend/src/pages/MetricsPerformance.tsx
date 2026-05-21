@@ -150,17 +150,26 @@ function MetricsPerformanceContent({ perfData, serverData, expanded, toggleExpan
 
   const top10Names = nodeComparison.map((n: any) => n.certname);
   const top10Data = useMemo(() => {
-    const timeMap: Record<string, any> = {};
-    for (const run of trends) {
-      if (!timeMap[run.time]) timeMap[run.time] = { time: run.time };
+    // Bucket by hour and average per node for smooth display
+    const hourBuckets: Record<string, Record<string, number[]>> = {};
+    for (const run of (perfData.run_time_trends || [])) {
+      if (!top10Names.includes(run.certname)) continue;
+      const hour = (run.time || '').substring(0, 13);
+      if (!hour) continue;
+      if (!hourBuckets[hour]) hourBuckets[hour] = {};
+      if (!hourBuckets[hour][run.certname]) hourBuckets[hour][run.certname] = [];
+      hourBuckets[hour][run.certname].push(run.total);
     }
-    for (const run of trends) {
-      if (top10Names.includes(run.certname)) {
-        timeMap[run.time][run.certname] = run.total;
-      }
-    }
-    return Object.values(timeMap).sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
-  }, [trends, top10Names]);
+    return Object.entries(hourBuckets)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([hour, nodeRuns]) => {
+        const point: any = { time: hour };
+        for (const [cn, values] of Object.entries(nodeRuns)) {
+          point[cn] = Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2));
+        }
+        return point;
+      });
+  }, [perfData, top10Names]);
 
   // Server-side data — safely default all fields to prevent render crashes
   const s: Record<string, any> = {};
