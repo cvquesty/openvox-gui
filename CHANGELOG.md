@@ -9,6 +9,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.0] - 2026-05-21
+
+### Added — Metrics Section (10 visualization pages)
+
+New top-level **Metrics** section with 10 pages providing fleet-wide
+analytics, server-side instrumentation, and PuppetDB health monitoring:
+
+- **Fleet Compliance** — horizontal bar chart showing compliant/drifted/
+  failed/noop/unreported node counts. Compliance trend area chart over
+  configurable time window (1h–7d). Expandable node lists per category,
+  alphabetically sorted with clickable certnames and scrollable panels.
+
+- **Run Performance** — 10-chart thumbnail dashboard (2 per row) with
+  click-to-expand. Agent-side: run duration trends, timing phase breakdown,
+  top 10 slowest nodes (hourly averaged). Server-side via PuppetDB
+  Jolokia/JMX: command processing time (catalog/facts/report as separate
+  lines), storage operation timing, database connection pool (6 lines:
+  read/write active/idle/pending), HTTP API latency, catalog dedup rate,
+  GC pressure, fleet population. All server metrics are time-series with
+  15-second auto-refresh and localStorage persistence. Configurable
+  refresh rate (5s/10s/15s/30s/1m/Off), manual refresh, clear history.
+
+- **Change Timeline** — real-time activity feed of resource changes across
+  the fleet with status filter and explanatory alert describing use cases.
+
+- **Fleet Fact Overview** (formerly Fact Distribution) — auto-detects
+  interesting facts ranked by variety. Numeric facts (uptime, memory, CPU)
+  shown as scatter plots; categorical facts (OS, kernel, versions) as
+  ranked bar charts. Outlier detection highlights values on 1-2 nodes
+  with certname links. Custom fact explorer for arbitrary queries.
+
+- **Classification Tree** — visual ENC hierarchy (Common → Environments →
+  Groups → Nodes) with explanatory alert.
+
+- **Catalog Graph** — real directed dependency graph using React Flow +
+  dagre. Class Hierarchy tab shows role → profile → module class structure
+  built from Puppet tags. Dependency tab shows resource relationships.
+  Color-coded nodes (red=roles, green=profiles, blue=modules), bright
+  theme with white text on colored backgrounds, auto-fit zoom.
+
+- **PuppetDB Health** — JVM heap usage over time as a live area chart with
+  localStorage persistence (up to 360 points). Command queue depth line
+  chart. Stat cards. Auto-refresh 10 seconds.
+
+- **Node Heatmap** — color-coded grid of all nodes by status, grouped by
+  environment. Click any cell to navigate to node detail.
+
+- **Environment Comparison** — per-environment time-series line charts
+  showing unchanged/changed/failed counts over time. localStorage
+  persistence. Configurable refresh rate. Click environment cards to
+  filter.
+
+- **Class Coverage** — most-deployed Puppet classes as a ranked line
+  graph with searchable table.
+
+### Added — Certificate Audit
+
+- **Certificate Audit** page under Tools — cross-references signed CA
+  certificates against PuppetDB nodes to find orphaned certs. Categorizes
+  as "Never Reported", "Deactivated", or "Expired". Individual clean
+  buttons, checkbox multi-select, bulk "Clean Selected/All" with
+  confirmation modal. Fixed `Revoked Certificates:` parser bug. Increased
+  CA command timeout from 30s to 120s for busy servers.
+
+### Added — Navigation Restructure
+
+- **Dashboard** replaces "Monitoring" as the top-level group, with
+  Overview and Nodes as children.
+- **Reports** moved under the Logs section.
+- **Metrics** added as a new top-level nav group (10 sub-pages).
+- **Colored nav icons** — subtle per-section colors (Dashboard=blue,
+  Infrastructure=orange, Code=green, Data=purple, Metrics=teal,
+  Tools=amber, Logs=red, Settings=gray).
+- **All Nodes** section added to the Nodes page between Classified
+  and Unclassified.
+
+### Added — Other Features
+
+- **Clickable certnames everywhere** — every certname/FQDN displayed
+  anywhere in the GUI is a blue underlined link navigating to the node
+  detail page. Updated across all pages: Dashboard, Nodes, Certificates,
+  Fact Explorer, Resource Explorer, Package Inventory, Compliance,
+  Timeline, Cert Audit, Heatmap, Node Classifier, Fact Distribution.
+- **Server-side response caching** (30s TTL) for expensive endpoints:
+  performance overview, compliance, PuppetDB JMX metrics. Reduces
+  PuppetDB load when multiple users or rapid refreshes hit the same data.
+- **PuppetDB JMX metrics passthrough** — `/api/metrics/puppetdb-metric`
+  and `/api/metrics/puppetdb-metrics-list` endpoints for exploring all
+  available Jolokia MBeans.
+- **Puppet-internal class filtering** — `Class[main]`, `Class[Settings]`,
+  and `Stage[main]` hidden from catalog graphs, class coverage, and
+  hierarchy views.
+
+### Changed
+
+- **All charts use smooth line rendering** — `type="natural"` curve
+  interpolation, gradient fills, dark glass-morphism tooltips, refined
+  grid styling. Dashboard area chart upgraded to 400px with gradient
+  fills. No donut/pie charts remain anywhere in the application.
+- **High-quality chart theme** — shared `chartTheme.ts` utility with
+  consistent color palette, axis styles, and number/duration/timestamp
+  formatters.
+- **Certificate Authority** — signed certificates alphabetized,
+  scrollable panel, clickable certnames.
+- **Node Classifier** — all node dropdowns alphabetized across
+  Hierarchy, Nodes, and Lookup tabs.
+- **Catalog graph node dropdown** alphabetized.
+
+### Fixed
+
+- **Certificate list parser** — `Revoked Certificates:` section header
+  was parsed as a certname. Now recognized as a section delimiter.
+- **CA command timeouts** — increased from 30s to 120s for busy servers.
+- **Compliance trend timestamps** — hourly timestamps (`2026-05-20T07`)
+  now formatted correctly instead of showing "Invalid Date" or "Date".
+- **Fact Distribution tooltips** — fixed black-on-black text by adding
+  explicit `itemStyle` color.
+- **Performance data field mismatches** — `avg_total` not `avg_run_time`,
+  `timing_breakdown` is array not dict, trends `time` not `timestamp`.
+- **JMX metric safety** — all Jolokia values wrapped with `Number() || 0`
+  to prevent React #310 render crashes from non-numeric objects.
+- **Jolokia path escaping** — forward slashes in HTTP metric names escaped
+  as `!/` for correct MBean resolution.
+
 ## [3.6.7] - 2026-05-20
 
 ### Added

@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.6.7-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.7.0-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -222,6 +222,50 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 # List all users
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
+
+## What's New in Version 3.7.0
+
+### Metrics Section (the headline feature)
+
+A new top-level **Metrics** section with 10 visualization pages providing
+fleet-wide analytics and server-side instrumentation:
+
+- **Run Performance** — 10-chart dashboard with click-to-expand thumbnails.
+  Agent-side: run duration trends, timing phase breakdown, top 10 slowest
+  nodes. Server-side via PuppetDB Jolokia: command processing, storage timing,
+  DB connection pool, HTTP latency, catalog deduplication, GC pressure, fleet
+  population. All server metrics auto-refresh (configurable 5s–1m) with
+  localStorage persistence.
+- **Fleet Compliance** — compliance distribution bar chart with trend line.
+  Expandable alphabetized node lists per category with clickable certnames.
+- **Fleet Fact Overview** — auto-detects interesting facts ranked by variety.
+  Scatter plots for numeric data (uptime, memory), bar charts for categorical
+  (OS, kernel). Outlier detection with node links. Custom fact explorer.
+- **Catalog Graph** — real directed dependency graph using React Flow + dagre.
+  Class hierarchy view shows role → profile → module structure built from
+  Puppet tags. Color-coded nodes, bright theme, auto-fit zoom.
+- **PuppetDB Health** — JVM heap usage over time with localStorage persistence.
+- **Change Timeline** — real-time fleet-wide resource change feed.
+- **Environment Comparison** — per-environment time-series with auto-refresh.
+- **Node Heatmap**, **Classification Tree**, **Class Coverage**.
+
+### Certificate Audit
+New tool under **Tools > Certificate Audit** that cross-references signed CA
+certificates against PuppetDB nodes. Finds orphaned certs from decommissioned
+or renamed nodes. Checkbox multi-select for bulk cleanup.
+
+### Navigation Restructure
+- "Monitoring" renamed to "Dashboard" with Nodes as a child
+- "Information" renamed to "Tools" with Certificate Audit added
+- Reports moved under Logs
+- Colored nav icons for each section
+
+### UX Improvements
+- Every certname anywhere in the GUI is a clickable link to the node detail page
+- All dropdowns alphabetized (certificates, node selectors, classifiers)
+- Certificate Authority list is scrollable with alphabetized certnames
+- High-quality chart rendering: smooth curves, gradient fills, dark tooltips
+- Server-side response caching (30s TTL) for expensive PuppetDB queries
 
 ## What's New in Version 3.6.6
 

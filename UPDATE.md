@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.6.9-RC14**
+**OpenVox GUI Version 3.7.0**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -171,7 +171,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.6.9-RC14"}
+# {"status":"ok","version":"3.7.0"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -601,7 +601,19 @@ Examples:
 
 ### Recent Versions
 
-**Version 3.6.6 (Current)**
+**Version 3.7.0 (Current)**
+- **Metrics section** — 10 new visualization pages: Run Performance (10
+  charts with JMX instrumentation), Fleet Compliance, Fleet Fact Overview,
+  Catalog Graph (React Flow), PuppetDB Health, Change Timeline, Environment
+  Comparison, Node Heatmap, Classification Tree, Class Coverage
+- **Certificate Audit** tool for finding/cleaning orphaned CA certs
+- **Navigation restructure** — Dashboard/Tools/Logs reorganization, colored icons
+- **Clickable certnames everywhere**, alphabetized dropdowns/lists
+- **High-quality charts** — smooth lines, gradient fills, time-series with
+  localStorage persistence and configurable auto-refresh
+- **Server-side caching** (30s TTL) for expensive PuppetDB queries
+
+**Version 3.6.6**
 - **SSL Certificate Wizard** — complete redesign of the SSL Configuration page with
   guided workflows for web certificate upload (corporate PKI, Let's Encrypt, Puppet
   certs) and Puppet CA intermediate setup (CSR generation, PKI team handoff, import).
