@@ -19,11 +19,29 @@ import { metrics } from '../services/api';
 
 interface HeapDataPoint {
   time: string;
+  ts: number;  // epoch ms for dedup and sorting
   used_mb: number;
   committed_mb: number;
   max_mb: number;
   pct: number;
   queue_depth: number;
+}
+
+const STORAGE_KEY = 'openvox_pdb_heap_history';
+const MAX_POINTS = 360; // 1 hour at 10s intervals
+
+function loadHistory(): HeapDataPoint[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+function saveHistory(points: HeapDataPoint[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(points));
+  } catch {}
 }
 
 function StatCard({ label, value, color, description }: {
@@ -40,7 +58,7 @@ function StatCard({ label, value, color, description }: {
 
 export function MetricsPuppetDBHealthPage() {
   const [data, setData] = useState<any>(null);
-  const [heapHistory, setHeapHistory] = useState<HeapDataPoint[]>([]);
+  const [heapHistory, setHeapHistory] = useState<HeapDataPoint[]>(loadHistory);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -55,8 +73,10 @@ export function MetricsPuppetDBHealthPage() {
       // Accumulate heap data point
       const jvm = result.jvm_heap || {};
       if (jvm.used_mb !== undefined) {
+        const now = Date.now();
         const point: HeapDataPoint = {
           time: new Date().toLocaleTimeString(),
+          ts: now,
           used_mb: jvm.used_mb,
           committed_mb: jvm.committed_mb,
           max_mb: jvm.max_mb,
@@ -65,8 +85,9 @@ export function MetricsPuppetDBHealthPage() {
         };
         setHeapHistory(prev => {
           const updated = [...prev, point];
-          // Keep last 60 data points (10 minutes at 10s intervals)
-          return updated.length > 60 ? updated.slice(-60) : updated;
+          const trimmed = updated.length > MAX_POINTS ? updated.slice(-MAX_POINTS) : updated;
+          saveHistory(trimmed);
+          return trimmed;
         });
       }
     } catch (e: any) {
@@ -109,6 +130,12 @@ export function MetricsPuppetDBHealthPage() {
             Auto-refresh 10s &middot; Updated {lastRefresh.toLocaleTimeString()}
           </Text>
           {error && <Badge color="orange" variant="light" size="sm">Refresh error</Badge>}
+          {heapHistory.length > 0 && (
+            <Text size="xs" c="dimmed" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => { setHeapHistory([]); saveHistory([]); }}>
+              Clear history ({heapHistory.length} points)
+            </Text>
+          )}
         </Group>
       </Group>
 
