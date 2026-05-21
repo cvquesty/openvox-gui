@@ -6,6 +6,7 @@
  * renamed, or never-reported nodes. Allows individual or bulk cleanup.
  */
 import { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Button, ActionIcon, Tooltip, Collapse, Paper,
@@ -37,6 +38,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; description:
 };
 
 export function CertAuditPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -214,7 +216,8 @@ export function CertAuditPage() {
                           onChange={() => toggleSelect(cert.certname)}
                         />
                       </Table.Td>
-                      <Table.Td><Text fw={500} size="sm">{cert.certname}</Text></Table.Td>
+                      <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => navigate(`/nodes/${cert.certname}`)}>{cert.certname}</Text></Table.Td>
                       <Table.Td>
                         <Tooltip label={cfg.description} multiline maw={300}>
                           <Badge color={cfg.color} variant="filled" size="sm" style={{ cursor: 'help' }}>
@@ -267,7 +270,8 @@ export function CertAuditPage() {
             <Table.Tbody>
               {active.map((cert: any) => (
                 <Table.Tr key={cert.certname}>
-                  <Table.Td><Text fw={500} size="sm">{cert.certname}</Text></Table.Td>
+                  <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate(`/nodes/${cert.certname}`)}>{cert.certname}</Text></Table.Td>
                   <Table.Td>
                     <Badge color={cert.latest_report_status === 'changed' ? 'blue' : cert.latest_report_status === 'failed' ? 'red' : 'green'} variant="light" size="sm">
                       {cert.latest_report_status || 'unknown'}

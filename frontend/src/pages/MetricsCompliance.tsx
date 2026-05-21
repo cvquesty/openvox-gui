@@ -6,6 +6,7 @@
  * summary stat cards, and expandable per-category node lists.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
   Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon,
@@ -50,6 +51,7 @@ function timeAgo(ts: string): string {
 
 function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color: string }) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   if (!nodes || nodes.length === 0) return null;
 
@@ -81,7 +83,8 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
             <Table.Tbody>
               {nodes.map((n: any, i: number) => (
                 <Table.Tr key={i}>
-                  <Table.Td><Text size="sm" fw={500}>{n.certname}</Text></Table.Td>
+                  <Table.Td><Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text></Table.Td>
                   <Table.Td><Text size="sm">{n.environment || '\u2014'}</Text></Table.Td>
                   <Table.Td><Text size="sm">{n.timestamp ? timeAgo(n.timestamp) : '\u2014'}</Text></Table.Td>
                 </Table.Tr>

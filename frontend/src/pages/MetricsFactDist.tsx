@@ -6,6 +6,7 @@
  * Highlights outliers across the fleet.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid,
   TextInput, Button, Table, Tooltip,
@@ -113,6 +114,16 @@ function CategoricalArea({ distribution, total, height }: {
   );
 }
 
+function CertnameLink({ certname }: { certname: string }) {
+  const navigate = useNavigate();
+  return (
+    <Text size="xs" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+      onClick={(e) => { e.stopPropagation(); navigate(`/nodes/${certname}`); }}>
+      {certname}
+    </Text>
+  );
+}
+
 function FactThumbnail({ data, expanded, onClick }: {
   data: FactCard; expanded: boolean; onClick: () => void;
 }) {
@@ -190,7 +201,11 @@ function FactThumbnail({ data, expanded, onClick }: {
                     <Table.Tr key={i}>
                       <Table.Td><Badge size="sm" variant="light" color="orange">{o.value}</Badge></Table.Td>
                       <Table.Td>{o.count}</Table.Td>
-                      <Table.Td><Text size="xs">{o.nodes.join(', ')}</Text></Table.Td>
+                      <Table.Td>
+                        <Group gap={4} wrap="wrap">
+                          {o.nodes.map((cn: string) => <CertnameLink key={cn} certname={cn} />)}
+                        </Group>
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>

@@ -6,6 +6,7 @@
  * badges, resource info, timestamps, and corrective-change drift markers.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
   Select, ScrollArea,
@@ -53,13 +54,15 @@ function formatTimestamp(ts: string): string {
 }
 
 function EventCard({ event }: { event: any }) {
+  const navigate = useNavigate();
   const badge = STATUS_BADGE[event.status] || { color: 'gray', label: event.status };
 
   return (
     <Card withBorder shadow="xs" padding="sm" radius="sm">
       <Group justify="space-between" mb={4}>
         <Group gap="xs">
-          <Text size="sm" fw={700}>{event.certname}</Text>
+          <Text size="sm" fw={700} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+            onClick={() => navigate(`/nodes/${event.certname}`)}>{event.certname}</Text>
           <Badge color={badge.color} variant="light" size="sm">{badge.label}</Badge>
           {event.corrective_change && (
             <Badge color="orange" variant="filled" size="sm" leftSection={<IconAlertTriangle size={10} />}>
