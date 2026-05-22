@@ -236,9 +236,9 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
     table = Table(title="Tuning Recommendations")
     table.add_column("Component", style="cyan")
     table.add_column("Setting", style="magenta")
-    table.add_column("Current", style="dim")
-    table.add_column("Recommended", style="green")
-    table.add_column("Reason", style="yellow")
+    table.add_column("Current", style="yellow")
+    table.add_column("Recommended", style="green bold")
+    table.add_column("Reason", style="dim")
 
     for r in recs:
         if component and r.get("component") != component:
@@ -246,12 +246,13 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
         table.add_row(
             r.get("component", ""),
             r.get("setting", ""),
-            str(r.get("current", "")),
+            str(r.get("current", "unknown")),
             str(r.get("recommended", "")),
-            r.get("reason", "")[:60]
+            r.get("reason", "")[:70]
         )
 
     console.print(table)
+    console.print("\n[bold]Run [cyan]ovox infra tune --server[/cyan] or [cyan]--db[/cyan] to apply.[/bold]")
 
 
 def _apply_tuning(client, data: dict, component: Optional[str], dry_run: bool):

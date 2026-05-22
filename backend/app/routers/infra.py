@@ -15,8 +15,11 @@ logger = logging.getLogger(__name__)
 
 from ..dependencies import require_role
 from ..services.puppetdb import puppetdb_service
+from ..services.infra_config import InfraConfigService
 
 router = APIRouter(prefix="/api/infra", tags=["infrastructure"])
+
+_infra_config = InfraConfigService()
 
 _AUTH = require_role("admin", "operator", "viewer")
 
@@ -54,35 +57,38 @@ async def get_tune_recommendations(
     # Very basic but useful starting heuristics.
     # These will be replaced / expanded with more sophisticated logic
     # that reads actual current config values.
-    if not component or component == "puppetserver":
-        # JRuby tuning recommendation
-        suggested_jrubies = max(1, min(8, (node_count // 40) + 1))
+    if not component or component in ("puppetserver", "server"):
+        current_jruby = _infra_config.get_puppetserver_jruby_max_active()
+        suggested_jrubies = max(1, min(12, (node_count // 35) + 2))
+
         recs.append({
             "component": "puppetserver",
-            "setting": "jruby_max_active_instances",
-            "current": "unknown (read from puppetserver.conf)",
+            "setting": "jruby-puppet.max-active-instances",
+            "current": str(current_jruby) if current_jruby is not None else "not found",
             "recommended": suggested_jrubies,
-            "reason": f"~{node_count} nodes. General guideline: ~1 JRuby per 40-50 nodes."
+            "reason": f"~{node_count} nodes. Guideline: ~1 JRuby per 35-40 agents (capped for safety)."
         })
 
-        # Heap size rough guidance
-        heap_gb = max(2, min(8, (node_count // 100) + 2))
+        # Simple heap guidance (we don't parse JVM args perfectly yet)
+        heap_gb = max(2, min(16, (node_count // 80) + 3))
         recs.append({
             "component": "puppetserver",
-            "setting": "java_args (heap)",
-            "current": "unknown",
+            "setting": "JVM heap (-Xms/-Xmx)",
+            "current": "see /etc/sysconfig/puppetserver",
             "recommended": f"-Xms{heap_gb}g -Xmx{heap_gb}g",
-            "reason": "Increase heap with fleet size. Monitor GC pressure."
+            "reason": "Match heap to workload. Monitor GC logs."
         })
 
-    if not component or component == "puppetdb":
-        pool_size = max(10, min(100, (node_count // 10) + 10))
+    if not component or component in ("puppetdb", "db"):
+        pools = _infra_config.get_puppetdb_pool_settings()
+        suggested_pool = max(15, min(150, (node_count // 8) + 15))
+
         recs.append({
             "component": "puppetdb",
-            "setting": "read_pool_max_connections (and write)",
-            "current": "unknown",
-            "recommended": pool_size,
-            "reason": "Scale connection pools with number of agents."
+            "setting": "read_pool.max_connections + write_pool.max_connections",
+            "current": f"read={pools.get('read')}, write={pools.get('write')}",
+            "recommended": suggested_pool,
+            "reason": "Scale DB connection pools with number of agents."
         })
 
     return {
@@ -133,49 +139,52 @@ async def apply_tuning(
     applied_changes = []
 
     try:
-        backup_dir.mkdir(parents=True, exist_ok=True)
-
         if is_puppetserver:
-            # Focus on the most impactful setting: JRuby max active instances
-            conf_file = Path("/etc/puppetlabs/puppetserver/conf.d/puppetserver.conf")
-            if conf_file.exists():
-                shutil.copy2(conf_file, backup_dir / "puppetserver.conf")
-                applied_changes.append(str(conf_file))
+            # Apply JRuby tuning using the dedicated service (handles backup)
+            for change in request.changes:
+                setting = change.get("setting", "").lower()
+                value = change.get("value")
 
-                # Simple but safe update for the common JRuby setting
-                for change in request.changes:
-                    if "jruby" in change.get("setting", "").lower() or "max-active" in change.get("setting", "").lower():
-                        new_value = str(change["value"])
-                        _update_jruby_max_active_instances(conf_file, new_value)
-                        applied_changes.append(f"Set jruby-puppet.max-active-instances = {new_value}")
+                if "max-active" in setting or "jruby" in setting:
+                    try:
+                        val = int(value)
+                        backup_dir = _infra_config.set_puppetserver_jruby_max_active(val)
+                        applied_changes.append(f"puppetserver: jruby-puppet.max-active-instances = {val}")
+                    except (ValueError, TypeError):
+                        logger.warning(f"Invalid JRuby value: {value}")
 
         else:
-            # PuppetDB tuning - database connection pools
-            db_conf = Path("/etc/puppetlabs/puppetdb/conf.d/database.ini")
-            if db_conf.exists():
-                shutil.copy2(db_conf, backup_dir / "database.ini")
-                applied_changes.append(str(db_conf))
+            # Apply PuppetDB pool tuning
+            read_val = None
+            write_val = None
+            for change in request.changes:
+                setting = change.get("setting", "").lower()
+                try:
+                    val = int(change.get("value"))
+                except (ValueError, TypeError):
+                    continue
 
-                for change in request.changes:
-                    setting = change.get("setting", "")
-                    if "pool" in setting.lower() or "connection" in setting.lower():
-                        # Very simple ini update
-                        _update_puppetdb_pool(db_conf, setting, str(change["value"]))
-                        applied_changes.append(f"Set {setting} = {change['value']}")
+                if "read" in setting:
+                    read_val = val
+                elif "write" in setting:
+                    write_val = val
 
-        # Restart the service using the PTY-aware sudo helper
+            if read_val is not None or write_val is not None:
+                backup_dir = _infra_config.set_puppetdb_pool_settings(read_val, write_val)
+                applied_changes.append(f"puppetdb: pools updated (read={read_val}, write={write_val})")
+
+        # Restart the service
         restart_result = await run_sudo(["systemctl", "restart", service_name], timeout=120)
-
         restarted = restart_result.get("returncode") == 0
 
         return {
             "status": "success" if restarted else "partial",
             "component": service_name,
-            "applied": applied_changes,
-            "backup_dir": str(backup_dir),
+            "applied": applied_changes or ["No matching settings found to change"],
+            "backup_dir": str(backup_dir) if 'backup_dir' in locals() else "N/A",
             "restarted": restarted,
-            "restart_output": restart_result.get("stdout", "") + restart_result.get("stderr", ""),
-            "message": f"Tuning applied for {service_name}. Service restart {'succeeded' if restarted else 'may have issues'}."
+            "restart_output": (restart_result.get("stdout", "") + restart_result.get("stderr", "")).strip(),
+            "message": f"Tuning applied for {service_name}. Service restart {'succeeded' if restarted else 'failed - check logs'}."
         }
 
     except Exception as e:
