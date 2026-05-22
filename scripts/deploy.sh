@@ -57,6 +57,8 @@ done
 if [ -d "${REPO_DIR}/ovox" ]; then
     rm -rf "${INSTALL_DIR}/ovox"
     cp -a "${REPO_DIR}/ovox" "${INSTALL_DIR}/"
+    # Ensure the ovox/ tree (including VERSION) is readable by operators and the puppet service user
+    chmod -R a+rX "${INSTALL_DIR}/ovox" 2>/dev/null || true
     echo "  + ovox CLI source"
 fi
 

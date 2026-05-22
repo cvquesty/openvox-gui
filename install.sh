@@ -640,6 +640,7 @@ log_ok "Copied scripts"
 if [ -d "${SCRIPT_DIR}/ovox" ]; then
     rm -rf "${INSTALL_DIR}/ovox"
     cp -a "${SCRIPT_DIR}/ovox" "${INSTALL_DIR}/"
+    chmod -R a+rX "${INSTALL_DIR}/ovox" 2>/dev/null || true
     log_ok "Copied ovox CLI package source"
 else
     log_warn "No ovox/ directory found in source tree — CLI will not be installed"

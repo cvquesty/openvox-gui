@@ -180,6 +180,7 @@ log_ok "Deployed scripts"
 if [ -d "${REPO_DIR}/ovox" ]; then
     rm -rf "${INSTALL_DIR}/ovox"
     cp -a "${REPO_DIR}/ovox" "${INSTALL_DIR}/"
+    chmod -R a+rX "${INSTALL_DIR}/ovox" 2>/dev/null || true
     log_ok "Deployed ovox CLI package source"
 fi
 

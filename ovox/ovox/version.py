@@ -35,30 +35,29 @@ def get_version() -> str:
     #    (this is where install.sh / deploy.sh copy the ovox/ tree)
     for candidate in (
         Path("/opt/openvox-gui/ovox/VERSION"),
-        Path("/opt/openvox-gui/ovox/VERSION"),  # explicit
     ):
-        if candidate.exists():
-            try:
+        try:
+            if candidate.exists():
                 ver = candidate.read_text(encoding="utf-8").strip()
                 if ver:
                     return ver
-            except OSError:
-                pass
+        except (OSError, PermissionError):
+            # No permission or other FS error — skip this candidate
+            pass
 
-    # 3. Development checkout — ovox has its own VERSION file at ovox/VERSION
-    #    From ovox/ovox/version.py we go up two directories to reach the ovox/ tree.
+    # 3. Development / fallback locations
     for candidate in (
-        Path(__file__).resolve().parent.parent / "VERSION",           # ovox/ovox/../VERSION → ovox/VERSION
-        Path(__file__).resolve().parent.parent.parent / "ovox" / "VERSION",  # from repo root
-        Path("/opt/openvox-gui/ovox/VERSION"),                        # production install
+        Path(__file__).resolve().parent.parent / "VERSION",                    # ovox/VERSION in source tree
+        Path(__file__).resolve().parent.parent.parent / "ovox" / "VERSION",
+        Path("/opt/openvox-gui/ovox/VERSION"),
     ):
-        if candidate.exists():
-            try:
+        try:
+            if candidate.exists():
                 ver = candidate.read_text(encoding="utf-8").strip()
                 if ver:
                     return ver
-            except OSError:
-                pass
+        except (OSError, PermissionError):
+            pass
 
     # 4. Last resort: the version that was baked into the wheel/sdist
     return _pkg_version
