@@ -70,7 +70,9 @@ def main(
     no_verify: bool = typer.Option(
         False,
         "--no-verify",
-        help="Disable TLS certificate verification (development only)",
+        help="Disable TLS verification. Useful when connecting directly to the "
+             "internal :4567 listener on the OpenVox server itself (the uvicorn "
+             "process uses the Puppet CA, not a public LE cert).",
     ),
     version: bool = typer.Option(
         False,

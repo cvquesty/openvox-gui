@@ -60,13 +60,29 @@ class OvoxClient:
         self.base_url = (base_url or self.cm.get_effective_url()).rstrip("/")
         self.token = token or self.cm.get_token()
         cfg = self.cm.load_config()
-        self.verify_ssl = verify_ssl if verify_ssl is not None else cfg.verify_ssl
+
+        # verify_ssl here is the *user intent* (bool or None).
+        # We still expose self.verify_ssl for the CLI layer, but the actual
+        # value passed to httpx (which can be bool or a CA bundle path) lives
+        # in self.verify.
+        user_verify = verify_ssl if verify_ssl is not None else cfg.verify_ssl
+
+        if user_verify is False:
+            # User explicitly wants no verification
+            self.verify_ssl = False
+            self.verify = False
+        else:
+            self.verify_ssl = True
+            # Let the config manager decide: normal trust, or Puppet CA bundle
+            # when running locally against the internal listener.
+            self.verify = self.cm.get_effective_verify()
+
         self.timeout = timeout or cfg.timeout
 
         self._client = httpx.Client(
             base_url=self.base_url,
             timeout=self.timeout,
-            verify=self.verify_ssl,
+            verify=self.verify,
             headers={
                 "User-Agent": f"ovox/{VERSION}",
                 "Accept": "application/json",

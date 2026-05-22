@@ -28,6 +28,11 @@ DEFAULT_DATA_DIR = Path.home() / ".local" / "share" / "ovox"
 # Sensible production default when running on the OpenVox server itself
 DEFAULT_LOCAL_URL = "https://localhost:4567"
 
+# Standard location of the Puppet CA bundle on any OpenVox/Puppet server.
+# When the CLI is running locally and targeting the internal uvicorn listener
+# (port 4567), this is the correct CA to validate the node's own certificate.
+PUPPET_CA_BUNDLE = Path("/etc/puppetlabs/puppet/ssl/certs/ca.pem")
+
 
 class OvoxConfig(BaseModel):
     """Persisted user configuration."""
@@ -61,6 +66,58 @@ class ConfigManager:
             self.config_dir.chmod(0o700)
         except OSError:
             pass
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Smart local server detection (makes "ovox" just work on the box)
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _is_likely_local_openvox_server(self) -> bool:
+        """Heuristic: are we running on the same machine that hosts the GUI?"""
+        return PUPPET_CA_BUNDLE.exists()
+
+    def _get_local_fqdn(self) -> str:
+        """Best effort to get the machine's FQDN (what the Puppet cert is issued to)."""
+        try:
+            import socket
+            fqdn = socket.getfqdn()
+            if fqdn and "." in fqdn and not fqdn.startswith("localhost"):
+                return fqdn
+        except Exception:
+            pass
+        return "localhost"
+
+    def get_effective_verify(self) -> bool | str:
+        """
+        Return the value that should be passed to httpx `verify=`.
+
+        Rules (in priority order):
+        - Explicit OPENVOX_VERIFY_SSL env var wins (true/false)
+        - If user set verify_ssl=False in their config file, respect it
+        - If targeting the *internal* GUI listener (port 4567) while on a
+          real OpenVox server, use the Puppet CA bundle so the node's own
+          certificate validates cleanly.
+        - Otherwise fall back to normal system trust (True).
+        """
+        cfg = self.load_config()
+
+        # 1. Hard env override
+        if verify_env := os.environ.get("OPENVOX_VERIFY_SSL"):
+            if verify_env.lower() in ("0", "false", "no", "off"):
+                return False
+            return True
+
+        # 2. User explicitly turned it off in ~/.config/ovox/config.yaml
+        if cfg.verify_ssl is False:
+            return False
+
+        # 3. Smart local case: we are on the server and hitting the internal port
+        url = (os.environ.get("OPENVOX_URL") or cfg.url or "").lower()
+        if ":4567" in url or "/localhost" in url or "127.0.0.1" in url:
+            if self._is_likely_local_openvox_server() and PUPPET_CA_BUNDLE.exists():
+                return str(PUPPET_CA_BUNDLE)
+
+        # 4. Normal public / LE case — use system / certifi trust store
+        return True
 
     def load_config(self) -> OvoxConfig:
         """Load persisted config, falling back to defaults + env overrides."""
@@ -129,6 +186,15 @@ class ConfigManager:
         """Return the URL after all overrides (never ends with /)."""
         cfg = self.load_config()
         url = os.environ.get("OPENVOX_URL", cfg.url)
+
+        # If the user hasn't customized the URL and we are on a real OpenVox
+        # server, prefer the machine's own FQDN (the name the internal cert is
+        # issued to) instead of the generic "localhost".
+        if url.rstrip("/") == DEFAULT_LOCAL_URL.rstrip("/") and self._is_likely_local_openvox_server():
+            fqdn = self._get_local_fqdn()
+            if fqdn != "localhost":
+                url = f"https://{fqdn}:4567"
+
         return url.rstrip("/")
 
 
