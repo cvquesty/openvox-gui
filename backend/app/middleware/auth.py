@@ -158,6 +158,11 @@ async def _track_session(request: Request, user: Dict[str, Any]):
 _SKIP_AUTH_PATHS = (
     "/static", "/assets", "/health",
     "/api/enc/classify",
+    # Bolt inventory plugin endpoints — these must be reachable by the
+    # local 'bolt' user on the control node without a GUI session/JWT,
+    # similar to how agents use /classify via SSL cert auth.
+    "/api/enc/inventory/bolt",
+    "/api/enc/inventory/bolt/yaml",
     "/api/auth/login", "/api/auth/status",
     "/api/config/app/name",
     "/api/deploy/webhook",
