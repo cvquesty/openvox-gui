@@ -71,6 +71,7 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - **[Update Guide](UPDATE.md)** — How to update to newer versions (clone-then-deploy architecture)
 - **[LDAP / Active Directory Guide](docs/LDAP.md)** — Configure enterprise authentication
 - **[Sudoers Configuration](docs/SUDOERS.md)** — Required sudo rules for the GUI service
+- **[Tuning Guide](docs/TUNING.md)** — Health checks, recommendations, and safe tuning with `ovox infra` (including JVM control)
 - **[Troubleshooting](TROUBLESHOOTING.md)** — Solutions to common problems
 - **[Changelog](CHANGELOG.md)** — Complete version history with every change documented
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to the project

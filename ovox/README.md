@@ -98,10 +98,23 @@ Environment variables (override config):
 | logs      | tail, search, node                            | Planned     |
 | config    | get, set, puppet, hiera                       | Planned     |
 | metrics   | compliance, performance, health               | Planned     |
+| infra     | health, settings show/set, recommend, tune    | Core        |
 | users     | list, create, role                            | Planned     |
 | tui       | Interactive full-screen modes                 | Future      |
 
 See `ovox <group> --help` for subcommand details.
+
+### Infrastructure Tuning (`infra`)
+
+```bash
+ovox infra health
+ovox infra settings show
+ovox infra settings set server.jvm.heap 8g
+ovox infra recommend
+ovox infra tune --server
+```
+
+`ovox infra` lets you inspect the current state of your OpenVox Server and OpenVoxDB, get tuning recommendations based on fleet size, and safely apply changes (with automatic backups and service restarts). See [docs/TUNING.md](../docs/TUNING.md) for the full guide.
 
 ## Authentication
 

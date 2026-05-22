@@ -182,6 +182,19 @@ def tune(
     _apply_tuning(client, data, component, dry_run=False)
 
 
+# Convenience alias so users can do "ovox infra set ..." directly
+@app.command("set", help="Shortcut for 'settings set' (direct configuration changes)")
+def infra_set_alias(
+    ctx: typer.Context,
+    key: str = typer.Argument(...),
+    value: str = typer.Argument(...),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+):
+    """Direct alias for `ovox infra settings set`."""
+    settings_set(ctx, key, value, dry_run=dry_run, yes=yes)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Settings subcommand group (read + write)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -282,12 +295,47 @@ def settings_set(
         verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
     )
 
+    # Try to fetch current value for nice diff
+    current = "unknown"
+    try:
+        data = client.get("/api/infra/settings")
+        if component == "server" and "puppetserver" in data:
+            ps = data["puppetserver"]
+            if "max_active" in setting:
+                current = ps.get("jruby_max_active_instances", "unknown")
+            elif "heap" in setting:
+                current = ps.get("jvm", {}).get("heap_max", "unknown")
+            elif "code_cache" in setting:
+                current = ps.get("jvm", {}).get("reserved_code_cache", "unknown")
+        elif component == "db" and "puppetdb" in data:
+            pdb = data["puppetdb"]
+            if "read" in setting:
+                current = pdb.get("pools", {}).get("read", "unknown")
+            elif "write" in setting:
+                current = pdb.get("pools", {}).get("write", "unknown")
+    except Exception:
+        pass
+
     if dry_run:
-        console.print(f"[yellow]Dry run:[/yellow] Would set {component}.{setting} = {value}")
+        console.print(Panel.fit(
+            f"[yellow]DRY RUN[/yellow]\n\n"
+            f"Would change:\n"
+            f"  {component}.{setting}\n"
+            f"    Current   : {current}\n"
+            f"    New value : {value}",
+            title="Dry Run - No changes will be made",
+            border_style="yellow"
+        ))
         return
 
     if not yes:
-        if not typer.confirm(f"Set {component}.{setting} = {value}?\nThis will back up configs and restart the service.", default=False):
+        if not typer.confirm(
+            f"Set {component}.{setting} = {value}?\n"
+            f"  Current: {current}\n"
+            f"  New    : {value}\n\n"
+            "This will back up configs and restart the service.",
+            default=False
+        ):
             console.print("[yellow]Aborted.[/yellow]")
             raise typer.Exit(0)
 
@@ -302,7 +350,7 @@ def settings_set(
             if result.get("backup_dir"):
                 console.print(f"  Backup: {result['backup_dir']}")
             if result.get("restarted"):
-                console.print("  [green]Service restarted[/green]")
+                console.print("  [green]Service restarted automatically[/green]")
     except OvoxAPIError as exc:
         console.print(f"[red]Failed to set setting:[/red] {exc}")
         raise typer.Exit(1)
