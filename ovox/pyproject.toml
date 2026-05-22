@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.1-alpha1"  # ovox CLI has its own version train (independent of GUI)
+version = "3.7.1-alpha1-1"  # ovox dev versioning: 3.7.1-alpha1-1, -2, ... then alpha2, beta, etc.
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

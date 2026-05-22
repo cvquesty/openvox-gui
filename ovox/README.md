@@ -29,7 +29,7 @@ ovox --help
 
 `ovox` uses its own independent version (separate from the OpenVox GUI).
 
-- Current regime (as of May 2026): `3.7.1-alpha1`, `3.7.1-alpha2`, ...
+- Current regime: `3.7.1-alpha1-1`, `3.7.1-alpha1-2`, ... (dash-suffixed dev increments under a base pre-release tag). When cutting an actual pre-release we advance the base (`3.7.1-alpha2`, `3.7.1-beta1`, `3.7.1`, etc.).
 - The canonical file is `ovox/VERSION` (checked into the repo).
 - At runtime the CLI prefers:
   1. `OPENVOX_CLI_VERSION` / `OPENVOX_VERSION` environment variable
