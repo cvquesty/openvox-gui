@@ -419,12 +419,19 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
         console.print("[green]No specific tuning recommendations at this time.[/green]")
         return
 
+    # Sort for readability: server first, then db; within each, alphabetical by setting
+    def sort_key(r):
+        comp_order = {"puppetserver": 0, "server": 0, "puppetdb": 1, "db": 1}
+        return (comp_order.get(r.get("component", ""), 99), r.get("setting", ""))
+
+    recs = sorted(recs, key=sort_key)
+
     table = Table(title="Tuning Recommendations")
-    table.add_column("Component", style="cyan")
-    table.add_column("Setting", style="magenta")
-    table.add_column("Current", style="yellow")
-    table.add_column("Recommended", style="green bold")
-    table.add_column("Reason", style="dim")
+    table.add_column("Component", style="cyan", no_wrap=True)
+    table.add_column("Setting", style="magenta", no_wrap=True)   # ← never truncate the setting name
+    table.add_column("Current", style="yellow", no_wrap=True)
+    table.add_column("Recommended", style="green bold", no_wrap=True)
+    table.add_column("Reason", style="dim")                      # Reason can wrap if needed
 
     for r in recs:
         if component and r.get("component") != component:
@@ -434,7 +441,7 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
             r.get("setting", ""),
             str(r.get("current", "unknown")),
             str(r.get("recommended", "")),
-            r.get("reason", "")[:70]
+            r.get("reason", "")          # no artificial truncation
         )
 
     console.print(table)
