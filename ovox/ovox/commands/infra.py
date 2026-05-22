@@ -73,8 +73,6 @@ def health(
 
         # Build useful details from what the backend actually returns
         details_parts = []
-        if svc.get("pid"):
-            details_parts.append(f"pid={svc['pid']}")
         if svc.get("memory") and svc["memory"] not in ("", "0"):
             details_parts.append(f"mem={svc['memory']}")
         if svc.get("since"):
