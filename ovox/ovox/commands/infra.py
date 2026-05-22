@@ -22,7 +22,7 @@ from ..client import OvoxAPIError, get_client
 console = Console()
 
 app = typer.Typer(
-    help="Infrastructure health checks and tuning recommendations for OpenVox Server and OpenVoxDB",
+    help="OpenVox infrastructure health, recommendations, and automated tuning",
     no_args_is_help=True,
 )
 
@@ -91,41 +91,34 @@ def health(
     ))
 
 
-@app.command("tune")
-def tune(
+@app.command("recommend")
+def recommend(
     ctx: typer.Context,
-    recommend: bool = typer.Option(True, "--recommend", help="Show current settings and tuning recommendations"),
-    apply: bool = typer.Option(False, "--apply", help="Apply recommended settings (creates backups first)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be changed without applying"),
-    component: Optional[str] = typer.Option(
-        None, "--component", "-c",
-        help="Limit to puppetserver | puppetdb"
-    ),
+    server: bool = typer.Option(False, "--server", help="Only show recommendations for OpenVox Server / Puppet Server"),
+    db: bool = typer.Option(False, "--db", "--puppetdb", help="Only show recommendations for OpenVoxDB / PuppetDB"),
     json_output: bool = typer.Option(False, "--json", "-j"),
 ):
     """
-    View and manage tuning recommendations for OpenVox Server and OpenVoxDB.
+    Show tuning recommendations without applying any changes.
 
-    Recommendations are based on fleet size, available memory, and current
-    configuration (similar to Puppet Enterprise's infrastructure tune logic).
+    By default shows recommendations for both server and database.
+    Use --server or --db to limit the scope.
     """
+    component = None
+    if server:
+        component = "server"
+    elif db:
+        component = "db"
+
     client = get_client(
         base_url=ctx.obj.get("url") if ctx.obj else None,
         token=ctx.obj.get("token") if ctx.obj else None,
         verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
     )
 
-    if apply and not dry_run:
-        if not typer.confirm("This will modify production configuration files after creating backups. Continue?", default=False):
-            console.print("[yellow]Aborted.[/yellow]")
-            raise typer.Exit(0)
-
     try:
-        # For now we call a future /api/infra/tune endpoint.
-        # If it doesn't exist yet, fall back to local heuristics + current config.
-        data = client.get("/api/infra/tune/recommendations")
+        data = client.get("/api/infra/tune/recommendations", params={"component": component} if component else {})
     except OvoxAPIError:
-        # Fallback: gather what we can from existing endpoints
         data = _local_tune_recommendations(client, component)
 
     if json_output or (ctx.obj and ctx.obj.get("output") == "json"):
@@ -133,11 +126,60 @@ def tune(
         console.print(JSON(json.dumps(data, indent=2)))
         return
 
-    if recommend or not apply:
-        _render_tune_recommendations(data, component)
+    _render_tune_recommendations(data, component)
 
-    if apply:
-        _apply_tuning(client, data, component, dry_run)
+
+@app.command("tune")
+def tune(
+    ctx: typer.Context,
+    server: bool = typer.Option(False, "--server", help="Only tune OpenVox Server / Puppet Server"),
+    db: bool = typer.Option(False, "--db", "--puppetdb", help="Only tune OpenVoxDB / PuppetDB"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+    json_output: bool = typer.Option(False, "--json", "-j"),
+):
+    """
+    Apply recommended tuning settings for OpenVox Server and/or OpenVoxDB.
+
+    This will:
+      1. Create timestamped backups of the relevant configuration files
+      2. Apply the recommended changes
+      3. Restart the affected service(s) automatically
+
+    Use --dry-run to preview changes without applying them.
+    """
+    component = None
+    if server:
+        component = "server"
+    elif db:
+        component = "db"
+
+    client = get_client(
+        base_url=ctx.obj.get("url") if ctx.obj else None,
+        token=ctx.obj.get("token") if ctx.obj else None,
+        verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
+    )
+
+    try:
+        data = client.get("/api/infra/tune/recommendations", params={"component": component} if component else {})
+    except OvoxAPIError:
+        data = _local_tune_recommendations(client, component)
+
+    if json_output or (ctx.obj and ctx.obj.get("output") == "json"):
+        import json
+        console.print(JSON(json.dumps(data, indent=2)))
+        return
+
+    _render_tune_recommendations(data, component)
+
+    if dry_run:
+        console.print("\n[yellow]Dry run — no changes will be made.[/yellow]")
+        return
+
+    if not typer.confirm("\nApply these recommendations? This will back up configs and restart services.", default=False):
+        console.print("[yellow]Aborted.[/yellow]")
+        raise typer.Exit(0)
+
+    _apply_tuning(client, data, component, dry_run=False)
 
 
 def _local_tune_recommendations(client, component: Optional[str]) -> dict:
@@ -213,39 +255,35 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
 
 
 def _apply_tuning(client, data: dict, component: Optional[str], dry_run: bool):
-    """Apply (or simulate) the recommended changes with backups."""
+    """Apply the recommended changes (backend does backup + restart)."""
     recs = data.get("recommendations", [])
 
     if dry_run:
-        console.print("[yellow]Dry run mode — no changes will be made.[/yellow]")
+        console.print("[yellow]Dry run — no changes made.[/yellow]")
+        return
 
-    applied = []
+    # Group changes by component for cleaner API calls
+    changes_by_comp = {}
     for r in recs:
         if component and r.get("component") != component:
             continue
+        comp = r.get("component", "unknown")
+        changes_by_comp.setdefault(comp, []).append({
+            "setting": r.get("setting"),
+            "value": r.get("recommended")
+        })
 
-        msg = f"Would set {r['component']}::{r['setting']} = {r['recommended']}"
-        if not dry_run:
-            # In a real implementation we would call a backend endpoint that does:
-            # 1. Backup the relevant config file(s) with timestamp
-            # 2. Write the new value
-            # 3. Optionally restart the service
-            try:
-                # Placeholder for future backend call
-                client.post("/api/infra/tune/apply", json={
-                    "component": r["component"],
-                    "setting": r["setting"],
-                    "value": r["recommended"]
-                })
-                msg = f"[green]Applied[/green] {r['component']}::{r['setting']} = {r['recommended']}"
-            except Exception as exc:
-                msg = f"[red]Failed[/red] to apply {r['setting']}: {exc}"
-
-        applied.append(msg)
-
-    for m in applied:
-        console.print(m)
-
-    if not dry_run and applied:
-        console.print("\n[bold green]Backups were created before any changes.[/bold green]")
-        console.print("You should restart the affected services for changes to take effect.")
+    for comp, changes in changes_by_comp.items():
+        try:
+            result = client.post("/api/infra/tune/apply", json={
+                "component": comp,
+                "changes": changes
+            })
+            console.print(f"[green]✓[/green] Submitted tuning for {comp}")
+            if isinstance(result, dict):
+                if result.get("backup_note"):
+                    console.print(f"  {result['backup_note']}")
+                if result.get("restarted"):
+                    console.print(f"  [green]Service restarted automatically[/green]")
+        except OvoxAPIError as exc:
+            console.print(f"[red]Failed[/red] to apply changes for {comp}: {exc}")
