@@ -271,24 +271,45 @@ class OvoxClient:
             all_certs = []
 
         if not status:
-            return all_certs
+            # Normalize items so the CLI table code has consistent keys
+            return [_normalize_cert_entry(c) for c in all_certs]
 
         status = status.lower()
         if status in ("pending", "requested"):
-            # The backend separates them nicely in the raw response
-            if isinstance(data, dict):
-                return data.get("requested", [])
-            return [c for c in all_certs if "requested" in str(c.get("raw", "")).lower() or "csr" in str(c).lower()]
+            items = data.get("requested", []) if isinstance(data, dict) else \
+                    [c for c in all_certs if "requested" in str(c.get("raw", "")).lower()]
+            return [_normalize_cert_entry(c, status="requested") for c in items]
         if status == "signed":
-            if isinstance(data, dict):
-                return data.get("signed", [])
-            return [c for c in all_certs if "requested" not in str(c.get("raw", "")).lower()]
+            items = data.get("signed", []) if isinstance(data, dict) else \
+                    [c for c in all_certs if "requested" not in str(c.get("raw", "")).lower()]
+            return [_normalize_cert_entry(c, status="signed") for c in items]
         if status == "revoked":
-            if isinstance(data, dict):
-                return data.get("revoked", [])
-            return [c for c in all_certs if "revoked" in str(c).lower()]
+            items = data.get("revoked", []) if isinstance(data, dict) else \
+                    [c for c in all_certs if "revoked" in str(c).lower()]
+            return [_normalize_cert_entry(c, status="revoked") for c in items]
 
-        return all_certs
+        return [_normalize_cert_entry(c) for c in all_certs]
+
+
+def _normalize_cert_entry(entry: Dict[str, Any], status: Optional[str] = None) -> Dict[str, Any]:
+    """Make sure every cert dict the CLI sees has 'certname' and 'status' keys."""
+    if not isinstance(entry, dict):
+        return entry
+    out = dict(entry)
+    if "certname" not in out:
+        out["certname"] = out.get("name") or out.get("certname") or "?"
+    if status:
+        out["status"] = status
+    elif "status" not in out:
+        # best-effort from raw line
+        raw = str(out.get("raw", ""))
+        if "Requested" in raw:
+            out["status"] = "requested"
+        elif "Signed" in raw:
+            out["status"] = "signed"
+        elif "Revoked" in raw:
+            out["status"] = "revoked"
+    return out
 
     def sign_certificate(self, certname: str) -> Dict[str, Any]:
         """Sign a pending CSR. Backend expects JSON body { "certname": "..." }."""
