@@ -35,6 +35,37 @@ async def infra_health(_user: str = Depends(_AUTH)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/settings")
+async def get_infra_settings(
+    component: Optional[str] = None,
+    _user: str = Depends(_AUTH),
+):
+    """
+    Return current key tuning settings for OpenVox Server and/or PuppetDB.
+
+    This powers `ovox infra settings show`.
+    """
+    result = {}
+
+    if not component or component in ("server", "puppetserver"):
+        jruby = _infra_config.get_puppetserver_jruby_max_active()
+        jvm = _infra_config.get_puppetserver_jvm_settings()
+        result["puppetserver"] = {
+            "jruby_max_active_instances": jruby,
+            "jvm": jvm,
+        }
+
+    if not component or component in ("db", "puppetdb"):
+        pools = _infra_config.get_puppetdb_pool_settings()
+        jvm = _infra_config.get_puppetdb_jvm_settings()
+        result["puppetdb"] = {
+            "pools": pools,
+            "jvm": jvm,
+        }
+
+    return result
+
+
 @router.get("/tune/recommendations")
 async def get_tune_recommendations(
     component: Optional[str] = None,

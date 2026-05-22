@@ -182,6 +182,63 @@ def tune(
     _apply_tuning(client, data, component, dry_run=False)
 
 
+@app.command("settings")
+def settings_show(
+    ctx: typer.Context,
+    server: bool = typer.Option(False, "--server", help="Show settings for OpenVox Server / Puppet Server"),
+    db: bool = typer.Option(False, "--db", "--puppetdb", help="Show settings for OpenVoxDB / PuppetDB"),
+    json_output: bool = typer.Option(False, "--json", "-j"),
+):
+    """
+    Display current key infrastructure tuning settings (including JVM configuration).
+
+    This is the primary way to inspect what is actually configured right now.
+    """
+    client = get_client(
+        base_url=ctx.obj.get("url") if ctx.obj else None,
+        token=ctx.obj.get("token") if ctx.obj else None,
+        verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
+    )
+
+    try:
+        data = client.get("/api/infra/settings", params={"component": "server" if server else ("db" if db else None)})
+    except OvoxAPIError as exc:
+        console.print(f"[red]Failed to fetch settings:[/red] {exc}")
+        raise typer.Exit(1)
+
+    if json_output or (ctx.obj and ctx.obj.get("output") == "json"):
+        import json
+        console.print(JSON(json.dumps(data, indent=2)))
+        return
+
+    if server or not db:
+        ps = data.get("puppetserver", {})
+        jvm = ps.get("jvm", {})
+        console.print(Panel.fit(
+            f"[bold]Puppet Server[/bold]\n"
+            f"  JRuby max active instances : {ps.get('jruby_max_active_instances', 'unknown')}\n"
+            f"  JVM heap (min)             : {jvm.get('heap_min', 'unknown')}\n"
+            f"  JVM heap (max)             : {jvm.get('heap_max', 'unknown')}\n"
+            f"  Reserved Code Cache        : {jvm.get('reserved_code_cache', 'unknown')}",
+            title="Puppet Server Settings",
+            border_style="cyan"
+        ))
+
+    if db or not server:
+        pdb = data.get("puppetdb", {})
+        pools = pdb.get("pools", {})
+        jvm = pdb.get("jvm", {})
+        console.print(Panel.fit(
+            f"[bold]PuppetDB[/bold]\n"
+            f"  Read pool max connections  : {pools.get('read', 'unknown')}\n"
+            f"  Write pool max connections : {pools.get('write', 'unknown')}\n"
+            f"  JVM heap (min)             : {jvm.get('heap_min', 'unknown')}\n"
+            f"  JVM heap (max)             : {jvm.get('heap_max', 'unknown')}",
+            title="PuppetDB Settings",
+            border_style="magenta"
+        ))
+
+
 def _local_tune_recommendations(client, component: Optional[str]) -> dict:
     """Generate basic recommendations using data we already have."""
     try:

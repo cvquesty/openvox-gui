@@ -182,10 +182,11 @@ def status(ctx: typer.Context):
 # Command groups (imported from commands/)
 # ──────────────────────────────────────────────────────────────────────────────
 
-from .commands import nodes, certs  # noqa: E402
+from .commands import nodes, certs, infra  # noqa: E402
 
 cli.add_typer(nodes.app, name="nodes", help="Node inventory, facts, reports, and Puppet runs")
 cli.add_typer(certs.app, name="certs", help="Certificate authority operations (sign, revoke, audit)")
+cli.add_typer(infra.app, name="infra", help="Infrastructure health, settings inspection, recommendations and tuning (with automatic service restart on apply)")
 
 
 # Future groups (stubbed for now so --help shows the roadmap):

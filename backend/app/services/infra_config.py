@@ -142,3 +142,92 @@ class InfraConfigService:
 
         logger.info(f"Updated PuppetDB pools: {changed} (backup in {backup_dir})")
         return backup_dir
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # JVM / Sysconfig handling (Puppet Server and PuppetDB)
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    def _read_sysconfig_java_args(self, service: str) -> str:
+        """Read JAVA_ARGS from /etc/sysconfig/<service>."""
+        sysconfig = Path(f"/etc/sysconfig/{service}")
+        if not sysconfig.exists():
+            return ""
+
+        content = sysconfig.read_text()
+        for line in content.splitlines():
+            if line.strip().startswith("JAVA_ARGS"):
+                # JAVA_ARGS="-Xms2g -Xmx2g ..."
+                val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                return val
+        return ""
+
+    def get_puppetserver_jvm_settings(self) -> Dict[str, Any]:
+        """Return parsed JVM settings for Puppet Server."""
+        args = self._read_sysconfig_java_args("puppetserver")
+        return self._parse_java_args(args)
+
+    def get_puppetdb_jvm_settings(self) -> Dict[str, Any]:
+        """Return parsed JVM settings for PuppetDB."""
+        args = self._read_sysconfig_java_args("puppetdb")
+        return self._parse_java_args(args)
+
+    def _parse_java_args(self, args: str) -> Dict[str, Any]:
+        """Very lightweight parser for common JVM flags we care about."""
+        result = {
+            "raw": args,
+            "heap_min": None,
+            "heap_max": None,
+            "reserved_code_cache": None,
+        }
+
+        import re
+        m = re.search(r"-Xms(\d+)([gGmM])", args)
+        if m:
+            size = int(m.group(1))
+            unit = m.group(2).lower()
+            result["heap_min"] = f"{size}{unit}"
+
+        m = re.search(r"-Xmx(\d+)([gGmM])", args)
+        if m:
+            size = int(m.group(1))
+            unit = m.group(2).lower()
+            result["heap_max"] = f"{size}{unit}"
+
+        m = re.search(r"-XX:ReservedCodeCacheSize=(\d+)([gGmM])", args)
+        if m:
+            size = int(m.group(1))
+            unit = m.group(2).lower()
+            result["reserved_code_cache"] = f"{size}{unit}"
+
+        return result
+
+    def set_puppetserver_jvm_heap(self, heap_gb: int) -> Path:
+        """
+        Set both -Xms and -Xmx to the same value in /etc/sysconfig/puppetserver.
+
+        Creates backup first.
+        """
+        sysconfig = Path("/etc/sysconfig/puppetserver")
+        backup_dir = self._create_backup_dir("puppetserver")
+        shutil.copy2(sysconfig, backup_dir / "puppetserver")
+
+        content = sysconfig.read_text()
+        new_heap = f"-Xms{heap_gb}g -Xmx{heap_gb}g"
+
+        # Replace existing -Xms/-Xmx or append
+        import re
+        new_content = re.sub(r"-Xms\d+[gGmM]?\s*-Xmx\d+[gGmM]?", new_heap, content)
+        if new_content == content:
+            # No existing heap flags found — append to JAVA_ARGS line or add one
+            if "JAVA_ARGS" in content:
+                new_content = re.sub(
+                    r'(JAVA_ARGS\s*=\s*")([^"]*)(")',
+                    rf'\1\2 {new_heap}\3',
+                    content
+                )
+            else:
+                new_content = content.rstrip() + f'\nJAVA_ARGS="{new_heap}"\n'
+
+        sysconfig.write_text(new_content)
+        logger.info(f"Set Puppet Server JVM heap to {heap_gb}g (backup in {backup_dir})")
+        return backup_dir
