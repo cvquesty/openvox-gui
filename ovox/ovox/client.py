@@ -247,19 +247,23 @@ class OvoxClient:
         """Detailed view of one node (facts, last report, resources, etc.)."""
         return self.get(f"/api/nodes/{certname}")
 
-    def get_certificates(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_certificates(
+        self,
+        status: Optional[str] = None,
+        all: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
         Return certificates from the Puppet CA.
 
-        The backend returns {"signed": [...], "requested": [...]}.
-        We flatten it here and support a simple client-side status filter:
-          - "pending" or "requested" → only the CSRs waiting to be signed
-          - "signed" → only signed ones
-          - "revoked" → only revoked ones (if the parser ever populates it)
+        Matches the behavior of `puppetserver ca list`:
+
+        - By default (all=False, no status): only return **pending/requested**
+          (unsigned CSRs). This is what most operators want 90% of the time.
+        - With all=True: return everything (signed + pending + revoked).
+        - Explicit --status can still be used for power users.
         """
         data = self.get("/api/certificates/list")
 
-        # Normalize to a flat list
         if isinstance(data, dict):
             signed = data.get("signed", []) or []
             requested = data.get("requested", []) or []
@@ -270,46 +274,32 @@ class OvoxClient:
         else:
             all_certs = []
 
-        if not status:
-            # Normalize items so the CLI table code has consistent keys
+        # Explicit status filter takes precedence
+        if status:
+            status = status.lower()
+            if status in ("pending", "requested"):
+                items = data.get("requested", []) if isinstance(data, dict) else \
+                        [c for c in all_certs if "requested" in str(c.get("raw", "")).lower()]
+                return [_normalize_cert_entry(c, status="requested") for c in items]
+            if status == "signed":
+                items = data.get("signed", []) if isinstance(data, dict) else \
+                        [c for c in all_certs if "requested" not in str(c.get("raw", "")).lower()]
+                return [_normalize_cert_entry(c, status="signed") for c in items]
+            if status == "revoked":
+                items = data.get("revoked", []) if isinstance(data, dict) else \
+                        [c for c in all_certs if "revoked" in str(c).lower()]
+                return [_normalize_cert_entry(c, status="revoked") for c in items]
             return [_normalize_cert_entry(c) for c in all_certs]
 
-        status = status.lower()
-        if status in ("pending", "requested"):
-            items = data.get("requested", []) if isinstance(data, dict) else \
-                    [c for c in all_certs if "requested" in str(c.get("raw", "")).lower()]
-            return [_normalize_cert_entry(c, status="requested") for c in items]
-        if status == "signed":
-            items = data.get("signed", []) if isinstance(data, dict) else \
-                    [c for c in all_certs if "requested" not in str(c.get("raw", "")).lower()]
-            return [_normalize_cert_entry(c, status="signed") for c in items]
-        if status == "revoked":
-            items = data.get("revoked", []) if isinstance(data, dict) else \
-                    [c for c in all_certs if "revoked" in str(c).lower()]
-            return [_normalize_cert_entry(c, status="revoked") for c in items]
+        # No explicit status
+        if all:
+            # Return everything, normalized
+            return [_normalize_cert_entry(c) for c in all_certs]
 
-        return [_normalize_cert_entry(c) for c in all_certs]
-
-
-def _normalize_cert_entry(entry: Dict[str, Any], status: Optional[str] = None) -> Dict[str, Any]:
-    """Make sure every cert dict the CLI sees has 'certname' and 'status' keys."""
-    if not isinstance(entry, dict):
-        return entry
-    out = dict(entry)
-    if "certname" not in out:
-        out["certname"] = out.get("name") or out.get("certname") or "?"
-    if status:
-        out["status"] = status
-    elif "status" not in out:
-        # best-effort from raw line
-        raw = str(out.get("raw", ""))
-        if "Requested" in raw:
-            out["status"] = "requested"
-        elif "Signed" in raw:
-            out["status"] = "signed"
-        elif "Revoked" in raw:
-            out["status"] = "revoked"
-    return out
+        # Default behavior: only pending/unsigned certs (matches `puppetserver ca list`)
+        items = data.get("requested", []) if isinstance(data, dict) else \
+                [c for c in all_certs if "requested" in str(c.get("raw", "")).lower()]
+        return [_normalize_cert_entry(c, status="requested") for c in items]
 
     def sign_certificate(self, certname: str) -> Dict[str, Any]:
         """Sign a pending CSR. Backend expects JSON body { "certname": "..." }."""
@@ -345,6 +335,27 @@ def _normalize_cert_entry(entry: Dict[str, Any], status: Optional[str] = None) -
 
     # Add more thin wrappers here as we implement command groups:
     #   get_reports, get_facts, deploy_trigger, bolt_task, etc.
+
+
+def _normalize_cert_entry(entry: Dict[str, Any], status: Optional[str] = None) -> Dict[str, Any]:
+    """Make sure every cert dict the CLI sees has 'certname' and 'status' keys."""
+    if not isinstance(entry, dict):
+        return entry
+    out = dict(entry)
+    if "certname" not in out:
+        out["certname"] = out.get("name") or out.get("certname") or "?"
+    if status:
+        out["status"] = status
+    elif "status" not in out:
+        # best-effort from raw line
+        raw = str(out.get("raw", ""))
+        if "Requested" in raw:
+            out["status"] = "requested"
+        elif "Signed" in raw:
+            out["status"] = "signed"
+        elif "Revoked" in raw:
+            out["status"] = "revoked"
+    return out
 
 
 def get_client(**overrides) -> OvoxClient:

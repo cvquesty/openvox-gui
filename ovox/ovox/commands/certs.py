@@ -16,7 +16,8 @@ from ..client import OvoxAPIError, get_client
 console = Console()
 
 app = typer.Typer(
-    help="Certificate authority management (sign, revoke, audit, clean)",
+    help="Certificate authority management (sign, revoke, audit, clean). "
+         "`ovox certs list` shows only pending CSRs by default (like `puppetserver ca list`).",
     no_args_is_help=True,
 )
 
@@ -42,17 +43,35 @@ def _format_cert_table(certs: list, title: str) -> Table:
 @app.command("list")
 def list_certs(
     ctx: typer.Context,
-    status: Optional[str] = typer.Option(None, "--status", "-s", help="signed | pending | revoked"),
+    all: bool = typer.Option(
+        False,
+        "--all",
+        help="Show all certificates (signed + pending + revoked). "
+             "Without this flag, only unsigned/pending CSRs are shown, "
+             "matching the default behavior of `puppetserver ca list`.",
+    ),
+    status: Optional[str] = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Explicit status filter (pending|signed|revoked). Rarely needed.",
+    ),
     json_output: bool = typer.Option(False, "--json", "-j"),
 ):
-    """List certificates known to the Puppet CA (via OpenVox GUI)."""
+    """
+    List certificates known to the Puppet CA.
+
+    By default this shows only **pending** (unsigned) certificate requests —
+    exactly what `puppetserver ca list` shows without --all.
+    Use --all to see the full picture (signed, pending, and revoked).
+    """
     client = get_client(
         base_url=ctx.obj.get("url") if ctx.obj else None,
         token=ctx.obj.get("token") if ctx.obj else None,
         verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
     )
     try:
-        certs = client.get_certificates(status=status)
+        certs = client.get_certificates(status=status, all=all)
     except OvoxAPIError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
@@ -63,10 +82,14 @@ def list_certs(
         return
 
     if not certs:
-        console.print("[yellow]No certificates found for that filter.[/yellow]")
+        if all or status:
+            console.print("[yellow]No certificates found for that filter.[/yellow]")
+        else:
+            console.print("[green]No pending certificate requests.[/green]")
         return
 
-    console.print(_format_cert_table(certs, f"Certificates ({status or 'all'})"))
+    title = "All Certificates" if all else ("Pending Certificates" if not status else f"Certificates ({status})")
+    console.print(_format_cert_table(certs, title))
 
 
 @app.command("sign")
@@ -115,5 +138,9 @@ def revoke_cert(
 
 @app.command("pending")
 def pending(ctx: typer.Context, json_output: bool = typer.Option(False, "--json", "-j")):
-    """Shortcut for `ovox certs list --status pending`."""
-    list_certs(ctx, status="pending", json_output=json_output)
+    """Show only pending (unsigned) certificate requests.
+
+    This is now the default behavior of `ovox certs list`.
+    The command is kept for muscle memory and scripting convenience.
+    """
+    list_certs(ctx, all=False, json_output=json_output)
