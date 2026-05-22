@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased]
+
+### Added — ovox CLI (ships with the GUI)
+
+- New first-class `ovox` command-line client (noun-verb style, gh/kubectl-like).
+  - Thin Python client (Typer + Rich + httpx) that reuses the existing FastAPI
+    backend — zero new server-side code.
+  - Core commands implemented: `ovox login`, `ovox logout`, `ovox status`,
+    `ovox nodes list/show`, `ovox certs list/sign/revoke/pending`, `ovox pql`.
+  - Full auth support (local + LDAP/AD) with secure token storage under
+    `~/.config/ovox/token` (0600) and env var / `--token` overrides for CI.
+  - JSON output everywhere (`-o json`) for scripting and jq.
+  - Distributed and installed automatically with OpenVox GUI:
+    - Source lives at repo root `ovox/`
+    - Installed into the GUI venv (`/opt/openvox-gui/venv/bin/ovox`)
+    - Symlinked at `/usr/local/bin/ovox` (exact Puppet/OpenVox convention)
+  - Works locally on the server and remotely (point `--url` or `OPENVOX_URL`
+    at any OpenVox GUI instance).
+  - Dedicated documentation: `ovox/README.md` + integration in install/update/deploy
+    scripts and SUDOERS.md.
+
+- Updated installers (`install.sh`, `update_local.sh`, `deploy.sh`) and uninstaller
+  to copy the ovox source tree and ensure the venv + `/usr/local/bin` symlink
+  are always present after every deploy.
+
 ## [3.7.0] - 2026-05-21
 
 ### Added — Metrics Section (10 visualization pages)

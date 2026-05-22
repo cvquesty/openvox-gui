@@ -15,7 +15,8 @@
 #     ├─ README.md               ← doc header synced by this script
 #     ├─ INSTALL.md              ← doc header + examples synced
 #     ├─ UPDATE.md               ← doc header + examples synced
-#     └─ TROUBLESHOOTING.md      ← doc header + examples synced
+#     ├─ TROUBLESHOOTING.md      ← doc header + examples synced
+#     └─ ovox/pyproject.toml     ← CLI package version (pip metadata)
 #
 # These files read VERSION automatically (no sync needed):
 #     ├─ backend/app/__init__.py   (reads at Python import time)

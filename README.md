@@ -33,6 +33,12 @@ OpenVox GUI is like a dashboard for your car, but for your servers. If you use O
 - **Make changes** - Update configurations without typing commands
 - **Run commands** - Execute tasks on multiple servers at once
 
+**Plus a first-class CLI and TUI** (`ovox`):
+
+- `ovox nodes list --failed`, `ovox certs sign ...`, `ovox pql '...'`, `ovox status`
+- Ships with the GUI, symlinked at `/usr/local/bin/ovox` (Puppet convention)
+- Perfect for scripts, CI, and operators who prefer the terminal
+
 ## 📸 Screenshots
 
 | Dashboard | Node Details | Orchestration |

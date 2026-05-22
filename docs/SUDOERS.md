@@ -105,6 +105,19 @@ puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
 5. The install script (`install.sh`) creates this file automatically
    during installation.
 
+## ovox CLI
+
+The `ovox` command-line client (installed alongside the GUI in `/opt/openvox-gui/venv/bin/ovox`
+with a symlink at `/usr/local/bin/ovox`) is a **thin client**. It authenticates via the
+same JWT mechanism as the web UI and talks exclusively over the REST API.
+
+All privileged work (certificate signing, r10k deploys, Bolt runs, journalctl, etc.)
+is performed by the OpenVox GUI backend on the operator's behalf. Therefore `ovox`
+does **not** require any additional sudoers entries beyond what the GUI already has.
+
+Operators may safely run `ovox` as themselves (or via CI tokens) — the only local
+privilege required is the ability to reach the GUI's HTTP(S) port.
+
 ---
 
 <div align="center">

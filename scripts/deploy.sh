@@ -53,6 +53,13 @@ for script in enc.py manage_users.py deploy.sh update_local.sh sync-openvox-repo
     fi
 done
 
+# Deploy ovox CLI source
+if [ -d "${REPO_DIR}/ovox" ]; then
+    rm -rf "${INSTALL_DIR}/ovox"
+    cp -a "${REPO_DIR}/ovox" "${INSTALL_DIR}/"
+    echo "  + ovox CLI source"
+fi
+
 # Stage agent installer templates (3.3.5-1+). The actual rendered
 # install.bash / install.ps1 in /opt/openvox-pkgs/ are produced
 # below; these copies in INSTALL_DIR/packages/ are what the backend
@@ -72,6 +79,17 @@ fi
 echo "[2/6] Updating Python dependencies..."
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
+
+# Install/refresh ovox CLI in the venv
+if [ -d "${INSTALL_DIR}/ovox" ]; then
+    "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade --force-reinstall "${INSTALL_DIR}/ovox"
+    # Ensure symlink in /usr/local/bin
+    if [ -x "${INSTALL_DIR}/venv/bin/ovox" ]; then
+        mkdir -p /usr/local/bin
+        ln -sf "${INSTALL_DIR}/venv/bin/ovox" /usr/local/bin/ovox
+        echo "  + ovox CLI installed (/usr/local/bin/ovox)"
+    fi
+fi
 
 # 3. Rebuild frontend (if Node.js is available)
 echo "[3/6] Building frontend..."

@@ -482,6 +482,8 @@ if [ "$UNINSTALL" = "true" ]; then
     rm -f /etc/sudoers.d/openvox-gui
     rm -f /etc/sudoers.d/openvox-gui-r10k
     rm -f /etc/sudoers.d/openvox-gui-puppetdb
+    echo -e "${CYAN}→${NC} Removing /usr/local/bin/ovox symlink..."
+    rm -f /usr/local/bin/ovox
     echo -e "${CYAN}→${NC} Removing installation directory..."
     rm -rf "${INSTALL_DIR}"
     echo -e "${GREEN}✔${NC} OpenVox GUI has been removed."
@@ -632,6 +634,17 @@ for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sy
 done
 log_ok "Copied scripts"
 
+# Copy the ovox CLI source tree (pip-installable package).
+# This will be installed into the venv so that /opt/openvox-gui/venv/bin/ovox exists.
+# A symlink is later created in /usr/local/bin (Puppet convention) for easy PATH access.
+if [ -d "${SCRIPT_DIR}/ovox" ]; then
+    rm -rf "${INSTALL_DIR}/ovox"
+    cp -a "${SCRIPT_DIR}/ovox" "${INSTALL_DIR}/"
+    log_ok "Copied ovox CLI package source"
+else
+    log_warn "No ovox/ directory found in source tree — CLI will not be installed"
+fi
+
 # Copy install.bash / install.ps1 templates so the backend can render
 # them via the /api/installer/script/* endpoint and so install.sh has
 # them ready to drop into the package mirror in Step 10.
@@ -673,7 +686,17 @@ configure_pip_proxy
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip $PIP_PROXY_ARG
 # shellcheck disable=SC2086
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt" $PIP_PROXY_ARG
-log_ok "Installed Python dependencies"
+log_ok "Installed Python dependencies (core)"
+
+# Install (or upgrade) the ovox CLI package from the copied source.
+# The pyproject.toml defines the 'ovox' console_script entry point.
+if [ -d "${INSTALL_DIR}/ovox" ]; then
+    # shellcheck disable=SC2086
+    "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade --force-reinstall "${INSTALL_DIR}/ovox" $PIP_PROXY_ARG
+    log_ok "Installed ovox CLI into venv"
+else
+    log_warn "ovox source not present — skipping CLI installation"
+fi
 
 # ─── Step 5: Frontend ────────────────────────────────────────
 
@@ -1310,6 +1333,24 @@ if [ "$HEALTH_OK" = "true" ]; then
 else
     log_err "Service did not start. Check: journalctl -u openvox-gui -n 50"
     exit 1
+fi
+
+# ─── ovox CLI: create /usr/local/bin symlink (Puppet-style) ────
+# The real binary lives inside the venv so it has the correct Python + deps.
+# A stable pointer in /usr/local/bin makes `ovox` available in $PATH for all users
+# exactly like the `puppet` and `bolt` binaries from Puppet/OpenVox.
+OVOX_BIN="${INSTALL_DIR}/venv/bin/ovox"
+if [ -x "$OVOX_BIN" ]; then
+    mkdir -p /usr/local/bin
+    ln -sf "$OVOX_BIN" /usr/local/bin/ovox
+    log_ok "ovox CLI installed: /usr/local/bin/ovox → ${OVOX_BIN}"
+    # Quick smoke test so the operator knows it works immediately
+    if /usr/local/bin/ovox --version >/dev/null 2>&1; then
+        OVOX_VER=$(/usr/local/bin/ovox --version 2>/dev/null | head -1)
+        log_ok "ovox ready: ${OVOX_VER}"
+    fi
+else
+    log_warn "ovox binary not found in venv — CLI will not be in PATH (check pip install step)"
 fi
 
 # ─── Summary ─────────────────────────────────────────────────

@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ovox"
+version = "3.7.0"  # Matches OpenVox GUI version; updated by release process
+description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.8"
+authors = [
+  {name = "Jerald Sheets", email = "questy@gmail.com"}
+]
+keywords = ["puppet", "openvox", "cli", "tui", "infrastructure", "devops", "enc"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: System :: Systems Administration",
+  "Topic :: Utilities",
+]
+
+dependencies = [
+  "typer[all]>=0.12.0",
+  "rich>=13.0.0",
+  "httpx>=0.24.0",
+  "pyyaml>=6.0.0",
+  "pydantic>=2.0.0",
+  "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+tui = [
+  "textual>=0.50.0",
+]
+
+[project.scripts]
+ovox = "ovox.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/cvquesty/openvox-gui"
+Documentation = "https://github.com/cvquesty/openvox-gui/blob/main/ovox/README.md"
+Repository = "https://github.com/cvquesty/openvox-gui"
+Issues = "https://github.com/cvquesty/openvox-gui/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ovox*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+ovox = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"

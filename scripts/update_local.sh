@@ -176,6 +176,13 @@ for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sy
 done
 log_ok "Deployed scripts"
 
+# Deploy ovox CLI source (pip package) so the venv can be refreshed with latest CLI
+if [ -d "${REPO_DIR}/ovox" ]; then
+    rm -rf "${INSTALL_DIR}/ovox"
+    cp -a "${REPO_DIR}/ovox" "${INSTALL_DIR}/"
+    log_ok "Deployed ovox CLI package source"
+fi
+
 # Stage agent installer templates (3.3.5-1+). The actual rendered
 # install.bash / install.ps1 in /opt/openvox-pkgs/ are produced
 # in Step 6b; these copies in INSTALL_DIR/packages/ are what the
@@ -350,6 +357,17 @@ log_step 3 "Python Dependencies"
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt"
 log_ok "Python dependencies updated"
+
+# Refresh ovox CLI (re-install from the freshly copied source)
+if [ -d "${INSTALL_DIR}/ovox" ]; then
+    "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade --force-reinstall "${INSTALL_DIR}/ovox"
+    log_ok "ovox CLI refreshed in venv"
+    # Ensure /usr/local/bin/ovox symlink exists (idempotent)
+    if [ -x "${INSTALL_DIR}/venv/bin/ovox" ]; then
+        mkdir -p /usr/local/bin
+        ln -sf "${INSTALL_DIR}/venv/bin/ovox" /usr/local/bin/ovox
+    fi
+fi
 
 # ─── Step 3b: Database Migrations ────────────────────────────
 # Run Alembic migrations to apply any schema changes introduced by

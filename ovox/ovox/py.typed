@@ -1,0 +1,2 @@
+# Marker file for PEP 561 typed package support.
+# ovox exposes types for downstream tooling and IDEs.
