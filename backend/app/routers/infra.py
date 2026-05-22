@@ -4,9 +4,13 @@ Infrastructure Tuning and Health API for ovox infra.
 Provides endpoints that power `ovox infra health` and `ovox infra tune`.
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+
+logger = logging.getLogger(__name__)
+
 
 from ..dependencies import require_role
 from ..services.puppetdb import puppetdb_service
@@ -100,53 +104,128 @@ async def apply_tuning(
     """
     Apply tuning changes for a subsystem.
 
-    The backend is responsible for:
-      - Backing up relevant config files
-      - Writing the new values
-      - Restarting the affected service (puppetserver or puppetdb)
+    Responsibilities:
+    - Create timestamped backups of relevant config files
+    - Apply the requested setting changes
+    - Restart the affected service (puppetserver or puppetdb)
     """
-    from ..services.puppetserver import puppetserver_service
-    import subprocess
+    import shutil
     from datetime import datetime
+    from pathlib import Path
+    import subprocess
+    import asyncio
+
+    from ..utils.sudo import run_sudo
 
     comp = request.component.lower()
     if comp in ("server", "puppetserver"):
         service_name = "puppetserver"
+        is_puppetserver = True
     elif comp in ("db", "puppetdb"):
         service_name = "puppetdb"
+        is_puppetserver = False
     else:
-        raise HTTPException(status_code=400, detail="Unknown component")
+        raise HTTPException(status_code=400, detail="Unknown component. Use 'server' or 'db'.")
 
-    # For now: log what we would do and simulate success.
-    # Real implementation will read/write actual config files + restart.
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup_note = f"Would create backups under /etc/puppetlabs/{service_name}/backups/{timestamp}/"
-
-    # In a full implementation we would:
-    # 1. Ensure backup directory exists
-    # 2. Copy relevant .conf / .ini files with timestamp
-    # 3. Parse and update the settings (HOCON or ini)
-    # 4. Call: sudo systemctl restart <service_name>
+    backup_dir = Path(f"/etc/puppetlabs/{service_name}/backups/ovox-infra-{timestamp}")
+    applied_changes = []
 
     try:
-        # Placeholder restart (the GUI already has sudo rules for this in many installs)
-        # In production this should be done via the existing service management paths
-        # to ensure proper logging and error handling.
-        print(f"[infra] Applying tuning for {service_name}: {request.changes}")
-        print(backup_note)
+        backup_dir.mkdir(parents=True, exist_ok=True)
 
-        # For now we don't actually restart during development.
-        # When ready, we can do:
-        # subprocess.run(["systemctl", "restart", service_name], check=True, capture_output=True)
+        if is_puppetserver:
+            # Focus on the most impactful setting: JRuby max active instances
+            conf_file = Path("/etc/puppetlabs/puppetserver/conf.d/puppetserver.conf")
+            if conf_file.exists():
+                shutil.copy2(conf_file, backup_dir / "puppetserver.conf")
+                applied_changes.append(str(conf_file))
+
+                # Simple but safe update for the common JRuby setting
+                for change in request.changes:
+                    if "jruby" in change.get("setting", "").lower() or "max-active" in change.get("setting", "").lower():
+                        new_value = str(change["value"])
+                        _update_jruby_max_active_instances(conf_file, new_value)
+                        applied_changes.append(f"Set jruby-puppet.max-active-instances = {new_value}")
+
+        else:
+            # PuppetDB tuning - database connection pools
+            db_conf = Path("/etc/puppetlabs/puppetdb/conf.d/database.ini")
+            if db_conf.exists():
+                shutil.copy2(db_conf, backup_dir / "database.ini")
+                applied_changes.append(str(db_conf))
+
+                for change in request.changes:
+                    setting = change.get("setting", "")
+                    if "pool" in setting.lower() or "connection" in setting.lower():
+                        # Very simple ini update
+                        _update_puppetdb_pool(db_conf, setting, str(change["value"]))
+                        applied_changes.append(f"Set {setting} = {change['value']}")
+
+        # Restart the service using the PTY-aware sudo helper
+        restart_result = await run_sudo(["systemctl", "restart", service_name], timeout=120)
+
+        restarted = restart_result.get("returncode") == 0
 
         return {
-            "status": "success",
+            "status": "success" if restarted else "partial",
             "component": service_name,
-            "applied": request.changes,
-            "backup_note": backup_note,
-            "restarted": False,   # Will become True once real restart is wired
-            "message": "Changes recorded. Real apply + restart logic pending full config writer."
+            "applied": applied_changes,
+            "backup_dir": str(backup_dir),
+            "restarted": restarted,
+            "restart_output": restart_result.get("stdout", "") + restart_result.get("stderr", ""),
+            "message": f"Tuning applied for {service_name}. Service restart {'succeeded' if restarted else 'may have issues'}."
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to apply tuning: {str(e)}")
+        logger.exception("Infra tuning apply failed")
+        raise HTTPException(status_code=500, detail=f"Failed to apply tuning for {service_name}: {str(e)}")
+
+
+def _update_jruby_max_active_instances(conf_file: Path, new_value: str):
+    """Update jruby-puppet.max-active-instances in puppetserver.conf (HOCON-ish)."""
+    import re
+    content = conf_file.read_text()
+
+    # Common pattern in puppetserver.conf
+    pattern = r'(jruby-puppet\s*:\s*\{[^}]*?max-active-instances\s*:\s*)(\d+)'
+    if re.search(pattern, content, re.DOTALL):
+        new_content = re.sub(pattern, rf'\g<1>{new_value}', content, flags=re.DOTALL)
+    else:
+        # Fallback: append under jruby-puppet if section exists
+        if "jruby-puppet:" in content:
+            new_content = re.sub(
+                r'(jruby-puppet\s*:\s*\{)',
+                rf'\1\n    max-active-instances: {new_value}',
+                content
+            )
+        else:
+            # Last resort: add the section
+            new_content = content + f"\n\njruby-puppet: {{\n    max-active-instances: {new_value}\n}}\n"
+
+    conf_file.write_text(new_content)
+
+
+def _update_puppetdb_pool(conf_file: Path, setting: str, value: str):
+    """Simple update for PuppetDB database.ini pool settings."""
+    import configparser
+
+    config = configparser.ConfigParser()
+    config.read(str(conf_file))
+
+    # PuppetDB uses sections like [read_pool] and [write_pool]
+    if "read" in setting.lower():
+        section = "read_pool"
+    elif "write" in setting.lower():
+        section = "write_pool"
+    else:
+        section = "database"
+
+    if not config.has_section(section):
+        config.add_section(section)
+
+    key = "max_connections" if "max" in setting.lower() else setting.split(".")[-1]
+    config.set(section, key, value)
+
+    with open(conf_file, "w") as f:
+        config.write(f)
