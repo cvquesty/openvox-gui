@@ -1,0 +1,183 @@
+.TH OVox 1 "2026-05-22" "ovox 3.7.1-alpha" "OpenVox CLI Manual"
+.SH NAME
+ovox \- command-line interface for OpenVox / Puppet infrastructure management
+
+.SH SYNOPSIS
+.B ovox
+.RI [ GLOBAL-OPTIONS ]
+.I COMMAND
+.RI [ SUBCOMMAND-OPTIONS ]
+.RI [ ARGUMENTS ]
+
+.SH DESCRIPTION
+.B ovox
+is the official command-line and terminal interface for the OpenVox GUI.
+It provides a scriptable, terminal-friendly way to manage Puppet/OpenVox
+infrastructure without using a web browser.
+
+.B ovox
+is a thin client. All business logic (PuppetDB queries, certificate
+operations, r10k deployments, Bolt orchestration, etc.) lives in the
+OpenVox GUI backend. The CLI simply authenticates and talks to the
+existing REST API.
+
+The command syntax follows the popular noun-verb style used by tools
+such as
+.BR gh (1),
+.BR kubectl (1),
+and
+.BR git (1).
+
+.SH GLOBAL OPTIONS
+.TP
+.BR \-u ", " \-\-url " " \fIURL\fR
+Base URL of the OpenVox GUI (e.g. https://openvox.example.com:4567).
+Can also be set via the \fBOPENVOX_URL\fR environment variable.
+.TP
+.BR \-t ", " \-\-token " " \fITOKEN\fR
+Bearer JWT authentication token. Useful for scripts and CI.
+Can also be set via the \fBOPENVOX_TOKEN\fR environment variable.
+.TP
+.BR \-o ", " \-\-output " " {table|json|yaml|csv}
+Output format. Defaults to \fBtable\fR. Can also be set via
+\fBOPENVOX_OUTPUT\fR.
+.TP
+.B \-\-no-verify
+Disable TLS certificate verification. Useful when connecting directly
+to the internal listener on the OpenVox server (port 4567).
+.TP
+.BR \-V ", " \-\-version
+Print version information and exit.
+.TP
+.B \-\-help
+Show help for the current command.
+
+.SH COMMANDS
+.SS Authentication
+.TP
+.B ovox login [USERNAME]
+Interactively authenticate against the OpenVox GUI and store a JWT
+token in \fB~/.config/ovox/token\fR. Prompts for password if not supplied.
+Supports both local accounts and LDAP/Active Directory.
+
+.TP
+.B ovox logout
+Remove the locally stored authentication token.
+
+.TP
+.B ovox whoami
+Display the currently authenticated user and session information.
+
+.SS Information
+.TP
+.B ovox status
+Display a quick summary of the connected OpenVox GUI instance and basic
+fleet health information.
+
+.SS Nodes
+.TP
+.B ovox nodes list
+List nodes in the fleet. By default shows a compact table.
+
+.TP
+.B ovox nodes show CERTNAME
+Display detailed information about a single node, including its facts
+and applied classes.
+
+.SS Certificates
+.TP
+.B ovox certs list
+List certificates known to the Puppet CA. By default only shows
+\fIpending\fR (unsigned) certificate requests, matching the behavior
+of \fBpuppetserver ca list\fR.
+
+.TP
+.B ovox certs list \-\-all
+Show all certificates (signed, pending, and revoked).
+
+.TP
+.B ovox certs pending
+Convenience alias for \fBovox certs list\fR (shows only pending CSRs).
+
+.TP
+.B ovox certs sign CERTNAME
+Sign a pending certificate request.
+
+.TP
+.B ovox certs revoke CERTNAME
+Revoke a signed certificate.
+
+.TP
+.B ovox certs revoke CERTNAME \-\-clean
+Revoke the certificate and also remove all associated key material
+(equivalent to \fBpuppetserver ca clean\fR).
+
+.SS Query
+.TP
+.B ovox pql 'PQL QUERY'
+Execute a raw Puppet Query Language (PQL) statement against PuppetDB.
+Useful for ad-hoc queries and scripting.
+
+.SH EXAMPLES
+.SS Basic usage
+.EX
+ovox login
+ovox status
+ovox nodes list --status failed
+ovox certs list --all
+.EE
+
+.SS Scripting
+.EX
+ovox --output json nodes list --status failed | jq -r '.[].certname'
+.EE
+
+.SS Remote usage
+.EX
+OPENVOX_URL=https://openvox.example.com:4567 \\
+OPENVOX_TOKEN=... \\
+ovox nodes show web01.example.com
+.EE
+
+.SH FILES
+.TP
+.I ~/.config/ovox/config.yaml
+User configuration file (URL, output format preferences, etc.).
+.TP
+.I ~/.config/ovox/token
+Stored JWT authentication token (mode 0600).
+.TP
+.I /opt/openvox-gui/ovox/VERSION
+Version file when \fBovox\fR is installed as part of OpenVox GUI.
+
+.SH ENVIRONMENT
+.TP
+.B OPENVOX_URL
+Base URL of the OpenVox GUI. Overrides any value stored in config.
+.TP
+.B OPENVOX_TOKEN
+Authentication token. Useful for non-interactive use.
+.TP
+.B OPENVOX_OUTPUT
+Default output format (\fBtable\fR, \fBjson\fR, \fByaml\fR, or \fBcsv\fR).
+.TP
+.B OPENVOX_CLI_VERSION
+Force a specific version string to be reported (mainly for testing).
+
+.SH SEE ALSO
+.BR puppet (8),
+.BR puppetserver (8),
+.BR puppetdb (8),
+.BR bolt (1)
+
+The OpenVox GUI web interface and its REST API documentation (usually
+available at \fBhttps://your-server:4567/api/docs\fR).
+
+.SH AUTHORS
+Written by the OpenVox project team.
+
+.SH BUGS
+Report bugs at https://github.com/cvquesty/openvox-gui/issues
+
+.SH COPYRIGHT
+Copyright \(co 2026. Licensed under the Apache License, Version 2.0.
