@@ -28,6 +28,11 @@ This ensures all components (backend, frontend, installer) stay in sync.
 
 from pathlib import Path as _Path
 
-# Single source of truth: read version from root VERSION file
-# This file is copied during installation and used by all components
-__version__ = (_Path(__file__).resolve().parent.parent.parent / "VERSION").read_text().strip()
+# Version resolution order (most precise first):
+# 1. VERSION.build  – written automatically by deploy scripts with git sha / timestamp
+# 2. VERSION        – the base release version (updated via bump-version.sh for real releases)
+_root = _Path(__file__).resolve().parent.parent.parent
+if (_root / "VERSION.build").exists():
+    __version__ = (_root / "VERSION.build").read_text().strip()
+else:
+    __version__ = (_root / "VERSION").read_text().strip()

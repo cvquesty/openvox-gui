@@ -625,6 +625,12 @@ else
     log_warn "No VERSION file found — backend may fail to start"
 fi
 
+# Write an initial build version for fresh installs
+BASE_VERSION=$(cat "${SCRIPT_DIR}/VERSION" 2>/dev/null || echo "unknown")
+BUILD_ID="${BASE_VERSION}+install-$(date +%Y%m%d%H%M%S)"
+echo "$BUILD_ID" > "${INSTALL_DIR}/VERSION.build"
+log_ok "Wrote initial build version: ${BUILD_ID}"
+
 # Copy scripts
 for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sync-openvox-repo.sh; do
     if [ -f "${SCRIPT_DIR}/scripts/${script}" ]; then

@@ -167,6 +167,17 @@ log_ok "Deployed backend"
 cp "${REPO_DIR}/VERSION" "${INSTALL_DIR}/VERSION"
 log_ok "Deployed VERSION"
 
+# Write a build-specific version for this deploy (git sha based when possible)
+BASE_VERSION=$(cat "${REPO_DIR}/VERSION" 2>/dev/null || echo "unknown")
+if [ -d "${REPO_DIR}/.git" ]; then
+    GIT_SHA=$(cd "${REPO_DIR}" && git rev-parse --short HEAD 2>/dev/null || echo "nogit")
+    BUILD_ID="${BASE_VERSION}+${GIT_SHA}"
+else
+    BUILD_ID="${BASE_VERSION}+$(date +%Y%m%d%H%M%S)"
+fi
+echo "$BUILD_ID" > "${INSTALL_DIR}/VERSION.build"
+log_ok "Wrote build version: ${BUILD_ID}"
+
 # Copy scripts (preserving anything site-specific in scripts/)
 for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sync-openvox-repo.sh; do
     if [ -f "${REPO_DIR}/scripts/${script}" ]; then

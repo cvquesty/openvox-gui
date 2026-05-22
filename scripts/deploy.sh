@@ -53,6 +53,18 @@ for script in enc.py manage_users.py deploy.sh update_local.sh sync-openvox-repo
     fi
 done
 
+# Write a precise build version (base + git sha + timestamp) so every deploy
+# produces a unique, traceable version without requiring a manual bump.
+BASE_VERSION=$(cat "${REPO_DIR}/VERSION" 2>/dev/null || echo "unknown")
+if [ -d "${REPO_DIR}/.git" ]; then
+    GIT_SHA=$(cd "${REPO_DIR}" && git rev-parse --short HEAD 2>/dev/null || echo "nogit")
+    BUILD_ID="${BASE_VERSION}+${GIT_SHA}"
+else
+    BUILD_ID="${BASE_VERSION}+$(date +%Y%m%d%H%M%S)"
+fi
+echo "$BUILD_ID" > "${INSTALL_DIR}/VERSION.build"
+echo "  + Wrote build version: ${BUILD_ID}"
+
 # Deploy ovox CLI source
 if [ -d "${REPO_DIR}/ovox" ]; then
     rm -rf "${INSTALL_DIR}/ovox"
