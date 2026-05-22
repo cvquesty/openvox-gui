@@ -67,15 +67,28 @@ def health(
     table.add_column("Details", style="dim")
 
     for svc in services if isinstance(services, list) else []:
-        name = svc.get("name", "unknown")
+        # Backend returns "service" key, not "name"
+        name = svc.get("service", svc.get("name", "unknown"))
         status = svc.get("status", "unknown")
-        details = svc.get("details", "") or svc.get("version", "")
+
+        # Build useful details from what the backend actually returns
+        details_parts = []
+        if svc.get("pid"):
+            details_parts.append(f"pid={svc['pid']}")
+        if svc.get("memory") and svc["memory"] not in ("", "0"):
+            details_parts.append(f"mem={svc['memory']}")
+        if svc.get("since"):
+            details_parts.append(svc["since"][:19])
+        if svc.get("error"):
+            details_parts.append(f"error: {svc['error']}")
+
+        details = " | ".join(details_parts) if details_parts else ""
 
         if component and component.lower() not in name.lower():
             continue
 
-        color = "green" if status == "ok" else "red"
-        table.add_row(name, f"[{color}]{status}[/{color}]", str(details)[:60])
+        color = "green" if status == "active" else "red"
+        table.add_row(name, f"[{color}]{status}[/{color}]", str(details)[:70])
 
     if not table.rows:
         console.print("[yellow]No matching components found.[/yellow]")
@@ -85,8 +98,9 @@ def health(
     # Basic summary
     console.print()
     console.print(Panel.fit(
-        "Run [bold]ovox infra tune --recommend[/bold] to get tuning suggestions based on your fleet size.",
-        title="Tip",
+        "Run [bold]ovox infra settings show[/bold] to see current tuning values.\n"
+        "Run [bold]ovox infra recommend[/bold] for tuning suggestions.",
+        title="Next Steps",
         border_style="blue"
     ))
 
