@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Infrastructure Tuning and Health API for ovox infra.
 
