@@ -248,15 +248,72 @@ class OvoxClient:
         return self.get(f"/api/nodes/{certname}")
 
     def get_certificates(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Signed, pending, revoked certificates."""
-        params = {"status": status} if status else {}
-        return self.get("/api/certificates", params=params)  # type: ignore[return-value]
+        """
+        Return certificates from the Puppet CA.
+
+        The backend returns {"signed": [...], "requested": [...]}.
+        We flatten it here and support a simple client-side status filter:
+          - "pending" or "requested" → only the CSRs waiting to be signed
+          - "signed" → only signed ones
+          - "revoked" → only revoked ones (if the parser ever populates it)
+        """
+        data = self.get("/api/certificates/list")
+
+        # Normalize to a flat list
+        if isinstance(data, dict):
+            signed = data.get("signed", []) or []
+            requested = data.get("requested", []) or []
+            revoked = data.get("revoked", []) or []
+            all_certs = signed + requested + revoked
+        elif isinstance(data, list):
+            all_certs = data
+        else:
+            all_certs = []
+
+        if not status:
+            return all_certs
+
+        status = status.lower()
+        if status in ("pending", "requested"):
+            # The backend separates them nicely in the raw response
+            if isinstance(data, dict):
+                return data.get("requested", [])
+            return [c for c in all_certs if "requested" in str(c.get("raw", "")).lower() or "csr" in str(c).lower()]
+        if status == "signed":
+            if isinstance(data, dict):
+                return data.get("signed", [])
+            return [c for c in all_certs if "requested" not in str(c.get("raw", "")).lower()]
+        if status == "revoked":
+            if isinstance(data, dict):
+                return data.get("revoked", [])
+            return [c for c in all_certs if "revoked" in str(c).lower()]
+
+        return all_certs
 
     def sign_certificate(self, certname: str) -> Dict[str, Any]:
-        return self.post(f"/api/certificates/{certname}/sign")
+        """Sign a pending CSR. Backend expects JSON body { "certname": "..." }."""
+        return self.post("/api/certificates/sign", json={"certname": certname})
 
     def revoke_certificate(self, certname: str, clean: bool = False) -> Dict[str, Any]:
-        return self.post(f"/api/certificates/{certname}/revoke", params={"clean": clean})
+        """
+        Revoke a certificate.
+
+        The backend has separate /revoke and /clean endpoints.
+        If clean=True we call both (revoke first, then clean).
+        """
+        res = self.post("/api/certificates/revoke", json={"certname": certname})
+        if clean:
+            try:
+                clean_res = self.post("/api/certificates/clean", json={"certname": certname})
+                if isinstance(clean_res, dict) and clean_res.get("message"):
+                    # Merge messages for the caller
+                    res = res if isinstance(res, dict) else {"status": "success"}
+                    res["message"] = (res.get("message", "") + " + " + clean_res["message"]).strip(" +")
+            except Exception as exc:
+                # Don't fail the whole operation if clean has issues; surface it
+                if isinstance(res, dict):
+                    res["clean_error"] = str(exc)
+        return res
 
     def run_pql(self, query: str, timeout: Optional[int] = None) -> Any:
         """Execute a PQL query against PuppetDB via the GUI proxy."""
