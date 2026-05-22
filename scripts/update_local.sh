@@ -368,6 +368,15 @@ if [ -d "${INSTALL_DIR}/ovox" ]; then
         mkdir -p /usr/local/bin
         ln -sf "${INSTALL_DIR}/venv/bin/ovox" /usr/local/bin/ovox
     fi
+
+    # Guarantee the reported version matches the deployed ovox/VERSION
+    if [ -f "${INSTALL_DIR}/ovox/VERSION" ]; then
+        VER=$(cat "${INSTALL_DIR}/ovox/VERSION")
+        SITE_PKG="${INSTALL_DIR}/venv/lib/python3.11/site-packages/ovox/__init__.py"
+        if [ -f "$SITE_PKG" ]; then
+            sed -i "s/^__version__ = .*/__version__ = \"${VER}\"/" "$SITE_PKG" 2>/dev/null || true
+        fi
+    fi
 fi
 
 # ─── Step 3b: Database Migrations ────────────────────────────

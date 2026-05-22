@@ -695,6 +695,15 @@ if [ -d "${INSTALL_DIR}/ovox" ]; then
     # shellcheck disable=SC2086
     "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade --force-reinstall "${INSTALL_DIR}/ovox" $PIP_PROXY_ARG
     log_ok "Installed ovox CLI into venv"
+
+    # Make sure the running version matches the deployed ovox/VERSION file
+    if [ -f "${INSTALL_DIR}/ovox/VERSION" ]; then
+        VER=$(cat "${INSTALL_DIR}/ovox/VERSION")
+        SITE_PKG="${INSTALL_DIR}/venv/lib/python3.11/site-packages/ovox/__init__.py"
+        if [ -f "$SITE_PKG" ]; then
+            sed -i "s/^__version__ = .*/__version__ = \"${VER}\"/" "$SITE_PKG" 2>/dev/null || true
+        fi
+    fi
 else
     log_warn "ovox source not present — skipping CLI installation"
 fi
