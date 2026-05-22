@@ -25,6 +25,20 @@ pip install -e .[tui]   # includes textual for the TUI
 ovox --help
 ```
 
+## Versioning
+
+`ovox` uses its own independent version (separate from the OpenVox GUI).
+
+- Current regime (as of May 2026): `3.7.1-alpha1`, `3.7.1-alpha2`, ...
+- The canonical file is `ovox/VERSION` (checked into the repo).
+- At runtime the CLI prefers:
+  1. `OPENVOX_CLI_VERSION` / `OPENVOX_VERSION` environment variable
+  2. `/opt/openvox-gui/ovox/VERSION` (when installed with the GUI)
+  3. The development `ovox/VERSION` next to the source
+  4. The version baked into the Python package
+
+This allows the CLI to move faster (or slower) than the web GUI.
+
 ## Quick Start
 
 ```bash
