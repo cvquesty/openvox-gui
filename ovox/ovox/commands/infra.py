@@ -182,7 +182,17 @@ def tune(
     _apply_tuning(client, data, component, dry_run=False)
 
 
-@app.command("settings")
+# ─────────────────────────────────────────────────────────────────────────────
+# Settings subcommand group (read + write)
+# ─────────────────────────────────────────────────────────────────────────────
+
+settings_app = typer.Typer(
+    help="View and directly modify infrastructure tuning settings (including JVM)"
+)
+app.add_typer(settings_app, name="settings")
+
+
+@settings_app.command("show")
 def settings_show(
     ctx: typer.Context,
     server: bool = typer.Option(False, "--server", help="Show settings for OpenVox Server / Puppet Server"),
@@ -237,6 +247,65 @@ def settings_show(
             title="PuppetDB Settings",
             border_style="magenta"
         ))
+
+
+@settings_app.command("set")
+def settings_set(
+    ctx: typer.Context,
+    key: str = typer.Argument(..., help="Setting to change, e.g. server.jruby.max_active_instances or db.read_pool.max_connections"),
+    value: str = typer.Argument(..., help="New value"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would change without applying"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """
+    Directly set a specific infrastructure setting.
+
+    Examples:
+      ovox infra settings set server.jruby.max_active_instances 6
+      ovox infra settings set server.jvm.heap 8g
+      ovox infra settings set db.read_pool.max_connections 80
+    """
+    # Parse key into component + setting
+    if key.startswith("server."):
+        component = "server"
+        setting = key[len("server."):]
+    elif key.startswith("db."):
+        component = "db"
+        setting = key[len("db."):]
+    else:
+        console.print("[red]Key must start with 'server.' or 'db.'[/red]")
+        raise typer.Exit(1)
+
+    client = get_client(
+        base_url=ctx.obj.get("url") if ctx.obj else None,
+        token=ctx.obj.get("token") if ctx.obj else None,
+        verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
+    )
+
+    if dry_run:
+        console.print(f"[yellow]Dry run:[/yellow] Would set {component}.{setting} = {value}")
+        return
+
+    if not yes:
+        if not typer.confirm(f"Set {component}.{setting} = {value}?\nThis will back up configs and restart the service.", default=False):
+            console.print("[yellow]Aborted.[/yellow]")
+            raise typer.Exit(0)
+
+    try:
+        result = client.post("/api/infra/settings/set", json={
+            "component": component,
+            "setting": setting,
+            "value": value
+        })
+        console.print(f"[green]✓[/green] Applied {component}.{setting} = {value}")
+        if isinstance(result, dict):
+            if result.get("backup_dir"):
+                console.print(f"  Backup: {result['backup_dir']}")
+            if result.get("restarted"):
+                console.print("  [green]Service restarted[/green]")
+    except OvoxAPIError as exc:
+        console.print(f"[red]Failed to set setting:[/red] {exc}")
+        raise typer.Exit(1)
 
 
 def _local_tune_recommendations(client, component: Optional[str]) -> dict:

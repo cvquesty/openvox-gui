@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 from ..dependencies import require_role
 from ..services.puppetdb import puppetdb_service
 from ..services.infra_config import InfraConfigService
+from ..utils.sudo import run_sudo
 
 router = APIRouter(prefix="/api/infra", tags=["infrastructure"])
 
@@ -64,6 +65,69 @@ async def get_infra_settings(
         }
 
     return result
+
+
+@router.post("/settings/set")
+async def set_infra_setting(
+    request: SettingsSetRequest,
+    _user: str = Depends(require_role("admin")),
+):
+    """
+    Directly set a specific infrastructure setting.
+
+    Supports keys like:
+      - jruby.max_active_instances
+      - jvm.heap
+      - read_pool.max_connections
+      - write_pool.max_connections
+    """
+    comp = request.component.lower()
+    setting = request.setting.lower()
+    value = request.value
+
+    try:
+        if comp in ("server", "puppetserver"):
+            if "jruby" in setting or "max_active" in setting:
+                val = int(value)
+                backup = _infra_config.set_puppetserver_jruby_max_active(val)
+                await run_sudo(["systemctl", "restart", "puppetserver"], timeout=120)
+                return {"status": "success", "backup_dir": str(backup), "restarted": True}
+
+            elif "jvm" in setting and "heap" in setting:
+                # Accept "8g", "8192m", or just "8"
+                heap_gb = _parse_heap_to_gb(value)
+                backup = _infra_config.set_puppetserver_jvm_heap(heap_gb)
+                await run_sudo(["systemctl", "restart", "puppetserver"], timeout=120)
+                return {"status": "success", "backup_dir": str(backup), "restarted": True}
+
+        elif comp in ("db", "puppetdb"):
+            if "read" in setting:
+                val = int(value)
+                backup = _infra_config.set_puppetdb_pool_settings(read_max=val)
+                await run_sudo(["systemctl", "restart", "puppetdb"], timeout=120)
+                return {"status": "success", "backup_dir": str(backup), "restarted": True}
+
+            if "write" in setting:
+                val = int(value)
+                backup = _infra_config.set_puppetdb_pool_settings(write_max=val)
+                await run_sudo(["systemctl", "restart", "puppetdb"], timeout=120)
+                return {"status": "success", "backup_dir": str(backup), "restarted": True}
+
+        raise HTTPException(status_code=400, detail=f"Unsupported setting '{setting}' for component '{comp}'")
+
+    except Exception as e:
+        logger.exception("settings/set failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _parse_heap_to_gb(value: str) -> int:
+    """Convert '8g', '8192m', '8' into integer GB."""
+    value = value.lower().strip()
+    if value.endswith("g"):
+        return int(value[:-1])
+    if value.endswith("m"):
+        return max(1, int(value[:-1]) // 1024)
+    return int(value)
 
 
 @router.get("/tune/recommendations")
@@ -134,6 +198,12 @@ class TuneApplyRequest(BaseModel):
     changes: list[dict]   # list of {setting, value}
 
 
+class SettingsSetRequest(BaseModel):
+    component: str   # "server" or "db"
+    setting: str     # e.g. "jruby.max_active_instances", "jvm.heap", "read_pool.max_connections"
+    value: str
+
+
 @router.post("/tune/apply")
 async def apply_tuning(
     request: TuneApplyRequest,
@@ -152,8 +222,6 @@ async def apply_tuning(
     from pathlib import Path
     import subprocess
     import asyncio
-
-    from ..utils.sudo import run_sudo
 
     comp = request.component.lower()
     if comp in ("server", "puppetserver"):
