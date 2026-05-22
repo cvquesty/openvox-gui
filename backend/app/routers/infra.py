@@ -102,6 +102,13 @@ async def set_infra_setting(
                 await run_sudo(["systemctl", "restart", "puppetserver"], timeout=120)
                 return {"status": "success", "backup_dir": str(backup), "restarted": True}
 
+            elif "reserved_code_cache" in setting or "code_cache" in setting:
+                # Accept "1g", "512m", etc.
+                size = _normalize_code_cache_size(value)
+                backup = _infra_config.set_puppetserver_reserved_code_cache(size)
+                await run_sudo(["systemctl", "restart", "puppetserver"], timeout=120)
+                return {"status": "success", "backup_dir": str(backup), "restarted": True}
+
         elif comp in ("db", "puppetdb"):
             if "read" in setting:
                 val = int(value)
@@ -130,6 +137,15 @@ def _parse_heap_to_gb(value: str) -> int:
     if value.endswith("m"):
         return max(1, int(value[:-1]) // 1024)
     return int(value)
+
+
+def _normalize_code_cache_size(value: str) -> str:
+    """Normalize '1g', '512m', '1024m' etc. into a consistent form."""
+    v = value.lower().strip()
+    if v.endswith("g") or v.endswith("m"):
+        return v
+    # Assume megabytes if no unit
+    return f"{v}m"
 
 
 @router.get("/tune/recommendations")

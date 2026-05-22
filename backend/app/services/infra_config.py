@@ -231,3 +231,35 @@ class InfraConfigService:
         sysconfig.write_text(new_content)
         logger.info(f"Set Puppet Server JVM heap to {heap_gb}g (backup in {backup_dir})")
         return backup_dir
+
+    def set_puppetserver_reserved_code_cache(self, size: str) -> Path:
+        """
+        Set -XX:ReservedCodeCacheSize (e.g. "1g" or "512m").
+
+        Creates backup first.
+        """
+        sysconfig = Path("/etc/sysconfig/puppetserver")
+        backup_dir = self._create_backup_dir("puppetserver")
+        shutil.copy2(sysconfig, backup_dir / "puppetserver")
+
+        content = sysconfig.read_text()
+        flag = f"-XX:ReservedCodeCacheSize={size}"
+
+        import re
+        # Replace existing reserved code cache flag
+        new_content = re.sub(r"-XX:ReservedCodeCacheSize=[^\s\"']+", flag, content)
+
+        if new_content == content:
+            # Not found — append to JAVA_ARGS
+            if "JAVA_ARGS" in content:
+                new_content = re.sub(
+                    r'(JAVA_ARGS\s*=\s*")([^"]*)(")',
+                    rf'\1\2 {flag}\3',
+                    content
+                )
+            else:
+                new_content = content.rstrip() + f'\nJAVA_ARGS="{flag}"\n'
+
+        sysconfig.write_text(new_content)
+        logger.info(f"Set Puppet Server ReservedCodeCacheSize to {size} (backup in {backup_dir})")
+        return backup_dir
