@@ -426,12 +426,18 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
 
     recs = sorted(recs, key=sort_key)
 
-    table = Table(title="Tuning Recommendations")
-    table.add_column("Component", style="cyan", no_wrap=True)
-    table.add_column("Setting", style="magenta", no_wrap=True)   # ← never truncate the setting name
+    table = Table(
+        title="Tuning Recommendations",
+        show_lines=True,        # horizontal separators between rows
+        expand=True,            # use available terminal width nicely
+        padding=(0, 1),         # decent horizontal breathing room
+    )
+
+    table.add_column("Component", style="cyan", no_wrap=True, min_width=12)
+    table.add_column("Setting", style="magenta", overflow="fold")      # word-wrap long setting names
     table.add_column("Current", style="yellow", no_wrap=True)
     table.add_column("Recommended", style="green bold", no_wrap=True)
-    table.add_column("Reason", style="dim")                      # Reason can wrap if needed
+    table.add_column("Reason", style="dim", overflow="fold")           # word-wrap long reasons
 
     for r in recs:
         if component and r.get("component") != component:
@@ -441,7 +447,7 @@ def _render_tune_recommendations(data: dict, component: Optional[str]):
             r.get("setting", ""),
             str(r.get("current", "unknown")),
             str(r.get("recommended", "")),
-            r.get("reason", "")          # no artificial truncation
+            r.get("reason", "")           # no artificial truncation
         )
 
     console.print(table)
