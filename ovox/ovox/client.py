@@ -237,21 +237,7 @@ class OvoxClient:
                     "status": "partial",
                     "url": self.base_url,
                 }
-```
 
-The current fallback logic in the status command also does some printing. This should be fine.
-
-Now I need to also fix the `get_node` call if needed, but it's probably okay.
-
-There's also a call inside the fallback that does `self.get_nodes(limit=1)` — that will now use the corrected `/api/nodes/`.
-
-Good.
-
-Since this is a meaningful fix, I should bump the version to the next alpha (3.7.1-alpha1-4), commit, push, and deploy — following the "always" standing order the user gave.
-
-The user said "always" in response to "Would you like me to push + redeploy...?" so yes, we treat it as standing authorization.
-
-First, let's bump the version.
     def get_nodes(
         self,
         status: Optional[str] = None,
