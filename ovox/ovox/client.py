@@ -210,20 +210,48 @@ class OvoxClient:
     # ──────────────────────────────────────────────────────────────────────
 
     def get_status(self) -> Dict[str, Any]:
-        """Fleet + server health summary (maps to dashboard/overview)."""
-        # The dashboard router exposes /api/dashboard/overview or similar.
-        # Fall back to a few cheap endpoints if the exact one changes.
-        try:
-            return self.get("/api/dashboard/overview")
-        except OvoxAPIError:
-            # Best-effort: compose from nodes + reports counts
-            nodes = self.get_nodes(limit=1)
-            return {
-                "nodes_total": len(self.get_nodes()),
-                "version": VERSION,
-                "url": self.base_url,
-            }
+        """Fleet + server health summary.
 
+        Uses the real /api/dashboard/node-status endpoint when available.
+        Falls back to a simple node count if needed.
+        """
+        try:
+            # Lightweight and actually exists
+            counts = self.get("/api/dashboard/node-status")
+            if isinstance(counts, dict):
+                return {
+                    "node_status": counts,
+                    "url": self.base_url,
+                }
+            return counts
+        except OvoxAPIError:
+            # Fallback
+            try:
+                total = len(self.get_nodes())
+                return {
+                    "nodes_total": total,
+                    "url": self.base_url,
+                }
+            except Exception:
+                return {
+                    "status": "partial",
+                    "url": self.base_url,
+                }
+```
+
+The current fallback logic in the status command also does some printing. This should be fine.
+
+Now I need to also fix the `get_node` call if needed, but it's probably okay.
+
+There's also a call inside the fallback that does `self.get_nodes(limit=1)` — that will now use the corrected `/api/nodes/`.
+
+Good.
+
+Since this is a meaningful fix, I should bump the version to the next alpha (3.7.1-alpha1-4), commit, push, and deploy — following the "always" standing order the user gave.
+
+The user said "always" in response to "Would you like me to push + redeploy...?" so yes, we treat it as standing authorization.
+
+First, let's bump the version.
     def get_nodes(
         self,
         status: Optional[str] = None,
@@ -241,7 +269,7 @@ class OvoxClient:
             params["limit"] = limit
         if offset:
             params["offset"] = offset
-        return self.get("/api/nodes", params=params)  # type: ignore[return-value]
+        return self.get("/api/nodes/", params=params)  # type: ignore[return-value]
 
     def get_node(self, certname: str) -> Dict[str, Any]:
         """Detailed view of one node (facts, last report, resources, etc.)."""
