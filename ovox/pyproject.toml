@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-beta14-4"  # Added smart privilege escalation detection for Orchestration commands
+version = "3.7.2-beta14-5"  # Made Orchestration commands default to using the bolt user's sudoers via run-as root
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

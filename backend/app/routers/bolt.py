@@ -418,16 +418,11 @@ async def run_command(
     command = _normalize_command_for_gui(req.command)
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
 
-    # Smart privilege escalation for Orchestration commands:
-    # - If the user explicitly chose a run_as in the UI, honor it.
-    # - Otherwise, if the command looks like it needs root (puppet agent, systemctl, etc.),
-    #   automatically run it as root via sudo.
-    # - Simple commands run as the connecting user (bolt).
-    # This makes the experience transparent while keeping the security model.
-    effective_run_as = req.run_as
-    if not effective_run_as:
-        if _command_needs_root(command):
-            effective_run_as = "root"
+    # For commands initiated from the Orchestration page, default to running
+    # as root via sudo (using the inventory's run-as + run-as-command settings).
+    # This lets the bolt user use the sudoers entry that already exists for it.
+    # The checkbox can be used to force running as the connecting user instead.
+    effective_run_as = req.run_as or "root"
 
     if effective_run_as:
         args.extend(["--run-as", effective_run_as])
@@ -477,10 +472,15 @@ async def run_task(
     args = ["task", "run", req.task, "--targets", resolved_targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
-    # Only pass --run-as when the UI explicitly requests it (the checkbox).
-    # The inventory (via openvox_enc) is the source of truth for run-as.
-    if req.run_as:
-        args.extend(["--run-as", req.run_as])
+
+    # For tasks initiated from the Orchestration page, default to running
+    # as root via sudo (using the inventory's run-as + run-as-command settings).
+    # This lets the bolt user use the sudoers entry that already exists for it.
+    effective_run_as = req.run_as or "root"
+
+    if effective_run_as:
+        args.extend(["--run-as", effective_run_as])
+
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
     

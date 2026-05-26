@@ -27,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Orchestration Default Privilege Model
+
+- Run Command and Run Task now default to privileged execution
+  (`--run-as root`) so that commands typed in the GUI use the
+  existing sudoers entry for the `bolt` user on targets.
+- The checkbox is now labeled as the way to opt *out* of sudo
+  ("Run as the connecting user (bolt) instead of root").
+- This makes the "use the sudoers we already have for the bolt user"
+  the normal, transparent path for the Orchestration page.
+
 ### Added — Smart Privilege Escalation for Orchestration Commands
 
 - Added `_command_needs_root()` heuristic in the backend.

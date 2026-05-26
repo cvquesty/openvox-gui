@@ -461,8 +461,8 @@ function RunCommandTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Force privileged execution (as root via sudo)"
-            description="The system tries to auto-detect commands that need root (puppet agent, systemctl, etc.). Check this only if you need to force it."
+            label="Run as the connecting user (bolt) instead of root"
+            description="Normally the Orchestration page runs commands with sudo as root (using the inventory's run-as settings and the bolt user's sudoers). Check this to run as the SSH user without sudo."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
@@ -571,8 +571,8 @@ function RunTaskTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Force privileged execution (as root via sudo)"
-            description="The system tries to auto-detect commands that need root (puppet agent, systemctl, etc.). Check this only if you need to force it."
+            label="Run as the connecting user (bolt) instead of root"
+            description="Normally the Orchestration page runs commands with sudo as root (using the inventory's run-as settings and the bolt user's sudoers). Check this to run as the SSH user without sudo."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
