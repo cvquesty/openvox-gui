@@ -34,6 +34,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to copy the ovox source tree and ensure the venv + `/usr/local/bin` symlink
   are always present after every deploy.
 
+- `ovox token generate` command (long-lived / permanent service tokens, auto-write to
+  `/etc/puppetlabs/bolt/.bolt_token` with 0600 for Bolt dynamic inventory use).
+  Backend support for admin-only creation of non-expiring ApiToken records.
+  Auth middleware exemptions for `/api/enc/inventory/bolt`.
+
+- Bolt `openvox_enc` plugin: now accepts `token_file` (standard path) or inline `api_token`.
+  Critical fix: `resolve_reference.json` declares the new parameters so Bolt stops
+  rejecting the inventory plugin with "has no parameter named 'token_file'".
+  Enables end-to-end authenticated dynamic ENC inventory for the `bolt` user.
+
+**Version bump to 3.7.1-beta1-1** per standing rule: increment on every meaningful push.
+
 ## [3.7.0] - 2026-05-21
 
 ### Added — Metrics Section (10 visualization pages)
