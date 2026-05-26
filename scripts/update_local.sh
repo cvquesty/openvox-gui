@@ -26,6 +26,10 @@
 
 set -euo pipefail
 
+# Heredoc Safety Note (see install.sh for full policy):
+# Prefer quoted heredocs. Only use unquoted when ${VAR} expansion is needed.
+# Never put backticks or command substitution inside heredocs.
+
 # ─── Configuration ─────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${SCRIPT_DIR%/scripts}"
@@ -280,6 +284,12 @@ systemctl daemon-reload
 log_ok "Updated systemd service file"
 
 # Update sudoers rules
+#
+# NOTE: This heredoc is intentionally LEFT UNQUOTED because it performs
+# variable expansion (${SERVICE_USER}, ${INSTALL_DIR}).
+# NEVER put backticks (`), command substitution $(), or other shell
+# metacharacters in the content below unless you explicitly want them
+# executed at install time.
 cat > /etc/sudoers.d/openvox-gui << SUDOEOF
 # OpenVox GUI — the service runs as a daemon without a TTY, so sudo
 # must not require one for this user.

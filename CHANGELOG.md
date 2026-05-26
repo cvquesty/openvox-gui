@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Affected lines explained the decision to use explicit `puppetserver ca` and `openssl x509` rules rather than wildcards.
   - Fixed by replacing backticks with regular single quotes in the generated comments.
 
+### Changed — Heredoc Hygiene (Process Improvement)
+
+- Added prominent `NOTE:` warnings above every intentionally unquoted heredoc in `install.sh`, `update_local.sh`, and `deploy.sh`.
+- Added heredoc safety policy to `AGENTS.md`.
+- Quoted several heredocs that did not require variable expansion.
+- Goal: Prevent future accidental command substitution or parsing issues inside heredocs.
+
 ### Fixed — `ovox infra health`
 
 - `ovox infra health` (and the underlying `/api/dashboard/services` endpoint) no longer reports a spurious "httpd" (Apache) component.

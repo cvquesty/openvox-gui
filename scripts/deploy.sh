@@ -14,6 +14,8 @@
 #   sudo ./deploy.sh                        # uses REPO_DIR auto-detection
 ###############################################################################
 
+# Heredoc Safety Note: See install.sh. Prefer quoted delimiters.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -223,6 +225,7 @@ fi
 # install.sh / update_local.sh have written.
 SUDOERS_FILE=/etc/sudoers.d/openvox-gui
 if [ -f "$SUDOERS_FILE" ] && ! grep -q "sync-openvox-repo.sh" "$SUDOERS_FILE"; then
+    # NOTE: Unquoted heredoc for variable expansion. Avoid backticks here.
     cat >> "$SUDOERS_FILE" <<EOF
 
 # OpenVox GUI -- allow triggering the package mirror sync from the GUI
@@ -249,6 +252,7 @@ if [ -f "$SUDOERS_FILE" ] && grep -q "journalctl --no-pager" "$SUDOERS_FILE"; th
     echo "  fixed journalctl sudoers rule (removed --no-pager prefix)"
 fi
 if [ -f "$SUDOERS_FILE" ] && ! grep -q "journalctl" "$SUDOERS_FILE"; then
+    # NOTE: Unquoted heredoc for variable expansion. Avoid backticks here.
     cat >> "$SUDOERS_FILE" <<EOF
 
 # Log Viewer (3.6.7) — read journalctl and on-disk log files
@@ -262,6 +266,7 @@ fi
 
 # 5h. Append SSL wizard sudoers rules if missing (3.6.7+).
 if [ -f "$SUDOERS_FILE" ] && ! grep -q "daemon-reload" "$SUDOERS_FILE"; then
+    # NOTE: Unquoted heredoc for variable expansion. Avoid backticks here.
     cat >> "$SUDOERS_FILE" <<EOF
 
 # SSL Certificate Wizard (3.6.7) — cert placement, systemd rewrite, certbot
