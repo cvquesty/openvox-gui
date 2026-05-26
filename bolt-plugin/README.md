@@ -75,10 +75,17 @@ bolt inventory show --verbose
 ```yaml
 ---
 config:
+  transport: ssh
   ssh:
     user: bolt
     private-key: /etc/puppetlabs/bolt/id_bolt
     host-key-check: false
+
+    # Recommended: Connect as the limited 'bolt' user, then escalate via sudo
+    # for privileged commands (puppet agent, systemctl, etc.)
+    run-as: root
+    run-as-command:
+      - sudo
 
 groups:
   - name: static
@@ -93,6 +100,21 @@ groups:
         api_url: 'https://openvox.example.com:4567'
         token_file: /etc/puppetlabs/bolt/.bolt_token
 ```
+
+### Sudoers on Targets
+
+On every target node, create an explicit sudoers file for the `bolt` user (no broad wildcards):
+
+```sudoers
+# /etc/sudoers.d/bolt
+Defaults:bolt !requiretty
+
+# Explicit rules for common privileged operations
+bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
+bolt ALL=(root) NOPASSWD: /usr/bin/systemctl *
+```
+
+See `docs/SUDOERS.md` for the full recommended controller + target sudoers guidance.
 
 ---
 

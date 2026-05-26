@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-RC6"  # Updated install/update scripts to generate correct explicit Bolt sudo rules
+version = "3.7.2-RC7"  # UX + docs: improved Run Command "run as root via sudo" support + target sudoers guidance for bolt user
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

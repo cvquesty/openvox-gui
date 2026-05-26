@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Orchestration & Bolt Privilege Model
+
+- Added "Run privileged (execute as root via sudo on target)" checkbox to the
+  Run Command tab in the Orchestration page. When checked, the command is
+  executed with `--run-as root` (leveraging the `run-as: root` + `sudo`
+  transport settings in the inventory).
+- Significantly improved documentation around the recommended pattern:
+  Bolt connects as the limited `bolt` user, then escalates via explicit sudo
+  on targets for privileged work (especially `puppet agent -t`).
+- Added clear, explicit example sudoers for target nodes (`/etc/sudoers.d/bolt`)
+  in both `docs/SUDOERS.md` and `bolt-plugin/README.md`.
+- Updated `inventory.yaml.example` with better comments on the `run-as` pattern.
+
 ### Changed — Installer / Updater Scripts
 
 - `install.sh` and `update_local.sh` now generate the corrected Bolt sudo rules

@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, TextInput, Textarea, Select, Badge, Code, Grid, Divider,
-  Paper, ThemeIcon, Box, SegmentedControl, ScrollArea,
+  Paper, ThemeIcon, Box, SegmentedControl, ScrollArea, Checkbox,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -364,6 +364,7 @@ function RunCommandTab() {
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
+  const [runAsRoot, setRunAsRoot] = useState(false);
 
   useEffect(() => {
     nodesApi.list()
@@ -380,12 +381,14 @@ function RunCommandTab() {
     setRunning(true); 
     setResults(null);
     
+    const runAs = runAsRoot ? 'root' : undefined;
+
     try {
       // Fetch all three formats in parallel
       const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runCommand({ command, targets, format: 'human' }),
-        bolt.runCommand({ command, targets, format: 'json' }),
-        bolt.runCommand({ command, targets, format: 'rainbow' }),
+        bolt.runCommand({ command, targets, format: 'human', run_as: runAs }),
+        bolt.runCommand({ command, targets, format: 'json', run_as: runAs }),
+        bolt.runCommand({ command, targets, format: 'rainbow', run_as: runAs }),
       ]);
       
       setResults({
@@ -424,6 +427,14 @@ function RunCommandTab() {
             ]}
             value={targets} onChange={(v) => setTargets(v || '')}
             placeholder="Select a group or node" />
+
+          <Checkbox
+            label="Run privileged (execute as root via sudo on target)"
+            description="Recommended for commands like 'puppet agent -t'. Requires appropriate sudoers on the target for the bolt user."
+            checked={runAsRoot}
+            onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
+          />
+
           <Button onClick={handleRun} loading={running} disabled={!command || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">
             Run Command

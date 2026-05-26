@@ -137,6 +137,31 @@ The previous behavior of flipping the directory to `puppet:puppet` on every
 5. The install script (`install.sh`) creates this file automatically
    during installation.
 
+## Sudoers on Target Nodes (for the `bolt` user)
+
+When using the recommended architecture (Bolt connects as the limited `bolt` system user
+and escalates via `sudo` for privileged work), the `bolt` user on your **target nodes**
+also needs sudo rights.
+
+Add a file such as `/etc/sudoers.d/bolt` on targets with explicit, no-wildcard rules:
+
+```sudoers
+# Allow the bolt user to run the Puppet agent as root (explicit)
+bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
+bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent -t --config /etc/puppetlabs/puppet/puppet.conf *
+
+# Common other privileged operations you may want to run from the GUI
+bolt ALL=(root) NOPASSWD: /usr/bin/systemctl restart *
+bolt ALL=(root) NOPASSWD: /usr/bin/systemctl stop *
+bolt ALL=(root) NOPASSWD: /usr/bin/systemctl start *
+bolt ALL=(root) NOPASSWD: /usr/bin/systemctl status *
+```
+
+**Important notes:**
+- Use the most explicit form possible. Avoid broad `bolt ALL=(ALL) NOPASSWD: ALL`.
+- The `puppet agent` rules above include `--config` because that is the recommended way to invoke the agent from the `bolt` user (ensures it uses the real system `puppet.conf`).
+- Adjust the list based on what operators actually need to run via the Orchestration page.
+
 ## ovox CLI
 
 The `ovox` command-line client (installed alongside the GUI in `/opt/openvox-gui/venv/bin/ovox`
