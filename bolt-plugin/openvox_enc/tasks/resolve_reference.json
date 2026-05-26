@@ -20,6 +20,15 @@
       "description": "Verify SSL certificates when calling the API",
       "type": "Boolean",
       "default": false
+    },
+    "api_token": {
+      "description": "Raw API token to authenticate with the OpenVox GUI",
+      "type": "Optional[String]"
+    },
+    "token_file": {
+      "description": "Path to a file containing the API token (defaults to /etc/puppetlabs/bolt/.bolt_token)",
+      "type": "Optional[String]",
+      "default": "/etc/puppetlabs/bolt/.bolt_token"
     }
   }
 }

@@ -25,17 +25,38 @@ sudo cp /opt/openvox-gui/bolt-plugin/inventory.yaml.example /etc/puppetlabs/bolt
 
 ## Usage
 
-Once installed, use ENC group names as Bolt targets:
+### Basic (with token file - recommended for the bolt user)
 
 ```bash
-# Run against an ENC group
+# Generate a long-lived token for the bolt user (writes to the default location)
+ovox token generate --user bolt --name "Bolt service token"
+
+# Then use the dynamic inventory
+bolt command run "uptime" -t webservers
+bolt inventory show
+```
+
+### With explicit parameters
+
+```yaml
+# inventory.yaml
+groups:
+  - name: enc
+    targets:
+      - _plugin: openvox_enc
+        api_url: 'https://your-gui:4567'
+        token_file: /etc/puppetlabs/bolt/.bolt_token     # or pass api_token directly
+```
+
+```bash
+# Run against an ENC group defined in the GUI
 bolt command run "uptime" -t webservers
 
 # Run against a specific node
 bolt command run "puppet agent -t" -t openvox.pdxc-it.twitter.biz
 
-# Show resolved inventory
-bolt inventory show
+# Show resolved inventory (very useful for debugging)
+bolt inventory show --verbose
 ```
 
 ## Plugin Parameters
@@ -49,12 +70,18 @@ bolt inventory show
 | `api_token` | (none)                               | Raw Bearer token (for testing) |
 | `token_file`| `/etc/puppetlabs/bolt/.bolt_token`   | Path to file containing the raw token |
 
-## Example inventory.yaml
+## Example inventory.yaml (Recommended)
 
 ```yaml
-version: 2
+---
+config:
+  ssh:
+    user: bolt
+    private-key: /etc/puppetlabs/bolt/id_bolt
+    host-key-check: false
+
 groups:
-  - name: puppetserver
+  - name: static
     targets:
       - uri: openvox.example.com
         config:
@@ -63,7 +90,8 @@ groups:
   - name: enc
     targets:
       - _plugin: openvox_enc
-        api_url: 'https://localhost:4567'
+        api_url: 'https://openvox.example.com:4567'
+        token_file: /etc/puppetlabs/bolt/.bolt_token
 ```
 
 ---
