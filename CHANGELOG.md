@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Smart Privilege Escalation for Orchestration Commands
+
+- Added `_command_needs_root()` heuristic in the backend.
+- For commands typed in the "Run Command" tab, if the command looks like it needs
+  root (puppet agent, systemctl restart/stop/start, package management, etc.),
+  the system will now automatically request execution as root via sudo (using
+  the inventory's run-as + run-as-command settings).
+- Simple read-only or user-level commands continue to run as the connecting
+  user (the bolt user) without sudo.
+- This makes the Orchestration experience much more intuitive while still
+  going through explicit sudo on the targets (preserving audit logging and
+  the security model you want).
+
 ### Fixed — Puppet agent runs from GUI still using wrong config/SSL directories
 
 - Further improved `_normalize_command_for_gui` to prefix Puppet commands

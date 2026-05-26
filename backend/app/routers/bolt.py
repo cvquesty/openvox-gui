@@ -160,6 +160,41 @@ def _normalize_command_for_gui(command: str) -> str:
     return cmd
 
 
+def _command_needs_root(command: str) -> bool:
+    """
+    Heuristic to decide if a command typed in the GUI Orchestration page
+    typically needs to run as root on the target.
+    """
+    cmd_lower = command.lower().strip()
+
+    # Common privileged commands
+    privileged_patterns = [
+        "puppet agent",
+        "puppet apply",
+        "systemctl restart",
+        "systemctl stop",
+        "systemctl start",
+        "service ",
+        "yum ",
+        "dnf ",
+        "apt-get ",
+        "apt ",
+        "rpm ",
+        "dpkg ",
+        "mount ",
+        "umount ",
+        "reboot",
+        "shutdown",
+        "init ",
+    ]
+
+    for pattern in privileged_patterns:
+        if cmd_lower.startswith(pattern) or f" {pattern}" in cmd_lower:
+            return True
+
+    return False
+
+
 def find_bolt() -> Optional[str]:
     """Find the bolt binary."""
     for p in BOLT_PATHS:
@@ -382,12 +417,21 @@ async def run_command(
     start_time = time.time()
     command = _normalize_command_for_gui(req.command)
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
-    # Only pass --run-as when the UI explicitly requests it (the checkbox).
-    # The inventory (via openvox_enc) is now the authoritative place for the
-    # "run as root via sudo" policy. Passing it from the CLI produces the
-    # "CLI arguments might be overridden by Inventory" warning.
-    if req.run_as:
-        args.extend(["--run-as", req.run_as])
+
+    # Smart privilege escalation for Orchestration commands:
+    # - If the user explicitly chose a run_as in the UI, honor it.
+    # - Otherwise, if the command looks like it needs root (puppet agent, systemctl, etc.),
+    #   automatically run it as root via sudo.
+    # - Simple commands run as the connecting user (bolt).
+    # This makes the experience transparent while keeping the security model.
+    effective_run_as = req.run_as
+    if not effective_run_as:
+        if _command_needs_root(command):
+            effective_run_as = "root"
+
+    if effective_run_as:
+        args.extend(["--run-as", effective_run_as])
+
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
     

@@ -461,8 +461,8 @@ function RunCommandTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Force run as root (override inventory)"
-            description="Only use this if you need to force a different user than what the inventory (openvox_enc) provides."
+            label="Force privileged execution (as root via sudo)"
+            description="The system tries to auto-detect commands that need root (puppet agent, systemctl, etc.). Check this only if you need to force it."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
@@ -571,8 +571,8 @@ function RunTaskTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Force run as root (override inventory)"
-            description="Only use this if you need to force a different user than what the inventory (openvox_enc) provides."
+            label="Force privileged execution (as root via sudo)"
+            description="The system tries to auto-detect commands that need root (puppet agent, systemctl, etc.). Check this only if you need to force it."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
