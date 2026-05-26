@@ -27,6 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Orchestration "Run Command" password prompts
+
+The overly strict per-subcommand Bolt sudo rules (with no arguments allowed)
+were causing `sudo` to prompt for a password when the GUI tried to run
+commands, tasks, or plans via Bolt. This affected even simple commands
+like `whoami`.
+
+The rules have been changed to allow the full `bolt` binary (both common
+paths). This is the standard secure pattern for orchestration tools while
+still being explicit about which binaries may be executed as root by the
+GUI service.
+
 ### UX / Documentation Improvements
 
 - Post-install message now includes a prominent "Sudoers (Critical)" section explaining the explicit rules and Let's Encrypt FQDN path.

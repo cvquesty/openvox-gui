@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-RC4"  # UX: better post-install messaging + richer Let's Encrypt cert details in UI
+version = "3.7.2-RC5"  # Fixed overly strict Bolt sudo rules causing password prompts on Run Command
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

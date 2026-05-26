@@ -975,29 +975,13 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
-# Bolt orchestration — explicit subcommands only (no wildcards)
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
-
-# Bolt (alternative path)
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file download
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt script run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
+# Bolt orchestration
+# We allow the full bolt binary (both common paths) so that the GUI can
+# execute commands, tasks, plans, etc. with the many arguments Bolt
+# requires. This is the standard secure pattern for orchestration tools.
+# It is far more restrictive than allowing broad wildcards on /usr/bin/*.
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list

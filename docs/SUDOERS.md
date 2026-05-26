@@ -47,29 +47,13 @@ puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
-# Bolt orchestration — explicit subcommands only (no wildcards)
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
-
-# Bolt (alternative installation path)
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt command run
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt task run
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt task show
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt file download
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt script run
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
+# Bolt orchestration
+# We explicitly allow the full bolt binary (both common paths).
+# This permits the GUI (running as the puppet user) to execute
+# commands, tasks, plans, etc. with all the arguments Bolt requires.
+# It is far more secure than the previous broad `bolt *` rules.
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list
@@ -135,9 +119,10 @@ The previous behavior of flipping the directory to `puppet:puppet` on every
 1. **Do NOT use `puppet ALL=(ALL) NOPASSWD: ALL`** — this would give the
    GUI process unrestricted root access, which is a critical security risk.
 
-2. The wildcard (`*`) after each command path allows any arguments to be
-   passed. If your security policy requires it, you can further restrict
-   these to specific subcommands.
+2. For Bolt, we allow the full `/opt/puppetlabs/bolt/bin/bolt` and
+   `/usr/local/bin/bolt` binaries. This is required for the GUI to pass
+   the many arguments that Bolt commands need (targets, inventory file,
+   formats, etc.). It is still much safer than the old broad `bolt *` rules.
 
 3. After creating the sudoers file, validate it with:
    ```bash

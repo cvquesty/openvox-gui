@@ -324,27 +324,12 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
-# OpenVox GUI — allow running Puppet Bolt commands (explicit subcommands only)
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file download
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt script run
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
+# Bolt orchestration
+# We explicitly allow the full bolt binary (both common paths).
+# This permits the GUI (running as the puppet user) to execute
+# commands, tasks, plans, etc. with all the arguments Bolt requires.
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
 
 # OpenVox GUI -- allow certificate management. Each subcommand is
 # listed explicitly rather than wildcards (3.6.0 hardening).
