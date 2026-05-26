@@ -1430,6 +1430,18 @@ echo -e "    sudo systemctl status openvox-gui"
 echo -e "    sudo systemctl restart openvox-gui"
 echo -e "    sudo journalctl -u openvox-gui -f"
 echo
+
+echo -e "  ${BOLD}Sudoers (Critical):${NC}"
+echo -e "    A fully explicit sudoers file (no wildcards) was written to:"
+echo -e "      /etc/sudoers.d/openvox-gui"
+echo -e "    Always validate after manual edits:"
+echo -e "      sudo visudo -cf /etc/sudoers.d/openvox-gui"
+if [ -d "/etc/letsencrypt/live" ]; then
+    echo -e "    ${YELLOW}Let's Encrypt note:${NC} The rule uses your server's FQDN:"
+    echo -e "      /etc/letsencrypt/live/$(hostname -f)/fullchain.pem"
+    echo -e "    If your cert directory name differs, update the rule and re-validate."
+fi
+echo
 echo -e "  ${BOLD}ENC Integration:${NC}"
 echo -e "    Add to puppet.conf [server] section:"
 echo -e "      node_terminus = exec"

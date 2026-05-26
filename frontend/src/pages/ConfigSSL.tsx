@@ -32,6 +32,11 @@ function CertHealthBadge({ cert }: { cert: any }) {
 
 function CertDetails({ cert, label }: { cert: any; label?: string }) {
   if (!cert) return <Text c="dimmed" size="sm">No certificate found</Text>;
+
+  // Try to extract CN from subject for prominent display
+  const cnMatch = cert.subject?.match(/CN=([^,]+)/);
+  const commonName = cnMatch ? cnMatch[1] : null;
+
   return (
     <Stack gap={4}>
       {label && <Text size="xs" fw={600} c="dimmed" tt="uppercase">{label}</Text>}
@@ -40,11 +45,23 @@ function CertDetails({ cert, label }: { cert: any; label?: string }) {
         <Badge variant="outline" size="sm">{cert.key_type} {cert.key_detail}</Badge>
         {cert.self_signed && <Badge variant="outline" size="sm" color="orange">Self-Signed</Badge>}
       </Group>
+
+      {commonName && (
+        <Text size="sm"><strong>Common Name (CN):</strong> {commonName}</Text>
+      )}
       <Text size="sm"><strong>Subject:</strong> {cert.subject}</Text>
       <Text size="sm"><strong>Issuer:</strong> {cert.issuer}</Text>
-      <Text size="sm"><strong>Expires:</strong> {new Date(cert.not_after).toLocaleDateString()}</Text>
+      <Text size="sm">
+        <strong>Expires:</strong> {new Date(cert.not_after).toLocaleString()} 
+        {cert.days_remaining !== undefined && ` (${cert.days_remaining} days remaining)`}
+      </Text>
+      <Text size="sm"><strong>Valid From:</strong> {new Date(cert.not_before).toLocaleString()}</Text>
+
       {cert.san && cert.san.length > 0 && (
         <Text size="sm"><strong>SANs:</strong> {cert.san.join(', ')}</Text>
+      )}
+      {cert.serial && (
+        <Text size="sm" c="dimmed"><strong>Serial:</strong> {cert.serial}</Text>
       )}
     </Stack>
   );
@@ -423,6 +440,14 @@ Thank you!`}
                   </Alert>
                 ) : (
                   <>
+                    <Alert variant="light" color="blue" mb="sm">
+                      <Text size="sm">
+                        OpenVox GUI uses a dedicated sudoers rule to read your Let's Encrypt certificate
+                        without broad wildcards. The rule is written with your server's actual FQDN at install time.
+                        You can view or adjust it in <Code>/etc/sudoers.d/openvox-gui</Code>.
+                      </Text>
+                    </Alert>
+
                     {status?.letsencrypt?.cert && (
                       <CertDetails cert={status.letsencrypt.cert} label={`Let's Encrypt Certificate (${status.letsencrypt.domain})`} />
                     )}

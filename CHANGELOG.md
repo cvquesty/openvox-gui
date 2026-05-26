@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### UX / Documentation Improvements
+
+- Post-install message now includes a prominent "Sudoers (Critical)" section explaining the explicit rules and Let's Encrypt FQDN path.
+- Added helpful guidance text inside the Let's Encrypt renewal pane of **Settings → Application Configuration → SSL Configuration**.
+- Enhanced `CertDetails` component to prominently display Common Name (CN), validity dates with remaining days, serial number, and other certificate telemetry — especially useful when renewing Let's Encrypt certificates.
+
+
 ### Security — Explicit Sudoers Rules (No Wildcards)
 
 All broad wildcard (`*`) rules in the generated `/etc/sudoers.d/openvox-gui` have been removed in favor of explicit command lines. This change is required for compatibility with more secure future versions of sudo (including Rust rewrites) and significantly reduces the attack surface.
