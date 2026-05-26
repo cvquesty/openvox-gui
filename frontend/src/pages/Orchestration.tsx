@@ -429,8 +429,8 @@ function RunCommandTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Run privileged (execute as root via sudo on target)"
-            description="Recommended for commands like 'puppet agent -t'. Requires appropriate sudoers on the target for the bolt user."
+            label="Force run as root (override inventory run-as settings)"
+            description="Only needed if you want to override the inventory's run-as configuration. Normally the inventory (via openvox_enc) already sets run-as: root + sudo."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
@@ -536,8 +536,8 @@ function RunTaskTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Run privileged (execute as root via sudo on target)"
-            description="Recommended for commands like 'puppet agent -t'. Requires appropriate sudoers on the target for the bolt user."
+            label="Force run as root (override inventory run-as settings)"
+            description="Only needed if you want to override the inventory's run-as configuration. Normally the inventory (via openvox_enc) already sets run-as: root + sudo."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />

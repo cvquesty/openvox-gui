@@ -27,6 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Orchestration "Run as root" UX
+
+- The "Run privileged" checkbox in Run Command and Run Task is now
+  clearly labeled as an **override** ("Force run as root (override
+  inventory run-as settings)").
+- Backend no longer auto-defaults `run_as` to root for orchestration
+  commands. The inventory (via the openvox_enc plugin) is now the
+  authoritative source for the run-as policy. This eliminates the
+  repeated Bolt warning about CLI arguments being overridden by the
+  inventory.
+
 ### UX / Reliability — Orchestration "Run Command"
 
 - Added automatic normalization in the backend so that when an operator types
