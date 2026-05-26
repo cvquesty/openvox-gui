@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### UX / Reliability — Orchestration "Run Command"
+
+- Added automatic normalization in the backend so that when an operator types
+  a common command like `puppet agent -t` (or `puppet ...`) in the GUI, it is
+  rewritten to use the full path `/opt/puppetlabs/bin/puppet ...`.
+  This greatly reduces "command not found" errors caused by environment
+  differences when the command runs via the bolt user + sudo on targets.
+- The same normalization logic was applied for consistency.
+
 ### Changed — openvox_enc Plugin Behavior
 
 - The `openvox_enc` Bolt inventory plugin now automatically injects

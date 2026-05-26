@@ -106,6 +106,31 @@ BOLT_PATHS = [
 ]
 
 
+def _normalize_command_for_gui(command: str) -> str:
+    """
+    Make common commands more reliable when typed in the GUI Orchestration page.
+
+    When the command is run via the bolt user + sudo, the environment is often
+    minimal. For well-known tools that live outside normal $PATH for root,
+    we rewrite them to their full path so "puppet agent -t" just works
+    without the operator having to type the full path every time.
+    """
+    cmd = command.strip()
+    if not cmd:
+        return cmd
+
+    # Handle "puppet ..." and "puppet-agent ..." variants
+    if cmd.startswith("puppet ") or cmd == "puppet":
+        full = "/opt/puppetlabs/bin/puppet"
+        return cmd.replace("puppet", full, 1)
+
+    if cmd.startswith("puppet-agent ") or cmd == "puppet-agent":
+        full = "/opt/puppetlabs/bin/puppet"
+        return cmd.replace("puppet-agent", full, 1)
+
+    return cmd
+
+
 def find_bolt() -> Optional[str]:
     """Find the bolt binary."""
     for p in BOLT_PATHS:
@@ -326,7 +351,8 @@ async def run_command(
     
     # Execute command
     start_time = time.time()
-    args = ["command", "run", req.command, "--targets", resolved_targets, "--format", fmt]
+    command = _normalize_command_for_gui(req.command)
+    args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
     # Default to running as root via sudo for commands initiated from the Orchestration UI.
     # This keeps the bolt user limited while still allowing privileged operations through explicit sudo.
     run_as = req.run_as or "root"

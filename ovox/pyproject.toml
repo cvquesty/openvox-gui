@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-RC10"  # openvox_enc plugin now auto-injects run-as: root + sudo for GUI commands
+version = "3.7.2-RC11"  # Added backend normalization so "puppet ..." commands from the GUI are reliably found
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

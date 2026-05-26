@@ -155,9 +155,15 @@ Create `/etc/sudoers.d/bolt` with the following:
 Defaults:bolt !requiretty
 
 # Preserve the bolt user's PATH (and other safe variables) when using sudo -E.
-# This ensures that /opt/puppetlabs/bin is available when running as root.
+# This is required so that /opt/puppetlabs/bin is in $PATH when the GUI runs
+# commands like "puppet agent -t" through sudo.
 Defaults:bolt env_keep += "PATH"
 Defaults:bolt !env_reset
+
+# Also extend secure_path (if your global sudoers sets one) so sudo itself
+# knows where puppet lives. This is the most common cause of
+# "puppet: command not found" when running via the GUI.
+Defaults:bolt secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/opt/puppetlabs/bin
 
 # Explicit list of allowed commands (no broad wildcards)
 bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
