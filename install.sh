@@ -977,8 +977,8 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
 
 # OpenVox GUI -- allow certificate management.
 # Tightened in 3.3.5-30: each verb-form is listed explicitly rather
-# than `puppetserver ca *` / `openssl x509 *` wildcards. The wildcard
-# forms allowed flags like `openssl x509 -out /etc/shadow` (arbitrary
+# than 'puppetserver ca *' / 'openssl x509 *' wildcards. The wildcard
+# forms allowed flags like 'openssl x509 -out /etc/shadow' (arbitrary
 # file write as root); the explicit forms below restrict each
 # invocation to a known argv shape.
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list, /opt/puppetlabs/bin/puppetserver ca list *

@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Installer sudoers generation on Ubuntu
+
+- Backticks (`` ` ``) inside comments in the sudoers heredoc in `install.sh` were being interpreted as command substitution on some Ubuntu systems (because the heredoc was unquoted). This could cause installation failures or corrupted sudoers files.
+  - Affected lines explained the decision to use explicit `puppetserver ca` and `openssl x509` rules rather than wildcards.
+  - Fixed by replacing backticks with regular single quotes in the generated comments.
+
 ### Fixed — `ovox infra health`
 
 - `ovox infra health` (and the underlying `/api/dashboard/services` endpoint) no longer reports a spurious "httpd" (Apache) component.
