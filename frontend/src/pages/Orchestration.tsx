@@ -3,13 +3,34 @@
  * 
  * Component documentation to be expanded.
  */
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, TextInput, Textarea, Select, Badge, Code, Grid, Divider,
   Paper, ThemeIcon, Box, SegmentedControl, ScrollArea, Checkbox,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+
+/* Simple Error Boundary to prevent result rendering crashes from bubbling to the page bottom */
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Alert color="red" title="Error displaying result">
+          Something went wrong while rendering the command output. The raw output may still be visible in the logs.
+        </Alert>
+      );
+    }
+    return this.props.children;
+  }
+}
 import {
   IconTerminal2, IconListDetails, IconRoute, IconSettings, IconPlayerPlay,
   IconBolt, IconHistory, IconFileUpload, IconFileDownload, IconFiles, IconUpload, IconX,
@@ -46,37 +67,47 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
   if (!firstResult) return null;
 
   const renderOutput = (result: any, format: string) => {
-    if (!result || !result.output) return null;
+    if (!result) {
+      return <Text c="dimmed" size="sm">No output available for this format.</Text>;
+    }
+
+    const outputText = result.output || result.error || '';
     
     if (format === 'rainbow') {
-      const outputHtml = ansiConverter.toHtml(result.output);
-      return (
-        <Box
-          style={{
-            backgroundColor: '#1e1e1e',
-            borderRadius: 6,
-            padding: '12px 16px',
-            fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
-            fontSize: 13,
-            lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-          dangerouslySetInnerHTML={{ __html: outputHtml }}
-        />
-      );
+      try {
+        const outputHtml = ansiConverter.toHtml(outputText);
+        return (
+          <Box
+            style={{
+              backgroundColor: '#1e1e1e',
+              borderRadius: 6,
+              padding: '12px 16px',
+              fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+              fontSize: 13,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+            dangerouslySetInnerHTML={{ __html: outputHtml }}
+          />
+        );
+      } catch {
+        return (
+          <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+            {outputText}
+          </Code>
+        );
+      }
     }
     
     if (format === 'json') {
-      // Try to parse and pretty print JSON
       try {
-        const parsed = JSON.parse(result.output);
+        const parsed = JSON.parse(outputText);
         return <PrettyJson data={parsed} withBorder={false} />;
       } catch {
-        // If not valid JSON, show as regular code
         return (
           <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-            {result.output}
+            {outputText}
           </Code>
         );
       }
@@ -85,7 +116,7 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
     // Default (human format)
     return (
       <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-        {result.output}
+        {outputText}
       </Code>
     );
   };
@@ -441,7 +472,9 @@ function RunCommandTab() {
           </Button>
         </Stack>
       </Card>
-      <ResultPane results={results} />
+      <ErrorBoundary>
+        <ResultPane results={results} />
+      </ErrorBoundary>
     </Stack>
   );
 }
@@ -561,7 +594,9 @@ function RunTaskTab() {
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Task</Button>
         </Stack>
       </Card>
-      <ResultPane results={results} />
+      <ErrorBoundary>
+        <ResultPane results={results} />
+      </ErrorBoundary>
     </Stack>
   );
 }
@@ -647,7 +682,9 @@ function RunPlanTab() {
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Plan</Button>
         </Stack>
       </Card>
-      <ResultPane results={results} />
+      <ErrorBoundary>
+        <ResultPane results={results} />
+      </ErrorBoundary>
     </Stack>
   );
 }

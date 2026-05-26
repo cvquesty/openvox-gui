@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Orchestration Result Display
+
+- Added a local React ErrorBoundary around ResultPane rendering in the
+  Orchestration tabs. This prevents rendering errors (from very long
+  output, unusual ANSI, or edge-case result shapes) from producing the
+  ugly full-page error overlay at the bottom of the screen.
+- Made ResultPane rendering significantly more defensive so partial or
+  failure results always render something useful instead of throwing.
+
 ### Changed — Orchestration "Run as root" UX
 
 - The "Run privileged" checkbox in Run Command and Run Task is now

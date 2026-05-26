@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-RC12"  # Orchestration "run as root" checkbox is now an explicit override; inventory (via openvox_enc) is authoritative
+version = "3.7.2-RC13"  # Added ErrorBoundary + defensive rendering to prevent result errors from surfacing at page bottom
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}
