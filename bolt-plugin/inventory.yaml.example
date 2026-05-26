@@ -20,9 +20,11 @@ config:
     user: bolt
     private-key: /etc/puppetlabs/bolt/id_bolt
 
-    # Best practice: Connect as the limited 'bolt' service user.
-    # Escalate to root via sudo for privileged operations (puppet agent, etc.).
-    # Requires corresponding explicit sudoers on the target nodes.
+    # Security model for GUI Orchestration:
+    # - SSH as the restricted 'bolt' user.
+    # - Commands entered in the GUI are executed with "sudo" as root on targets.
+    # - This provides audit logging via sudo while keeping the interface simple.
+    # - Target nodes must have explicit sudoers for the bolt user (see docs/SUDOERS.md).
     run-as: root
     run-as-command:
       - sudo

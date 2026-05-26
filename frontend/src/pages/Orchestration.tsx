@@ -364,7 +364,7 @@ function RunCommandTab() {
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
-  const [runAsRoot, setRunAsRoot] = useState(false);
+  const [runAsRoot, setRunAsRoot] = useState(true);
 
   useEffect(() => {
     nodesApi.list()
@@ -459,6 +459,7 @@ function RunTaskTab() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [runAsRoot, setRunAsRoot] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -482,12 +483,14 @@ function RunTaskTab() {
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
     
+    const runAs = runAsRoot ? 'root' : undefined;
+
     try {
       // Fetch all three formats in parallel
       const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'human' }),
-        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'json' }),
-        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'rainbow' }),
+        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'human', run_as: runAs }),
+        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'json', run_as: runAs }),
+        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'rainbow', run_as: runAs }),
       ]);
       
       setResults({
@@ -531,6 +534,14 @@ function RunTaskTab() {
             ]}
             value={targets} onChange={(v) => setTargets(v || '')}
             placeholder="Select a group or node" />
+
+          <Checkbox
+            label="Run privileged (execute as root via sudo on target)"
+            description="Recommended for commands like 'puppet agent -t'. Requires appropriate sudoers on the target for the bolt user."
+            checked={runAsRoot}
+            onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
+          />
+
           <div>
             <Group justify="space-between" mb={4}>
               <Text size="sm" fw={500}>Task Parameters</Text>

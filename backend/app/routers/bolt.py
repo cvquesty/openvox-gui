@@ -327,8 +327,10 @@ async def run_command(
     # Execute command
     start_time = time.time()
     args = ["command", "run", req.command, "--targets", resolved_targets, "--format", fmt]
-    if req.run_as:
-        args.extend(["--run-as", req.run_as])
+    # Default to running as root via sudo for commands initiated from the Orchestration UI.
+    # This keeps the bolt user limited while still allowing privileged operations through explicit sudo.
+    run_as = req.run_as or "root"
+    args.extend(["--run-as", run_as])
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
     
@@ -374,8 +376,9 @@ async def run_task(
     args = ["task", "run", req.task, "--targets", resolved_targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
-    if req.run_as:
-        args.extend(["--run-as", req.run_as])
+    # Default to running as root via sudo for tasks initiated from the Orchestration UI.
+    run_as = req.run_as or "root"
+    args.extend(["--run-as", run_as])
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
     

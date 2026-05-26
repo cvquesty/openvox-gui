@@ -101,20 +101,24 @@ groups:
         token_file: /etc/puppetlabs/bolt/.bolt_token
 ```
 
-### Sudoers on Targets
+### Sudoers on Targets (Important)
 
-On every target node, create an explicit sudoers file for the `bolt` user (no broad wildcards):
+The design is:
+
+- The `bolt` user connects via SSH.
+- The GUI Orchestration page runs commands with `sudo` on the target (via Bolt's `run-as` + `run-as-command: sudo` settings).
+- The `bolt` user on targets should only have **explicit** sudo rights.
+
+Replace any broad `bolt ALL=(ALL) NOPASSWD: ALL` with targeted rules. Recommended starting point:
 
 ```sudoers
-# /etc/sudoers.d/bolt
 Defaults:bolt !requiretty
 
-# Explicit rules for common privileged operations
 bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
 bolt ALL=(root) NOPASSWD: /usr/bin/systemctl *
 ```
 
-See `docs/SUDOERS.md` for the full recommended controller + target sudoers guidance.
+Full guidance and examples are in `docs/SUDOERS.md`.
 
 ---
 

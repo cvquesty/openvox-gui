@@ -139,28 +139,38 @@ The previous behavior of flipping the directory to `puppet:puppet` on every
 
 ## Sudoers on Target Nodes (for the `bolt` user)
 
-When using the recommended architecture (Bolt connects as the limited `bolt` system user
-and escalates via `sudo` for privileged work), the `bolt` user on your **target nodes**
-also needs sudo rights.
+The intended model is:
 
-Add a file such as `/etc/sudoers.d/bolt` on targets with explicit, no-wildcard rules:
+- Bolt connects to targets as the limited `bolt` service user (via SSH + key + token).
+- Privileged commands from the GUI Orchestration page are executed with `sudo` on the target (using Bolt's `run-as: root` + `run-as-command: sudo` transport settings).
+- The `bolt` user on targets has **explicit** sudo rights only for the commands operators are allowed to run from the GUI.
+
+This keeps audit logging through sudo while hiding the complexity from operators.
+
+Recommended minimal explicit sudoers on targets (`/etc/sudoers.d/bolt`):
 
 ```sudoers
-# Allow the bolt user to run the Puppet agent as root (explicit)
+# Bolt service user — explicit privileges only (no broad wildcards)
+Defaults:bolt !requiretty
+
+# Puppet agent runs (the most common privileged operation from the GUI)
 bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
 bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent -t --config /etc/puppetlabs/puppet/puppet.conf *
 
-# Common other privileged operations you may want to run from the GUI
+# Common system management commands
 bolt ALL=(root) NOPASSWD: /usr/bin/systemctl restart *
 bolt ALL=(root) NOPASSWD: /usr/bin/systemctl stop *
 bolt ALL=(root) NOPASSWD: /usr/bin/systemctl start *
 bolt ALL=(root) NOPASSWD: /usr/bin/systemctl status *
+
+# Allow reading common log files if needed for troubleshooting
+bolt ALL=(root) NOPASSWD: /usr/bin/journalctl -u *
+bolt ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/*
 ```
 
-**Important notes:**
-- Use the most explicit form possible. Avoid broad `bolt ALL=(ALL) NOPASSWD: ALL`.
-- The `puppet agent` rules above include `--config` because that is the recommended way to invoke the agent from the `bolt` user (ensures it uses the real system `puppet.conf`).
-- Adjust the list based on what operators actually need to run via the Orchestration page.
+**Strong recommendation**: Replace the current broad rule (`bolt ALL=(ALL) NOPASSWD: ALL`) with something like the above. The broad rule defeats much of the security model you've built around the Orchestration interface.
+
+See the inventory example for how to enable automatic sudo escalation from Bolt.
 
 ## ovox CLI
 

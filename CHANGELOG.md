@@ -27,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Orchestration Privilege Model (Transparent sudo)
+
+- The Orchestration "Run Command" and "Run Task" features now default to
+  executing commands with `--run-as root` (i.e. via sudo on the target).
+  This makes the "bolt user + sudo" model transparent to operators — they
+  no longer need to type `sudo` themselves.
+- Backend endpoints for running commands/tasks now default `run_as` to `root`
+  when not explicitly provided, enforcing the intended security model at the
+  API layer.
+
 ### Changed — Orchestration & Bolt Privilege Model
 
 - Added "Run privileged (execute as root via sudo on target)" checkbox to the
