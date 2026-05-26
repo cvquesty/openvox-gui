@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.1-beta2-3"  # Hardened heredoc usage across install/update/deploy scripts
+version = "3.7.1-beta2-4"  # Bumped python-dotenv in backend/requirements.txt (Dependabot)
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Dependencies
+
+- Bumped `python-dotenv` from 1.0.1 to 1.2.2 in `backend/requirements.txt` (addresses Dependabot alert / PR for the backend).
+
 ### Fixed — Installer sudoers generation on Ubuntu
 
 - Backticks (`` ` ``) inside comments in the sudoers heredoc in `install.sh` were being interpreted as command substitution on some Ubuntu systems (because the heredoc was unquoted). This could cause installation failures or corrupted sudoers files.
