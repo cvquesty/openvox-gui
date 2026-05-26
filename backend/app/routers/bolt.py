@@ -405,6 +405,7 @@ async def run_task(
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     # Only pass --run-as when the UI explicitly requests it (the checkbox).
+    # The inventory (via openvox_enc) is the source of truth for run-as.
     if req.run_as:
         args.extend(["--run-as", req.run_as])
     result = await run_bolt_command(args, timeout=300)

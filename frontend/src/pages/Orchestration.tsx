@@ -395,7 +395,7 @@ function RunCommandTab() {
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
-  const [runAsRoot, setRunAsRoot] = useState(true);
+  const [runAsRoot, setRunAsRoot] = useState(false);
 
   useEffect(() => {
     nodesApi.list()
@@ -412,14 +412,15 @@ function RunCommandTab() {
     setRunning(true); 
     setResults(null);
     
-    const runAs = runAsRoot ? 'root' : undefined;
+    const payload: any = { command, targets, format: 'human' };
+    if (runAsRoot) payload.run_as = 'root';
 
     try {
       // Fetch all three formats in parallel
       const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runCommand({ command, targets, format: 'human', run_as: runAs }),
-        bolt.runCommand({ command, targets, format: 'json', run_as: runAs }),
-        bolt.runCommand({ command, targets, format: 'rainbow', run_as: runAs }),
+        bolt.runCommand(payload),
+        bolt.runCommand({ ...payload, format: 'json' }),
+        bolt.runCommand({ ...payload, format: 'rainbow' }),
       ]);
       
       setResults({
@@ -460,8 +461,8 @@ function RunCommandTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Force run as root (override inventory run-as settings)"
-            description="Only needed if you want to override the inventory's run-as configuration. Normally the inventory (via openvox_enc) already sets run-as: root + sudo."
+            label="Force run as root (override inventory)"
+            description="Only use this if you need to force a different user than what the inventory (openvox_enc) provides."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
@@ -492,7 +493,7 @@ function RunTaskTab() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [runAsRoot, setRunAsRoot] = useState(true);
+  const [runAsRoot, setRunAsRoot] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -516,14 +517,15 @@ function RunTaskTab() {
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
     
-    const runAs = runAsRoot ? 'root' : undefined;
+    const taskPayload: any = { task: selectedTask, targets, params: paramDict, format: 'human' };
+    if (runAsRoot) taskPayload.run_as = 'root';
 
     try {
       // Fetch all three formats in parallel
       const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'human', run_as: runAs }),
-        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'json', run_as: runAs }),
-        bolt.runTask({ task: selectedTask, targets, params: paramDict, format: 'rainbow', run_as: runAs }),
+        bolt.runTask(taskPayload),
+        bolt.runTask({ ...taskPayload, format: 'json' }),
+        bolt.runTask({ ...taskPayload, format: 'rainbow' }),
       ]);
       
       setResults({
@@ -569,8 +571,8 @@ function RunTaskTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Force run as root (override inventory run-as settings)"
-            description="Only needed if you want to override the inventory's run-as configuration. Normally the inventory (via openvox_enc) already sets run-as: root + sudo."
+            label="Force run as root (override inventory)"
+            description="Only use this if you need to force a different user than what the inventory (openvox_enc) provides."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />

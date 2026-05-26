@@ -27,6 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Orchestration run-as warning
+
+- Removed automatic defaulting of `--run-as root` from the backend for
+  Run Command and Run Task. The checkbox is now a pure override.
+- The inventory (populated by the openvox_enc plugin) is the single
+  source of truth for the `run-as` policy. This eliminates the repeated
+  Bolt warning:
+    "CLI arguments [\"run-as\"] might be overridden by Inventory"
+- The checkbox label was updated to clearly communicate it is an
+  override only.
+
 ### Fixed — Orchestration Result Display
 
 - Added a local React ErrorBoundary around ResultPane rendering in the
