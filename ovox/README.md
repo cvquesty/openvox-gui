@@ -99,6 +99,7 @@ Environment variables (override config):
 | config    | get, set, puppet, hiera                       | Planned     |
 | metrics   | compliance, performance, health               | Planned     |
 | infra     | health, settings show/set, recommend, tune    | Core        |
+| token     | generate (long-lived service tokens for Bolt/automation) | Core |
 | users     | list, create, role                            | Planned     |
 | tui       | Interactive full-screen modes                 | Future      |
 
@@ -125,6 +126,24 @@ ovox infra tune --server
 - Local server runs (root/puppet): future support for short-lived service token via the GUI's own credentials store.
 
 Tokens are validated against the GUI; expired tokens trigger a friendly re-login prompt.
+
+### Long-lived Service Tokens (`ovox token`)
+
+For automation (especially the dedicated `bolt` system user talking to the GUI for dynamic ENC inventory via the `openvox_enc` plugin), you can create long-lived (or permanent) API tokens:
+
+```bash
+# Generate a permanent token for the bolt user and auto-write it to the standard location
+ovox token generate --user bolt --name "Bolt service token - $(hostname)" --expires 0
+
+# Or with short flags
+ovox token generate -u bolt -n "Bolt service token" -e 0 -o /etc/puppetlabs/bolt/.bolt_token
+```
+
+These tokens are used by:
+- The `openvox_enc` Bolt inventory plugin (via `token_file: /etc/puppetlabs/bolt/.bolt_token`)
+- Any scripts or CI that need to talk to the GUI without interactive login.
+
+Tokens appear in the web UI under User Management and can be revoked there (or via future `ovox token` subcommands).
 
 ## Output Formats
 

@@ -27,7 +27,7 @@ app = typer.Typer(
 def generate_token(
     ctx: typer.Context,
     username: str = typer.Option(..., "--user", "-u", help="Username the token is for (e.g. bolt or a service account)"),
-    name: str = typer.Option(None, "--name", help="Human readable name for the token"),
+    name: str = typer.Option(None, "--name", "-n", help="Human readable name for the token"),
     expires_in_days: Optional[int] = typer.Option(
         None, "--expires", "-e",
         help="Days until expiry. Omit or use 0 for a permanent token."

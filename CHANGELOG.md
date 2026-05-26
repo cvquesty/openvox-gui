@@ -11,13 +11,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed — Orchestration page
+## [3.7.1-beta2] - 2026-05-26
 
-- **Targets dropdowns** (Run Command, Run Task, Upload/Download/Script tabs): Nodes listed after the Groups section are now sorted alphabetically by certname (locale-aware). Previously they followed the arbitrary order returned by the `/api/nodes` endpoint.
-- **Configuration tab**: `bolt-project.yaml` and `inventory.yaml` are now correctly detected and displayed even when the GUI service user (`puppet`) cannot read them directly (common in production where files are root-owned 0600). Backend now uses a direct-read + `sudo -n cat` fallback (requires two new minimal sudoers rules). The yellow "No ... found" warning no longer falsely appears.
-- Added corresponding sudoers entries (and updated installer + update_local.sh + SUDOERS.md) for `/usr/bin/cat` on the two Bolt config files.
+### Added — Dedicated Bolt Service Account + Long-lived API Tokens
 
-**Version**: 3.7.1-beta1-2 (per "increment on every meaningful push" rule).
+Major new capability for running Bolt against live ENC data from the GUI without using personal credentials:
+
+- New `ovox token generate` command for creating long-lived (including permanent) service API tokens.
+  - Supports `--user`, `-n/--name`, `--expires 0` (permanent), and `--output` (with smart default to `/etc/puppetlabs/bolt/.bolt_token` when targeting the `bolt` user).
+  - Auto-creates parent directories and sets 0600 permissions.
+- Backend support for admin-only creation of non-expiring `ApiToken` records (`/api/auth/users/{username}/tokens`).
+- Auth middleware now exempts the Bolt inventory plugin endpoints (`/api/enc/inventory/bolt` and YAML variant) when using a valid Bearer token.
+- `openvox_enc` Bolt inventory plugin now fully supports authenticated dynamic inventory via `token_file` (preferred) or inline `api_token`.
+  - Updated `resolve_reference.json` to declare the new parameters.
+  - Plugin can now be used from a dedicated `bolt` system user with a long-lived token.
+
+This enables the recommended pattern: dedicated `bolt` user + service token + `openvox_enc` plugin for production Bolt usage driven by the GUI ENC.
+
+### Fixed — Bolt Execution from GUI
+
+- "Unknown plugin: 'openvox_enc'" errors (and similar) when running commands/tasks/plans from the Orchestration page.
+  - Root cause: Bolt was not told the project root. All execution paths now pass `--project /etc/puppetlabs/bolt` in addition to the inventory flag.
+- Stopped the updater from clobbering ownership of `/etc/puppetlabs/bolt` to `puppet:puppet` on every run (broke dedicated `bolt` users). Directory ownership is now left to site policy.
+- Targets dropdowns in Run Command / Run Task now show nodes in alphabetical order after the Groups section.
+- Bolt Configuration tab now correctly detects and displays `bolt-project.yaml` / `inventory.yaml` even when root-owned with tight permissions (via `sudo cat` fallback + new sudoers rules).
+
+### Documentation
+
+- Added guidance in `ovox/README.md` for `ovox token generate` and the dedicated bolt user + service token workflow.
+- Expanded `docs/SUDOERS.md` with a section on Bolt project directory ownership.
+- Consolidated release notes and version discipline reminders.
+
+**Version**: 3.7.1-beta2
+
+See the commit history for the full sequence of Bolt integration, token, and execution hardening work.
 
 ### Fixed — Bolt directory ownership (installer/updater)
 
@@ -44,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (and its `modules/` directory) is always used, matching what happens when you
   manually `cd /etc/puppetlabs/bolt && bolt ...`.
 
-**Version**: 3.7.1-beta1-4 (per "increment on every meaningful push" rule).
+**Version**: 3.7.1-beta2
 
 ### Added — ovox CLI (ships with the GUI)
 
