@@ -461,8 +461,8 @@ function RunCommandTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Run as the connecting user (bolt) instead of root"
-            description="Normally the Orchestration page runs commands with sudo as root (using the inventory's run-as settings and the bolt user's sudoers). Check this to run as the SSH user without sudo."
+            label="Run as the connecting user (bolt) — without sudo"
+            description="Default is to run with sudo as root using the bolt user's sudoers entry on the target. Check this only if you want to run the command directly as the bolt user (no sudo)."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />
@@ -571,8 +571,8 @@ function RunTaskTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Run as the connecting user (bolt) instead of root"
-            description="Normally the Orchestration page runs commands with sudo as root (using the inventory's run-as settings and the bolt user's sudoers). Check this to run as the SSH user without sudo."
+            label="Run as the connecting user (bolt) — without sudo"
+            description="Default is to run with sudo as root using the bolt user's sudoers entry on the target. Check this only if you want to run the command directly as the bolt user (no sudo)."
             checked={runAsRoot}
             onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
           />

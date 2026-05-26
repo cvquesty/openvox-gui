@@ -27,6 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Orchestration Privilege Model
+
+- Run Command and Run Task now default to privileged execution
+  (using the inventory's run-as + the sudoers entry the bolt user has
+  on targets). The checkbox is the opt-out for running as the
+  connecting user without sudo.
+- This makes the "use the sudoers entry we created for the bolt user"
+  the normal, transparent path for the Orchestration page.
+- Backend no longer forces run-as; it respects the UI choice and the
+  inventory. This eliminates the CLI vs inventory override warning
+  for normal use.
+
 ### Fixed — Orchestration "run-as" inventory override warning
 
 - Removed the automatic default of `--run-as root` in the backend for

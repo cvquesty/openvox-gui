@@ -415,16 +415,19 @@ async def run_command(
     
     # Execute command
     start_time = time.time()
-    command = _normalize_command_for_gui(req.command)
-    args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
+    normalized = _normalize_command_for_gui(req.command)
 
-    # Only pass --run-as if the UI explicitly requested an override.
-    # Do NOT default to root here — the inventory (via openvox_enc) is the
-    # authoritative place for the default run-as behavior.
-    # This prevents the "CLI arguments [run-as] might be overridden by Inventory" warning
-    # when the user wants the normal inventory-controlled behavior.
-    if req.run_as:
-        args.extend(["--run-as", req.run_as])
+    # If the UI requested privileged execution, prepend "sudo " to the command.
+    # This runs the command as the bolt user (the SSH user from the inventory),
+    # then uses sudo on the target to become root.
+    # This uses the sudoers entry the bolt user already has on the target.
+    # No --run-as is sent to Bolt, avoiding the "CLI arguments overridden by Inventory" warning.
+    if req.run_as == "root":
+        command = "sudo " + normalized
+    else:
+        command = normalized
+
+    args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
 
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
@@ -468,13 +471,14 @@ async def run_task(
     
     # Execute task
     start_time = time.time()
-    args = ["task", "run", req.task, "--targets", resolved_targets, "--format", fmt]
+
+    # If the UI requested privileged execution, prepend "sudo " so it uses
+    # the sudoers entry the bolt user has on the target.
+    task_cmd = "sudo " + req.task if req.run_as == "root" else req.task
+
+    args = ["task", "run", task_cmd, "--targets", resolved_targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
-
-    # Only pass --run-as if the UI explicitly requested an override.
-    if req.run_as:
-        args.extend(["--run-as", req.run_as])
 
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)

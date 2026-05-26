@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-beta14-6"  # Fixed run-as override warning by making GUI respect inventory as source of truth
+version = "3.7.2-beta14-7"  # Orchestration now defaults to using the bolt user's existing sudoers entry on targets via transparent sudo
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}
