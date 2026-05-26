@@ -101,24 +101,37 @@ groups:
         token_file: /etc/puppetlabs/bolt/.bolt_token
 ```
 
-### Sudoers on Targets (Important)
+### Sudoers on Targets + Environment Preservation (Important)
 
-The design is:
+To make commands like `puppet agent -t` work reliably when the GUI runs them via the `bolt` user, you must:
 
-- The `bolt` user connects via SSH.
-- The GUI Orchestration page runs commands with `sudo` on the target (via Bolt's `run-as` + `run-as-command: sudo` settings).
-- The `bolt` user on targets should only have **explicit** sudo rights.
+1. Give the `bolt` user explicit sudo rights on targets.
+2. Allow the `bolt` user's environment (especially `$PATH`) to be preserved when escalating.
 
-Replace any broad `bolt ALL=(ALL) NOPASSWD: ALL` with targeted rules. Recommended starting point:
+Recommended `/etc/sudoers.d/bolt` on targets:
 
 ```sudoers
 Defaults:bolt !requiretty
 
+# Allow the bolt user's PATH (containing /opt/puppetlabs/bin) to survive sudo -E
+Defaults:bolt env_keep += "PATH"
+Defaults:bolt !env_reset
+
+# Explicit allowed commands only
 bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
 bolt ALL=(root) NOPASSWD: /usr/bin/systemctl *
 ```
 
-Full guidance and examples are in `docs/SUDOERS.md`.
+Pair this with the following in your inventory (under the `ssh:` section):
+
+```yaml
+run-as: root
+run-as-command:
+  - sudo
+  - -E
+```
+
+See the full recommended configuration and rationale in `docs/SUDOERS.md`.
 
 ---
 

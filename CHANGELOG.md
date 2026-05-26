@@ -27,6 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Bolt + sudo Environment Handling on Targets
+
+- Updated documentation to reflect the complete recommended pattern for
+  running privileged commands from the GUI via the `bolt` user:
+  - Use `run-as-command: [sudo, -E]` in the inventory transport.
+  - Use `Defaults:bolt env_keep += "PATH"` and `Defaults:bolt !env_reset`
+    in the target sudoers.
+  - This ensures `/opt/puppetlabs/bin` (and other needed paths) are
+    available when the GUI runs commands like `puppet agent -t` with sudo.
+- Updated `bolt-plugin/README.md`, `inventory.yaml.example`, and
+  `docs/SUDOERS.md` with the full explicit configuration.
+
 ### Changed — Orchestration Privilege Model (Transparent sudo)
 
 - The Orchestration "Run Command" and "Run Task" features now default to

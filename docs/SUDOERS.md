@@ -139,38 +139,54 @@ The previous behavior of flipping the directory to `puppet:puppet` on every
 
 ## Sudoers on Target Nodes (for the `bolt` user)
 
-The intended model is:
+The recommended security model is:
 
-- Bolt connects to targets as the limited `bolt` service user (via SSH + key + token).
-- Privileged commands from the GUI Orchestration page are executed with `sudo` on the target (using Bolt's `run-as: root` + `run-as-command: sudo` transport settings).
-- The `bolt` user on targets has **explicit** sudo rights only for the commands operators are allowed to run from the GUI.
+- Bolt connects to targets as the limited `bolt` service user.
+- Commands from the GUI Orchestration page are executed **with sudo as root** on the target.
+- The `bolt` user has only **explicit** sudo rights.
+- The environment of the `bolt` user is preserved when escalating (so `/opt/puppetlabs/bin` is in `$PATH`, etc.).
 
-This keeps audit logging through sudo while hiding the complexity from operators.
+### Required sudoers settings on targets
 
-Recommended minimal explicit sudoers on targets (`/etc/sudoers.d/bolt`):
+Create `/etc/sudoers.d/bolt` with the following:
 
 ```sudoers
-# Bolt service user — explicit privileges only (no broad wildcards)
+# Bolt service user configuration
 Defaults:bolt !requiretty
 
-# Puppet agent runs (the most common privileged operation from the GUI)
+# Preserve the bolt user's PATH (and other safe variables) when using sudo -E.
+# This ensures that /opt/puppetlabs/bin is available when running as root.
+Defaults:bolt env_keep += "PATH"
+Defaults:bolt !env_reset
+
+# Explicit list of allowed commands (no broad wildcards)
 bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
-bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent -t --config /etc/puppetlabs/puppet/puppet.conf *
-
-# Common system management commands
-bolt ALL=(root) NOPASSWD: /usr/bin/systemctl restart *
-bolt ALL=(root) NOPASSWD: /usr/bin/systemctl stop *
-bolt ALL=(root) NOPASSWD: /usr/bin/systemctl start *
-bolt ALL=(root) NOPASSWD: /usr/bin/systemctl status *
-
-# Allow reading common log files if needed for troubleshooting
-bolt ALL=(root) NOPASSWD: /usr/bin/journalctl -u *
-bolt ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/*
+bolt ALL=(root) NOPASSWD: /usr/bin/systemctl *
+bolt ALL=(root) NOPASSWD: /usr/bin/journalctl *
+bolt ALL=(root) NOPASSWD: /usr/bin/tail *
 ```
 
-**Strong recommendation**: Replace the current broad rule (`bolt ALL=(ALL) NOPASSWD: ALL`) with something like the above. The broad rule defeats much of the security model you've built around the Orchestration interface.
+### Inventory transport settings (required pair)
 
-See the inventory example for how to enable automatic sudo escalation from Bolt.
+In your `inventory.yaml` (or the dynamic ENC groups), use:
+
+```yaml
+config:
+  ssh:
+    user: bolt
+    private-key: /etc/puppetlabs/bolt/id_bolt
+    host-key-check: false
+
+    # This tells Bolt to run commands as root using sudo -E (preserve env)
+    run-as: root
+    run-as-command:
+      - sudo
+      - -E
+```
+
+This combination (`sudo -E` + `!env_reset` + `env_keep`) is what allows the `bolt` user's environment (especially `$PATH`) to be available when running privileged commands from the GUI.
+
+**Strong recommendation**: Replace any existing broad rule (`bolt ALL=(ALL) NOPASSWD: ALL`) with the explicit version above. The broad rule defeats the security model and removes the audit trail that sudo provides.
 
 ## ovox CLI
 

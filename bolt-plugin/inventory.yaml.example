@@ -21,13 +21,14 @@ config:
     private-key: /etc/puppetlabs/bolt/id_bolt
 
     # Security model for GUI Orchestration:
-    # - SSH as the restricted 'bolt' user.
-    # - Commands entered in the GUI are executed with "sudo" as root on targets.
-    # - This provides audit logging via sudo while keeping the interface simple.
-    # - Target nodes must have explicit sudoers for the bolt user (see docs/SUDOERS.md).
+    # - Connect as the restricted 'bolt' user.
+    # - Commands from the GUI are executed with `sudo -E` as root.
+    # - The bolt user's environment (especially PATH) is preserved via sudo -E + sudoers env_keep.
+    # - Target nodes must have explicit sudoers allowing this (see docs/SUDOERS.md).
     run-as: root
     run-as-command:
       - sudo
+      - -E
 
 groups:
   # Static group for the OpenVox server itself (local transport)

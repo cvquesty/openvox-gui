@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-RC8"  # Made privileged execution via sudo the default transparent behavior for Orchestration commands
+version = "3.7.2-RC9"  # Documented proper bolt user + sudo -E + env_keep pattern on targets for PATH preservation
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}
