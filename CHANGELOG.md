@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security — Explicit Sudoers Rules (No Wildcards)
+
+All broad wildcard (`*`) rules in the generated `/etc/sudoers.d/openvox-gui` have been removed in favor of explicit command lines. This change is required for compatibility with more secure future versions of sudo (including Rust rewrites) and significantly reduces the attack surface.
+
+See the updated [docs/SUDOERS.md](docs/SUDOERS.md) for the new recommended explicit ruleset. Existing installations should replace their current sudoers file with the new content.
+
 ### Changed — Dependencies
 
 - Bumped `python-dotenv` from 1.0.1 to 1.2.2 in `backend/requirements.txt` (addresses Dependabot alert / PR for the backend).

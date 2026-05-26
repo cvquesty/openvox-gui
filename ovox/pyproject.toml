@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-RC1"  # RC release including architecture documentation and ovox elevation to first-class status
+version = "3.7.2-RC2"  # Security: removed all wildcard sudo rules in favor of explicit commands
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

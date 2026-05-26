@@ -296,10 +296,12 @@ cat > /etc/sudoers.d/openvox-gui << SUDOEOF
 Defaults:${SERVICE_USER} !requiretty
 
 # OpenVox GUI — allow the service user to run r10k deployments
-${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh *
+${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh
 
 # OpenVox GUI — allow reading PuppetDB config files
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/database.ini
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/jetty.ini
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/server.ini
 
 # OpenVox GUI — allow reading Bolt project/inventory files (Configuration tab)
 # These are often root-owned 0600 in production; direct read fails for the
@@ -322,26 +324,26 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
-# OpenVox GUI — allow running Puppet Bolt commands
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show *
+# OpenVox GUI — allow running Puppet Bolt commands (explicit subcommands only)
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file download *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt script run *
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt command run
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task run
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt task show
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt file download
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt script run
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
 
 # OpenVox GUI -- allow certificate management. Each subcommand is

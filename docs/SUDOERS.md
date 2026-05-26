@@ -9,84 +9,102 @@ applies: **only the exact commands listed below should be allowed**.
 Create a file at `/etc/sudoers.d/openvox-gui` with the following content:
 
 ```sudoers
-# OpenVox GUI — sudoers configuration
-# This file grants the puppet user passwordless sudo access to the
-# specific commands that the GUI needs to operate.
+# OpenVox GUI — sudoers configuration (explicit, no wildcards)
+# This file grants the puppet user passwordless sudo access **only**
+# to the specific commands listed below.
+#
+# All rules are explicit. No trailing * wildcards are used.
+# This is required for compatibility with more secure future sudo
+# implementations (including Rust rewrites) and follows least-privilege.
 
 # The service runs as a daemon without a TTY — sudo must not require one.
 Defaults:puppet !requiretty
 
-# Puppet Bolt orchestration (tasks, plans, commands, inventory)
-puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt *
-puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/bolt *
+# r10k code deployment
+puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/r10k-deploy.sh
 
-# Code deployment via r10k (wrapper ensures proper environment for git)
-puppet ALL=(ALL) NOPASSWD: /opt/openvox-gui/scripts/r10k-deploy.sh *
+# Reading specific PuppetDB configuration files
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/database.ini
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/jetty.ini
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/server.ini
 
-# Service management (restart puppet stack)
-puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart puppetserver
-puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart puppetdb
-puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart puppet
-puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart openvox-gui
+# Reading Bolt configuration files (for Orchestration > Configuration tab)
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-project.yaml
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/inventory.yaml
 
-# Reading PuppetDB configuration files (owned by puppetdb user)
-puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
+# Service management (explicit services only)
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetserver
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetdb
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppet
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl restart openvox-gui
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetdb
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppet
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetdb
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppet
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
+puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
-# Reading Bolt configuration (bolt-project.yaml + inventory.yaml) for the
-# Orchestration > Configuration tab. These files are frequently root-owned
-# with 0600 perms in production; the GUI needs visibility without full root.
-puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-project.yaml
-puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/inventory.yaml
+# Bolt orchestration — explicit subcommands only (no wildcards)
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt command run
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task run
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt task show
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan run
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt plan show
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file upload
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt file download
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt script run
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt inventory show
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt --version
 
-# Certificate Authority management. Each subcommand is
-# listed explicitly rather than `puppetserver ca *` / `openssl x509 *`
-# wildcards. The wildcard forms allowed flags like `openssl x509 -out
-# /etc/shadow` (arbitrary file write as root); the explicit forms
-# below restrict each invocation to a known argv shape.
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list, /opt/puppetlabs/bin/puppetserver ca list *
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname *
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname *
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname *
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname *
-puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -text -noout
-puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/* -fingerprint -sha256 -noout
-puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/signed/* -text -noout
+# Bolt (alternative installation path)
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt command run
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt task run
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt task show
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt plan run
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt plan show
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt file upload
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt file download
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt script run
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt inventory show
+puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt --version
+
+# Certificate Authority management (explicit subcommands only)
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname
+
+# Reading specific certificate files (explicit paths)
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/ca_crt.pem -text -noout
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/ca_crt.pem -fingerprint -sha256 -noout
+puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/signed -text -noout
 puppet ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem -text -noout
 
-# Puppet lookup (hiera data resolution). The puppet-lookup subcommand
-# is a data-resolution tool with no shell-execution facets, so the
-# wildcard is safer than the `openssl x509 *` form was.
-puppet ALL=(ALL) NOPASSWD: /opt/puppetlabs/bin/puppet lookup *
+# Puppet lookup (data resolution only)
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain
 
-# OpenVox Agent Installer -- "Sync now" button on the Agent Install
-# page. The sync writes into /opt/openvox-pkgs/ which is
-# owned by root, so the sync script must run with elevated privileges.
+# Package mirror sync script (Agent Installer feature)
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
-puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh *
 
-# SSL Certificate Wizard — allow placing uploaded certs, rewriting
-# the systemd service file, and reloading/restarting the service.
-puppet ALL=(root) NOPASSWD: /usr/bin/cp /opt/openvox-gui/data/ssl-uploads/* /etc/puppetlabs/puppet/ssl/certs/*
-puppet ALL=(root) NOPASSWD: /usr/bin/cp /opt/openvox-gui/data/ssl-uploads/* /etc/puppetlabs/puppet/ssl/private_keys/*
-puppet ALL=(root) NOPASSWD: /usr/bin/chmod 0644 /etc/puppetlabs/puppet/ssl/certs/*
-puppet ALL=(root) NOPASSWD: /usr/bin/chmod 0600 /etc/puppetlabs/puppet/ssl/private_keys/*
-puppet ALL=(root) NOPASSWD: /usr/bin/chown puppet\:puppet /etc/puppetlabs/puppet/ssl/certs/* /etc/puppetlabs/puppet/ssl/private_keys/*
+# Log Viewer — restricted to specific units and files only
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetdb/puppetdb.log
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetserver/puppetserver.log
+
+# SSL Certificate Wizard operations (explicit)
 puppet ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
-
-# SSL Certificate Wizard — Puppet CA intermediate import
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import *
-puppet ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
-puppet ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
-
-# Log Viewer — read journalctl and log files for Puppet services
-puppet ALL=(root) NOPASSWD: /usr/bin/journalctl *
-puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
-puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
-
-# SSL Certificate Wizard — Let's Encrypt renewal
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import
 puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
-puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
+puppet ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/*/fullchain.pem
 ```
 
 ### Bolt Project Directory Ownership (`/etc/puppetlabs/bolt`)
