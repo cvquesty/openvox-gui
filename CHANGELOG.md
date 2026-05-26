@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `ovox infra health`
+
+- `ovox infra health` (and the underlying `/api/dashboard/services` endpoint) no longer reports a spurious "httpd" (Apache) component.
+  - Root cause: Legacy hard-coded list from when the GUI was commonly deployed behind Apache. The authoritative list has lived in the cleaner `/api/services` endpoint for some time.
+  - `ovox infra health` now calls the preferred `/api/services` endpoint.
+  - The legacy dashboard endpoint was also cleaned up for consistency.
+
 ## [3.7.1-beta2] - 2026-05-26
 
 ### Added — Dedicated Bolt Service Account + Long-lived API Tokens

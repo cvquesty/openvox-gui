@@ -268,7 +268,11 @@ async def list_environment_modules(environment: str):
 
 @router.get("/services")
 async def get_services_status():
-    """Get status of all Puppet services."""
+    """Get status of all core Puppet/OpenVox services.
+
+    This is the preferred endpoint for service health. It returns accurate
+    status for puppetserver, puppetdb, the puppet agent, and the GUI itself.
+    """
     services = ["puppetserver", "puppetdb", "puppet", "openvox-gui"]
     return [puppetserver_service.get_service_status(s) for s in services]
 

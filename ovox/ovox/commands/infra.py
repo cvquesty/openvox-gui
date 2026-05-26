@@ -41,7 +41,8 @@ def health(
     """
     Check the health of OpenVox infrastructure components.
 
-    Reports status of Puppet Server, PuppetDB, and basic connectivity.
+    Reports systemd status for puppetserver, puppetdb, puppet agent,
+    and the OpenVox GUI service itself.
     """
     client = get_client(
         base_url=ctx.obj.get("url") if ctx.obj else None,
@@ -50,8 +51,11 @@ def health(
     )
 
     try:
-        # Use existing dashboard services endpoint + basic checks
-        services = client.get("/api/dashboard/services")
+        # Use the clean services endpoint (the legacy /api/dashboard/services
+        # still contains a hardcoded "httpd" entry from older Apache-based
+        # deployments). This gives accurate status for modern direct uvicorn
+        # deployments.
+        services = client.get("/api/services")
     except OvoxAPIError as exc:
         console.print(f"[red]Failed to fetch service health:[/red] {exc}")
         raise typer.Exit(1)

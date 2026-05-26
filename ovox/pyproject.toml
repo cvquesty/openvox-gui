@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.1-beta2"  # Released as part of the dedicated bolt user + long-lived token + authenticated dynamic inventory work
+version = "3.7.1-beta2-1"  # Bugfix: removed spurious httpd from ovox infra health
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}
