@@ -110,23 +110,37 @@ def _normalize_command_for_gui(command: str) -> str:
     """
     Make common commands more reliable when typed in the GUI Orchestration page.
 
-    When the command is run via the bolt user + sudo, the environment is often
-    minimal. For well-known tools that live outside normal $PATH for root,
-    we rewrite them to their full path so "puppet agent -t" just works
-    without the operator having to type the full path every time.
+    - Rewrite "puppet" to the full path so it works even with minimal PATH after sudo.
+    - For `puppet agent` runs (the most common privileged command from the GUI),
+      force the system directories so it never falls back to user-specific paths
+      under the bolt user's home (~/.puppetlabs). This prevents cert mismatches,
+      CA lookup failures, and attempts to re-register already-cert'ed nodes.
     """
     cmd = command.strip()
     if not cmd:
         return cmd
 
-    # Handle "puppet ..." and "puppet-agent ..." variants
+    # Normalize binary name first
     if cmd.startswith("puppet ") or cmd == "puppet":
-        full = "/opt/puppetlabs/bin/puppet"
-        return cmd.replace("puppet", full, 1)
+        cmd = cmd.replace("puppet", "/opt/puppetlabs/bin/puppet", 1)
+    elif cmd.startswith("puppet-agent ") or cmd == "puppet-agent":
+        cmd = cmd.replace("puppet-agent", "/opt/puppetlabs/bin/puppet", 1)
 
-    if cmd.startswith("puppet-agent ") or cmd == "puppet-agent":
-        full = "/opt/puppetlabs/bin/puppet"
-        return cmd.replace("puppet-agent", full, 1)
+    # For agent runs, force system paths unless the user already specified them.
+    # This is the key fix for "can't find CA" and "trying to re-generate cert"
+    # when running as the bolt user via sudo.
+    if "puppet agent" in cmd and "--ssldir" not in cmd:
+        system_flags = (
+            " --config /etc/puppetlabs/puppet/puppet.conf"
+            " --ssldir /etc/puppetlabs/puppet/ssl"
+            " --vardir /opt/puppetlabs/puppet/cache"
+        )
+        # Append only if not already present
+        if "--config" not in cmd:
+            cmd += system_flags
+        else:
+            # User supplied --config but not the others — still force ssldir/vardir
+            cmd += " --ssldir /etc/puppetlabs/puppet/ssl --vardir /opt/puppetlabs/puppet/cache"
 
     return cmd
 

@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Puppet agent runs from GUI not using system puppet.conf / ssldir
+
+- Enhanced command normalization in the backend so that any command typed
+  in the Orchestration page that starts with `puppet agent` (or `puppet-agent`)
+  is automatically forced to use the real system directories:
+    --config /etc/puppetlabs/puppet/puppet.conf
+    --ssldir /etc/puppetlabs/puppet/ssl
+    --vardir /opt/puppetlabs/puppet/cache
+- This directly fixes the two symptoms the user reported:
+  - "can't find the CA that is in the puppet.conf"
+  - "trying to re-generate an SSL cert when this machine is already certed"
+- These problems occurred because even with an explicit --config, Puppet
+  running as the `bolt` user (via sudo) would fall back to user-specific
+  paths under `~bolt/.puppetlabs/puppet/ssl` unless the key directories
+  were explicitly forced.
+
 ### Changed — Versioning Scheme
 
 - Reverted from the 3.7.2-RC series back to the established beta numbering
