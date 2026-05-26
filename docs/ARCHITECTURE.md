@@ -19,9 +19,9 @@ Both interfaces are clients of the same backend. There is no "API tier" that is 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        User Interfaces                           │
+│                        User Interfaces                          │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
+│                                                                 │
 │   ┌───────────────────────┐         ┌───────────────────────┐   │
 │   │   Web Browser         │         │   ovox CLI            │   │
 │   │   (React + Mantine)   │         │   (Python + Typer)    │   │
@@ -33,29 +33,29 @@ Both interfaces are clients of the same backend. There is no "API tier" that is 
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Backend (FastAPI)                         │
+│                        Backend (FastAPI)                        │
 │   (Python, uvicorn, runs as 'puppet' user under systemd)        │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   • Authentication (Local bcrypt + LDAP/AD)                      │
-│   • Authorization (role-based: admin / operator / viewer)        │
-│   • Business logic for all features                              │
-│   • Thin orchestration layer                                     │
-│                                                                  │
+│                                                                 │
+│   • Authentication (Local bcrypt + LDAP/AD)                     │
+│   • Authorization (role-based: admin / operator / viewer)       │
+│   • Business logic for all features                             │
+│   • Thin orchestration layer                                    │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ (local calls, sudo where needed)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    External Systems & Data                       │
+│                    External Systems & Data                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   • Puppet Server (catalogs, CA, config)                         │
-│   • PuppetDB (facts, reports, queries, PQL)                      │
-│   • Bolt / OpenBolt (tasks, plans, commands, inventory)          │
-│   • Filesystem (Hiera data, configs, logs)                       │
-│   • SQLite (local users, sessions, execution history, ENC)       │
-│                                                                  │
+│                                                                 │
+│   • Puppet Server (catalogs, CA, config)                        │
+│   • PuppetDB (facts, reports, queries, PQL)                     │
+│   • Bolt / OpenBolt (tasks, plans, commands, inventory)         │
+│   • Filesystem (Hiera data, configs, logs)                      │
+│   • SQLite (local users, sessions, execution history, ENC)      │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
