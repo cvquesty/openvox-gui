@@ -16,7 +16,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/commits/main)
 
-[Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+[Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Architecture](docs/ARCHITECTURE.md) · [ovox CLI](ovox/README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -33,11 +33,17 @@ OpenVox GUI is like a dashboard for your car, but for your servers. If you use O
 - **Make changes** - Update configurations without typing commands
 - **Run commands** - Execute tasks on multiple servers at once
 
-**Plus a first-class CLI and TUI** (`ovox`):
+**Plus a first-class CLI** (`ovox`):
 
-- `ovox nodes list --failed`, `ovox certs sign ...`, `ovox pql '...'`, `ovox status`
-- Ships with the GUI, symlinked at `/usr/local/bin/ovox` (Puppet convention)
-- Perfect for scripts, CI, and operators who prefer the terminal
+`ovox` is a full-featured, noun-verb style command-line client (think `gh`, `kubectl`, or `git`). It is a **core subsystem** of OpenVox GUI — not an afterthought:
+
+- `ovox nodes list --failed`, `ovox certs sign web01`, `ovox pql '...'`, `ovox infra health`, `ovox token generate`
+- Ships automatically with the GUI and symlinked at `/usr/local/bin/ovox` (exact Puppet/OpenVox convention)
+- Thin client: talks to the same FastAPI backend as the web UI
+- Ideal for operators, scripts, CI/CD, and anyone who lives in the terminal
+- Full support for long-lived service tokens, dynamic Bolt inventory via `openvox_enc`, and infrastructure tuning
+
+See the dedicated **[ovox documentation](ovox/README.md)** for the complete command reference.
 
 ## 📸 Screenshots
 
@@ -71,8 +77,10 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - **[Update Guide](UPDATE.md)** — How to update to newer versions (clone-then-deploy architecture)
 - **[LDAP / Active Directory Guide](docs/LDAP.md)** — Configure enterprise authentication
 - **[Sudoers Configuration](docs/SUDOERS.md)** — Required sudo rules for the GUI service
+- **[Architecture Guide](docs/ARCHITECTURE.md)** — System design, component relationships, and why `ovox` is treated as a first-class interface alongside the web GUI
 - **[Tuning Guide](docs/TUNING.md)** — Health checks, recommendations, and safe tuning with `ovox infra` (including JVM control)
-- **[Troubleshooting](TROUBLESHOOTING.md)** — Solutions to common problems
+- **[ovox CLI Documentation](ovox/README.md)** — Full command reference for the first-class `ovox` CLI (tokens, infra tuning, nodes, certs, PQL, etc.)
+- **[Troubleshooting](TROUBLESHOOTING.md)** — Solutions to common problems (including ovox-specific issues)
 - **[Changelog](CHANGELOG.md)** — Complete version history with every change documented
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to the project
 - **[Contributors](CONTRIBUTORS.md)** — People who helped build this project
@@ -158,6 +166,34 @@ Choose how the interface looks:
 - **Casual Mode**: Fun, colorful interface with animations
 - **Formal Mode**: Clean, professional business interface
 
+## 🖥️ ovox CLI — First-Class Command Line Experience
+
+`ovox` is not a sidecar — it is a **core, first-class subsystem** of OpenVox GUI with equal standing to the web interface.
+
+It is a thin, fast, noun-verb CLI that reuses the exact same backend API as the web UI:
+
+```bash
+ovox login
+ovox status
+ovox nodes list --failed
+ovox certs sign web01.example.com
+ovox pql 'nodes[certname] { facts.os.family = "RedHat" }'
+ovox infra health
+ovox infra recommend
+ovox infra tune --server --dry-run
+ovox token generate --user bolt --name "Bolt service account" --expires 0
+```
+
+**Key characteristics:**
+
+- **Independent versioning** via `ovox/VERSION` (can evolve at its own pace)
+- Installed automatically with the GUI and available at `/usr/local/bin/ovox`
+- Works locally on the server **or remotely** against any OpenVox GUI instance
+- Excellent for operators who prefer the terminal, scripting, and CI
+- Powers advanced workflows: long-lived service tokens for the dedicated `bolt` user, authenticated dynamic Bolt inventory (`openvox_enc` plugin), and safe infrastructure tuning
+
+Full documentation, command reference, and examples live in the **[ovox subdirectory](ovox/README.md)**.
+
 ## 🛠️ System Requirements
 
 ### Minimum Requirements
@@ -177,6 +213,7 @@ The installer will set up:
 - All necessary Python packages in a virtual environment
 - A local database for storing settings
 - Log files in `/opt/openvox-gui/logs`
+- **The `ovox` CLI** (installed into the venv and symlinked at `/usr/local/bin/ovox`) — a first-class subsystem with independent versioning and full feature parity for scripting and operators
 
 ## 🚪 Default Access
 

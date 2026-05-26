@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.7.1-beta2-4**
+**OpenVox GUI Version 3.7.2-RC1**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -314,7 +314,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.7.1-beta2-4"}` if everything is working.
+You should see `{"status":"ok","version":"3.7.2-RC1"}` if everything is working.
 
 ---
 
@@ -328,6 +328,25 @@ You should see `{"status":"ok","version":"3.7.1-beta2-4"}` if everything is work
 4. Log in with:
    - Username: `admin`
    - Password: The one you set, or check `/opt/openvox-gui/config/.credentials`
+
+### The `ovox` CLI (Installed Automatically)
+
+`ovox` is a **first-class subsystem** of OpenVox GUI (not an add-on). It is installed automatically:
+
+- Real binary: `/opt/openvox-gui/venv/bin/ovox`
+- Symlinked for convenience (Puppet/OpenVox convention): `/usr/local/bin/ovox`
+
+It is available for both local server use and remote administration against any OpenVox GUI instance.
+
+```bash
+ovox --help
+ovox login
+ovox status
+ovox infra health
+ovox token generate --user bolt --name "Bolt service token" --expires 0
+```
+
+Full documentation: [ovox/README.md](ovox/README.md)
 
 ### Important First Steps
 

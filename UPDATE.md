@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.7.1-beta2-4**
+**OpenVox GUI Version 3.7.2-RC1**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -17,6 +17,18 @@ This guide explains how to update your existing OpenVox GUI installation to the 
 ---
 
 ## Before You Update
+
+### The `ovox` CLI is Updated Automatically
+
+`ovox` is a first-class subsystem with its own `ovox/VERSION` file. When you run `update_local.sh` or `deploy.sh`, the CLI is refreshed along with the rest of the application.
+
+After an update, verify with:
+
+```bash
+ovox --version
+```
+
+See the full [ovox documentation](ovox/README.md) for details on its independent versioning.
 
 ### Important Preparation Steps
 
@@ -171,7 +183,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.7.1-beta2-4"}
+# {"status":"ok","version":"3.7.2-RC1"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:

@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.2-RC1] - 2026-05-26
+
+### Changed — Documentation & Project Positioning
+
+- Added comprehensive [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) that explicitly positions `ovox` as a first-class subsystem on equal footing with the web GUI (not an "API client" or secondary automation layer).
+- Significantly elevated `ovox` documentation and visibility across the project:
+  - Root README now presents `ovox` as a core peer interface.
+  - Added dedicated architecture, installation, update, and troubleshooting coverage for the CLI.
+- Clarified in architecture docs that `ovox` is a **feature**, in-line with the GUI itself (not categorized under "API").
+
+### Other
+
+- Various small documentation and process improvements from the 3.7.1-beta2 series.
+
+---
+
 ## [Unreleased]
 
 ### Changed — Dependencies

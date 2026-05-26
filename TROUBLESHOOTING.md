@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.7.1-beta2-4**
+**OpenVox GUI Version 3.7.2-RC1**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.7.1-beta2-4"}
+   # Should return: {"status":"ok","version":"3.7.2-RC1"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -744,6 +744,38 @@ A previous sync was killed without cleaning up its lock file:
 ```bash
 sudo rm -f /opt/openvox-pkgs/.sync.lock
 ```
+
+---
+
+## ovox CLI Problems
+
+### `ovox` command not found
+
+The symlink at `/usr/local/bin/ovox` may not exist or not be in PATH.
+
+```bash
+# Check if the real binary exists
+ls -l /opt/openvox-gui/venv/bin/ovox
+
+# Recreate the symlink (run as root)
+ln -sf /opt/openvox-gui/venv/bin/ovox /usr/local/bin/ovox
+```
+
+### Version mismatch between `ovox --version` and expected version
+
+`ovox` has independent versioning. The CLI reads `ovox/VERSION` (or the installed copy) with specific precedence.
+
+See the [Versioning section](ovox/README.md#versioning) in the ovox docs.
+
+### Authentication or "Failed to fetch" errors with `ovox`
+
+- Run `ovox login` (or provide `--token` / `OPENVOX_TOKEN`)
+- For service/automation use, prefer long-lived tokens created with `ovox token generate`
+- When using the `bolt` user with the `openvox_enc` plugin, ensure the token file at `/etc/puppetlabs/bolt/.bolt_token` has correct permissions (0600) and is owned by the `bolt` user
+
+### `ovox infra` commands fail with permission errors
+
+These commands run privileged operations (reading configs, restarting services). The `puppet` user running the GUI needs the corresponding sudoers rules (see [docs/SUDOERS.md](docs/SUDOERS.md)).
 
 ---
 
