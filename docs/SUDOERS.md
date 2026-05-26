@@ -89,6 +89,27 @@ puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
 puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew *
 ```
 
+### Bolt Project Directory Ownership (`/etc/puppetlabs/bolt`)
+
+The updater and installer deliberately do **not** `chown` `/etc/puppetlabs/bolt`.
+
+This is the live Bolt project directory (home of `bolt-project.yaml`, `inventory.yaml`,
+the openvox_enc plugin, service tokens at `.bolt_token`, etc.).
+
+When you run Bolt as a dedicated `bolt` system user (the supported pattern for
+GUI-driven dynamic inventory via long-lived service tokens), the directory should
+normally be owned by `bolt:bolt` (or at least group `bolt` with the `puppet` user
+as a member so the sudo rules work).
+
+The GUI service never needs to own the tree:
+- Reads for the Configuration tab go through the `sudo cat` rules we added.
+- All real Bolt work (commands, tasks, plans, inventory sync, writes from the UI)
+  uses the many `bolt *` sudo rules.
+
+The previous behavior of flipping the directory to `puppet:puppet` on every
+`update_local.sh` / deploy was legacy from the old `ReadWritePaths` +
+`ProtectSystem=strict` debugging period and has been removed.
+
 ## Security Notes
 
 1. **Do NOT use `puppet ALL=(ALL) NOPASSWD: ALL`** — this would give the

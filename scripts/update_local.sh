@@ -244,10 +244,14 @@ if [ -f /etc/systemd/system/openvox-gui.service ]; then
     UNIT_GROUP=$(grep "^Group=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
     [ -n "$UNIT_GROUP" ] && SERVICE_GROUP="$UNIT_GROUP"
 fi
-# Ensure directories referenced by ReadWritePaths exist (systemd
-# refuses to start the service if any listed path is missing)
+# Ensure /etc/puppetlabs/bolt exists so the GUI can manage bolt-project.yaml
+# and inventory.yaml via the Orchestration > Configuration tab.
+# We deliberately do NOT chown it here. Ownership is a site policy decision:
+# many environments (including production fleets using a dedicated `bolt`
+# user + GUI-driven dynamic inventory) want `bolt:bolt` or a `bolt` group.
+# The GUI service (puppet user) accesses the directory via scoped sudo rules
+# (cat for reads, bolt subcommands for execution and writes).
 mkdir -p /etc/puppetlabs/bolt
-chown "${SERVICE_USER}:${SERVICE_GROUP}" /etc/puppetlabs/bolt
 
 sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
     | sed "s|User=puppet|User=${SERVICE_USER}|" \

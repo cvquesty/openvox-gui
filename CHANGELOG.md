@@ -19,6 +19,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Version**: 3.7.1-beta1-2 (per "increment on every meaningful push" rule).
 
+### Fixed — Bolt directory ownership (installer/updater)
+
+- `update_local.sh` no longer `chown`s `/etc/puppetlabs/bolt` to the GUI service user
+  (`puppet:puppet`) on every run. This was historical baggage from the
+  `ReadWritePaths` + `ProtectSystem=strict` era and broke dedicated `bolt` users
+  (the supported model for service tokens + `openvox_enc` dynamic inventory).
+  The directory is now left with whatever ownership the site policy chose.
+- Added clear documentation in SUDOERS.md explaining the recommended ownership
+  model when using a dedicated `bolt` user.
+- `mkdir -p` is retained (harmless) so the GUI can create the files via the
+  Configuration tab if they are missing.
+
+**Version**: 3.7.1-beta1-3 (per "increment on every meaningful push" rule).
+
 ### Added — ovox CLI (ships with the GUI)
 
 - New first-class `ovox` command-line client (noun-verb style, gh/kubectl-like).
