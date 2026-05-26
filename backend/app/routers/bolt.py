@@ -418,14 +418,13 @@ async def run_command(
     command = _normalize_command_for_gui(req.command)
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
 
-    # For commands initiated from the Orchestration page, default to running
-    # as root via sudo (using the inventory's run-as + run-as-command settings).
-    # This lets the bolt user use the sudoers entry that already exists for it.
-    # The checkbox can be used to force running as the connecting user instead.
-    effective_run_as = req.run_as or "root"
-
-    if effective_run_as:
-        args.extend(["--run-as", effective_run_as])
+    # Only pass --run-as if the UI explicitly requested an override.
+    # Do NOT default to root here — the inventory (via openvox_enc) is the
+    # authoritative place for the default run-as behavior.
+    # This prevents the "CLI arguments [run-as] might be overridden by Inventory" warning
+    # when the user wants the normal inventory-controlled behavior.
+    if req.run_as:
+        args.extend(["--run-as", req.run_as])
 
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
@@ -473,13 +472,9 @@ async def run_task(
     for k, v in req.params.items():
         args.append(f"{k}={v}")
 
-    # For tasks initiated from the Orchestration page, default to running
-    # as root via sudo (using the inventory's run-as + run-as-command settings).
-    # This lets the bolt user use the sudoers entry that already exists for it.
-    effective_run_as = req.run_as or "root"
-
-    if effective_run_as:
-        args.extend(["--run-as", effective_run_as])
+    # Only pass --run-as if the UI explicitly requested an override.
+    if req.run_as:
+        args.extend(["--run-as", req.run_as])
 
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
