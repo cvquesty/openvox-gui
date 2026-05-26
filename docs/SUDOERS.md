@@ -186,6 +186,8 @@ config:
 
 This combination (`sudo -E` + `!env_reset` + `env_keep`) is what allows the `bolt` user's environment (especially `$PATH`) to be available when running privileged commands from the GUI.
 
+The `openvox_enc` plugin automatically injects `run-as: root` + `run-as-command: ["sudo"]` on all targets it returns (you can override via plugin parameters if needed). This makes the sudo escalation behavior the default for anything discovered through the OpenVox GUI Node Classifier.
+
 **Strong recommendation**: Replace any existing broad rule (`bolt ALL=(ALL) NOPASSWD: ALL`) with the explicit version above. The broad rule defeats the security model and removes the audit trail that sudo provides.
 
 ## ovox CLI

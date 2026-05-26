@@ -27,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — openvox_enc Plugin Behavior
+
+- The `openvox_enc` Bolt inventory plugin now automatically injects
+  `run-as: root` + `run-as-command: ["sudo"]` into every target it returns
+  (configurable via new `run_as` and `run_as_command` parameters).
+- This makes the recommended "connect as bolt user, escalate via sudo"
+  model the default for all nodes discovered through the OpenVox GUI
+  Node Classifier. Operators no longer need to manually set these values
+  in inventory.yaml for dynamic groups.
+
 ### Changed — Bolt + sudo Environment Handling on Targets
 
 - Updated documentation to reflect the complete recommended pattern for

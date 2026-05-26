@@ -29,6 +29,16 @@
       "description": "Path to a file containing the API token (defaults to /etc/puppetlabs/bolt/.bolt_token)",
       "type": "Optional[String]",
       "default": "/etc/puppetlabs/bolt/.bolt_token"
+    },
+    "run_as": {
+      "description": "User to run commands as on targets (defaults to 'root' for privileged GUI operations)",
+      "type": "Optional[String]",
+      "default": "root"
+    },
+    "run_as_command": {
+      "description": "Command used to change user (e.g. ['sudo'] or ['sudo', '-E']). Defaults to ['sudo']",
+      "type": "Optional[Array[String]]",
+      "default": ["sudo"]
     }
   }
 }

@@ -23,12 +23,18 @@ require 'openssl'
 
 params = JSON.parse($stdin.read)
 
-api_url      = params['api_url'] || 'https://localhost:4567'
-group_filter = params['group']
-transport    = params['transport'] || 'ssh'
-ssl_verify   = params.fetch('ssl_verify', false)
-api_token    = params['api_token']
-token_file   = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
+api_url         = params['api_url'] || 'https://localhost:4567'
+group_filter    = params['group']
+transport       = params['transport'] || 'ssh'
+ssl_verify      = params.fetch('ssl_verify', false)
+api_token       = params['api_token']
+token_file      = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
+
+# Run-as settings (defaults to running as root via sudo — the recommended
+# pattern so that commands from the GUI Orchestration page are executed
+# with proper privilege while still connecting as the limited bolt user).
+run_as          = params.fetch('run_as', 'root')
+run_as_command  = params.fetch('run_as_command', ['sudo'])
 
 # Support reading token from a file (preferred for the local bolt user)
 if (api_token.nil? || api_token.empty?) && File.exist?(token_file)
@@ -106,6 +112,18 @@ groups.each do |grp|
         'enc_groups' => [],
       },
     }
+
+    # Inject run-as settings so commands from the GUI are run with sudo as root
+    # by default. This can be overridden via plugin parameters if needed.
+    if run_as && !run_as.empty?
+      target['config'][transport] ||= {}
+      target['config'][transport]['run-as'] = run_as
+    end
+
+    if run_as_command && run_as_command.is_a?(Array) && !run_as_command.empty?
+      target['config'][transport] ||= {}
+      target['config'][transport]['run-as-command'] = run_as_command
+    end
 
     # Collect all groups this node belongs to
     groups.each do |g|

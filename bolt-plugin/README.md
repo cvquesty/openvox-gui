@@ -61,14 +61,20 @@ bolt inventory show --verbose
 
 ## Plugin Parameters
 
+By default, the plugin now injects `run-as: root` + `run-as-command: ["sudo"]` into every target it returns. This is the recommended pattern so that commands executed from the OpenVox GUI Orchestration page run with proper privilege (via sudo) while still connecting as the limited `bolt` service user.
+
+You can override this behavior by passing the parameters below.
+
 | Parameter   | Default                              | Description |
 |-------------|--------------------------------------|-------------|
 | `api_url`   | `https://localhost:4567`             | OpenVox GUI API base URL |
 | `group`     | (all groups)                         | Only return targets from this ENC group |
 | `transport` | `ssh`                                | Default transport for targets |
 | `ssl_verify`| `false`                              | Verify SSL when calling the API |
-| `api_token` | (none)                               | Raw Bearer token (for testing) |
-| `token_file`| `/etc/puppetlabs/bolt/.bolt_token`   | Path to file containing the raw token |
+| `api_token`      | (none)                               | Raw Bearer token (for testing) |
+| `token_file`     | `/etc/puppetlabs/bolt/.bolt_token`   | Path to file containing the raw token |
+| `run_as`         | `root`                               | User to run commands as on targets (recommended) |
+| `run_as_command` | `["sudo"]`                           | Command used to escalate (use `["sudo", "-E"]` to preserve environment) |
 
 ## Example inventory.yaml (Recommended)
 
@@ -81,11 +87,10 @@ config:
     private-key: /etc/puppetlabs/bolt/id_bolt
     host-key-check: false
 
-    # Recommended: Connect as the limited 'bolt' user, then escalate via sudo
-    # for privileged commands (puppet agent, systemctl, etc.)
-    run-as: root
-    run-as-command:
-      - sudo
+    # The openvox_enc plugin automatically injects run-as + run-as-command
+    # (defaults to root + sudo) on all dynamic targets.
+    # This means commands from the GUI Orchestration page run with sudo
+    # as root while still connecting as the limited bolt user.
 
 groups:
   - name: static

@@ -20,11 +20,14 @@ config:
     user: bolt
     private-key: /etc/puppetlabs/bolt/id_bolt
 
-    # Security model for GUI Orchestration:
-    # - Connect as the restricted 'bolt' user.
-    # - Commands from the GUI are executed with `sudo -E` as root.
-    # - The bolt user's environment (especially PATH) is preserved via sudo -E + sudoers env_keep.
-    # - Target nodes must have explicit sudoers allowing this (see docs/SUDOERS.md).
+    # The openvox_enc plugin automatically injects run-as + run-as-command
+    # (defaults to root via sudo). This makes commands from the GUI
+    # Orchestration page run privileged while the SSH connection stays as
+    # the limited bolt user.
+    #
+    # To also preserve the bolt user's environment (recommended for
+    # Puppet paths), combine with `sudo -E` + appropriate sudoers env_keep
+    # on targets (see docs/SUDOERS.md).
     run-as: root
     run-as-command:
       - sudo
