@@ -122,6 +122,7 @@ Eliminate manual Bolt inventory maintenance:
 - ENC groups become Bolt target groups automatically
 - PuppetDB auto-discovery for unclassified nodes
 - One-click inventory sync to `/etc/puppetlabs/bolt/inventory.yaml`
+- Recommended production pattern: dedicated `bolt` system user + long-lived service token (`ovox token generate`) + `token_file` in the plugin config (see ovox/README.md and SUDOERS.md)
 
 ### 📁 Data Management
 Edit your configuration files directly:
