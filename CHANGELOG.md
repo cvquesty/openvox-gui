@@ -27,6 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Puppet agent runs from GUI still using wrong config/SSL directories
+
+- Further improved `_normalize_command_for_gui` to prefix Puppet commands
+  with explicit `env PUPPET_CONFDIR=... PUPPET_SSLDIR=... PUPPET_VARDIR=...`
+  in addition to the command-line flags.
+- This ensures that even when the command runs as the `bolt` user via
+  `sudo -E`, Puppet is forced to use the real system directories instead
+  of falling back to `~bolt/.puppetlabs/puppet/...`.
+- Directly addresses repeated symptoms:
+  - "Could not find the CA that is in the puppet.conf"
+  - "Trying to re-generate an SSL certificate" on already-certified nodes
+  - Connection attempts to short name "puppet:8140" instead of the real server
+- The normalization now applies to any command typed in the GUI that starts
+  with "puppet" or "puppet-agent".
+
 ### Fixed — Puppet agent runs from GUI not using system puppet.conf / ssldir
 
 - Enhanced command normalization in the backend so that any command typed

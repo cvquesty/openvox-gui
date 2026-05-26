@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-beta14-2"  # Force system ssldir/vardir for puppet agent runs from the GUI
+version = "3.7.2-beta14-3"  # Stronger normalization with env vars for Puppet system paths from GUI
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

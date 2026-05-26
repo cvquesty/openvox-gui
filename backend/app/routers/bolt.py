@@ -112,35 +112,50 @@ def _normalize_command_for_gui(command: str) -> str:
 
     - Rewrite "puppet" to the full path so it works even with minimal PATH after sudo.
     - For `puppet agent` runs (the most common privileged command from the GUI),
-      force the system directories so it never falls back to user-specific paths
-      under the bolt user's home (~/.puppetlabs). This prevents cert mismatches,
-      CA lookup failures, and attempts to re-register already-cert'ed nodes.
+      force the system directories via both command-line flags **and** environment
+      variables. This is critical when running as the bolt user via sudo, because
+      even with --config, Puppet can still fall back to user-specific paths under
+      ~bolt/.puppetlabs unless we also set PUPPET_CONFDIR / PUPPET_SSLDIR / PUPPET_VARDIR.
     """
     cmd = command.strip()
     if not cmd:
         return cmd
 
     # Normalize binary name first
+    is_puppet_command = False
     if cmd.startswith("puppet ") or cmd == "puppet":
         cmd = cmd.replace("puppet", "/opt/puppetlabs/bin/puppet", 1)
+        is_puppet_command = True
     elif cmd.startswith("puppet-agent ") or cmd == "puppet-agent":
         cmd = cmd.replace("puppet-agent", "/opt/puppetlabs/bin/puppet", 1)
+        is_puppet_command = True
 
-    # For agent runs, force system paths unless the user already specified them.
-    # This is the key fix for "can't find CA" and "trying to re-generate cert"
-    # when running as the bolt user via sudo.
-    if "puppet agent" in cmd and "--ssldir" not in cmd:
+    # For any puppet invocation, but especially agent runs, force system paths
+    # using environment variables (most reliable when sudo is involved) + flags.
+    if is_puppet_command:
+        env_prefix = (
+            "env PUPPET_CONFDIR=/etc/puppetlabs/puppet "
+            "PUPPET_SSLDIR=/etc/puppetlabs/puppet/ssl "
+            "PUPPET_VARDIR=/opt/puppetlabs/puppet/cache "
+        )
+
         system_flags = (
             " --config /etc/puppetlabs/puppet/puppet.conf"
             " --ssldir /etc/puppetlabs/puppet/ssl"
             " --vardir /opt/puppetlabs/puppet/cache"
         )
-        # Append only if not already present
-        if "--config" not in cmd:
-            cmd += system_flags
-        else:
-            # User supplied --config but not the others — still force ssldir/vardir
-            cmd += " --ssldir /etc/puppetlabs/puppet/ssl --vardir /opt/puppetlabs/puppet/cache"
+
+        # Prepend the env vars
+        if not cmd.startswith("env "):
+            cmd = env_prefix + cmd
+
+        # Also ensure the flags are present (belt + suspenders)
+        if "puppet agent" in cmd or "puppet-agent" in cmd:
+            if "--ssldir" not in cmd:
+                if "--config" not in cmd:
+                    cmd += system_flags
+                else:
+                    cmd += " --ssldir /etc/puppetlabs/puppet/ssl --vardir /opt/puppetlabs/puppet/cache"
 
     return cmd
 
