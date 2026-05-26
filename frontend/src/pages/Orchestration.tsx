@@ -366,7 +366,12 @@ function RunCommandTab() {
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
 
   useEffect(() => {
-    nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
+    nodesApi.list()
+      .then((ns: any[]) => {
+        const names = ns.map((n) => n.certname).filter(Boolean).sort((a, b) => a.localeCompare(b));
+        setPuppetNodes(names);
+      })
+      .catch(() => {});
     enc.listGroups().then(setEncGroups).catch(() => {});
   }, []);
 
@@ -451,7 +456,8 @@ function RunTaskTab() {
       enc.listGroups().catch(() => []),
     ]).then(([t, ns, g]) => {
       setTasks(t.tasks || []);
-      setPuppetNodes((ns as any[]).map((n: any) => n.certname));
+      const names = (ns as any[]).map((n: any) => n.certname).filter(Boolean).sort((a, b) => a.localeCompare(b));
+      setPuppetNodes(names);
       setEncGroups(g as any[]);
       setLoading(false);
     });
@@ -826,7 +832,12 @@ function FilesTab() {
   const [downloadResult, setDownloadResult] = useState<any>(null);
 
   useEffect(() => {
-    nodesApi.list().then((ns: any[]) => setPuppetNodes(ns.map((n) => n.certname))).catch(() => {});
+    nodesApi.list()
+      .then((ns: any[]) => {
+        const names = ns.map((n) => n.certname).filter(Boolean).sort((a, b) => a.localeCompare(b));
+        setPuppetNodes(names);
+      })
+      .catch(() => {});
     enc.listGroups().then(setEncGroups).catch(() => {});
   }, []);
 

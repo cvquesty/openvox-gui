@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Orchestration page
+
+- **Targets dropdowns** (Run Command, Run Task, Upload/Download/Script tabs): Nodes listed after the Groups section are now sorted alphabetically by certname (locale-aware). Previously they followed the arbitrary order returned by the `/api/nodes` endpoint.
+- **Configuration tab**: `bolt-project.yaml` and `inventory.yaml` are now correctly detected and displayed even when the GUI service user (`puppet`) cannot read them directly (common in production where files are root-owned 0600). Backend now uses a direct-read + `sudo -n cat` fallback (requires two new minimal sudoers rules). The yellow "No ... found" warning no longer falsely appears.
+- Added corresponding sudoers entries (and updated installer + update_local.sh + SUDOERS.md) for `/usr/bin/cat` on the two Bolt config files.
+
+**Version**: 3.7.1-beta1-2 (per "increment on every meaningful push" rule).
+
 ### Added — ovox CLI (ships with the GUI)
 
 - New first-class `ovox` command-line client (noun-verb style, gh/kubectl-like).

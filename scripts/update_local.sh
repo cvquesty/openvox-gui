@@ -287,6 +287,12 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh *
 # OpenVox GUI — allow reading PuppetDB config files
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
 
+# OpenVox GUI — allow reading Bolt project/inventory files (Configuration tab)
+# These are often root-owned 0600 in production; direct read fails for the
+# 'puppet' service user, so we use explicit sudo cat fallbacks in the backend.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-project.yaml
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/inventory.yaml
+
 # OpenVox GUI — allow restarting Puppet services
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetserver
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetdb

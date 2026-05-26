@@ -32,6 +32,12 @@ puppet ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart openvox-gui
 # Reading PuppetDB configuration files (owned by puppetdb user)
 puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/*
 
+# Reading Bolt configuration (bolt-project.yaml + inventory.yaml) for the
+# Orchestration > Configuration tab. These files are frequently root-owned
+# with 0600 perms in production; the GUI needs visibility without full root.
+puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-project.yaml
+puppet ALL=(ALL) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/inventory.yaml
+
 # Certificate Authority management. Each subcommand is
 # listed explicitly rather than `puppetserver ca *` / `openssl x509 *`
 # wildcards. The wildcard forms allowed flags like `openssl x509 -out
