@@ -210,7 +210,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _SKIP_AUTH_PATHS):
             return await call_next(request)
 
-        # Delegate credential verification to the configured backend.
+        # Try long-lived service/API tokens first (used by the local
+        # 'bolt' user and other automation). These are looked up by
+        # hash in the api_tokens table and can be very long-lived or
+        # permanent.
+        from .service_tokens import verify_service_token
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            service_user = await verify_service_token(token)
+            if service_user:
+                request.state.user = service_user
+                return await call_next(request)
+
+        # Fall back to normal authentication (JWT via local or LDAP backend).
         user = await self.backend.authenticate(request)
         if user is None:
             return JSONResponse(

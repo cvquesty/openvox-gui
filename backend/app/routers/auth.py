@@ -16,6 +16,7 @@ from ..middleware.auth_local import (
     add_user, remove_user, list_users, change_password, change_role,
     get_user_role, get_user_auth_source, change_auth_source,
 )
+from ..middleware.service_tokens import create_service_token, verify_service_token
 from ..middleware.auth_ldap import (
     ldap_login, get_ldap_config, save_ldap_config, test_ldap_connection,
     LDAP_PASSWORD_PLACEHOLDER,
@@ -90,6 +91,23 @@ class LdapTestRequest(BaseModel):
     bind_password: Optional[str] = None
     user_base_dn: Optional[str] = None
     group_base_dn: Optional[str] = None
+
+
+# ─── API Token Models (for long-lived service tokens, e.g. for Bolt) ──
+
+class CreateApiTokenRequest(BaseModel):
+    username: str
+    name: str
+    expires_in_days: Optional[int] = None   # None or 0 = never expires
+
+
+class ApiTokenResponse(BaseModel):
+    id: int
+    username: str
+    name: str
+    created_at: str
+    expires_at: Optional[str] = None
+    token: Optional[str] = None   # Only returned on creation
 
 
 @router.get("/status")
@@ -418,3 +436,48 @@ async def test_ldap(data: LdapTestRequest, request: Request):
 
     result = await test_ldap_connection(data.model_dump())
     return result
+
+
+# ─── Long-lived Service / API Token Management ─────────────────
+
+@router.post("/users/{username}/tokens", response_model=ApiTokenResponse)
+async def create_user_api_token(username: str, data: CreateApiTokenRequest, request: Request):
+    """Create a long-lived API token for a user (admin only). Used for service accounts like the bolt user."""
+    user = getattr(request.state, "user", None)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    expires_at = None
+    if data.expires_in_days and data.expires_in_days > 0:
+        from datetime import timedelta
+        expires_at = datetime.now(timezone.utc) + timedelta(days=data.expires_in_days)
+
+    try:
+        raw_token = await create_service_token(
+            username=username,
+            name=data.name,
+            created_by=user.get("user_id"),
+            expires_at=expires_at,
+        )
+        # Re-fetch to get the created record
+        from ..middleware.service_tokens import _hash_token
+        from ..models.api_token import ApiToken
+        from ..database import async_session
+        from sqlalchemy import select
+
+        async with async_session() as db:
+            token_hash = _hash_token(raw_token)
+            stmt = select(ApiToken).where(ApiToken.token_hash == token_hash)
+            result = await db.execute(stmt)
+            token_record = result.scalar_one()
+
+            return {
+                "id": token_record.id,
+                "username": token_record.username,
+                "name": token_record.name,
+                "created_at": token_record.created_at.isoformat(),
+                "expires_at": token_record.expires_at.isoformat() if token_record.expires_at else None,
+                "token": raw_token,   # Only returned on creation
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

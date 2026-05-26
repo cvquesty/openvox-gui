@@ -40,12 +40,14 @@ bolt inventory show
 
 ## Plugin Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `api_url` | `https://localhost:4567` | OpenVox GUI API base URL |
-| `group` | (all groups) | Only return targets from this ENC group |
-| `transport` | `ssh` | Default transport for targets |
-| `ssl_verify` | `false` | Verify SSL when calling the API |
+| Parameter   | Default                              | Description |
+|-------------|--------------------------------------|-------------|
+| `api_url`   | `https://localhost:4567`             | OpenVox GUI API base URL |
+| `group`     | (all groups)                         | Only return targets from this ENC group |
+| `transport` | `ssh`                                | Default transport for targets |
+| `ssl_verify`| `false`                              | Verify SSL when calling the API |
+| `api_token` | (none)                               | Raw Bearer token (for testing) |
+| `token_file`| `/etc/puppetlabs/bolt/.bolt_token`   | Path to file containing the raw token |
 
 ## Example inventory.yaml
 

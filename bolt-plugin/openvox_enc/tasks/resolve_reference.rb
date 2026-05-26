@@ -23,10 +23,21 @@ require 'openssl'
 
 params = JSON.parse($stdin.read)
 
-api_url    = params['api_url'] || 'https://localhost:4567'
+api_url      = params['api_url'] || 'https://localhost:4567'
 group_filter = params['group']
-transport  = params['transport'] || 'ssh'
-ssl_verify = params.fetch('ssl_verify', false)
+transport    = params['transport'] || 'ssh'
+ssl_verify   = params.fetch('ssl_verify', false)
+api_token    = params['api_token']
+token_file   = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
+
+# Support reading token from a file (preferred for the local bolt user)
+if (api_token.nil? || api_token.empty?) && File.exist?(token_file)
+  begin
+    api_token = File.read(token_file).strip
+  rescue => e
+    # If we can't read the token file, continue without it (will likely 401)
+  end
+end
 
 # ─── Query the OpenVox GUI API ────────────────────────────────
 
@@ -41,6 +52,9 @@ end
 begin
   request = Net::HTTP::Get.new(uri.request_uri)
   request['Accept'] = 'application/json'
+  if api_token && !api_token.empty?
+    request['Authorization'] = "Bearer #{api_token}"
+  end
   response = http.request(request)
 
   unless response.code.to_i == 200
