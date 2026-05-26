@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Versioning Scheme
+
+- Reverted from the 3.7.2-RC series back to the established beta numbering
+  scheme. Current version is now **3.7.2-beta14-1**.
+- This aligns with the project's historical versioning practice of using
+  `X.Y.Z-betaN-M` style for ongoing development work before cutting
+  release candidates or final releases.
+
 ### Fixed — Orchestration run-as warning
 
 - Removed automatic defaulting of `--run-as root` from the backend for
