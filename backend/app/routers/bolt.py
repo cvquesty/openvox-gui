@@ -417,15 +417,12 @@ async def run_command(
     start_time = time.time()
     normalized = _normalize_command_for_gui(req.command)
 
-    # If the UI requested privileged execution, prepend "sudo " to the command.
-    # This runs the command as the bolt user (the SSH user from the inventory),
-    # then uses sudo on the target to become root.
-    # This uses the sudoers entry the bolt user already has on the target.
-    # No --run-as is sent to Bolt, avoiding the "CLI arguments overridden by Inventory" warning.
-    if req.run_as == "root":
-        command = "sudo " + normalized
-    else:
-        command = normalized
+    # For all commands from the Orchestration page, we run them as the bolt user
+    # (the SSH user), and prepend "sudo " so that privileged commands use the
+    # sudoers entry the bolt user already has on the target.
+    # This is transparent to the operator and uses the existing sudoers.
+    # No --run-as flag is sent to Bolt (avoids the inventory override warning).
+    command = "sudo " + normalized
 
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
 
@@ -472,9 +469,9 @@ async def run_task(
     # Execute task
     start_time = time.time()
 
-    # If the UI requested privileged execution, prepend "sudo " so it uses
-    # the sudoers entry the bolt user has on the target.
-    task_cmd = "sudo " + req.task if req.run_as == "root" else req.task
+    # For tasks from the Orchestration page, always prepend "sudo " so it uses
+    # the sudoers entry the bolt user has on the target (transparent to the operator).
+    task_cmd = "sudo " + req.task
 
     args = ["task", "run", task_cmd, "--targets", resolved_targets, "--format", fmt]
     for k, v in req.params.items():

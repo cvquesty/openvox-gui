@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.7.2-beta14-7"  # Orchestration now defaults to using the bolt user's existing sudoers entry on targets via transparent sudo
+version = "3.7.2-beta14-8"  # Orchestration commands now always prepend sudo to use the bolt user's existing sudoers on targets
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}

@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Orchestration now always uses the bolt user's sudoers on targets
+
+- For Run Command and Run Task from the Orchestration page, the backend now
+  always prepends "sudo " to the (normalized) command.
+- This makes the command run as the bolt user (the SSH user), then use
+  sudo on the target — using the sudoers entry the bolt user already has
+  (the broad ALL rule or any explicit one).
+- The "radio button" / checkbox for choosing connecting user vs root has
+  been removed from the simple forms to simplify the experience (as requested).
+- The sudo is now transparent: the operator just types the command, and
+  it goes through the existing sudoers for privileged operations.
+- This resolves the "CLI arguments run-as might be overridden" warning
+  and the complexity around the choice.
+- The permission denied on system dirs should go away once the command
+  actually goes through sudo as root (after the chown on the target).
+
 ### Changed — Orchestration Privilege Model
 
 - Run Command and Run Task now default to privileged execution

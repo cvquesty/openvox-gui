@@ -395,7 +395,6 @@ function RunCommandTab() {
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
-  const [runAsRoot, setRunAsRoot] = useState(false);
 
   useEffect(() => {
     nodesApi.list()
@@ -413,7 +412,6 @@ function RunCommandTab() {
     setResults(null);
     
     const payload: any = { command, targets, format: 'human' };
-    if (runAsRoot) payload.run_as = 'root';
 
     try {
       // Fetch all three formats in parallel
@@ -443,7 +441,7 @@ function RunCommandTab() {
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Run an ad-hoc shell command across one or more targets via SSH.
+        Run an ad-hoc shell command across one or more targets via SSH (as the bolt user on the target, using its sudoers entry for privileged commands).
       </Alert>
       <Card withBorder shadow="sm">
         <Stack>
@@ -459,13 +457,6 @@ function RunCommandTab() {
             ]}
             value={targets} onChange={(v) => setTargets(v || '')}
             placeholder="Select a group or node" />
-
-          <Checkbox
-            label="Run as the connecting user (bolt) — without sudo"
-            description="Default is to run with sudo as root using the bolt user's sudoers entry on the target. Check this only if you want to run the command directly as the bolt user (no sudo)."
-            checked={runAsRoot}
-            onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
-          />
 
           <Button onClick={handleRun} loading={running} disabled={!command || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">
@@ -550,7 +541,7 @@ function RunTaskTab() {
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Run a Bolt task — a pre-packaged script from your modules with defined parameters.
+        Run a Bolt task — a pre-packaged script from your modules with defined parameters (as the bolt user on the target, using its sudoers entry for privileged commands).
       </Alert>
       <Card withBorder shadow="sm">
         <Stack>
