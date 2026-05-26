@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Installer / Updater Scripts
+
+- `install.sh` and `update_local.sh` now generate the corrected Bolt sudo rules
+  (full `/opt/puppetlabs/bolt/bin/bolt` and `/usr/local/bin/bolt` binaries)
+  instead of the previous per-subcommand rules that did not allow arguments.
+  This resolves password prompts when using the Run Command / Run Task features
+  from the Orchestration page.
+
 ### Fixed — Orchestration "Run Command" password prompts
 
 The overly strict per-subcommand Bolt sudo rules (with no arguments allowed)
