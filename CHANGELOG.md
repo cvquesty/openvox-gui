@@ -33,6 +33,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Version**: 3.7.1-beta1-3 (per "increment on every meaningful push" rule).
 
+### Fixed — Orchestration Bolt execution
+
+- "Unknown plugin: 'openvox_enc'" (and similar custom plugin errors) when running
+  commands, tasks, plans, file uploads, etc. from the GUI.
+  Root cause: `run_bolt_command` was passing `-i /etc/puppetlabs/bolt/inventory.yaml`
+  but not `--project /etc/puppetlabs/bolt`. Bolt therefore could not resolve
+  plugins referenced in the inventory (or in a custom `bolt-project.yaml` modulepath).
+  All execution paths now explicitly pass `--project` so the central Bolt project
+  (and its `modules/` directory) is always used, matching what happens when you
+  manually `cd /etc/puppetlabs/bolt && bolt ...`.
+
+**Version**: 3.7.1-beta1-4 (per "increment on every meaningful push" rule).
+
 ### Added — ovox CLI (ships with the GUI)
 
 - New first-class `ovox` command-line client (noun-verb style, gh/kubectl-like).

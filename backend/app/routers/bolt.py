@@ -124,15 +124,20 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
     if not bolt:
         return {"returncode": -1, "stdout": "", "stderr": "Puppet Bolt is not installed"}
 
-    # Always point Bolt at the inventory file
+    # Always point Bolt at the central inventory file and project directory.
+    # This is critical when the inventory uses custom plugins (e.g. _plugin: openvox_enc)
+    # or when bolt-project.yaml defines a modulepath that includes
+    # /etc/puppetlabs/bolt/modules/. Without --project, Bolt may not locate the
+    # plugin modules even when -i is specified, resulting in "Unknown plugin" errors.
     inventory_flag = ["-i", "/etc/puppetlabs/bolt/inventory.yaml"]
+    project_flag = ["--project", "/etc/puppetlabs/bolt"]
 
     # Check if rainbow format is requested - needs PTY + --color for ANSI output
     is_rainbow = "--format" in args and "rainbow" in args
     if is_rainbow and "--color" not in args:
         args = args + ["--color"]
 
-    bolt_args = ["sudo", bolt] + args + inventory_flag
+    bolt_args = ["sudo", bolt] + args + inventory_flag + project_flag
 
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
