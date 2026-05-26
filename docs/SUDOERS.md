@@ -104,7 +104,9 @@ puppet ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import
 puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
 puppet ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
-puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/*/fullchain.pem
+# Replace the domain below with your Puppet server's actual FQDN
+# (usually the output of `hostname -f` on the Puppet server where the GUI is installed).
+puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/openvox.example.com/fullchain.pem
 ```
 
 ### Bolt Project Directory Ownership (`/etc/puppetlabs/bolt`)

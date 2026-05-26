@@ -1032,7 +1032,11 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/*/fullchain.pem
+# Note: The installer attempts to use the local Puppet server's FQDN
+# (from hostname -f) for the Let's Encrypt certificate path.
+# If your certificate directory uses a different name, you will need
+# to manually update this rule after installation.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/${PUPPET_SERVER_HOST}/fullchain.pem
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui
 visudo -cf /etc/sudoers.d/openvox-gui >/dev/null 2>&1

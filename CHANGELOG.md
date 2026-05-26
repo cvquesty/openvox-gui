@@ -31,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 All broad wildcard (`*`) rules in the generated `/etc/sudoers.d/openvox-gui` have been removed in favor of explicit command lines. This change is required for compatibility with more secure future versions of sudo (including Rust rewrites) and significantly reduces the attack surface.
 
-See the updated [docs/SUDOERS.md](docs/SUDOERS.md) for the new recommended explicit ruleset. Existing installations should replace their current sudoers file with the new content.
+Additionally, the Let's Encrypt certificate path now uses the local Puppet server's FQDN (detected via `hostname -f` at install time) instead of a glob, making the rule fully explicit by default.
+
+See the updated [docs/SUDOERS.md](docs/SUDOERS.md) for the new recommended explicit ruleset. Existing installations should replace their current sudoers file with the new content and run `visudo -cf` to validate.
 
 ### Changed — Dependencies
 
