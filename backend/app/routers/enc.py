@@ -307,10 +307,15 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Could not filter ENC nodes against PuppetDB: {e}")
 
-    return [{"certname": n.certname, "environment": n.environment,
-             "classes": n.classes or {}, "parameters": n.parameters or {},
-             "groups": [g.name for g in n.groups]}
-            for n in nodes]
+    result = [{"certname": n.certname, "environment": n.environment,
+               "classes": n.classes or {}, "parameters": n.parameters or {},
+               "groups": [g.name for g in n.groups]}
+              for n in nodes]
+
+    # Always return nodes in alphabetical order by certname for consistent
+    # UI behavior in dropdowns and dialogs that list classified hosts.
+    result.sort(key=lambda n: (n.get("certname") or "").lower())
+    return result
 
 async def _validate_certname_in_puppetdb(certname: str):
     """Reject certnames that don't exist as active nodes in PuppetDB.

@@ -85,6 +85,12 @@ async def list_nodes(
             if cn and cn not in seen:
                 seen.add(cn)
                 unique.append(node)
+
+        # Always return hosts in alphabetical order by certname.
+        # This guarantees consistent ordering in every dropdown, dialog,
+        # select, and list that consumes the node inventory (Hiera Lookup,
+        # Orchestration targets, Node Classifier, PQL console, Metrics, etc.).
+        unique.sort(key=lambda n: (n.get("certname") or "").lower())
         return [NodeSummary(**node) for node in unique]
     except HTTPException:
         raise

@@ -500,10 +500,11 @@ export function LookupTrace() {
         setEnvironments(data.environments || []);
       })
       .catch(() => {});
-    // Fetch node list
+    // Fetch node list — always sort alphabetically so the "Node" dropdown
+    // (and any other host selects derived from this) has predictable ordering.
     nodesApi.list()
       .then((data: any) => {
-        const names = (Array.isArray(data) ? data : []).map((n: any) => n.certname || n).filter(Boolean);
+        const names = (Array.isArray(data) ? data : []).map((n: any) => n.certname || n).filter(Boolean).sort((a, b) => a.localeCompare(b));
         setNodes(names);
       })
       .catch(() => {});
