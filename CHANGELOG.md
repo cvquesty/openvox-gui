@@ -61,6 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Reports page nodes displayed randomly inside groups
+
+- In the Reports page (under Logs/Tools), when expanding a group, the nodes (via their report rows) were appearing in arbitrary order because:
+  - The ENC hierarchy response did not sort nodes.
+  - The frontend `groupedReports` useMemo built `nodeList` arrays and `groupReports` in the order received from the API (DB insertion order or report query order).
+- Fixed by:
+  - Sorting nodes alphabetically by `certname` (case-insensitive) in the backend `GET /api/enc/hierarchy` response (systemic improvement benefiting Reports, Node Classifier, and other hierarchy consumers).
+  - Explicitly sorting per-group `nodeList` and (more importantly) `groupReports` by `certname` in the Reports.tsx `groupedReports` useMemo so that expanded groups always show nodes in alphabetical order.
+  - Sorting the visible `groupNames` alphabetically as well for consistent group listing.
+- This brings the Reports page in line with the application-wide rule that all host/node lists, dropdowns, and selectors must be alphabetical.
+
 ### Fixed — update_local.sh failure during maintenance integration
 
 - Fixed `scripts/update_local.sh:148: $2: unbound variable` error.

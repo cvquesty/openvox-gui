@@ -117,6 +117,10 @@ async def get_hierarchy(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Could not filter hierarchy nodes against PuppetDB: {e}")
 
+    # Sort nodes alphabetically by certname for consistent display in
+    # Reports (grouped nodes), Node Classifier, and other hierarchy consumers.
+    nodes.sort(key=lambda n: n.certname.lower())
+
     return {
         "common": {
             "classes": common.classes if common else {},

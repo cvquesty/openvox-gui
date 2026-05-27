@@ -340,11 +340,19 @@ export function ReportsPage() {
 
     // Group reports by node groups
     Object.entries(groupNodes).forEach(([groupName, nodeList]) => {
-      const groupReports = reportList.filter((r: any) =>
-        nodeList.includes(r.certname)
-      );
+      // Sort the node's certnames alphabetically (defensive; backend hierarchy
+      // now also returns nodes sorted, but per-group lists benefit from explicit sort).
+      const sortedNodeList = [...nodeList].sort((a, b) => a.localeCompare(b));
+
+      // Filter reports for this group and sort by certname so nodes appear
+      // in alphabetical order when the group is expanded (consistent with
+      // all other node lists/dropdowns/selectors in the app).
+      const groupReports = reportList
+        .filter((r: any) => sortedNodeList.includes(r.certname))
+        .sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || ''));
+
       groups[groupName] = {
-        nodes: nodeList,
+        nodes: sortedNodeList,
         reports: groupReports,
         status: getGroupStatus(groupReports),
       };
@@ -379,7 +387,9 @@ export function ReportsPage() {
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
-  const groupNames = Object.keys(filteredGroups);
+  // Sort group names alphabetically for consistent ordering (like other lists in the app).
+  // Note: filteredGroups may have fewer groups due to search, so we sort what's visible.
+  const groupNames = Object.keys(filteredGroups).sort((a, b) => a.localeCompare(b));
   const totalReports = Object.values(filteredGroups).reduce((sum, g) => sum + g.reports.length, 0);
 
   return (
