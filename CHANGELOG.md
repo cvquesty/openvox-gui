@@ -105,6 +105,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — "Run OpenVox" button on Node Detail page ignored system puppet.conf
+
+- The per-node "Run OpenVox" button (in Node Detail) was sending the command with the
+  full path (`/opt/puppetlabs/bin/puppet agent -t`) directly to the generic
+  `bolt.runCommand` endpoint.
+- `_normalize_command_for_gui` only recognized bare "puppet ..." commands for the
+  critical environment variables (PUPPET_CONFDIR/SSLDIR/VARDIR) and --config/--ssldir/
+  --vardir flags. Full-path invocations bypassed the normalization entirely.
+- Result on some targets: the agent ran with no knowledge of the system
+  `puppet.conf`, fell back to user-specific paths under ~bolt/.puppetlabs, and
+  resolved the CA server as the short name "puppet" (producing the exact
+  "https://puppet:8140/puppet-ca/v1" + "Name or service not known" error).
+- Fixed by making the puppet-agent detection in `_normalize_command_for_gui` also
+  trigger on any command containing "puppet agent" or "puppet-agent" (including
+  full-path forms sent by the "Run OpenVox" button and similar special cases).
+- The env vars + flags + sudo escalation (via the existing heuristic) are now
+  reliably applied for *any* GUI-driven Puppet agent run. This is now a
+  foregone conclusion.
+- Updated the function docstring to document the requirement.
+
+This, combined with the earlier SSH-as-bolt prerequisite work, makes "Run OpenVox"
+from the per-node page behave correctly when the target has the `bolt` user
+configured.
+
 ### Fixed — Reports page nodes displayed randomly inside groups
 
 - In the Reports page (under Logs/Tools), when expanding a group, the nodes (via their report rows) were appearing in arbitrary order because:

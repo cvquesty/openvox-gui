@@ -108,14 +108,21 @@ BOLT_PATHS = [
 
 def _normalize_command_for_gui(command: str) -> str:
     """
-    Make common commands more reliable when typed in the GUI Orchestration page.
+    Make common commands more reliable when invoked from the GUI (both the
+    free-form Orchestration "Run Command" box *and* special buttons like the
+    per-node "Run OpenVox" button).
 
-    - Rewrite "puppet" to the full path so it works even with minimal PATH after sudo.
-    - For `puppet agent` runs (the most common privileged command from the GUI),
-      force the system directories via both command-line flags **and** environment
-      variables. This is critical when running as the bolt user via sudo, because
-      even with --config, Puppet can still fall back to user-specific paths under
-      ~bolt/.puppetlabs unless we also set PUPPET_CONFDIR / PUPPET_SSLDIR / PUPPET_VARDIR.
+    Guarantees for any Puppet agent invocation:
+    - The binary is the full system path.
+    - The three critical environment variables (PUPPET_CONFDIR, PUPPET_SSLDIR,
+      PUPPET_VARDIR) are set so the agent uses the system directories even when
+      the process runs under the `bolt` user (via sudo or directly).
+    - The corresponding --config/--ssldir/--vardir flags are present as a belt-and-
+      suspenders measure.
+
+    This must be a foregone conclusion for any GUI-driven `puppet agent` run.
+    Without it, the agent falls back to per-user paths under ~bolt/.puppetlabs
+    and resolves the server as the short name "puppet".
     """
     cmd = command.strip()
     if not cmd:
@@ -128,6 +135,14 @@ def _normalize_command_for_gui(command: str) -> str:
         is_puppet_command = True
     elif cmd.startswith("puppet-agent ") or cmd == "puppet-agent":
         cmd = cmd.replace("puppet-agent", "/opt/puppetlabs/bin/puppet", 1)
+        is_puppet_command = True
+
+    # Also treat full-path puppet agent invocations (sent by the per-node
+    # "Run OpenVox" button and similar) as puppet commands that need system
+    # configuration. This must be a foregone conclusion for any GUI-driven
+    # Puppet agent run.
+    cmd_lower = cmd.lower()
+    if "puppet agent" in cmd_lower or "puppet-agent" in cmd_lower:
         is_puppet_command = True
 
     # For any puppet invocation, but especially agent runs, force system paths
