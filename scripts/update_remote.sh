@@ -10,9 +10,19 @@
 #   ./update_remote.sh --host 10.0.0.5            # Specify target host
 #   ./update_remote.sh --host server.example.com --user admin --yes
 #
+#   # Recommended: use the maintenance program around the remote update
+#   ovox maintenance enable -m "Remote update via update_remote.sh" -e "30m" -y
+#   OPENVOX_DEPLOY_HOST=... OPENVOX_DEPLOY_USER=... ./scripts/update_remote.sh --yes
+#   ovox maintenance disable
+#
 # Requirements:
 #   - SSH key-based access to the remote server
 #   - sudo privileges on the remote server
+#
+# Maintenance Program:
+#   The project ships a complete maintenance system. See maintenance/README.md
+#   for static pages, backend 503 handling, and the `ovox maintenance` commands
+#   shown in the example workflow above.
 ###############################################################################
 
 set -e  # Exit on error

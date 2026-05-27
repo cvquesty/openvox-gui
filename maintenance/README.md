@@ -98,6 +98,65 @@ The official logo must remain the unmodified version from the voxpupuli/logos re
 - Include a link to an internal status page or your team's Slack/Teams channel.
 - For very long maintenance windows, add a "What we're changing" bullet list (see the third concept image in the design exploration).
 
+## Holistic Maintenance Program (Recommended)
+
+The static HTML pages are only one part of a complete maintenance system. As of v3.7.3 the project includes a full "maintenance program":
+
+### Components
+
+1. **State management** (backend + CLI)
+   - `/opt/openvox-gui/data/maintenance.json` — rich state with message, ETA, who enabled it, start time.
+   - Simple flag file next to it for fast Apache `RewriteCond` checks.
+
+2. **Backend behavior**
+   - `POST /api/maintenance/enable` and `/disable` (admin/operator only).
+   - `GET /api/maintenance/status` — always responds, even when maintenance is active.
+   - Middleware that turns almost all API requests into clean 503 JSON responses containing the maintenance details (instead of errors or stack traces).
+   - The maintenance status and login endpoints remain usable so operators can still disable the mode.
+
+3. **ovox CLI** (primary operator interface)
+   ```bash
+   ovox maintenance enable --message "Applying node sorting + maintenance program updates" --eta "25 minutes"
+   ovox maintenance status
+   ovox maintenance disable
+   ```
+
+4. **Static pages** (this directory)
+   - Served by Apache when the flag is present (see `apache-maintenance.conf`).
+   - Two variants matching the existing Formal and Casual themes.
+
+5. **Apache integration**
+   - Use the `RewriteCond` + `Alias` pattern in `apache-maintenance.conf`.
+   - Returns proper HTTP 503 (correct semantic status for planned maintenance).
+
+### Typical Update Workflow
+
+```bash
+# 1. Put the GUI into maintenance (web users see the nice page, APIs return 503)
+ovox maintenance enable -m "Updating to 3.7.3-RC1.2 with new maintenance program" -e "30 minutes" -y
+
+# 2. Perform the actual update (the update scripts can optionally do step 1+3 automatically in the future)
+OPENVOX_DEPLOY_HOST=... OPENVOX_DEPLOY_USER=... scripts/update_remote.sh --yes
+
+# 3. Bring the GUI back
+ovox maintenance disable
+```
+
+### During Maintenance
+
+- **Browser users**: See the beautiful themed page (Apache layer).
+- **API / ovox users**: Receive structured 503 JSON they can display nicely.
+- **Puppet/OpenVox services**: Completely unaffected (agents keep checking in, Bolt runs still work, etc.).
+
+### Extending the Program
+
+- The update scripts (`update_local.sh`, `update_remote.sh`) can grow `--maintenance` / `--with-maintenance` flags that call the enable/disable steps automatically.
+- A future `ovox infra maintenance` sub-group alias can be added for discoverability.
+- The static pages can be made to read the JSON sidecar at request time if you convert them to a tiny server-side include or use a dynamic template during `enable`.
+
+This combination (static pages + backend 503s + rich CLI + flag-driven Apache) gives operators a consistent, professional experience no matter how they interact with the system.
+
+
 ## Future Improvement Ideas
 
 - Make the maintenance page theme-aware (detect `?theme=casual` or read a cookie).

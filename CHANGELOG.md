@@ -9,7 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.7.3-RC1.1] - 2026-05-27
+## [3.7.3-RC1.2] - 2026-05-27
+
+### Added — Holistic Maintenance Program
+
+- Complete maintenance system combining static pages, backend behavior, CLI control, and Apache integration:
+  - New `ovox maintenance enable/disable/status` (with `--message` and `--eta` support, JSON output, and convenient aliases `on`/`off`).
+  - Backend `utils/maintenance.py` with JSON state file (`/opt/openvox-gui/data/maintenance.json`) + simple flag.
+  - New router `routers/maintenance.py` (`/api/maintenance/enable`, `/disable`, `/status`).
+  - New middleware `middleware/maintenance.py` that returns clean 503 JSON with full details for API clients instead of errors/stack traces (allow-lists login and maintenance endpoints so operators can still disable the mode).
+  - Static themed pages (`maintenance-formal.html` and `maintenance-casual.html` with OpenVox fox SVG) + `apache-maintenance.conf` snippet and comprehensive `maintenance/README.md`.
+  - Light integration into `update_local.sh` and `update_remote.sh` (documented recommended workflow + header comments).
+  - Updates to `UPDATE.md` and `INSTALL.md` recommending the program during updates and behind reverse proxies.
+- When active: web users see the branded maintenance page (Apache), API/`ovox` clients get structured 503s, and all Puppet/OpenVox backend services remain fully operational.
+- This replaces ad-hoc "touch a flag and hope users don't see JSON" with a first-class, consistent experience.
 
 ### Changed — Consistent alphabetical ordering for all host/node lists
 

@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.7.3-RC1.1**
+**OpenVox GUI Version 3.7.3-RC1.2**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -314,7 +314,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.7.3-RC1.1"}` if everything is working.
+You should see `{"status":"ok","version":"3.7.3-RC1.2"}` if everything is working.
 
 ---
 
@@ -540,6 +540,10 @@ sudo ./install.sh --install-dir /srv/openvox-gui
 ```
 
 ### Behind a Reverse Proxy (nginx/Apache)
+
+If you want to run OpenVox GUI behind nginx or Apache:
+
+**Maintenance pages note**: When running behind Apache, configure the maintenance mode integration so users see a branded "Under Maintenance" page instead of errors during updates. See `maintenance/README.md` and `maintenance/apache-maintenance.conf` in the source tree for the recommended flag-file + RewriteRule pattern and the two themed HTML pages (Formal and Casual). The `ovox maintenance` commands manage the flag and rich metadata automatically.
 
 If you want to run OpenVox GUI behind nginx or Apache:
 

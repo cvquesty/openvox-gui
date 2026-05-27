@@ -19,9 +19,19 @@
 #   sudo ./scripts/update_local.sh --skip-backup   # skip backup step
 #   sudo ./scripts/update_local.sh --force         # update even if up-to-date
 #
+#   # Recommended: use the holistic maintenance program around the update
+#   ovox maintenance enable -m "Applying GUI update" -e "25 minutes" -y
+#   sudo ./scripts/update_local.sh
+#   ovox maintenance disable
+#
 # Requirements:
 #   - Root or sudo privileges
 #   - Python 3.10+, Node.js 18+ (for frontend build)
+#
+# Maintenance Program:
+#   The project includes a full maintenance system (static themed pages,
+#   backend 503 middleware, and `ovox maintenance` commands). See
+#   maintenance/README.md for the complete operator workflow.
 ###############################################################################
 
 set -euo pipefail

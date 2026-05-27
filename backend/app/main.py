@@ -25,6 +25,7 @@ from .config import settings
 from .database import init_db
 from .middleware.auth import AuthMiddleware
 from .middleware.security import SecurityHeadersMiddleware, limiter
+from .middleware.maintenance import MaintenanceMiddleware
 from .routers import dashboard, nodes, reports, enc, config as config_router, performance
 from .routers import bolt as bolt_router
 from .routers import facts as facts_router
@@ -38,6 +39,7 @@ from .routers import ssl_wizard as ssl_wizard_router
 from .routers import logs as logs_router
 from .routers import metrics as metrics_router
 from .routers import infra as infra_router
+from .routers import maintenance as maintenance_router
 from .services.puppetdb import puppetdb_service
 
 # Configure logging
@@ -130,6 +132,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Maintenance mode middleware — returns clean 503s instead of errors when the
+# GUI has been intentionally placed into maintenance (via `ovox maintenance enable`
+# or the /api/maintenance/enable endpoint). This runs early so most requests
+# are short-circuited before hitting auth or business logic.
+app.add_middleware(MaintenanceMiddleware)
+
 # CORS middleware - restrictive in production
 allowed_origins = []
 if settings.debug:
@@ -176,6 +184,7 @@ app.include_router(ssl_wizard_router.router)
 app.include_router(logs_router.router)
 app.include_router(metrics_router.router)
 app.include_router(infra_router.router)
+app.include_router(maintenance_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
