@@ -123,7 +123,8 @@ groups:
 
 The `bolt` user on targets is the SSH identity used for *all* orchestration
 (both direct CLI `bolt ...` as the bolt shell user on the controller, and every
-action from the GUI Orchestration page).
+action from the GUI Orchestration page). The maintenance program (3.7.3+) also
+affects how updates are performed while keeping orchestration available.
 
 Because the GUI ad-hoc command box lets operators type arbitrary commands, the
 practical sudoers entry on targets (at least while you are actively using the

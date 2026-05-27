@@ -344,11 +344,18 @@ editing paths — the wizard walks you through the entire process:
   the Puppet CA, with expiry countdown, key type, and chain status.
 
 ### Log Viewer
-- **New "Logs" section** in the navigation — browse OpenVox GUI, Puppet Agent,
-  PuppetServer, PuppetDB, and System Log without shell access. Reads from
-  journalctl with automatic fallback to on-disk log files for services that
-  log to `/var/log/puppetlabs/`. Controls for line count, time range, text
-  filter, auto-refresh every 5 seconds, and download as `.log` file.
+- **"Logs" section** in the navigation — browse OpenVox GUI, Puppet Agent,
+  PuppetServer, PuppetDB, and System Log (full `journalctl` with no unit filter)
+  without shell access. Reads from journalctl with automatic fallback to on-disk
+  log files (`/var/log/puppetlabs/...`) for services that write there. Controls
+  for line count, time range (`--since`), text filter (`grep`), auto-refresh
+  every 5 seconds, and download as `.log` file.
+- **Enhanced log line rendering** (dark monospace container for contrast):
+  - FQDNs/certnames (e.g., `ovagent1.pdxc-it.twitter.biz`) highlighted in **bright blue bold**.
+  - Executed commands (Orchestration "Run Command", `puppet agent -t`, `bolt ...`,
+    `sudo ...`, etc.) and HTTP API calls/responses (e.g., `"GET /api/... HTTP/1.1" 200 OK`)
+    highlighted in **bold red**.
+  - Makes host targeting and command/API activity instantly scannable for troubleshooting.
 - **"Information" renamed to "Tools"** in the navigation sidebar.
 
 ### Classification & Fact Explorer
@@ -358,7 +365,21 @@ editing paths — the wizard walks you through the entire process:
 - **Purge Node button** on Node Detail — one-click removal from PuppetDB, ENC, and CA with confirmation dialog.
 - **Sorting, operator filtering, and row limiting** on the Fact Explorer.
 
-### Maintenance & Security
+### Maintenance (Holistic Program)
+- **Automatic maintenance mode during `install.sh`, `update_local.sh`, `update_remote.sh`, and `deploy.sh`**:
+  - Branded static pages (Formal light + Casual dark with OpenVox fox SVG) served by Apache when the flag is present — users never see raw JSON errors or broken UIs.
+  - Scripts automatically raise the flag (`/opt/openvox-gui/data/maintenance.flag` + rich `maintenance.json`) early before file overwrites/service restarts, with shell `trap` guaranteeing cleanup on any exit (success, failure, interrupt).
+  - `ovox maintenance enable/disable/status` (with `--message`, `--eta`, JSON output; aliases `on`/`off`; also available under `ovox infra maintenance`).
+  - Backend middleware returns clean 503 JSON with details for APIs/CLI while allow-listing recovery paths.
+  - Apache example config (`maintenance/apache-maintenance.conf`) + full docs in `maintenance/README.md`.
+- **Reports & Alphabetical Consistency (application-wide)**:
+  - Nodes inside expanded groups in the Reports page (Logs | Reports) now display in strict alphabetical order by certname (via sorted `groupReports` rows).
+  - Backend `GET /api/enc/hierarchy` and primary node endpoints return pre-sorted data.
+  - Consistent alphabetical ordering enforced in **every** node/host list, dropdown, and selector (Hiera Lookup Node, Orchestration Targets, Node Classifier, PQL Console, Metrics pages, Fact Explorer, etc.).
+- **Log Viewer** — see dedicated section above for bright-blue FQDN + bold-red command/API highlighting.
+- **Documentation refresh** — comprehensive updates across README, INSTALL, UPDATE, TROUBLESHOOTING, maintenance/README, ARCHITECTURE, SUDOERS, and all feature lists for RC2.
+
+### Maintenance & Security (Historical)
 - **Dependency updates** — 9 Python packages bumped including `cryptography` 48.0.0, `fastapi` 0.136.1, `uvicorn` 0.47.0. Added `certifi` CA bundle pin. Zero known CVEs.
 - **sqlite3 crash fix** — Resolved `sqlite3_deserialize` import error caused by mismatched RHEL 9 package versions after a partial OS update.
 - **Sudoers hardening** — Removed duplicate `puppetserver ca *` wildcard rule and legacy `openssl x509 *` wildcard from the live server, replaced with explicit per-subcommand rules.

@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.3-RC2] - 2026-05-28
+
+### Major Features & Improvements
+
+- **Holistic Maintenance Program (complete)**: Full automatic maintenance mode support so web users never see raw JSON errors or broken pages during updates or installs.
+  - Branded static "Under Maintenance" pages (Formal light/professional and Casual dark/whimsical with OpenVox fox SVG) in the new `maintenance/` directory, fully self-contained.
+  - Automatic activation/deactivation with shell traps in `install.sh`, `update_local.sh`, `update_remote.sh`, and `deploy.sh` — flag is raised early before risky operations and guaranteed to be cleaned up on exit (success, failure, or interrupt).
+  - `ovox maintenance enable/disable/status` CLI commands (with `--message`, `--eta`, JSON output, aliases `on`/`off`), plus sub-group under `ovox infra maintenance`.
+  - Backend support: `utils/maintenance.py`, dedicated router at `/api/maintenance/*`, early middleware that returns clean 503 JSON with details for API clients (while allow-listing recovery paths like login and the maintenance endpoints themselves).
+  - Apache integration via updated `apache-maintenance.conf` example (RewriteCond on the flag + Alias to the HTML; works even if the entire FastAPI/React stack is down). Scripts ensure proper permissions and canonical `maintenance.html`.
+  - State files: `/opt/openvox-gui/data/maintenance.flag` + rich `maintenance.json` (message, ETA, started_at, activated_by) consumed by both Apache, backend, and CLI.
+  - Documentation and script headers updated with recommended workflows and troubleshooting.
+  - This fulfills the long-standing requirement for a professional, consistent maintenance experience across all entry points.
+
+- **Log Viewer Enhancements**: Major readability improvements in Logs | Log Viewer (all tabs).
+  - Per-line client-side highlighting in a dark monospace container (consistent with other terminal-style output in the app).
+  - FQDNs/certnames (e.g., `ovagent1.pdxc-it.twitter.biz`) rendered in **bright blue bold** (`#4dabf7`).
+  - Executed commands (from Orchestration "Run Command", `puppet agent -t`, `bolt ...`, `sudo ...`, etc.) and HTTP API calls/responses (e.g., `"GET /api/dashboard/data HTTP/1.1" 200 OK`) rendered in **bold red** (`#e03131`).
+  - Robust regex-based `renderHighlightedLine` function with proper state management for journalctl and file-based logs.
+  - Makes troubleshooting dramatically faster by highlighting hosts (targets) and actionable command/API activity.
+
+- **Reports Page & Alphabetical Consistency (application-wide)**:
+  - In Logs | Reports, nodes inside expanded groups (via report rows) now display in strict alphabetical order by certname.
+  - Backend `GET /api/enc/hierarchy` now sorts nodes alphabetically (systemic win for Reports, Node Classifier, and all hierarchy consumers).
+  - Frontend `Reports.tsx` explicitly sorts per-group `nodeList` and `groupReports` (plus visible `groupNames`).
+  - Full enforcement of alphabetical ordering for **every** host/node list, dropdown, selector, and dialog throughout the app (Hiera Lookup Node, Orchestration Targets, Node Classifier certname pickers, PQL Console, Metrics Catalog/Heatmap/Compliance, Fact Explorer, etc.).
+  - Backend primary endpoints (`/api/nodes/`, `/api/enc/nodes`) return pre-sorted data; frontend uses defensive `.sort((a, b) => a.localeCompare(b))` where needed.
+  - Users now have a predictable, consistent experience everywhere nodes/hosts are listed.
+
+- **Script & Deployment Reliability**:
+  - Automatic maintenance page display during `install.sh`, `update_local.sh`, `update_remote.sh`, and `deploy.sh` (as detailed above).
+  - Bug fix: Resolved `update_local.sh` unbound variable error (`$2`) introduced during maintenance integration; hardened `log_step` definitions across scripts for `set -u` safety.
+  - Maintenance assets (`maintenance/`) now copied in all deployment paths.
+
+- **Documentation & Release Finalization**:
+  - Comprehensive updates across README.md, INSTALL.md, UPDATE.md, TROUBLESHOOTING.md, maintenance/README.md, docs/ARCHITECTURE.md, docs/SUDOERS.md, ovox/README.md, and others to document new features, workflows, and changes.
+  - Feature lists, script headers, and cross-references synchronized.
+  - This RC2 release consolidates and finalizes the major maintenance, logging, and consistency work from the RC1 series.
+
+### Other
+- Security audit performed (see detailed enumeration in task output / security notes).
+- Dependabot and dependency reviews incorporated where applicable.
+- All changes follow strict release discipline (version bump via `bump-version.sh`, conventional commits, pushes, annotated tags).
+
 ## [3.7.3-RC1.2] - 2026-05-27
 
 ### Added — Holistic Maintenance Program

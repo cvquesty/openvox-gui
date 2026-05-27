@@ -135,9 +135,44 @@ A major architectural focus of recent releases has been making the GUI a first-c
 
 This is why `ovox` receives equal documentation and design attention to the web interface.
 
+## Maintenance Program (3.7.3+)
+
+The maintenance layer is a first-class architectural component designed so that web users never see raw errors or JSON during updates/installs:
+
+- **Flag + State**: `/opt/openvox-gui/data/maintenance.flag` (simple presence) + `maintenance.json` (rich metadata: message, ETA, started_at, activated_by). Consumed by Apache (RewriteCond), backend middleware (503 JSON), and `ovox maintenance` CLI.
+- **Static Pages**: Themed HTML (`maintenance-formal.html` / `maintenance-casual.html` with OpenVox fox SVG) served by Apache when the flag is present. Scripts maintain a canonical `maintenance.html`.
+- **Automatic Integration**: `install.sh`, `update_local.sh`, `update_remote.sh`, and `deploy.sh` raise the flag early (with descriptive message/ETA) and use shell traps for guaranteed cleanup. Assets in `maintenance/` are copied on every run.
+- **Backend**: Dedicated router (`/api/maintenance/*`), middleware for clean 503s on most paths (while allow-listing recovery endpoints), and utilities in `utils/maintenance.py`.
+- **CLI**: `ovox maintenance enable/disable/status` (plus sub-group under `ovox infra`).
+- **Apache**: Example config in `maintenance/apache-maintenance.conf` (flag check + Alias to the HTML). Works even if the entire FastAPI/React stack is down.
+- **Permissions**: Scripts ensure the web server user can read the flag and HTML.
+
+This is deliberately layered (Apache static first, then backend, then CLI) so the experience is consistent regardless of what is partially down.
+
+## Log Viewer & Reports Enhancements (3.7.3+)
+
+- **Log Viewer** (all tabs including "System Log" = full `journalctl` with no unit filter):
+  - Per-line highlighting in a dark monospace container.
+  - FQDNs/certnames in bright blue bold.
+  - Executed commands and API calls/responses (e.g. `"GET /api/... HTTP/1.1" 200 OK`) in bold red.
+  - Implemented client-side in `Logs.tsx` (`renderHighlightedLine`) for journalctl and file-based sources.
+- **Reports Page**:
+  - Nodes inside expanded groups (via report rows in the table) now appear in strict alphabetical order by certname.
+  - Backend `GET /api/enc/hierarchy` sorts nodes alphabetically (case-insensitive).
+  - Frontend explicitly sorts per-group node lists and report rows (plus visible group names).
+- **Application-wide Alphabetical Ordering**:
+  - All node/host lists, dropdowns, and selectors are now alphabetical (Hiera Lookup Node, Orchestration Targets, Node Classifier, PQL Console, Metrics pages, Fact Explorer, etc.).
+  - Backend endpoints (`/api/nodes/`, `/api/enc/nodes`, `/api/enc/hierarchy`) return pre-sorted data.
+  - Frontend uses defensive `.sort((a, b) => a.localeCompare(b))` everywhere.
+
+These changes make the "Tools" (formerly Information) section dramatically more usable for operators and troubleshooters.
+
 ## See Also
 
-- [ovox/README.md](../ovox/README.md) — Full CLI documentation
-- [UPDATE.md](../UPDATE.md) — Clone-then-deploy model details
-- [docs/SUDOERS.md](SUDOERS.md) — Privilege and security model
+- [ovox/README.md](../ovox/README.md) — Full CLI documentation (including `maintenance` commands)
+- [UPDATE.md](../UPDATE.md) — Automatic maintenance workflows during updates
+- [INSTALL.md](../INSTALL.md) — Automatic maintenance during install + Apache setup
+- [maintenance/README.md](../maintenance/README.md) — Complete program documentation, Apache config, troubleshooting
+- [docs/SUDOERS.md](SUDOERS.md) — Privilege and security model (updated for maintenance flag handling)
 - [docs/TUNING.md](TUNING.md) — How `ovox infra` fits into operations
+- [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) — Dedicated sections for Maintenance, Log Viewer, and Reports

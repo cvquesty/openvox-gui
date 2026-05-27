@@ -102,24 +102,32 @@ The official logo must remain the unmodified version from the voxpupuli/logos re
 - Include a link to an internal status page or your team's Slack/Teams channel.
 - For very long maintenance windows, add a "What we're changing" bullet list (see the third concept image in the design exploration).
 
-## Automatic Maintenance During Install & Updates
+## Automatic Maintenance During Install & Updates (3.7.3+ / RC2)
 
-As of the 3.7.3 series, `install.sh`, `update_local.sh`, `update_remote.sh`, and the underlying `deploy.sh` **automatically** manage maintenance mode:
+`install.sh`, `update_local.sh`, `update_remote.sh` (via `deploy.sh`), and `deploy.sh` itself **automatically** manage the full maintenance program:
 
-- At the start of the risky phase (file replacement, venv rebuild, service restart), they raise the maintenance flag and ensure the branded static page is in place.
-- A shell `trap` guarantees the flag is removed (maintenance disabled) when the script exits — whether it succeeds or fails.
-- Web users (via Apache) see the themed "Under Maintenance" page instead of errors or JSON.
-- The backend returns clean 503s with details for API clients and `ovox`.
-- All underlying Puppet/OpenVox services continue running normally.
+- At the start of the risky phase (before any file overwrites, dependency updates, frontend rebuild, or service restart), they:
+  - Copy/update the `maintenance/` assets (HTML pages + docs) into `/opt/openvox-gui/maintenance/`.
+  - Raise the flag (`/opt/openvox-gui/data/maintenance.flag`) + write rich state (`maintenance.json` with message, ETA, started_at, activated_by).
+  - Ensure proper permissions (644 on flag/JSON/HTML, 755 on data dir, a+rX on `maintenance/` assets) so the web server user can read them.
+  - Best-effort reload of Apache so the RewriteCond takes effect immediately.
+- A shell `trap 'disable_maintenance_page' EXIT ERR INT TERM` guarantees the flag is removed on any exit (success, failure, or hard kill/interrupt).
+- Web users (through properly configured Apache) see the branded themed page (Formal or Casual, with OpenVox fox SVG) instead of errors/JSON/502s the entire time.
+- The backend 503 middleware and `ovox maintenance status` reflect the same state.
+- All underlying Puppet/OpenVox services (Server, DB, Bolt, agents) continue running normally.
 
-You no longer need to manually run `ovox maintenance enable/disable` around updates — the scripts do it for you.
+The scripts document the recommended workflow in their headers and call the helper with a descriptive message and ETA. The `maintenance/` directory is now copied in all deployment paths.
 
-The flag and state files live at:
-- `/opt/openvox-gui/data/maintenance.flag`
-- `/opt/openvox-gui/data/maintenance.json`
+**Flag & state locations (managed automatically):**
+- `/opt/openvox-gui/data/maintenance.flag` (simple presence for Apache `RewriteCond`)
+- `/opt/openvox-gui/data/maintenance.json` (rich details for backend + CLI)
 
-The canonical HTML served by Apache lives at:
-- `/opt/openvox-gui/maintenance/maintenance.html` (maintained by the scripts from the formal or casual variant)
+**Canonical HTML (for Apache Alias):**
+- `/opt/openvox-gui/maintenance/maintenance.html` (maintained from `maintenance-formal.html` or `maintenance-casual.html`)
+
+Manual control remains available via `ovox maintenance enable/disable/status` (or directly touching the flag files).
+
+See `apache-maintenance.conf` (updated for these canonical paths) and the workflows in INSTALL.md / UPDATE.md.
 
 ## Holistic Maintenance Program (Recommended)
 
@@ -156,7 +164,7 @@ The static HTML pages are only one part of a complete maintenance system. As of 
 
 ```bash
 # 1. Put the GUI into maintenance (web users see the nice page, APIs return 503)
-ovox maintenance enable -m "Updating to 3.7.3-RC1.2 with new maintenance program" -e "30 minutes" -y
+ovox maintenance enable -m "Updating to 3.7.3-RC2" -e "30 minutes" -y
 
 # 2. Perform the actual update (the update scripts can optionally do step 1+3 automatically in the future)
 OPENVOX_DEPLOY_HOST=... OPENVOX_DEPLOY_USER=... scripts/update_remote.sh --yes

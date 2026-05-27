@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.7.3-RC1.7**
+**OpenVox GUI Version 3.7.3-RC2**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.7.3-RC1.7"}
+   # Should return: {"status":"ok","version":"3.7.3-RC2"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -778,6 +778,46 @@ See the [Versioning section](ovox/README.md#versioning) in the ovox docs.
 These commands run privileged operations (reading configs, restarting services). The `puppet` user running the GUI needs the corresponding sudoers rules (see [docs/SUDOERS.md](docs/SUDOERS.md)).
 
 ---
+
+## Maintenance Mode
+
+### Problem: Maintenance Page Not Appearing During Updates/Install
+**Symptoms**: Users still see errors, 502s, or the old GUI during `install.sh` / `update_*.sh` / `deploy.sh`.
+
+**Solutions**:
+- Verify the flag: `ls -l /opt/openvox-gui/data/maintenance.flag`
+- Check Apache config includes the `RewriteCond` on that flag + `Alias /maintenance.html /opt/openvox-gui/maintenance/maintenance.html` (see `maintenance/apache-maintenance.conf`).
+- Ensure the HTML exists: `ls /opt/openvox-gui/maintenance/maintenance.html` (scripts copy it automatically from `maintenance-formal.html` or `maintenance-casual.html`).
+- Reload Apache: `sudo systemctl reload httpd` (or `apache2`).
+- Check permissions: `chmod 644 /opt/openvox-gui/data/maintenance.flag` and `chmod 755 /opt/openvox-gui/data` (and `a+rX` on the `maintenance/` dir) so the web server user can read them.
+- The scripts raise the flag early and use a `trap` for cleanup — if the script was killed hard, manually remove the flag: `sudo rm -f /opt/openvox-gui/data/maintenance.flag /opt/openvox-gui/data/maintenance.json`.
+- `ovox maintenance status` (or the backend `/api/maintenance/status`) will show the current state.
+
+### Problem: Maintenance Flag Stuck / Cannot Disable
+- Run `ovox maintenance disable` (or manually delete the flag files above).
+- If the web server still serves the page, reload Apache.
+- Check that no other process is touching the flag.
+
+### Problem: "Maintenance" in Logs or Unexpected 503s
+- The backend middleware returns structured 503 JSON when the flag is present (except for allow-listed recovery paths like `/api/auth/login` and `/api/maintenance/*`).
+- Use `ovox maintenance disable` or delete the flag to restore normal operation.
+- The flag is automatically managed by the install/update scripts.
+
+## Log Viewer
+
+### Problem: Highlighting Not Visible or Wrong Colors
+- Ensure you are on a recent build (FQDNs bright blue `#4dabf7` bold; commands and API calls `"GET ... HTTP/1.1" 200 OK` in bold red `#e03131`).
+- The container is a dark monospace block for contrast — if the theme or CSS is overridden, highlights may be hard to see.
+- "System Log" tab shows the *full* `journalctl` (no unit filter) — this can be very noisy; use the Filter box or time range.
+- Reproduce on the server: `sudo journalctl -u openvox-gui -n 50 --output short-iso` (or the specific unit/file for other tabs).
+
+## Reports Page
+
+### Problem: Nodes Inside Groups Appear in Random Order
+- Fixed in 3.7.3-RC2: Nodes (via report rows) inside expanded groups are now strictly alphabetical by certname.
+- The backend `GET /api/enc/hierarchy` sorts nodes; the frontend explicitly sorts per-group lists and report rows.
+- If you still see random order, clear browser cache or ensure you are on RC2+.
+- Group names themselves are also sorted alphabetically in the main view.
 
 ## Getting More Help
 

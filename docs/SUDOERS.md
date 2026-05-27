@@ -228,12 +228,25 @@ The `ovox` command-line client (installed alongside the GUI in `/opt/openvox-gui
 with a symlink at `/usr/local/bin/ovox`) is a **thin client**. It authenticates via the
 same JWT mechanism as the web UI and talks exclusively over the REST API.
 
-All privileged work (certificate signing, r10k deploys, Bolt runs, journalctl, etc.)
-is performed by the OpenVox GUI backend on the operator's behalf. Therefore `ovox`
-does **not** require any additional sudoers entries beyond what the GUI already has.
+All privileged work (certificate signing, r10k deploys, Bolt runs, journalctl, maintenance
+flag management, etc.) is performed by the OpenVox GUI backend on the operator's behalf.
+Therefore `ovox` does **not** require any additional sudoers entries beyond what the GUI already has.
 
 Operators may safely run `ovox` as themselves (or via CI tokens) — the only local
 privilege required is the ability to reach the GUI's HTTP(S) port.
+
+The `ovox maintenance` commands (enable/disable/status) and the automatic maintenance
+behavior in the install/update scripts manage the maintenance flag and JSON state files
+(`/opt/openvox-gui/data/maintenance.{flag,json}`) via the backend (which may use its
+existing sudo rules for Apache reloads or other privileged actions).
+
+## Maintenance Flag & State Files
+
+The holistic maintenance program (3.7.3+) uses two files in the data directory:
+- `maintenance.flag` — simple presence flag watched by Apache `RewriteCond` (for static branded page serving).
+- `maintenance.json` — rich state (message, ETA, started_at, activated_by) consumed by the backend middleware (503s) and `ovox maintenance status`.
+
+These are **not** sudoers-related but are mentioned here because the scripts and `ovox` manage them, and Apache must be able to read the flag for the RewriteCond to work. The deployment scripts set safe permissions (644 on the flag, 755 on the data dir) so the web server user can read them. See `maintenance/README.md` and `apache-maintenance.conf` for full details.
 
 ---
 

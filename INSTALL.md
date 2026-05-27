@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.7.3-RC1.7**
+**OpenVox GUI Version 3.7.3-RC2**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -314,7 +314,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.7.3-RC1.7"}` if everything is working.
+You should see `{"status":"ok","version":"3.7.3-RC2"}` if everything is working.
 
 ---
 
@@ -543,7 +543,7 @@ sudo ./install.sh --install-dir /srv/openvox-gui
 
 If you want to run OpenVox GUI behind nginx or Apache:
 
-**Maintenance pages note**: When running behind Apache, configure the maintenance mode integration so users see a branded "Under Maintenance" page instead of errors during updates. See `maintenance/README.md` and `maintenance/apache-maintenance.conf` in the source tree for the recommended flag-file + RewriteRule pattern and the two themed HTML pages (Formal and Casual). The `ovox maintenance` commands manage the flag and rich metadata automatically.
+**Maintenance pages (automatic during install)**: The installer now automatically enables the holistic maintenance program. Branded static "Under Maintenance" pages (Formal/Casual themes) are copied to `/opt/openvox-gui/maintenance/`. If Apache is configured with the recommended `RewriteCond` on `/opt/openvox-gui/data/maintenance.flag` + `Alias` to the HTML (see `maintenance/apache-maintenance.conf` and `maintenance/README.md`), web users will see the nice branded page instead of errors while files are laid down and the service (re)starts. The flag is automatically raised early and removed via trap on exit. Use `ovox maintenance status/enable/disable` for manual control or rich details. See `maintenance/README.md` for the full program, Apache setup, and troubleshooting.
 
 If you want to run OpenVox GUI behind nginx or Apache:
 

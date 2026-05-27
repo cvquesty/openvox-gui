@@ -157,6 +157,20 @@ Example:
 ovox nodes list --failed -o json | jq -r '.[].certname'
 ```
 
+## Maintenance (3.7.3+)
+
+`ovox maintenance` is a core command group for the holistic maintenance program:
+
+```bash
+ovox maintenance status
+ovox maintenance enable --message "Applying update" --eta "20 minutes" --yes
+ovox maintenance disable
+```
+
+- Also available as `ovox infra maintenance ...` sub-group.
+- Works seamlessly with the automatic maintenance behavior in the install/update/deploy scripts (scripts raise the flag early with a message/ETA and guarantee cleanup via trap).
+- See the main project `maintenance/README.md` for the complete program (static branded pages, backend 503 middleware, Apache integration, flag locations, and troubleshooting).
+
 ## Roadmap
 
 - v0.1 (with GUI 3.7): core read + a few mutating ops (nodes, certs, pql, status)

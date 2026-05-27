@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.7.3-RC1.7**
+**OpenVox GUI Version 3.7.3-RC2**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -56,21 +56,18 @@ Think of updating like changing the oil in your car - you want to prepare first:
    sudo cp -r /opt/openvox-gui/config /backup/openvox-gui/config-$(date +%Y%m%d)
    ```
 
-4. **Schedule a Maintenance Window (Recommended: use the holistic maintenance program)**
-   - Updates usually take 5-10 minutes
-   - The service will be briefly unavailable
-   - Notify your users if needed
-   - Use the built-in maintenance system for a professional experience:
+4. **Schedule a Maintenance Window — Automatic via Scripts (3.7.3+)**
+   - Updates usually take 5-10 minutes.
+   - The service will be briefly unavailable to web users.
+   - Notify your users if needed.
+   - **Automatic behavior**: `update_local.sh`, `update_remote.sh`, and `deploy.sh` now automatically raise the maintenance flag (`/opt/openvox-gui/data/maintenance.flag` + rich `maintenance.json`) and ensure the branded static page is in place *before* any file overwrites or service restarts. A shell `trap` guarantees the flag is removed on any exit (success, failure, or interrupt). Web users see the themed "Under Maintenance" page (Formal or Casual, with OpenVox fox SVG) via Apache instead of errors or raw JSON. The `maintenance/` assets are also copied on every run.
+   - Manual override/control remains available:
      ```bash
-     # Before the update (web users see a branded page, APIs return clean 503s)
      ovox maintenance enable -m "Applying GUI update $(cat VERSION)" -e "20 minutes" -y
-
-     # ... perform the update (update_local.sh or update_remote.sh) ...
-
-     # After the update
+     # ... perform the update ...
      ovox maintenance disable
      ```
-   - See `maintenance/README.md` for the full program (static themed pages, backend middleware, Apache integration, and `ovox maintenance` commands).
+   - See `maintenance/README.md` for the complete program (static pages, `ovox maintenance` CLI commands + sub-group under `infra`, backend 503 middleware, Apache config example, flag locations, workflows, and troubleshooting). The scripts also ensure proper permissions for the web server user.
 
 ### Special note for upgrades to 3.6.0 or later
 
@@ -194,7 +191,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.7.3-RC1.7"}
+# {"status":"ok","version":"3.7.3-RC2"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
