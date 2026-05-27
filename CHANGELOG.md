@@ -61,6 +61,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — update_local.sh failure during maintenance integration
+
+- Fixed `scripts/update_local.sh:148: $2: unbound variable` error.
+- The `enable_maintenance_page` helper was incorrectly calling the `log_step` function (which expects two arguments: step number and title) with only a message string.
+- Changed the call to the correct `log_info` helper (consistent with `disable_maintenance_page` in the same script).
+- Hardened the `log_step` function definition in `update_local.sh` (and similarly in `install.sh`) to use `${2:-}` default expansion so that missing second arguments no longer trigger `set -u` (nounset) errors.
+- This bug was introduced when adding automatic maintenance page handling to the update flow.
+
 ### Improved — Log Viewer highlighting (FQDNs and API calls)
 
 - Updated the Logs | Log Viewer page line renderer:

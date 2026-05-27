@@ -145,7 +145,7 @@ fi
 
 TOTAL_STEPS=7
 
-log_step() { echo -e "\n${BLUE}[$1/${TOTAL_STEPS}]${NC} ${BOLD}$2${NC}"; }
+log_step() { echo -e "\n${BLUE}[$1/${TOTAL_STEPS}]${NC} ${BOLD}${2:-}${NC}"; }
 log_ok()   { echo -e "  ${GREEN}✔${NC} $1"; }
 log_warn() { echo -e "  ${YELLOW}⚠${NC} $1"; }
 log_err()  { echo -e "  ${RED}✘${NC} $1"; }
@@ -269,7 +269,7 @@ MAINT_DEFAULT_HTML="${MAINT_DIR}/maintenance-formal.html"
 enable_maintenance_page() {
     local msg="${1:-Applying OpenVox GUI update}"
     local eta="${2:-20 minutes}"
-    log_step "Enabling maintenance mode"
+    log_info "Enabling maintenance mode..."
     if [ ! -f "${MAINT_DEFAULT_HTML}" ] && [ -d "${REPO_DIR}/maintenance" ]; then
         rm -rf "${MAINT_DIR}"
         cp -a "${REPO_DIR}/maintenance" "${MAINT_DIR}/"

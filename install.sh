@@ -101,7 +101,7 @@ UNINSTALL="false"
 
 log_step() {
     local step="$1"
-    local title="$2"
+    local title="${2:-}"
     echo -e "\n${BLUE}[${step}/${TOTAL_STEPS}]${NC} ${BOLD}${title}${NC}"
 }
 
