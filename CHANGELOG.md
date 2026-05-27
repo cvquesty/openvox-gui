@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation Overhaul**: Comprehensive updates to README, INSTALL, UPDATE, TROUBLESHOOTING, ARCHITECTURE, maintenance/README, SUDOERS, ovox/README, and all feature lists.
 - **Security Posture**: Dependabot history clean; full audit performed with no blocking 0-days or critical CVEs requiring changes for this release (detailed in prior RC notes).
 
+- **Unified ovox CLI Versioning**: As of 3.7.3 the `ovox` CLI is versioned in lockstep with the main GUI. The root `VERSION` is now the single source of truth; `scripts/bump-version.sh` automatically keeps `ovox/VERSION`, `ovox/ovox/__init__.py`, and `ovox/pyproject.toml` in sync. Documentation and architecture notes updated to reflect the new policy. This ensures operators always get matching GUI + CLI versions in a release.
+
 See the detailed sections below for the full history of changes that led to this release.
 
 ## [3.7.3-RC2] - 2026-05-28 (historical)

@@ -78,7 +78,7 @@ This means:
 
 Characteristics that reinforce this status:
 - Ships with every installation (symlinked at `/usr/local/bin/ovox`)
-- Has its own independent versioning (`ovox/VERSION`)
+- Shares the same version as the main GUI (root `VERSION` file) as of 3.7.3; `scripts/bump-version.sh` keeps `ovox/VERSION`, `__init__.py`, and `pyproject.toml` in sync automatically.
 - Has a dedicated, high-quality user experience (noun-verb style, rich output, smart defaults)
 - Powers critical operational workflows (especially Bolt service tokens + dynamic inventory)
 
@@ -104,8 +104,7 @@ See `docs/SUDOERS.md` for the privilege model required by the backend.
 ## Versioning Strategy
 
 - The overall project uses a single `VERSION` file at the root.
-- The `ovox` CLI also maintains its own `ovox/VERSION` so it can be versioned independently when needed.
-- The CLI runtime has a well-defined precedence order for determining its version (environment variable > installed `ovox/VERSION` > development tree > baked package version).
+- The `ovox` CLI now shares the GUI version (see above). Runtime precedence for the version string remains: environment variable (`OPENVOX_CLI_VERSION` / `OPENVOX_VERSION`) > installed `/opt/openvox-gui/ovox/VERSION` > development tree `ovox/VERSION` > baked package `__version__`.
 
 ## Deployment Layout (Typical)
 

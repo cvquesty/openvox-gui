@@ -27,15 +27,21 @@ ovox --help
 
 ## Versioning
 
-`ovox` uses its own independent version (separate from the OpenVox GUI).
+As of OpenVox GUI 3.7.3, the `ovox` CLI is versioned in lockstep with the main project. The single source of truth is the root `VERSION` file at the repository root. `scripts/bump-version.sh` automatically keeps the ovox files in sync:
 
-- Current regime: `3.7.1-alpha1-1`, `3.7.1-alpha1-2`, ... (dash-suffixed dev increments under a base pre-release tag). When cutting an actual pre-release we advance the base (`3.7.1-alpha2`, `3.7.1-beta1`, `3.7.1`, etc.).
-- The canonical file is `ovox/VERSION` (checked into the repo).
-- At runtime the CLI prefers:
-  1. `OPENVOX_CLI_VERSION` / `OPENVOX_VERSION` environment variable
-  2. `/opt/openvox-gui/ovox/VERSION` (when installed with the GUI)
-  3. The development `ovox/VERSION` next to the source
-  4. The version baked into the Python package
+- `ovox/VERSION`
+- `ovox/ovox/__init__.py` (`__version__`)
+- `ovox/pyproject.toml` (the Python package version)
+
+This means that when the GUI is released as (for example) 3.7.3, the shipped `ovox` CLI carries exactly the same version string.
+
+At runtime the CLI prefers (in order):
+1. `OPENVOX_CLI_VERSION` or `OPENVOX_VERSION` environment variable
+2. `/opt/openvox-gui/ovox/VERSION` (when installed together with the GUI)
+3. The development `ovox/VERSION` next to the source tree
+4. The version baked into the installed Python package (`ovox/ovox/__init__.py`)
+
+The root `VERSION` is also read by several GUI components at runtime.
 
 This allows the CLI to move faster (or slower) than the web GUI.
 

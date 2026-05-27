@@ -186,7 +186,7 @@ ovox token generate --user bolt --name "Bolt service account" --expires 0
 
 **Key characteristics:**
 
-- **Independent versioning** via `ovox/VERSION` (can evolve at its own pace)
+- **Unified versioning** with the main GUI (root `VERSION` + `scripts/bump-version.sh` keeps ovox files in sync) as of 3.7.3
 - Installed automatically with the GUI and available at `/usr/local/bin/ovox`
 - Works locally on the server **or remotely** against any OpenVox GUI instance
 - Excellent for operators who prefer the terminal, scripting, and CI
@@ -213,7 +213,7 @@ The installer will set up:
 - All necessary Python packages in a virtual environment
 - A local database for storing settings
 - Log files in `/opt/openvox-gui/logs`
-- **The `ovox` CLI** (installed into the venv and symlinked at `/usr/local/bin/ovox`) — a first-class subsystem with independent versioning and full feature parity for scripting and operators
+- **The `ovox` CLI** (installed into the venv and symlinked at `/usr/local/bin/ovox`) — a first-class subsystem with unified versioning (since 3.7.3) and full feature parity for scripting and operators
 
 ## 🚪 Default Access
 

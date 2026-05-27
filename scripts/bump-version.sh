@@ -7,8 +7,8 @@
 # when the application version needs to change.
 #
 # The single source of truth is the VERSION file at the repo root.
-# This script writes the new version there and propagates it to
-# the few derived locations that can't read VERSION directly:
+# As of 3.7.3, the ovox CLI is versioned in lockstep with the main GUI.
+# This script writes the new version and propagates it to all derived locations:
 #
 #   VERSION  ← written by this script (or edited manually in a pinch)
 #     ├─ frontend/package.json   ← synced by this script (npm needs it)
@@ -17,6 +17,8 @@
 #     ├─ UPDATE.md               ← doc header + examples synced
 #     ├─ TROUBLESHOOTING.md      ← doc header + examples synced
 #     └─ ovox/pyproject.toml     ← CLI package version (pip metadata)
+#     ├─ ovox/VERSION            ← CLI standalone version file
+#     └─ ovox/ovox/__init__.py   ← CLI Python package __version__
 #
 # These files read VERSION automatically (no sync needed):
 #     ├─ backend/app/__init__.py   (reads at Python import time)
@@ -79,5 +81,25 @@ for doc in "INSTALL.md" "UPDATE.md" "TROUBLESHOOTING.md"; do
         rm -f "$DOC_PATH.bak"
     fi
 done
+
+# ── 5. ovox CLI versioning (kept in sync with main GUI as of 3.7.3) ──
+# The ovox CLI is now versioned together with the main GUI.
+OVOX_VERSION_FILE="$REPO_ROOT/ovox/VERSION"
+if [ -f "$OVOX_VERSION_FILE" ]; then
+    echo -n "$NEW_VERSION" > "$OVOX_VERSION_FILE"
+fi
+
+OVOX_INIT="$REPO_ROOT/ovox/ovox/__init__.py"
+if [ -f "$OVOX_INIT" ]; then
+    sed -i.bak -E "s/__version__ = \"[^\"]*\"/__version__ = \"${NEW_VERSION}\"/" "$OVOX_INIT"
+    rm -f "$OVOX_INIT.bak"
+fi
+
+OVOX_PYPROJECT="$REPO_ROOT/ovox/pyproject.toml"
+if [ -f "$OVOX_PYPROJECT" ]; then
+    # Update the version line; also clean any stale historical comments on that line
+    sed -i.bak -E "s/^version = \"[^\"]*\".*/version = \"${NEW_VERSION}\"/" "$OVOX_PYPROJECT"
+    rm -f "$OVOX_PYPROJECT.bak"
+fi
 
 echo "${OLD_VERSION} → ${NEW_VERSION}"
