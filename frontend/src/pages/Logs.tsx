@@ -90,6 +90,107 @@ export function LogsPage() {
 
   const currentData = logData[activeTab];
 
+  /**
+   * Render a single log line with visual enhancements:
+   * - FQDNs / certnames (e.g. ovagent1.pdxc-it.twitter.biz) in bold black
+   * - Command strings being executed (puppet agent, bolt runs, sudo commands, etc.)
+   *   in bold red for easy scanning in the Orchestration and service logs.
+   */
+  function renderHighlightedLine(line: string, key: number): React.ReactNode {
+    const nodes: React.ReactNode[] = [];
+
+    // FQDN / hostname regex (matches Puppet certnames and similar)
+    const fqdnRegex = /\b([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)\b/g;
+
+    // Heuristic for "the command run":
+    // 1. Capture the actual command string after common patterns like `command run "..."` or `running "..."`.
+    // 2. Fallback: highlight segments that start with known command binaries used in this ecosystem.
+    const commandInvocationRegex = /(?:command\s+run\s+["']?|executing\s+["']?|running\s+["']?)([^"'\n]+?)(?:["']|$)/gi;
+    const commandBinaryRegex = /\b(puppet(?:-agent)?|bolt|sudo|systemctl|journalctl|r10k|certbot)\s+[^\s].*?(?=\s{2,}|$|\s--targets|\s-i\s|\s--project)/gi;
+
+    // Split the line on FQDNs (keeping the delimiters via capturing group)
+    const segments = line.split(fqdnRegex);
+
+    segments.forEach((segment, segIndex) => {
+      if (!segment) return;
+
+      // If this segment looks like an FQDN we split on, highlight it bold black
+      if (fqdnRegex.test(segment) && segment.includes('.')) {
+        nodes.push(
+          <span
+            key={`fqdn-${key}-${segIndex}`}
+            style={{ fontWeight: 700, color: '#000000' }}
+          >
+            {segment}
+          </span>
+        );
+        fqdnRegex.lastIndex = 0;
+        return;
+      }
+
+      // Not an FQDN — look for command content inside this segment
+      let processed = segment;
+      let cmdMatch = commandInvocationRegex.exec(processed);
+
+      if (cmdMatch && cmdMatch[1]) {
+        // We found a "command run '...'" style invocation — highlight the captured command in bold red
+        const fullMatch = cmdMatch[0];
+        const cmdText = cmdMatch[1];
+        const start = processed.indexOf(fullMatch);
+
+        if (start > 0) {
+          nodes.push(processed.substring(0, start));
+        }
+
+        nodes.push(
+          <span
+            key={`cmd-${key}-${segIndex}`}
+            style={{ fontWeight: 700, color: '#e03131' }}
+          >
+            {cmdText}
+          </span>
+        );
+
+        const after = processed.substring(start + fullMatch.length);
+        if (after) nodes.push(after);
+
+        commandInvocationRegex.lastIndex = 0;
+        return;
+      }
+
+      // Fallback command highlighting: any line segment containing a known binary + arguments
+      cmdMatch = commandBinaryRegex.exec(processed);
+      if (cmdMatch) {
+        const full = cmdMatch[0];
+        const start = processed.indexOf(full);
+
+        if (start > 0) nodes.push(processed.substring(0, start));
+
+        nodes.push(
+          <span
+            key={`cmd-bin-${key}-${segIndex}`}
+            style={{ fontWeight: 700, color: '#e03131' }}
+          >
+            {full}
+          </span>
+        );
+
+        const after = processed.substring(start + full.length);
+        if (after) nodes.push(after);
+
+        commandBinaryRegex.lastIndex = 0;
+        return;
+      }
+
+      // Plain text
+      nodes.push(segment);
+      commandInvocationRegex.lastIndex = 0;
+      commandBinaryRegex.lastIndex = 0;
+    });
+
+    return nodes;
+  }
+
   return (
     <Stack>
       <Group>
@@ -179,9 +280,26 @@ export function LogsPage() {
           {loading && !currentData ? (
             <Center h={200}><Loader /></Center>
           ) : currentData?.lines?.length > 0 ? (
-            <Code block style={{ fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {currentData.lines.join('\n')}
-            </Code>
+            <div
+              style={{
+                fontSize: 11,
+                lineHeight: 1.55,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                backgroundColor: '#1e1e1e',
+                color: '#d4d4d4',
+                padding: '10px 12px',
+                borderRadius: 6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                border: '1px solid #333',
+              }}
+            >
+              {currentData.lines.map((line: string, index: number) => (
+                <div key={index} style={{ minHeight: '1.35em' }}>
+                  {renderHighlightedLine(line, index)}
+                </div>
+              ))}
+            </div>
           ) : (
             <Center h={200}>
               <Text c="dimmed" size="sm">No log entries found for the selected filters.</Text>

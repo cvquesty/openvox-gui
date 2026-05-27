@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved — Log Viewer readability
+
+- In the **Logs | Log Viewer** page, log lines are now enhanced for better scannability across all tabs:
+  - All FQDNs / certnames (e.g. `ovagent1.pdxc-it.twitter.biz`, `openvox.pdxc-it.twitter.biz`) are rendered in **bold black**.
+  - The command being run (especially those submitted via the Orchestration page, `puppet agent -t`, `bolt ...`, `sudo ...`, and similar) is rendered in **bold red**.
+- Highlighting is applied client-side per line using regex heuristics that work reliably on journalctl output and service log files.
+- The log container uses a dark monospace background (consistent with other terminal/code output in the app) for excellent contrast with the black and red highlights.
+- This makes it dramatically easier for operators to scan logs and quickly identify which hosts were affected and exactly what commands were executed.
+
 ### Added — Maintenance pages (nice "Under Maintenance" experience instead of JSON errors)
 
 - Added a new `maintenance/` directory containing polished, self-contained "Under Maintenance" pages:
