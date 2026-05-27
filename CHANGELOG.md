@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.3-RC1.1] - 2026-05-27
+
+### Changed — Consistent alphabetical ordering for all host/node lists
+
+- The primary node inventory endpoint (`GET /api/nodes/`) now always returns the
+  list of hosts sorted alphabetically by certname (case-insensitive). This is the
+  single source of truth used by the vast majority of dropdowns, selects, target
+  pickers, and dialogs across the application (Hiera Lookup "Node" dropdown,
+  Orchestration "Targets" selects, Node Classifier certname pickers, PQL Console
+  node selector, Metrics Catalog node selector, etc.).
+- The ENC classified nodes endpoint (`GET /api/enc/nodes`) similarly sorts its
+  results by certname before returning, so any UI lists or selects built from
+  classified nodes are also consistently ordered.
+- Frontend code that builds host lists for dropdowns from these APIs now receives
+  pre-sorted data (existing client-side `.sort()` calls remain as defensive belts).
+- The Hiera Lookup "Node" dropdown (Data page, implemented in `LookupTrace` inside
+  ConfigPuppet.tsx) now explicitly sorts its local copy.
+- Result: every dropdown or dialog that lists hosts — whether populated directly
+  from the backend inventory APIs or derived locally from queries — presents nodes
+  in predictable alphabetical order. Users always know what to expect.
+
 ## [3.7.2-RC1] - 2026-05-26
 
 ### Changed — Documentation & Project Positioning
