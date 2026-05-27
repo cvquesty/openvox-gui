@@ -395,6 +395,7 @@ function RunCommandTab() {
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
+  const [runPrivileged, setRunPrivileged] = useState(false);
 
   useEffect(() => {
     nodesApi.list()
@@ -412,6 +413,7 @@ function RunCommandTab() {
     setResults(null);
     
     const payload: any = { command, targets, format: 'human' };
+    if (runPrivileged) payload.run_as = 'root';
 
     try {
       // Fetch all three formats in parallel
@@ -441,7 +443,7 @@ function RunCommandTab() {
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Run an ad-hoc shell command across one or more targets via SSH (as the bolt user on the target, using its sudoers entry for privileged commands).
+        Run an ad-hoc shell command across one or more targets via SSH. Default: executes as the 'bolt' SSH user on the target (matches direct `bolt command run` from a shell as bolt). Use the checkbox below for privileged commands — the GUI will transparently use sudo via the bolt user's sudoers entry on the target.
       </Alert>
       <Card withBorder shadow="sm">
         <Stack>
@@ -457,6 +459,13 @@ function RunCommandTab() {
             ]}
             value={targets} onChange={(v) => setTargets(v || '')}
             placeholder="Select a group or node" />
+
+          <Checkbox
+            label="Run privileged (use sudo on target via the bolt user's sudoers entry)"
+            description="Unchecked (default): command runs exactly as the 'bolt' SSH user on the target. This matches `bolt command run ...` executed directly from a shell as the bolt user (whoami returns 'bolt'). Check this for commands that need root on the target (puppet agent -t, systemctl, package management, etc.). The GUI will transparently prefix 'sudo' so the bolt user's existing sudoers entry on the target is used."
+            checked={runPrivileged}
+            onChange={(e) => setRunPrivileged(e.currentTarget.checked)}
+          />
 
           <Button onClick={handleRun} loading={running} disabled={!command || !targets}
             leftSection={<IconPlayerPlay size={16} />} color="green">
@@ -484,7 +493,7 @@ function RunTaskTab() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [runAsRoot, setRunAsRoot] = useState(false);
+  const [runPrivileged, setRunPrivileged] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -509,7 +518,7 @@ function RunTaskTab() {
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
     
     const taskPayload: any = { task: selectedTask, targets, params: paramDict, format: 'human' };
-    if (runAsRoot) taskPayload.run_as = 'root';
+    if (runPrivileged) taskPayload.run_as = 'root';
 
     try {
       // Fetch all three formats in parallel
@@ -541,7 +550,7 @@ function RunTaskTab() {
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Run a Bolt task — a pre-packaged script from your modules with defined parameters (as the bolt user on the target, using its sudoers entry for privileged commands).
+        Run a Bolt task — a pre-packaged script from your modules. Default: executes as the 'bolt' SSH user on the target (matches direct `bolt task run` from a shell as bolt). Check the box below to request root via the bolt user's sudoers (Bolt uses --run-as + its run-as-command).
       </Alert>
       <Card withBorder shadow="sm">
         <Stack>
@@ -562,10 +571,10 @@ function RunTaskTab() {
             placeholder="Select a group or node" />
 
           <Checkbox
-            label="Run as the connecting user (bolt) — without sudo"
-            description="Default is to run with sudo as root using the bolt user's sudoers entry on the target. Check this only if you want to run the command directly as the bolt user (no sudo)."
-            checked={runAsRoot}
-            onChange={(e) => setRunAsRoot(e.currentTarget.checked)}
+            label="Run privileged (use sudo / --run-as root on target)"
+            description="Unchecked (default): task runs as the 'bolt' SSH user on the target (matches direct `bolt task run` from a shell as bolt). Check to request escalation via the bolt user's sudoers entry (Bolt will use its configured run-as-command, typically sudo). Many pre-packaged tasks assume root context or manage privilege internally."
+            checked={runPrivileged}
+            onChange={(e) => setRunPrivileged(e.currentTarget.checked)}
           />
 
           <div>

@@ -31,14 +31,12 @@
       "default": "/etc/puppetlabs/bolt/.bolt_token"
     },
     "run_as": {
-      "description": "User to run commands as on targets (defaults to 'root' for privileged GUI operations)",
-      "type": "Optional[String]",
-      "default": "root"
+      "description": "Optional: user to run commands/tasks as on targets (e.g. 'root'). When omitted, commands run as the SSH transport user (typically 'bolt'). The GUI requests escalation per-invocation via 'sudo ' prefix (for ad-hoc commands) or --run-as (for tasks).",
+      "type": "Optional[String]"
     },
     "run_as_command": {
-      "description": "Command used to change user (e.g. ['sudo'] or ['sudo', '-E']). Defaults to ['sudo']",
-      "type": "Optional[Array[String]]",
-      "default": ["sudo"]
+      "description": "Optional: command used to change user when run_as is specified (e.g. ['sudo'] or ['sudo', '-E']). Only relevant if run_as is also supplied.",
+      "type": "Optional[Array[String]]"
     }
   }
 }

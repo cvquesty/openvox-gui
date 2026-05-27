@@ -30,11 +30,19 @@ ssl_verify      = params.fetch('ssl_verify', false)
 api_token       = params['api_token']
 token_file      = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
 
-# Run-as settings (defaults to running as root via sudo — the recommended
-# pattern so that commands from the GUI Orchestration page are executed
-# with proper privilege while still connecting as the limited bolt user).
-run_as          = params.fetch('run_as', 'root')
-run_as_command  = params.fetch('run_as_command', ['sudo'])
+# Run-as settings (default: none — commands/tasks run as the SSH user
+# configured in the inventory transport (typically the 'bolt' service account).
+# The GUI Orchestration page (or an operator at the shell) requests escalation
+# per-invocation: for ad-hoc commands by prefixing "sudo " in the command string,
+# for tasks/scripts by passing --run-as. This keeps CLI (`bolt ...` as the bolt
+# shell user) and GUI behavior consistent and makes "whoami" return "bolt" by
+# default from both surfaces.
+#
+# Only inject run-as / run-as-command into targets if the caller explicitly
+# passed them as plugin parameters in inventory.yaml. This prevents the plugin
+# from forcing escalation on every Bolt invocation (including direct CLI use).
+run_as          = params['run_as']
+run_as_command  = params['run_as_command']
 
 # Support reading token from a file (preferred for the local bolt user)
 if (api_token.nil? || api_token.empty?) && File.exist?(token_file)
@@ -113,9 +121,13 @@ groups.each do |grp|
       },
     }
 
-    # Inject run-as settings so commands from the GUI are run with sudo as root
-    # by default. This can be overridden via plugin parameters if needed.
-    if run_as && !run_as.empty?
+    # Only inject run-as settings if the inventory _plugin stanza explicitly
+    # supplied them. By default we do *not* force escalation — the SSH user
+    # (bolt) runs commands as itself unless the operator or GUI requests sudo.
+    # This keeps direct CLI `bolt command run` / `bolt task run` (as the bolt
+    # shell user) and GUI Orchestration defaults producing identical results
+    # (e.g. whoami returns "bolt" from both when no escalation is requested).
+    if run_as && !run_as.to_s.empty?
       target['config'][transport] ||= {}
       target['config'][transport]['run-as'] = run_as
     end

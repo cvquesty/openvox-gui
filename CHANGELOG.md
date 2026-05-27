@@ -27,23 +27,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed — Orchestration now always uses the bolt user's sudoers on targets
+### Fixed — CLI/GUI parity for privilege escalation and effective user on targets
 
-- For Run Command and Run Task from the Orchestration page, the backend now
-  always prepends "sudo " to the (normalized) command.
-- This makes the command run as the bolt user (the SSH user), then use
-  sudo on the target — using the sudoers entry the bolt user already has
-  (the broad ALL rule or any explicit one).
-- The "radio button" / checkbox for choosing connecting user vs root has
-  been removed from the simple forms to simplify the experience (as requested).
-- The sudo is now transparent: the operator just types the command, and
-  it goes through the existing sudoers for privileged operations.
-- This resolves the "CLI arguments run-as might be overridden" warning
-  and the complexity around the choice.
-- The permission denied on system dirs should go away once the command
-  actually goes through sudo as root (after the chown on the target).
+- Removed the unconditional `sudo ` prepending for *every* Orchestration command/task.
+  The GUI now defaults to the same behavior as a direct `bolt` invocation run as
+  the `bolt` shell user on the controller: commands execute on targets as the SSH
+  transport user (`bolt`) unless escalation is explicitly requested.
+- `whoami` (and similar diagnostics) from the GUI Run Command tab with the new
+  "Run privileged" checkbox *unchecked* now returns "bolt" — identical to
+  `bolt command run "whoami" -t <node>` executed from a shell as the bolt user.
+- Added a clear, correctly labeled checkbox to the Run Command tab:
+  "Run privileged (use sudo on target via the bolt user's sudoers entry)".
+  Unchecked (default) = run as bolt (matches CLI); checked = transparently prefix
+  `sudo ` so the bolt user's existing target sudoers entry is exercised.
+- Fixed the inverted/broken checkbox in the Run Task tab (variable naming, label,
+  description, and backend wiring were all contradictory). It now consistently
+  controls whether `--run-as` is passed for tasks (the only mechanism that works
+  for Bolt task names).
+- Backend `run_command` now uses the existing `_command_needs_root` heuristic:
+  even with the checkbox unchecked, common privileged commands (puppet agent,
+  systemctl, yum/dnf/apt, reboot, etc.) still escalate automatically via the
+  `sudo ` prefix for operator convenience.
+- Backend `run_task` no longer prepends the nonsensical "sudo " to task names;
+  it correctly passes `--run-as <value>` only when the frontend requests it.
+- The `openvox_enc` Bolt inventory plugin and `inventory.yaml.example` no longer
+  inject `run-as: root` / `run-as-command` globally by default. Global injection
+  forced escalation on *every* `bolt` invocation (including direct CLI use by the
+  bolt shell user) and produced override warnings. Escalation is now a per-invocation
+  decision controlled by the GUI or the operator typing `sudo` in the command string.
+- Updated `docs/SUDOERS.md`, `bolt-plugin/README.md`, and the example inventory to
+  document the final model: SSH transport is always `bolt`; targets need a sudoers
+  entry for bolt (broad `ALL: NOPASSWD: ALL` is the practical choice while the
+  ad-hoc command box accepts arbitrary input); the GUI toggle + heuristic (or
+  explicit `sudo ` in CLI) is what triggers escalation; CLI and GUI now produce
+  matching results for the same command.
+- Controller-side sudoers (for the `puppet` service user to invoke bolt, certbot,
+  journalctl, etc.) remains fully explicit with no wildcards.
+- This resolves the observed disparity where the same `whoami` command produced
+  "bolt" on the CLI but "root" from the GUI, and restores the ability for both
+  surfaces to demonstrate "as bolt" (default) vs "as root via bolt's sudoers".
 
-### Changed — Orchestration Privilege Model
+### Changed — Orchestration Privilege Model (prior iteration, superseded)
 
 - Run Command and Run Task now default to privileged execution
   (using the inventory's run-as + the sudoers entry the bolt user has

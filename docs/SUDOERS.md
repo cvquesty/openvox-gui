@@ -146,55 +146,81 @@ The recommended security model is:
 - The `bolt` user has only **explicit** sudo rights.
 - The environment of the `bolt` user is preserved when escalating (so `/opt/puppetlabs/bin` is in `$PATH`, etc.).
 
-### Required sudoers settings on targets
+### Required sudoers settings on targets (for the `bolt` service account)
 
-Create `/etc/sudoers.d/bolt` with the following:
+The `bolt` user on *destination machines* (agents and other nodes) is the SSH
+account used by both direct CLI `bolt ...` invocations (when you `sudo su - bolt`
+on the controller and run commands) *and* by every operation from the GUI
+Orchestration page.
+
+Because the Orchestration "Run Command" box accepts *arbitrary* operator-typed
+commands (`puppet agent -t`, `systemctl restart foo`, `yum install ...`,
+custom scripts, `whoami`, `ls -l /root`, etc.), the bolt user on targets needs
+the ability to escalate via sudo for essentially anything the operator may type.
+
+During the phase where you are actively using the GUI for day-to-day
+orchestration and diagnostics, the practical (and recommended) rule on targets is
+the broad one:
 
 ```sudoers
-# Bolt service user configuration
+# Bolt service user on targets — broad rule while the Orchestration ad-hoc
+# command surface is the primary way operators run arbitrary work.
+# The audit trail comes from:
+#   - GUI Execution History (who ran what, when, from where)
+#   - Target /var/log/secure or journalctl (sudo log entries)
+#   - Bolt job logs on the controller
 Defaults:bolt !requiretty
-
-# Preserve the bolt user's PATH (and other safe variables) when using sudo -E.
-# This is required so that /opt/puppetlabs/bin is in $PATH when the GUI runs
-# commands like "puppet agent -t" through sudo.
 Defaults:bolt env_keep += "PATH"
 Defaults:bolt !env_reset
-
-# Also extend secure_path (if your global sudoers sets one) so sudo itself
-# knows where puppet lives. This is the most common cause of
-# "puppet: command not found" when running via the GUI.
 Defaults:bolt secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/opt/puppetlabs/bin
 
-# Explicit list of allowed commands (no broad wildcards)
-bolt ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet agent --config /etc/puppetlabs/puppet/puppet.conf *
-bolt ALL=(root) NOPASSWD: /usr/bin/systemctl *
-bolt ALL=(root) NOPASSWD: /usr/bin/journalctl *
-bolt ALL=(root) NOPASSWD: /usr/bin/tail *
+bolt ALL=(ALL) NOPASSWD: ALL
 ```
 
-### Inventory transport settings (required pair)
+You *can* tighten this later to an explicit allowlist of binaries once your
+operational patterns are stable and you are comfortable curating the list
+(`puppet`, `systemctl`, `journalctl`, `yum`/`dnf`/`apt`, etc.). The model
+(SSH as bolt + sudo via the bolt user's sudoers entry when the GUI or operator
+requests escalation) stays the same.
 
-In your `inventory.yaml` (or the dynamic ENC groups), use:
+Environment preservation (`env_keep`, `!env_reset`, `secure_path`) is still
+required so that `puppet`, `bolt`, etc. are found in `$PATH` and the correct
+`PUPPET_*DIR` variables are available when the GUI runs normalized commands
+under sudo.
+
+### Inventory transport settings
+
+In `inventory.yaml` (or the dynamic ENC groups from the GUI), the transport
+is configured as the `bolt` SSH user. **We deliberately do not set a global
+`run-as` / `run-as-command` at the inventory level or via the openvox_enc
+plugin defaults.**
 
 ```yaml
 config:
+  transport: ssh
   ssh:
+    host-key-check: false
     user: bolt
     private-key: /etc/puppetlabs/bolt/id_bolt
-    host-key-check: false
-
-    # This tells Bolt to run commands as root using sudo -E (preserve env)
-    run-as: root
-    run-as-command:
-      - sudo
-      - -E
+    # No global run-as here. Escalation is requested per-invocation by the
+    # GUI (checkbox + heuristic for ad-hoc commands, --run-as for tasks) or
+    # by the operator typing `sudo ...` in the command string from the shell.
 ```
 
-This combination (`sudo -E` + `!env_reset` + `env_keep`) is what allows the `bolt` user's environment (especially `$PATH`) to be available when running privileged commands from the GUI.
+The `openvox_enc` plugin no longer injects `run-as: root` by default. If you
+explicitly pass `run_as` / `run_as_command` parameters in a `_plugin:` stanza
+you can still force it for specific groups, but the normal operating mode is
+"run as the SSH user (bolt) unless the operator/GUI asks for sudo".
 
-The `openvox_enc` plugin automatically injects `run-as: root` + `run-as-command: ["sudo"]` on all targets it returns (you can override via plugin parameters if needed). This makes the sudo escalation behavior the default for anything discovered through the OpenVox GUI Node Classifier.
+This design guarantees that a direct `bolt command run "whoami" -t ovagent1`
+(run as the bolt shell user on the controller) and the same command from the
+GUI Orchestration page with the "Run privileged" box *unchecked* produce
+identical results ("bolt").
 
-**Strong recommendation**: Replace any existing broad rule (`bolt ALL=(ALL) NOPASSWD: ALL`) with the explicit version above. The broad rule defeats the security model and removes the audit trail that sudo provides.
+When the box *is* checked (or the command matches the privileged heuristic),
+the GUI backend prefixes `sudo ` and the target sudoers entry for bolt is
+exercised — `whoami` returns "root", `puppet agent -t` succeeds even when the
+bolt user does not own the system Puppet cache/SSL directories, etc.
 
 ## ovox CLI
 

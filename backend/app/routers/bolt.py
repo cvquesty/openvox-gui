@@ -417,14 +417,33 @@ async def run_command(
     start_time = time.time()
     normalized = _normalize_command_for_gui(req.command)
 
-    # For all commands from the Orchestration page, we run them as the bolt user
-    # (the SSH user), and prepend "sudo " so that privileged commands use the
-    # sudoers entry the bolt user already has on the target.
-    # This is transparent to the operator and uses the existing sudoers.
-    # No --run-as flag is sent to Bolt (avoids the inventory override warning).
-    command = "sudo " + normalized
+    # Determine escalation for the target.
+    # - Default: run the command literally as the SSH user configured in inventory
+    #   (the 'bolt' service account). This makes GUI diagnostics like `whoami`
+    #   produce the same result as a direct `bolt command run "whoami" -t ...`
+    #   executed from a shell while logged in as the bolt user on the controller.
+    # - When req.run_as is explicitly provided (frontend checkbox) or the command
+    #   matches the privileged heuristic (puppet agent, systemctl, package ops, etc.),
+    #   we prepend "sudo " to the command string. Bolt then executes `sudo <cmd>`
+    #   on the target *as the SSH user (bolt)*, which exercises the bolt user's
+    #   sudoers entry on the target. This is transparent to the operator.
+    #
+    # We deliberately use the literal sudo prefix (instead of Bolt's --run-as flag)
+    # for the common root-via-sudoers path. This avoids "arguments might be
+    # overridden by Inventory" warnings and works regardless of whether the
+    # inventory.yaml or openvox_enc plugin injects a global run-as setting.
+    #
+    # Only advanced/non-root run_as values result in an explicit --run-as flag.
+    escalate = bool(req.run_as) or _command_needs_root(normalized)
+    command = ("sudo " + normalized) if escalate else normalized
 
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
+
+    # For non-root explicit run_as (rare/advanced), pass --run-as so Bolt uses
+    # the configured run-as-command. The primary privileged path (root via the
+    # bolt user's existing sudoers) uses the sudo prefix above and omits --run-as.
+    if req.run_as and req.run_as != "root":
+        args.extend(["--run-as", req.run_as])
 
     result = await run_bolt_command(args, timeout=300)
     duration_ms = int((time.time() - start_time) * 1000)
@@ -469,11 +488,19 @@ async def run_task(
     # Execute task
     start_time = time.time()
 
-    # For tasks from the Orchestration page, always prepend "sudo " so it uses
-    # the sudoers entry the bolt user has on the target (transparent to the operator).
-    task_cmd = "sudo " + req.task
+    # For Bolt *tasks*, the "sudo " prefix trick does not apply (task names are not
+    # shell command strings). Escalation is controlled exclusively via Bolt's
+    # --run-as flag, which uses the run-as-command configured in inventory or
+    # the target's sudoers if the SSH user (bolt) is allowed to sudo.
+    #
+    # Default (no run_as in request): task runs as the SSH user (bolt) on the target.
+    # This matches direct `bolt task run ...` from a shell as the bolt user.
+    # When the frontend sends run_as (e.g. 'root'), we pass --run-as so Bolt
+    # escalates using the target's configured mechanism (typically sudo).
+    args = ["task", "run", req.task, "--targets", resolved_targets, "--format", fmt]
+    if req.run_as:
+        args.extend(["--run-as", req.run_as])
 
-    args = ["task", "run", task_cmd, "--targets", resolved_targets, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
 
