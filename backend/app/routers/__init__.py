@@ -15,6 +15,7 @@ Each router module handles a specific domain of functionality.
 - execution_history.py - Bolt execution history tracking and statistics
 - facts.py - Fact Explorer (query and explore PuppetDB facts)
 - nodes.py - Node management and status (list, details, Run OpenVox)
+- maintenance.py - Holistic maintenance program (enable/disable/status, 503 middleware, static page fallback)
 - performance.py - Performance metrics and monitoring data
 - pql.py - PQL Console (execute Puppet Query Language queries)
 - reports.py - Compliance reports and audit data
