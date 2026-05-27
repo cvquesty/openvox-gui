@@ -37,9 +37,86 @@ if [ ! -d "${REPO_DIR}/backend" ]; then
     exit 1
 fi
 
+# ─── Maintenance Mode Helpers (Holistic Program) ─────────────────────────────
+# These ensure that any time deploy.sh (or the scripts that call it) runs,
+# web users see a branded "Under Maintenance" page instead of errors/JSON
+# while files are being replaced and the service is restarted.
+
+MAINT_DATA_DIR="${INSTALL_DIR}/data"
+MAINT_FLAG="${MAINT_DATA_DIR}/maintenance.flag"
+MAINT_JSON="${MAINT_DATA_DIR}/maintenance.json"
+MAINT_DIR="${INSTALL_DIR}/maintenance"
+MAINT_HTML="${MAINT_DIR}/maintenance.html"
+MAINT_DEFAULT_HTML="${MAINT_DIR}/maintenance-formal.html"
+
+enable_maintenance_page() {
+    local msg="${1:-Applying OpenVox GUI updates}"
+    local eta="${2:-20 minutes}"
+
+    echo "[M] Enabling maintenance mode..."
+
+    # Ensure the maintenance assets directory exists (copied earlier in this script or by install/update)
+    if [ ! -f "${MAINT_DEFAULT_HTML}" ]; then
+        # Fallback: create a minimal page if the themed one isn't present yet
+        mkdir -p "${MAINT_DIR}"
+        cat > "${MAINT_DEFAULT_HTML}" << 'HTMLEOF'
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>OpenVox GUI — Maintenance</title>
+<style>body{font-family:sans-serif;background:#f8f9fa;color:#222;padding:2rem;text-align:center}</style></head>
+<body><h1>OpenVox GUI is under maintenance</h1><p>Updates are in progress. Please try again shortly.</p></body></html>
+HTMLEOF
+    fi
+
+    # Ensure a canonical maintenance.html exists for the Apache Alias
+    if [ -f "${MAINT_DEFAULT_HTML}" ]; then
+        cp -f "${MAINT_DEFAULT_HTML}" "${MAINT_HTML}" 2>/dev/null || true
+        chmod 644 "${MAINT_HTML}" 2>/dev/null || true
+    fi
+
+    mkdir -p "${MAINT_DATA_DIR}"
+
+    # Write rich state for the backend + ovox CLI
+    cat > "${MAINT_JSON}" << EOF
+{
+  "enabled": true,
+  "started_at": "$(date -Iseconds)",
+  "message": "${msg}",
+  "eta": "${eta}",
+  "activated_by": "deploy.sh"
+}
+EOF
+    chmod 644 "${MAINT_JSON}" 2>/dev/null || true
+
+    # Touch the simple flag that Apache RewriteCond watches
+    touch "${MAINT_FLAG}"
+    chmod 644 "${MAINT_FLAG}" 2>/dev/null || true
+
+    # Make sure the data dir is traversable by the web server user (best effort)
+    chmod 755 "${MAINT_DATA_DIR}" 2>/dev/null || true
+    chmod -R a+rX "${MAINT_DIR}" 2>/dev/null || true
+
+    # Best-effort: tell Apache to re-read its config / maintenance rules
+    systemctl reload httpd 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+
+    echo "  + Maintenance page is now active (flag + JSON written)"
+}
+
+disable_maintenance_page() {
+    echo "[M] Disabling maintenance mode..."
+    rm -f "${MAINT_FLAG}" "${MAINT_JSON}" 2>/dev/null || true
+    systemctl reload httpd 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+    echo "  + Maintenance page removed"
+}
+
+# Guarantee that maintenance is turned off when the script exits (success or failure)
+trap 'disable_maintenance_page' EXIT ERR INT TERM
+
 echo "=== OpenVox GUI Deploy ==="
 echo "  Source: ${REPO_DIR}"
 echo "  Target: ${INSTALL_DIR}"
+
+# Raise the maintenance page immediately so web users see the branded static page
+# (via Apache) instead of errors while we replace files and restart the service.
+enable_maintenance_page "Running deploy.sh from ${REPO_DIR}" "20 minutes"
 
 # 1. Deploy files from repo to install dir
 echo "[1/6] Deploying files..."
@@ -89,6 +166,17 @@ if [ -d "${REPO_DIR}/packages" ]; then
             chmod 0644 "${INSTALL_DIR}/packages/${tmpl}"
         fi
     done
+fi
+
+# Copy (or update) the maintenance pages directory. This ensures the branded
+# "Under Maintenance" HTML files are always present so that install/update
+# operations can automatically surface the maintenance page via Apache when
+# the flag is set.
+if [ -d "${REPO_DIR}/maintenance" ]; then
+    rm -rf "${INSTALL_DIR}/maintenance"
+    cp -a "${REPO_DIR}/maintenance" "${INSTALL_DIR}/"
+    chmod -R a+rX "${INSTALL_DIR}/maintenance" 2>/dev/null || true
+    echo "  + maintenance pages (formal/casual)"
 fi
 
 # 2. Update Python dependencies

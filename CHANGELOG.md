@@ -61,6 +61,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Maintenance pages are now shown automatically during install and updates
+
+- `install.sh`, `update_local.sh`, `update_remote.sh` (via `deploy.sh`), and the core deployment logic now automatically raise the maintenance flag and ensure the branded static page is in place at the beginning of the risky phase (file replacement, dependency updates, service restart).
+- A shell `trap` guarantees the flag is removed on script exit (success, failure, or interruption).
+- The `maintenance/` directory (HTML pages + Apache snippet) is now copied as part of every install and update, so the static assets are always present on the target.
+- The standard flag location used by both the backend and Apache is now consistently `/opt/openvox-gui/data/maintenance.flag` (with rich state in the companion `.json` file). The example `apache-maintenance.conf` and README have been updated to the new paths.
+- Web users see the themed maintenance page (Formal or Casual) via Apache instead of errors or raw JSON the entire time these scripts are running.
+- Operators using `ovox maintenance status` still see the rich details (message, ETA, who activated it).
+- This completes the "holistic maintenance program" promise: the three main entry-point scripts (`install.sh`, the two update scripts) now participate fully and automatically.
+
 ### Improved — Log Viewer readability
 
 - In the **Logs | Log Viewer** page, log lines are now enhanced for better scannability across all tabs:

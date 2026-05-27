@@ -677,6 +677,72 @@ if [ -d "${SCRIPT_DIR}/frontend" ]; then
     log_ok "Copied frontend source"
 fi
 
+# Copy maintenance pages (formal + casual themed "Under Maintenance" HTML,
+# Apache config snippet, and README). These are used by the holistic
+# maintenance program so that update/install operations can automatically
+# display a branded page instead of errors or JSON while the GUI is being
+# replaced.
+if [ -d "${SCRIPT_DIR}/maintenance" ]; then
+    rm -rf "${INSTALL_DIR}/maintenance"
+    cp -a "${SCRIPT_DIR}/maintenance" "${INSTALL_DIR}/"
+    chmod -R a+rX "${INSTALL_DIR}/maintenance" 2>/dev/null || true
+    log_ok "Copied maintenance pages (for automatic use during updates/installs)"
+fi
+
+# ─── Maintenance Mode (Holistic Program) ─────────────────────────
+# On install or re-install, automatically surface the branded maintenance page
+# via Apache (if configured) so users don't see errors/JSON while files are
+# being laid down and the service is (re)started.
+
+MAINT_DATA_DIR="${INSTALL_DIR}/data"
+MAINT_FLAG="${MAINT_DATA_DIR}/maintenance.flag"
+MAINT_JSON="${MAINT_DATA_DIR}/maintenance.json"
+MAINT_DIR="${INSTALL_DIR}/maintenance"
+MAINT_HTML="${MAINT_DIR}/maintenance.html"
+MAINT_DEFAULT_HTML="${MAINT_DIR}/maintenance-formal.html"
+
+enable_maintenance_page() {
+    local msg="${1:-Installing or upgrading OpenVox GUI}"
+    local eta="${2:-15 minutes}"
+    echo -e "${CYAN}→${NC} Enabling maintenance mode (branded page will be shown to web users)..."
+    if [ -f "${MAINT_DEFAULT_HTML}" ]; then
+        cp -f "${MAINT_DEFAULT_HTML}" "${MAINT_HTML}" 2>/dev/null || true
+        chmod 644 "${MAINT_HTML}" 2>/dev/null || true
+    fi
+    mkdir -p "${MAINT_DATA_DIR}"
+    cat > "${MAINT_JSON}" << EOF
+{
+  "enabled": true,
+  "started_at": "$(date -Iseconds)",
+  "message": "${msg}",
+  "eta": "${eta}",
+  "activated_by": "install.sh"
+}
+EOF
+    chmod 644 "${MAINT_JSON}" 2>/dev/null || true
+    touch "${MAINT_FLAG}"
+    chmod 644 "${MAINT_FLAG}" 2>/dev/null || true
+    chmod 755 "${MAINT_DATA_DIR}" 2>/dev/null || true
+    chmod -R a+rX "${MAINT_DIR}" 2>/dev/null || true
+    systemctl reload httpd 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+    echo -e "${GREEN}✔${NC} Maintenance page active"
+}
+
+disable_maintenance_page() {
+    echo -e "${CYAN}→${NC} Disabling maintenance mode..."
+    rm -f "${MAINT_FLAG}" "${MAINT_JSON}" 2>/dev/null || true
+    systemctl reload httpd 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+}
+
+# Guarantee cleanup even if the script is interrupted or fails partway through.
+trap 'disable_maintenance_page' EXIT ERR INT TERM
+
+# Enable maintenance as soon as the pages and data dir exist (Step 2/3).
+# This protects any existing web proxy during an upgrade/re-install.
+if [ -d "${MAINT_DIR}" ] || [ -f "${MAINT_DEFAULT_HTML}" ]; then
+    enable_maintenance_page "Running install.sh (version ${VERSION})" "20 minutes"
+fi
+
 # ─── Step 4: Python Virtual Environment ──────────────────────
 
 log_step 4 "Python Virtual Environment"

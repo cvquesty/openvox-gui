@@ -243,8 +243,70 @@ else
     fi
 fi
 
+# Ensure the maintenance pages directory is deployed/updated. These provide the
+# branded static "Under Maintenance" HTML that Apache serves when the flag is
+# present. The update process will automatically raise/lower the flag around
+# the risky parts of the deploy.
+if [ -d "${REPO_DIR}/maintenance" ]; then
+    rm -rf "${INSTALL_DIR}/maintenance"
+    cp -a "${REPO_DIR}/maintenance" "${INSTALL_DIR}/"
+    chmod -R a+rX "${INSTALL_DIR}/maintenance" 2>/dev/null || true
+    log_ok "Deployed maintenance pages (formal + casual)"
+fi
+
 # Record which branch was deployed (used for branch-switch detection)
 echo "${REPO_BRANCH}" > "${INSTALL_DIR}/.deployed-branch"
+
+# ─── Maintenance Mode (Holistic Program) ─────────────────────────
+# Automatically show the branded maintenance page while this update runs.
+MAINT_DATA_DIR="${INSTALL_DIR}/data"
+MAINT_FLAG="${MAINT_DATA_DIR}/maintenance.flag"
+MAINT_JSON="${MAINT_DATA_DIR}/maintenance.json"
+MAINT_DIR="${INSTALL_DIR}/maintenance"
+MAINT_HTML="${MAINT_DIR}/maintenance.html"
+MAINT_DEFAULT_HTML="${MAINT_DIR}/maintenance-formal.html"
+
+enable_maintenance_page() {
+    local msg="${1:-Applying OpenVox GUI update}"
+    local eta="${2:-20 minutes}"
+    log_step "Enabling maintenance mode"
+    if [ ! -f "${MAINT_DEFAULT_HTML}" ] && [ -d "${REPO_DIR}/maintenance" ]; then
+        rm -rf "${MAINT_DIR}"
+        cp -a "${REPO_DIR}/maintenance" "${MAINT_DIR}/"
+        chmod -R a+rX "${MAINT_DIR}" 2>/dev/null || true
+    fi
+    if [ -f "${MAINT_DEFAULT_HTML}" ]; then
+        cp -f "${MAINT_DEFAULT_HTML}" "${MAINT_HTML}" 2>/dev/null || true
+        chmod 644 "${MAINT_HTML}" 2>/dev/null || true
+    fi
+    mkdir -p "${MAINT_DATA_DIR}"
+    cat > "${MAINT_JSON}" << EOF
+{
+  "enabled": true,
+  "started_at": "$(date -Iseconds)",
+  "message": "${msg}",
+  "eta": "${eta}",
+  "activated_by": "update_local.sh"
+}
+EOF
+    chmod 644 "${MAINT_JSON}" 2>/dev/null || true
+    touch "${MAINT_FLAG}"
+    chmod 644 "${MAINT_FLAG}" 2>/dev/null || true
+    chmod 755 "${MAINT_DATA_DIR}" 2>/dev/null || true
+    systemctl reload httpd 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+    log_ok "Maintenance page is active"
+}
+
+disable_maintenance_page() {
+    log_info "Disabling maintenance mode..."
+    rm -f "${MAINT_FLAG}" "${MAINT_JSON}" 2>/dev/null || true
+    systemctl reload httpd 2>/dev/null || systemctl reload apache2 2>/dev/null || true
+}
+
+trap 'disable_maintenance_page' EXIT ERR INT TERM
+
+# Raise maintenance page as early as possible (before we touch the running service or files)
+enable_maintenance_page "Running update_local.sh for ${REPO_BRANCH}" "25 minutes"
 
 # Update systemd service file (substitute INSTALL_DIR, preserve existing user/port)
 SERVICE_USER="puppet"

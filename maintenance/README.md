@@ -21,14 +21,17 @@ Both pages are completely self-contained (Tailwind via CDN for rapid visual qual
 
 The classic and most reliable pattern uses a flag file.
 
-### 1. Place the maintenance page
+### 1. Place the maintenance page (usually automatic)
 
-Copy the version you want to use:
+The deployment scripts (`install.sh`, `update_*`, `deploy.sh`) automatically copy the maintenance pages into `/opt/openvox-gui/maintenance/` and maintain the canonical `maintenance.html` there.
 
-```bash
-sudo cp maintenance/maintenance-casual.html /var/www/maintenance/maintenance.html
-sudo mkdir -p /var/www/maintenance
+If you are configuring Apache manually, point the Alias at the deployed location:
+
+```apache
+Alias /maintenance.html /opt/openvox-gui/maintenance/maintenance.html
 ```
+
+(You can still copy a page manually to a different location if you prefer; just update your vhost accordingly.)
 
 (Adjust the path to match your Apache `DocumentRoot` or a dedicated location.)
 
@@ -46,12 +49,13 @@ In your OpenVox GUI virtual host (usually in `/etc/httpd/conf.d/openvox-gui.conf
     # When /var/www/maintenance/maintenance.flag exists, serve the nice page
     # instead of proxying to the GUI backend.
     RewriteEngine On
-    RewriteCond /var/www/maintenance/maintenance.flag -f
+    RewriteCond /opt/openvox-gui/data/maintenance.flag -f
     RewriteCond %{REQUEST_URI} !/maintenance.html
+    RewriteCond %{REQUEST_URI} !/favicon.ico
     RewriteRule ^ /maintenance.html [R=503,L]
 
-    # Serve the static maintenance page
-    Alias /maintenance.html /var/www/maintenance/maintenance.html
+    # Serve the static maintenance page (maintained by the deployment scripts)
+    Alias /maintenance.html /opt/openvox-gui/maintenance/maintenance.html
 
     # Normal proxy to the GUI (only active when flag is absent)
     ProxyPreserveHost On
@@ -97,6 +101,25 @@ The official logo must remain the unmodified version from the voxpupuli/logos re
 - Add a real countdown timer using a small script if you want more precision.
 - Include a link to an internal status page or your team's Slack/Teams channel.
 - For very long maintenance windows, add a "What we're changing" bullet list (see the third concept image in the design exploration).
+
+## Automatic Maintenance During Install & Updates
+
+As of the 3.7.3 series, `install.sh`, `update_local.sh`, `update_remote.sh`, and the underlying `deploy.sh` **automatically** manage maintenance mode:
+
+- At the start of the risky phase (file replacement, venv rebuild, service restart), they raise the maintenance flag and ensure the branded static page is in place.
+- A shell `trap` guarantees the flag is removed (maintenance disabled) when the script exits — whether it succeeds or fails.
+- Web users (via Apache) see the themed "Under Maintenance" page instead of errors or JSON.
+- The backend returns clean 503s with details for API clients and `ovox`.
+- All underlying Puppet/OpenVox services continue running normally.
+
+You no longer need to manually run `ovox maintenance enable/disable` around updates — the scripts do it for you.
+
+The flag and state files live at:
+- `/opt/openvox-gui/data/maintenance.flag`
+- `/opt/openvox-gui/data/maintenance.json`
+
+The canonical HTML served by Apache lives at:
+- `/opt/openvox-gui/maintenance/maintenance.html` (maintained by the scripts from the formal or casual variant)
 
 ## Holistic Maintenance Program (Recommended)
 
