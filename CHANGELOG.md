@@ -105,7 +105,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed — "Run OpenVox" button on Node Detail page ignored system puppet.conf
+### Fixed — "Run OpenVox" button on Node Detail page must explicitly request privileged execution
+
+- The per-node "Run OpenVox" button was calling the generic `bolt.runCommand`
+  without setting `run_as: 'root'`.
+- While the backend heuristic (`_command_needs_root`) would usually catch
+  "puppet agent" and prepend `sudo `, making the call explicitly privileged
+  ensures:
+  - The sudo path is taken reliably (exercising the `bolt` user's sudoers on
+    the target via the established transparent sudo model).
+  - Combined with the normalization improvements (env vars + flags for
+    system `puppet.conf`, `ssldir`, `vardir`), the agent always runs with
+    full knowledge of the system configuration.
+- Updated the button handler to always send `run_as: 'root'`. This matches
+  the user's expectation that "Run OpenVox" / `puppet agent -t` from the GUI
+  is inherently a privileged operation and must behave as one.
+- The backend still supports the heuristic for free-form commands, but
+  dedicated privileged actions like this button are now explicit.
+
+This, together with the previous normalization fix for full-path puppet commands
+and the SSH `bolt` user prerequisite, makes the per-node "Run OpenVox" feature
+robust when the target has the orchestration user configured.
 
 - The per-node "Run OpenVox" button (in Node Detail) was sending the command with the
   full path (`/opt/puppetlabs/bin/puppet agent -t`) directly to the generic

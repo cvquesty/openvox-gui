@@ -133,6 +133,13 @@ export function NodeDetailPage() {
       const r = await bolt.runCommand({
         command: '/opt/puppetlabs/bin/puppet agent -t',
         targets: certname,
+        // Explicitly privileged so the backend treats this as a root-requiring
+        // operation on the target: prepends "sudo " (to exercise the bolt
+        // user's sudoers on the target) and ensures the full normalization
+        // (PUPPET_* env vars + --config/--ssldir/--vardir flags) is applied.
+        // Without this, the agent can fall back to per-user paths under ~bolt
+        // and resolve the server as the unqualified name "puppet".
+        run_as: 'root',
       });
       setPuppetResult(r);
       // Puppet exit codes: 0 = no changes, 2 = changes applied successfully, anything else = error
