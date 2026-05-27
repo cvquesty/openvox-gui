@@ -122,6 +122,18 @@ See the detailed sections below for the full history of changes that led to this
 
 ## [Unreleased]
 
+### Fixed — Signed Certificates table in CA pane did not scroll
+
+- The "Signed Certificates" list in Infrastructure | Certificate Authority only showed ~4 entries visibly with no scrollbar, even when many more signed certs existed (the count badge was correct).
+- Root cause: The `<ScrollArea mah={500}>` was nested inside an unconstrained `<Card>` within a vertical `<Stack>`. The table content caused the parent Card to grow freely, so the ScrollArea's max-height never established a proper bounded viewport (only ~4 rows fit before layout constraints from the page or browser interfered).
+- Fix: Applied the established flex-column + constrained height pattern used elsewhere in the app (e.g. ResourceExplorer, MetricsCatalog):
+  - Added `style={{ display: 'flex', flexDirection: 'column', maxHeight: 520 }}` to the Signed Certificates Card (keeps title visible, limits overall pane height).
+  - Changed inner ScrollArea to `h="100%"` with `style={{ flex: 1, minHeight: 0 }}` (plus `offsetScrollbars` and `scrollbarSize` for polish). The table now scrolls internally once it exceeds the allocated space.
+- The list now properly scrolls for larger numbers of signed certificates while maintaining the rest of the CA page layout.
+- This resolves GitHub issue #20.
+
+The alphabetical sort on certnames (added in prior work) remains in place.
+
 ### Fixed — "Run OpenVox" button on Node Detail page must explicitly request privileged execution
 
 - The per-node "Run OpenVox" button was calling the generic `bolt.runCommand`
