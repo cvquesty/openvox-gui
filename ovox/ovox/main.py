@@ -188,6 +188,12 @@ cli.add_typer(nodes.app, name="nodes", help="Node inventory, facts, reports, and
 cli.add_typer(certs.app, name="certs", help="Certificate authority operations (sign, revoke, audit)")
 cli.add_typer(infra.app, name="infra", help="Infrastructure health, settings inspection, recommendations and tuning (with automatic service restart on apply)")
 cli.add_typer(maintenance.app, name="maintenance", help="GUI maintenance mode (branded pages, clean 503s for APIs, and full operator control)")
+
+# Also expose maintenance under infra for discoverability (ovox infra maintenance ...)
+try:
+    infra.app.add_typer(maintenance.app, name="maintenance", help="GUI maintenance (enable/disable/status with themed pages and clean API behavior)")
+except Exception:
+    pass  # If the infra app doesn't support late addition in this build, the top-level command is still available.
 cli.add_typer(token.app, name="token", help="Manage long-lived service API tokens (for Bolt, etc.)")
 
 
