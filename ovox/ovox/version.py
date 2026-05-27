@@ -1,9 +1,13 @@
 """
 Version handling for ovox (the OpenVox CLI).
 
-ovox has its own independent version (starting 3.7.1-alpha1), separate from
-the main OpenVox GUI version. This lets the CLI evolve on its own cadence
-while still being distributed together with the GUI.
+As of OpenVox GUI 3.7.3, the ovox CLI is versioned in lockstep with the
+main GUI project. The root `VERSION` file is the single source of truth;
+`scripts/bump-version.sh` keeps `ovox/VERSION`, `__init__.py`, and
+`pyproject.toml` in sync automatically.
+
+This module provides a robust `get_version()` helper with sensible precedence
+for development, installed, and CI/packaging scenarios.
 
 Resolution order (highest priority first):
 1. OPENVOX_CLI_VERSION or OPENVOX_VERSION env var (CI / packaging override)
@@ -23,8 +27,9 @@ def get_version() -> str:
     """
     Return the best available ovox version string.
 
-    We deliberately look for an *ovox* VERSION file first so the CLI can
-    have its own release train (3.7.1-alpha1, alpha2, beta1, 3.7.1, ...).
+    With unified versioning (GUI 3.7.3+), the root VERSION and ovox/VERSION
+    are kept in sync. The precedence here still provides flexibility for
+    development, packaging, and CI overrides.
     """
     # 1. Explicit environment override (highest priority)
     for env_name in ("OPENVOX_CLI_VERSION", "OPENVOX_VERSION"):
