@@ -92,9 +92,11 @@ export function LogsPage() {
 
   /**
    * Render a single log line with visual enhancements:
-   * - FQDNs / certnames (e.g. ovagent1.pdxc-it.twitter.biz) in bold black
+   * - FQDNs / certnames (e.g. ovagent1.pdxc-it.twitter.biz) in bold bright blue
    * - Command strings being executed (puppet agent, bolt runs, sudo commands, etc.)
-   *   in bold red for easy scanning in the Orchestration and service logs.
+   *   in bold red
+   * - API calls and responses (e.g. "GET /api/dashboard/data HTTP/1.1" 200 OK)
+   *   in bold red for easy visibility of what the GUI is doing
    */
   function renderHighlightedLine(line: string, key: number): React.ReactNode {
     const nodes: React.ReactNode[] = [];
@@ -108,23 +110,36 @@ export function LogsPage() {
     const commandInvocationRegex = /(?:command\s+run\s+["']?|executing\s+["']?|running\s+["']?)([^"'\n]+?)(?:["']|$)/gi;
     const commandBinaryRegex = /\b(puppet(?:-agent)?|bolt|sudo|systemctl|journalctl|r10k|certbot)\s+[^\s].*?(?=\s{2,}|$|\s--targets|\s-i\s|\s--project)/gi;
 
+    // Regex for API calls and results in logs (e.g. "GET /api/... HTTP/1.1" 200 OK)
+    // This catches uvicorn/fastapi style access logs and similar entries common in the openvox-gui service logs.
+    const apiCallRegex = /(?:"?(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+([^\s"]+)(?:\s+HTTP\/[\d.]+)?"?)\s+(\d{3})(?:\s+([^\s"]+))?/gi;
+
     // Split the line on FQDNs (keeping the delimiters via capturing group)
     const segments = line.split(fqdnRegex);
 
     segments.forEach((segment, segIndex) => {
       if (!segment) return;
 
+      // Reset regex states for this segment (exec is stateful)
+      fqdnRegex.lastIndex = 0;
+      commandInvocationRegex.lastIndex = 0;
+      commandBinaryRegex.lastIndex = 0;
+      apiCallRegex.lastIndex = 0;
+
       // If this segment looks like an FQDN we split on, highlight it bold black
       if (fqdnRegex.test(segment) && segment.includes('.')) {
         nodes.push(
           <span
             key={`fqdn-${key}-${segIndex}`}
-            style={{ fontWeight: 700, color: '#000000' }}
+            style={{ fontWeight: 700, color: '#4dabf7' }}
           >
             {segment}
           </span>
         );
         fqdnRegex.lastIndex = 0;
+        commandInvocationRegex.lastIndex = 0;
+        commandBinaryRegex.lastIndex = 0;
+        apiCallRegex.lastIndex = 0;
         return;
       }
 
@@ -155,6 +170,7 @@ export function LogsPage() {
         if (after) nodes.push(after);
 
         commandInvocationRegex.lastIndex = 0;
+        apiCallRegex.lastIndex = 0;
         return;
       }
 
@@ -179,6 +195,36 @@ export function LogsPage() {
         if (after) nodes.push(after);
 
         commandBinaryRegex.lastIndex = 0;
+        apiCallRegex.lastIndex = 0;
+        return;
+      }
+
+      // API call / response highlighting (e.g. "GET /api/... HTTP/1.1" 200 OK)
+      // We do this on the remaining text after FQDN and command handling.
+      let apiMatch = apiCallRegex.exec(processed);
+      if (apiMatch) {
+        const fullMatch = apiMatch[0];
+        const start = processed.indexOf(fullMatch);
+
+        if (start > 0) {
+          nodes.push(processed.substring(0, start));
+        }
+
+        nodes.push(
+          <span
+            key={`api-${key}-${segIndex}`}
+            style={{ fontWeight: 700, color: '#e03131' }}
+          >
+            {fullMatch}
+          </span>
+        );
+
+        const after = processed.substring(start + fullMatch.length);
+        if (after) nodes.push(after);
+
+        commandInvocationRegex.lastIndex = 0;
+        commandBinaryRegex.lastIndex = 0;
+        apiCallRegex.lastIndex = 0;
         return;
       }
 
@@ -186,7 +232,14 @@ export function LogsPage() {
       nodes.push(segment);
       commandInvocationRegex.lastIndex = 0;
       commandBinaryRegex.lastIndex = 0;
+      apiCallRegex.lastIndex = 0;
     });
+
+    // Final cleanup of regex state
+    fqdnRegex.lastIndex = 0;
+    commandInvocationRegex.lastIndex = 0;
+    commandBinaryRegex.lastIndex = 0;
+    apiCallRegex.lastIndex = 0;
 
     return nodes;
   }

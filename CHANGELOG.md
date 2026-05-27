@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved — Log Viewer highlighting (FQDNs and API calls)
+
+- Updated the Logs | Log Viewer page line renderer:
+  - FQDNs/certnames are now rendered in **bright blue** (`#4dabf7`, bold) instead of black. This provides excellent visibility on the dark monospace log background.
+  - HTTP API calls and results (e.g. `"GET /api/dashboard/data HTTP/1.1" 200 OK`, `"POST /api/bolt/run/command ..." 200 ...`) are now detected via regex and highlighted in **bold red**, making request/response activity stand out alongside executed commands.
+- The existing command binary highlighting (puppet, bolt, sudo, etc.) remains in bold red.
+- All highlighting is applied per-line with proper regex state management so it works reliably across journalctl and file-based log sources.
+- This change makes troubleshooting much faster by drawing the eye immediately to hostnames (targets) and the actual API/command activity in the logs.
+
 ### Changed — Maintenance pages are now shown automatically during install and updates
 
 - `install.sh`, `update_local.sh`, `update_remote.sh` (via `deploy.sh`), and the core deployment logic now automatically raise the maintenance flag and ensure the branded static page is in place at the beginning of the risky phase (file replacement, dependency updates, service restart).
