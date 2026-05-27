@@ -48,6 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Maintenance pages (nice "Under Maintenance" experience instead of JSON errors)
+
+- Added a new `maintenance/` directory containing polished, self-contained "Under Maintenance" pages:
+  - `maintenance-formal.html` — Clean, professional light design matching the Formal theme (VoxPupuli Blue accents).
+  - `maintenance-casual.html` — Dark, friendly, whimsical design with a stylized OpenVox fox SVG, matching the Casual theme's tone and orange accents.
+- Both pages are completely standalone (Tailwind via CDN) so they can be served statically by Apache even when the entire FastAPI + React stack is down.
+- Included `apache-maintenance.conf` snippet and detailed `README.md` explaining the recommended flag-file + `RewriteRule` pattern for activating maintenance mode safely.
+- These pages prevent users from seeing raw JSON errors, stack traces, or ugly proxy error pages during updates or scheduled maintenance windows.
+- The pages include realistic timing information, clear messaging that backend Puppet/OpenVox services remain operational, and easy "Try again" + contact paths.
+
 ### Fixed — CLI/GUI parity for privilege escalation and effective user on targets
 
 - Removed the unconditional `sudo ` prepending for *every* Orchestration command/task.

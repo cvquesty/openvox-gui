@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenVox GUI — Under Maintenance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .brand-orange { color: #EC8622; }
+    .maintenance-card {
+      box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+    }
+    .whimsical-bg {
+      background: radial-gradient(circle at 50% 20%, #1f2937 0%, #111827 100%);
+    }
+  </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen flex items-center justify-center p-6 whimsical-bg">
+  <div class="max-w-lg w-full">
+    <!-- Logo + Branding -->
+    <div class="flex items-center justify-center gap-4 mb-8">
+      <!-- Simple stylized fox face (inspired by OpenVox branding) -->
+      <svg width="52" height="52" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="30" fill="#1e2937" stroke="#EC8622" stroke-width="3"/>
+        <!-- Ears -->
+        <path d="M18 22 L12 8 L24 16 Z" fill="#EC8622"/>
+        <path d="M46 22 L52 8 L40 16 Z" fill="#EC8622"/>
+        <!-- Face -->
+        <circle cx="32" cy="34" r="16" fill="#334155"/>
+        <!-- Eyes -->
+        <circle cx="24" cy="30" r="3.5" fill="#EC8622"/>
+        <circle cx="40" cy="30" r="3.5" fill="#EC8622"/>
+        <!-- Nose / snout -->
+        <ellipse cx="32" cy="40" rx="5" ry="3.5" fill="#EC8622"/>
+        <circle cx="32" cy="40" r="1.8" fill="#0f172a"/>
+      </svg>
+      <div>
+        <div class="text-3xl font-semibold tracking-tighter text-white">OpenVox</div>
+        <div class="text-xs text-orange-400 -mt-1 tracking-[3px] font-medium">GUI</div>
+      </div>
+    </div>
+
+    <!-- Main Content Card -->
+    <div class="bg-slate-900/70 border border-slate-700 rounded-3xl p-8 maintenance-card backdrop-blur-sm">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 text-xs font-semibold tracking-widest flex items-center gap-2">
+          <div class="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse"></div>
+          MAINTENANCE MODE
+        </div>
+      </div>
+
+      <h1 class="text-5xl font-semibold tracking-tighter text-white leading-none mb-3">
+        The puppets are<br>rehearsing.
+      </h1>
+      
+      <p class="text-slate-400 text-lg mb-7">
+        We're currently performing updates to the OpenVox GUI. The interface will return as soon as the new act is ready.
+      </p>
+
+      <!-- Fun status -->
+      <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5 mb-6 font-mono text-sm">
+        <div class="flex justify-between text-orange-300 mb-2">
+          <span>Current operation</span>
+          <span class="text-orange-400">in progress</span>
+        </div>
+        <div class="text-emerald-400">→ Sorting all the node lists alphabetically</div>
+        <div class="text-emerald-400">→ Improving privilege escalation paths</div>
+        <div class="text-slate-500 mt-2 text-xs">Started moments ago • ETA ~12 minutes</div>
+      </div>
+
+      <div class="text-sm text-slate-400">
+        Puppet runs, facts, reports, and Bolt orchestration continue to function normally in the background.
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 flex flex-col sm:flex-row gap-3 items-center justify-between text-sm">
+      <button onclick="location.reload()" 
+              class="px-5 py-2.5 rounded-2xl border border-slate-600 hover:bg-slate-800 active:bg-slate-950 transition flex items-center gap-2 text-slate-300 hover:text-white">
+        <span>Refresh the stage</span>
+      </button>
+
+      <div class="text-slate-500 text-xs sm:text-sm text-center sm:text-left">
+        Still down? Ping your friendly neighborhood<br class="hidden sm:block">OpenVox administrator.
+      </div>
+    </div>
+
+    <div class="text-center mt-10 text-[10px] tracking-widest text-slate-600">
+      OPENVOX GUI • CASUAL THEME • v3.7.3-RC1.1
+    </div>
+  </div>
+</body>
+</html>
