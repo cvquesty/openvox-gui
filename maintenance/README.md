@@ -164,7 +164,7 @@ The static HTML pages are only one part of a complete maintenance system. As of 
 
 ```bash
 # 1. Put the GUI into maintenance (web users see the nice page, APIs return 503)
-ovox maintenance enable -m "Updating to 3.7.3-RC2" -e "30 minutes" -y
+ovox maintenance enable -m "Updating to 3.7.3" -e "30 minutes" -y
 
 # 2. Perform the actual update (the update scripts can optionally do step 1+3 automatically in the future)
 OPENVOX_DEPLOY_HOST=... OPENVOX_DEPLOY_USER=... scripts/update_remote.sh --yes

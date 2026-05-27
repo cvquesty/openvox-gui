@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.7.3-RC2.2**
+**OpenVox GUI Version 3.7.3**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.7.3-RC2.2"}
+   # Should return: {"status":"ok","version":"3.7.3"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -814,7 +814,7 @@ These commands run privileged operations (reading configs, restarting services).
 ## Reports Page
 
 ### Problem: Nodes Inside Groups Appear in Random Order
-- Fixed in 3.7.3-RC2: Nodes (via report rows) inside expanded groups are now strictly alphabetical by certname.
+- Fixed in 3.7.3: Nodes (via report rows) inside expanded groups are now strictly alphabetical by certname.
 - The backend `GET /api/enc/hierarchy` sorts nodes; the frontend explicitly sorts per-group lists and report rows.
 - If you still see random order, clear browser cache or ensure you are on RC2+.
 - Group names themselves are also sorted alphabetically in the main view.

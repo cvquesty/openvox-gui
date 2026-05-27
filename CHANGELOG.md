@@ -9,7 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.7.3-RC2] - 2026-05-28
+## [3.7.3] - 2026-05-28
+
+**This is the final 3.7.3 release.** It consolidates the major work from the RC series into a stable release.
+
+### Major Deliverables in 3.7.3
+
+- **Holistic Maintenance Program**: Complete automatic maintenance mode with static branded pages (Formal/Casual), automatic flag management in all install/update/deploy scripts, `ovox maintenance` CLI, backend middleware for clean 503 responses, and Apache integration. Users no longer see raw errors during updates.
+- **Log Viewer Improvements**: Per-line highlighting for FQDNs (bright blue bold) and commands/API calls (bold red) in a dark monospace container for dramatically better scannability.
+- **Reports & Consistency**: Nodes inside groups in the Reports page now display alphabetically. Full application-wide enforcement of alphabetical ordering for every node/host list, dropdown, and selector (backed by sorted responses from `/api/nodes` and `/api/enc/hierarchy`).
+- **Script Reliability & Bug Fixes**: Automatic maintenance in scripts, hardened logging helpers, and resolution of issues in per-node "Run OpenVox" (now reliably uses system `puppet.conf` via explicit privileged execution + normalization).
+- **Documentation Overhaul**: Comprehensive updates to README, INSTALL, UPDATE, TROUBLESHOOTING, ARCHITECTURE, maintenance/README, SUDOERS, ovox/README, and all feature lists.
+- **Security Posture**: Dependabot history clean; full audit performed with no blocking 0-days or critical CVEs requiring changes for this release (detailed in prior RC notes).
+
+See the detailed sections below for the full history of changes that led to this release.
+
+## [3.7.3-RC2] - 2026-05-28 (historical)
 
 ### Major Features & Improvements
 
