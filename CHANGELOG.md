@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.8] - 2026-05-29
+
+### Bug Fixes
+- **Fact Explorer filter**: Fixed `=` and `!=` operators when filtering on string values (e.g. `os.family = "Debian"`). String comparisons are now case-insensitive and trimmed, matching the behavior of the "contains" operator. Previously they performed exact (case-sensitive) matches and often returned zero results.
+
 ## [3.7.7] - 2026-05-29
 
 ### New Features

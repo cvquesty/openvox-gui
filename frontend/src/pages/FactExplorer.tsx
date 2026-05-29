@@ -215,31 +215,42 @@ export function FactExplorerPage() {
     // 2. Filter
     rows = rows.filter((f: any) => {
       if (!filter) return true;
-      const valStr = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value);
+
+      const valStr = typeof f.value === 'object' ? JSON.stringify(f.value) : String(f.value ?? '');
+      const q = filter.trim();
 
       if (filterOp === 'contains') {
-        const q = filter.toLowerCase();
-        return f.certname?.toLowerCase().includes(q) || valStr.toLowerCase().includes(q);
+        const qLower = q.toLowerCase();
+        return (
+          (f.certname || '').toLowerCase().includes(qLower) ||
+          valStr.toLowerCase().includes(qLower)
+        );
       }
 
-      // Math operators — compare numerically when possible
-      const numFilter = parseFloat(filter);
+      // Try numeric comparison first
+      const numFilter = parseFloat(q);
       const numVal = typeof f.value === 'number' ? f.value : parseFloat(valStr);
-      if (isNaN(numFilter) || isNaN(numVal)) {
-        // Fall back to string comparison for non-numeric values
-        if (filterOp === '=') return valStr === filter;
-        if (filterOp === '!=') return valStr !== filter;
-        return false;
+
+      if (!isNaN(numFilter) && !isNaN(numVal)) {
+        switch (filterOp) {
+          case '>':  return numVal > numFilter;
+          case '>=': return numVal >= numFilter;
+          case '<':  return numVal < numFilter;
+          case '<=': return numVal <= numFilter;
+          case '=':  return numVal === numFilter;
+          case '!=': return numVal !== numFilter;
+          default:   return true;
+        }
       }
-      switch (filterOp) {
-        case '>':  return numVal > numFilter;
-        case '>=': return numVal >= numFilter;
-        case '<':  return numVal < numFilter;
-        case '<=': return numVal <= numFilter;
-        case '=':  return numVal === numFilter;
-        case '!=': return numVal !== numFilter;
-        default:   return true;
-      }
+
+      // String comparison (case-insensitive + trimmed)
+      const vLower = valStr.toLowerCase().trim();
+      const qLower = q.toLowerCase();
+
+      if (filterOp === '=') return vLower === qLower;
+      if (filterOp === '!=') return vLower !== qLower;
+
+      return false;
     });
 
     // 3. Sort
