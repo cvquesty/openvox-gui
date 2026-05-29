@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.6] - 2026-05-29
+
+### Changes
+- **Simplified export experience**: Removed Markdown and CSV export options (they were rarely useful). Now only two clear choices remain:
+  - **JSON** (with a distinct code icon)
+  - **Formatted Text** — a clean, aligned plain-text table of exactly what you're viewing (excellent for Slack, email, and notes without Markdown rendering issues).
+- Greatly improved icon clarity in the export controls so you no longer need to hover to understand what each button does.
+
 ## [3.7.5] - 2026-05-29
 
 ### Bug Fixes

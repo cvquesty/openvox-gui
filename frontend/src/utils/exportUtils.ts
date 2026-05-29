@@ -1,16 +1,15 @@
 /**
- * Export utilities for Tools query results (PQL Console, Fact Explorer, Resource Explorer, etc.).
+ * Export utilities for query results across the UI.
  *
- * All functions are pure and have zero dependencies so they can be used
- * both in the browser (web UI) and potentially in scripts.
+ * Focused on practical, copy/paste-friendly outputs:
+ * - Pretty JSON (for machines / scripts)
+ * - Formatted plain text table (for Slack, email, notes, wikis)
  *
- * Designed to produce output that pastes cleanly into Slack, email, wikis,
- * and spreadsheets.
+ * All functions are pure and have zero dependencies.
  */
 
 /**
  * Safely convert any value to a string suitable for tables/exports.
- * Handles objects, arrays, nulls, long strings, etc.
  */
 export function safeStringify(value: unknown, maxLen: number = 300): string {
   if (value === null || value === undefined) {
@@ -48,15 +47,13 @@ export function safeStringify(value: unknown, maxLen: number = 300): string {
 
 /**
  * Derive column names from an array of result objects.
- * Uses the first object that has keys, then takes the union of keys from up to the first 50 rows.
  */
 export function deriveColumns(results: any[]): string[] {
   if (!results || results.length === 0) return [];
 
   const columns = new Set<string>();
-
-  // Look at up to 50 rows to build a good column set
   const sampleSize = Math.min(results.length, 50);
+
   for (let i = 0; i < sampleSize; i++) {
     const row = results[i];
     if (row && typeof row === 'object' && !Array.isArray(row)) {
@@ -68,72 +65,62 @@ export function deriveColumns(results: any[]): string[] {
 }
 
 /**
- * Convert an array of objects into a GitHub-flavored Markdown table.
- * Excellent for Slack, email, GitHub issues, wikis, etc.
+ * Convert an array of objects into a clean, aligned plain-text table.
+ * Excellent for pasting into Slack, email, runbooks, etc.
+ * Columns are automatically sized to content.
  */
-export function arrayToMarkdownTable(rows: any[], columns?: string[]): string {
+export function arrayToFormattedText(rows: any[], columns?: string[]): string {
   if (!rows || rows.length === 0) {
-    return '_No results_';
+    return 'No results';
   }
 
   const cols = columns && columns.length > 0 ? columns : deriveColumns(rows);
   if (cols.length === 0) {
-    return '_No columns to display_';
+    return 'No columns to display';
   }
 
-  const header = `| ${cols.join(' | ')} |`;
-  const separator = `| ${cols.map(() => '---').join(' | ')} |`;
+  // Build string matrix + compute max width per column
+  const matrix: string[][] = [];
+  const widths: number[] = cols.map(() => 0);
 
-  const body = rows
-    .map((row) => {
-      const cells = cols.map((col) => {
-        const raw = row?.[col];
-        // Escape pipe characters and newlines for Markdown table cells
-        const cell = safeStringify(raw).replace(/\|/g, '\\|').replace(/\n/g, '<br>');
-        return cell || '';
-      });
-      return `| ${cells.join(' | ')} |`;
-    })
-    .join('\n');
+  // Header row
+  const headerRow = cols.map((col, i) => {
+    const s = col;
+    widths[i] = Math.max(widths[i], s.length);
+    return s;
+  });
+  matrix.push(headerRow);
 
-  return [header, separator, body].join('\n');
-}
-
-/**
- * Convert an array of objects to CSV (simple but practical implementation).
- * Good enough for the vast majority of OpenVoxDB result sets.
- */
-export function arrayToCSV(rows: any[], columns?: string[]): string {
-  if (!rows || rows.length === 0) {
-    return '';
+  // Data rows
+  for (const row of rows) {
+    const dataRow = cols.map((col, i) => {
+      const s = safeStringify(row?.[col]);
+      widths[i] = Math.max(widths[i], s.length);
+      return s;
+    });
+    matrix.push(dataRow);
   }
 
-  const cols = columns && columns.length > 0 ? columns : deriveColumns(rows);
-  if (cols.length === 0) {
-    return '';
-  }
+  // Build separator
+  const separator = widths.map((w) => '-'.repeat(w)).join(' | ');
 
-  const escapeCsv = (val: unknown): string => {
-    const str = safeStringify(val);
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`;
+  // Build final lines
+  const lines = matrix.map((row, rowIndex) => {
+    const padded = row.map((cell, i) => cell.padEnd(widths[i]));
+    const line = padded.join(' | ');
+
+    if (rowIndex === 0) {
+      return line + '\n' + separator;
     }
-    return str;
-  };
+    return line;
+  });
 
-  const header = cols.join(',');
-  const body = rows
-    .map((row) => cols.map((col) => escapeCsv(row?.[col])).join(','))
-    .join('\n');
-
-  return [header, body].join('\n');
+  return lines.join('\n');
 }
 
 /**
- * Convenience helper: get a human-friendly summary line for a result set.
+ * Convert results to pretty-printed JSON string.
  */
-export function getResultsSummary(rows: any[], queryLabel?: string): string {
-  const count = rows?.length || 0;
-  const label = queryLabel ? ` for "${queryLabel}"` : '';
-  return `${count} row${count === 1 ? '' : 's'}${label}`;
+export function arrayToPrettyJSON(rows: any[]): string {
+  return JSON.stringify(rows, null, 2);
 }
