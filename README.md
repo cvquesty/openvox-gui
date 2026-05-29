@@ -155,11 +155,13 @@ Bootstrap new OpenVox agents with a single command, the same way Puppet Enterpri
 - Served on port 8140 (the standard puppetserver port -- existing firewall rules already permit the traffic)
 - See [docs/INSTALLER.md](docs/INSTALLER.md) for full details
 
-### 🔍 Explorers
+### 🔍 Explorers (Tools menu)
 Search and explore your infrastructure:
 - **Fact Explorer**: Find servers by their properties (OS, memory, etc.)
 - **Resource Explorer**: Search for installed software, services, files
 - **PQL Console**: Run advanced queries (for power users)
+
+All explorer results now support one-click **Copy as Markdown / CSV / JSON** (perfect for Slack, email, runbooks, and wikis) plus optional file downloads. The same data is available via `ovox pql '...' --format markdown|csv`.
 
 ### 🎨 Themes
 Choose how the interface looks:

@@ -13,6 +13,7 @@ import { IconPackage, IconSearch } from '@tabler/icons-react';
 import { pql } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson } from '../components/PrettyJson';
+import { ExportActions } from '../components/ExportActions';
 
 const COMMON_TYPES = [
   'Class', 'File', 'Package', 'Service', 'Exec', 'User', 'Group',
@@ -230,13 +231,21 @@ export function ResourceExplorerPage() {
               <Badge color="blue" size="lg">{results.length} found</Badge>
               <Badge variant="outline">{Object.keys(nodeCounts).length} unique titles</Badge>
             </Group>
-            <TextInput
-              placeholder="Filter results..."
-              leftSection={<IconSearch size={14} />}
-              value={searchText}
-              onChange={(e) => setSearchText(e.currentTarget.value)}
-              style={{ width: 200 }}
-            />
+            <Group gap="xs">
+              <TextInput
+                placeholder="Filter results..."
+                leftSection={<IconSearch size={14} />}
+                value={searchText}
+                onChange={(e) => setSearchText(e.currentTarget.value)}
+                style={{ width: 200 }}
+              />
+              <ExportActions
+                results={filtered}
+                queryContext={resourceType}
+                filenameBase="resource-results"
+                variant="compact"
+              />
+            </Group>
           </Group>
 
           {topResources.length > 1 && (

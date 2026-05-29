@@ -14,6 +14,7 @@ import { useApi } from '../hooks/useApi';
 import { reports, enc, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
+import { ExportActions } from '../components/ExportActions';
 
 
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
@@ -416,6 +417,11 @@ export function ReportsPage() {
             value={search}
             onChange={(e) => setSearch(e.currentTarget.value)}
             style={{ width: 250 }}
+          />
+          <ExportActions
+            results={Object.values(filteredGroups).flatMap(g => g.reports || [])}
+            filenameBase="reports-export"
+            variant="compact"
           />
         </Group>
       </Group>

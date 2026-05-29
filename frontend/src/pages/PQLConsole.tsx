@@ -8,10 +8,11 @@ import {
   Title, Card, Stack, Group, Text, Button, Textarea, Alert, Loader, Center,
   Code, Badge, Select, Table, ScrollArea, Paper, ActionIcon, Tooltip, Grid,
 } from '@mantine/core';
-import { IconTerminal, IconPlayerPlay, IconTrash, IconCopy } from '@tabler/icons-react';
+import { IconTerminal, IconPlayerPlay, IconTrash } from '@tabler/icons-react';
 import { pql, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson } from '../components/PrettyJson';
+import { ExportActions } from '../components/ExportActions';
 
 /* ═══════════════════════════════════════════════════════════════
    QUERY-O-TRON 7000 — the PQL query machine
@@ -268,11 +269,14 @@ export function PQLConsolePage() {
               <Title order={4}>Results</Title>
               <Badge color="blue" size="lg">{results.count} rows</Badge>
             </Group>
-            <Tooltip label="Copy as JSON">
-              <ActionIcon variant="subtle" onClick={() => navigator.clipboard.writeText(JSON.stringify(results.results, null, 2))}>
-                <IconCopy size={18} />
-              </ActionIcon>
-            </Tooltip>
+            <ExportActions
+              results={results.results}
+              columns={columns}
+              queryContext={query}
+              filenameBase="pql-results"
+              variant="compact"
+              showDownload
+            />
           </Group>
 
           {columns.length > 0 ? (
@@ -301,9 +305,20 @@ export function PQLConsolePage() {
               </Table>
             </ScrollArea>
           ) : (
-            <ScrollArea h="calc(100vh - 350px)" mih={300} mah={800}>
-              <PrettyJson data={results.results} maxHeight="calc(100vh - 350px)" />
-            </ScrollArea>
+            <>
+              <Group justify="flex-end" mb="xs">
+                <ExportActions
+                  results={results.results}
+                  queryContext={query}
+                  filenameBase="pql-results"
+                  variant="compact"
+                  showDownload
+                />
+              </Group>
+              <ScrollArea h="calc(100vh - 350px)" mih={300} mah={800}>
+                <PrettyJson data={results.results} maxHeight="calc(100vh - 350px)" />
+              </ScrollArea>
+            </>
           )}
         </Card>
       )}

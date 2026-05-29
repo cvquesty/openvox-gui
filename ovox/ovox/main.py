@@ -197,18 +197,65 @@ except Exception:
 cli.add_typer(token.app, name="token", help="Manage long-lived service API tokens (for Bolt, etc.)")
 
 
-# Future groups (stubbed for now so --help shows the roadmap):
-@cli.command(hidden=True)
-def pql(ctx: typer.Context, query: str = typer.Argument(..., help="PQL query string")):
-    """Execute a raw Puppet Query Language (PQL) statement."""
+# ──────────────────────────────────────────────────────────────────────────────
+# PQL command (first-class query support from the terminal)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@cli.command()
+def pql(
+    ctx: typer.Context,
+    query: str = typer.Argument(..., help="PQL query string"),
+    format: str = typer.Option(
+        "table",
+        "--format",
+        "-f",
+        help="Output format: table, markdown, csv, json, raw",
+        case_sensitive=False,
+    ),
+):
+    """
+    Execute a raw Puppet Query Language (PQL) query against OpenVoxDB.
+
+    Examples:
+        ovox pql 'nodes { latest_report_status = "failed" }'
+        ovox pql 'facts { name = "os" and value ~ "Rocky" }' --format markdown
+        ovox pql '...' --format csv > results.csv
+    """
     client = _get_client(ctx)
+    fmt = (format or "table").lower()
+
     try:
         result = client.run_pql(query)
-        if ctx.obj and ctx.obj.get("output") == "json":
+
+        # Normalize to the same shape the web UI receives
+        data = result.get("results", []) if isinstance(result, dict) else result
+
+        if fmt == "json":
             import json
             console.print_json(json.dumps(result))
-        else:
+        elif fmt == "markdown":
+            from .utils.formatters import results_to_markdown
+            console.print(results_to_markdown(data))
+        elif fmt == "csv":
+            from .utils.formatters import results_to_csv
+            console.print(results_to_csv(data))
+        elif fmt == "raw":
             console.print(result)
+        else:
+            # Default: pretty Rich table (best for interactive terminal use)
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                table = Table(show_header=True, header_style="bold cyan")
+                cols = list(data[0].keys())[:8]  # cap columns for readability
+                for col in cols:
+                    table.add_column(col)
+                for row in data[:100]:  # safety cap
+                    table.add_row(*[str(row.get(c, ""))[:60] for c in cols])
+                console.print(table)
+                if len(data) > 100:
+                    console.print(f"[dim]... {len(data) - 100} more rows (use --format csv/markdown for full export)[/dim]")
+            else:
+                console.print(data)
+
     except OvoxAPIError as exc:
         console.print(f"[red]PQL failed:[/red] {exc}")
         raise typer.Exit(1)

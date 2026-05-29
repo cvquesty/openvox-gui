@@ -26,6 +26,7 @@ import {
   Divider,
   Box
 } from '@mantine/core';
+import { ExportActions } from './ExportActions';
 import { 
   IconRefresh, 
   IconTrash, 
@@ -177,6 +178,11 @@ export function ExecutionHistory() {
             <IconHistory size={24} />
             <Title order={4}>Execution History</Title>
             <Badge variant="light">{history.length} entries</Badge>
+            <ExportActions
+              results={history}
+              filenameBase="execution-history"
+              variant="compact"
+            />
           </Group>
           <Group>
             <Tooltip label={autoRefresh ? "Auto-refresh enabled (10s)" : "Auto-refresh disabled"}>

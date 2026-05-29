@@ -61,8 +61,10 @@ ovox nodes list --status failed --env production
 # Inspect a node
 ovox nodes show web01.example.com
 
-# Run PQL queries
+# Run PQL queries (now with great copy/export support)
 ovox pql 'nodes[certname] { facts.os.family = "RedHat" }'
+ovox pql '...' --format markdown     # Perfect for Slack / email
+ovox pql '...' --format csv > out.csv
 
 # Certificate operations
 ovox certs list --pending
@@ -96,7 +98,7 @@ Environment variables (override config):
 | status    | `ovox status`                                 | Core        |
 | nodes     | list, show, facts, reports, run, purge        | Core        |
 | certs     | list, pending, sign, revoke, clean, audit     | Core        |
-| pql       | `ovox pql '...' --format json`                | Core        |
+| pql       | `ovox pql '...' --format markdown|csv|json|table` | Core     |
 | deploy    | run, status, history                          | Planned     |
 | bolt      | task, plan, run                               | Planned     |
 | facts     | list, search, outliers                        | Planned     |

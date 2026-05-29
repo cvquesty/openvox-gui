@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.5] - 2026-05-29
+
+### Bug Fixes
+- **Maintenance mode + service restarts**: Fixed regression where `systemctl restart openvox-gui` (or systemd auto-restarts) after the maintenance mode feature would leave the backend stuck returning 503s because the `maintenance.json` / `maintenance.flag` files were left behind. The backend now detects stale maintenance state on startup in the lifespan handler and automatically clears it (with clear logging). Deploy scripts continue to control the maintenance window normally.
+
+### New Features / Enhancements
+- **Universal query result export**: The export/copy capability (Markdown tables, CSV, JSON) has been expanded well beyond the original Tools pages.
+  - Now available on **Reports**, **Execution History**, **Package Inventory**, and the prior PQL Console / Fact Explorer / Resource Explorer.
+  - `ExportActions` component is now the standard reusable pattern for any node/data list in the UI.
+  - Consistent "Copy as Markdown" experience for Slack, email, runbooks, and wikis across the application.
+  - CLI parity via `ovox pql --format markdown|csv` (and friends) was also delivered.
+
+## [3.7.4] - 2026-05-29
+
+### New Features
+- **Query Result Export (Tools menu)**: All major explorers under **Tools** (PQL Console, Fact Explorer, Resource Explorer) now have first-class export/copy buttons.
+  - One-click **Copy as Markdown table** (excellent for Slack, email, wikis, and incident docs)
+  - Copy as CSV and pretty JSON
+  - Optional file downloads
+  - Uses the established Mantine `<CopyButton>` pattern for consistent success-state UX
+  - Exports respect any client-side filtering/sorting/limiting the user has applied
+
+- **`ovox pql` improvements**: The `pql` command is now visible and supports `--format markdown|csv|json|table|raw`.
+  - `ovox pql '...' --format markdown` produces clean tables ready to paste anywhere.
+  - Matches the web UI output formatters for consistency between the two first-class interfaces.
+
+### Other Changes
+- Added reusable `ExportActions` component and pure `exportUtils` (zero new dependencies).
+- Modernized the last raw `navigator.clipboard` usage in PQL Console to use the project-standard `<CopyButton>`.
+
 ## [3.7.3] - 2026-05-28
 
 **This is the final 3.7.3 release.** It consolidates the major work from the RC series into a stable release.

@@ -14,6 +14,7 @@ import { IconSearch, IconFilter, IconInfoCircle, IconChevronUp, IconChevronDown,
 import { facts, enc } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson, isJsonLike } from '../components/PrettyJson';
+import { ExportActions } from '../components/ExportActions';
 
 /* ═══════════════════════════════════════════════════════════════
    FACT-O-SCOPE 5000 — the giant magnifying glass
@@ -552,6 +553,13 @@ export function FactExplorerPage() {
               <Badge size="lg" variant="light" color="blue">
                 {matchCount} match{matchCount !== 1 ? 'es' : ''}
               </Badge>
+              <ExportActions
+                results={limited}
+                columns={['certname', 'value']}
+                queryContext={selectedFact || factInput}
+                filenameBase="fact-results"
+                variant="compact"
+              />
             </Group>
           </Group>
 

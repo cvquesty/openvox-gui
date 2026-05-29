@@ -12,6 +12,7 @@ import {
 import { IconSearch, IconPackage } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { nodes } from '../services/api';
+import { ExportActions } from '../components/ExportActions';
 
 /**
  * Package Inventory Page
@@ -108,6 +109,11 @@ export function PackagesPage() {
                 ))}
               </Group>
             )}
+            <ExportActions
+              results={results}
+              filenameBase="package-inventory"
+              variant="compact"
+            />
           </Group>
           <Table striped highlightOnHover>
             <Table.Thead>

@@ -108,6 +108,35 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"Token denylist prune failed: {exc}")
 
+    # --- Maintenance Mode Stale State Handling (post-3.7 maintenance feature) ---
+    # The maintenance flag (maintenance.json + .flag) is intentionally persistent
+    # so deploy scripts can keep the GUI "down" during updates. However, this
+    # caused a regression where plain `systemctl restart openvox-gui` (or auto-
+    # restarts after crashes) would leave the service stuck returning 503s.
+    #
+    # On every clean backend startup we check: if maintenance is still marked
+    # active, it is almost certainly stale (a previous deploy didn't finish its
+    # trap cleanup, or someone did a manual restart). We auto-clear it so the
+    # service comes back cleanly. Deploy scripts re-enable the flag early in
+    # their run before the restart, so the window is protected during actual
+    # deploys.
+    try:
+        from .utils.maintenance import is_maintenance_active, disable_maintenance, get_maintenance_info
+        if is_maintenance_active():
+            info = get_maintenance_info()
+            logger.warning(
+                "Maintenance mode was still enabled on backend startup. "
+                "This typically means a previous deploy script did not complete "
+                "or a manual restart occurred while the flag was present. "
+                "Automatically clearing maintenance state so the service comes "
+                "back cleanly."
+            )
+            if info.get("started_at"):
+                logger.warning(f"Stale maintenance started at: {info['started_at']}")
+            disable_maintenance()
+    except Exception as exc:
+        logger.error(f"Failed to check/clear stale maintenance state on startup: {exc}")
+
     yield  # Application runs here
 
     # Shutdown: Clean up resources
