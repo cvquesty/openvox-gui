@@ -1,21 +1,31 @@
 /**
  * ExportActions
  *
- * Simple, obvious export/copy component for tables and query results.
+ * Simple export/copy component with column selection support.
  *
- * Currently offers only two practical options:
- * - JSON (structured data)
- * - Formatted Text (clean aligned table, great for Slack/email)
+ * Features:
+ * - JSON export (full objects or selected columns)
+ * - Formatted Text export (aligned table or simple vertical list when 1 column)
+ * - Optional column picker (MultiSelect) so you can export just certnames, etc.
  *
- * Designed to be obvious at a glance with no mystery icons.
+ * Designed to be obvious and powerful for operational use.
  */
 
 import { useState } from 'react';
-import { Group, ActionIcon, Tooltip } from '@mantine/core';
-import { IconCode, IconAlignLeft, IconCheck } from '@tabler/icons-react';
+import {
+  Group,
+  ActionIcon,
+  Tooltip,
+  Popover,
+  MultiSelect,
+  Text,
+} from '@mantine/core';
+import { IconCode, IconAlignLeft, IconCheck, IconFilter } from '@tabler/icons-react';
 import {
   arrayToPrettyJSON,
   arrayToFormattedText,
+  deriveColumns,
+  filterResultsToColumns,
 } from '../utils/exportUtils';
 
 export interface ExportActionsProps {
@@ -29,27 +39,33 @@ export interface ExportActionsProps {
 
 export function ExportActions({
   results,
-  columns,
+  columns: propColumns,
   filenameBase = 'openvox-results',
   variant = 'compact',
   onCopied,
 }: ExportActionsProps) {
   const [copied, setCopied] = useState<'json' | 'text' | null>(null);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
   const hasResults = Array.isArray(results) && results.length > 0;
+
+  const availableColumns = propColumns && propColumns.length > 0
+    ? propColumns
+    : deriveColumns(results);
+
+  const effectiveColumns = selectedColumns.length > 0 ? selectedColumns : availableColumns;
+
+  const filteredResults = filterResultsToColumns(results, effectiveColumns);
 
   const handleCopy = (format: 'json' | 'text') => {
     if (!hasResults) return;
 
     let text = '';
-    let ext = format;
 
     if (format === 'json') {
-      text = arrayToPrettyJSON(results);
-      ext = 'json';
+      text = arrayToPrettyJSON(filteredResults);
     } else {
-      text = arrayToFormattedText(results, columns);
-      ext = 'txt';
+      text = arrayToFormattedText(filteredResults, effectiveColumns);
     }
 
     navigator.clipboard.writeText(text).then(() => {
@@ -59,12 +75,48 @@ export function ExportActions({
     });
   };
 
+  const columnSelectData = availableColumns.map((col) => ({
+    value: col,
+    label: col,
+  }));
+
   if (!hasResults) return null;
 
   const iconSize = variant === 'compact' ? 16 : 14;
+  const isFiltered = selectedColumns.length > 0 && selectedColumns.length < availableColumns.length;
 
   return (
     <Group gap={variant === 'compact' ? 4 : 'xs'}>
+      {/* Column selector */}
+      <Popover width={280} position="bottom" withArrow shadow="md">
+        <Popover.Target>
+          <Tooltip label={isFiltered ? "Columns filtered" : "Select columns to export"} withArrow>
+            <ActionIcon
+              variant="subtle"
+              color={isFiltered ? 'orange' : 'gray'}
+              aria-label="Select columns"
+            >
+              <IconFilter size={iconSize} />
+            </ActionIcon>
+          </Tooltip>
+        </Popover.Target>
+        <Popover.Dropdown>
+          <Text size="xs" fw={500} mb={4}>Export only these columns:</Text>
+          <MultiSelect
+            data={columnSelectData}
+            value={selectedColumns}
+            onChange={setSelectedColumns}
+            placeholder="All columns"
+            searchable
+            clearable
+            size="xs"
+          />
+          <Text size="xs" c="dimmed" mt={4}>
+            Leave empty to export all columns. Single column = nice vertical list for certnames etc.
+          </Text>
+        </Popover.Dropdown>
+      </Popover>
+
       {/* JSON */}
       <Tooltip label="Copy as JSON" withArrow>
         <ActionIcon
@@ -81,8 +133,8 @@ export function ExportActions({
         </ActionIcon>
       </Tooltip>
 
-      {/* Formatted Text (plain text table) */}
-      <Tooltip label="Copy as formatted text table" withArrow>
+      {/* Formatted Text */}
+      <Tooltip label="Copy as formatted text (table or list)" withArrow>
         <ActionIcon
           variant="subtle"
           color={copied === 'text' ? 'teal' : 'gray'}

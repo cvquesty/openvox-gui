@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.7] - 2026-05-29
+
+### New Features
+- **Column-selective exports**: You can now select specific columns (via the filter icon) before exporting.
+  - Particularly powerful for single-column use cases (e.g. copy just the `certname` list as a vertical list — perfect for feeding into Bolt, scripts, etc.).
+  - Multi-select works for both JSON and Formatted Text outputs.
+  - When only one column is chosen for Formatted Text, it automatically renders as a clean newline-separated list instead of a table.
+
 ## [3.7.6] - 2026-05-29
 
 ### Changes

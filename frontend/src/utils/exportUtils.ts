@@ -68,6 +68,9 @@ export function deriveColumns(results: any[]): string[] {
  * Convert an array of objects into a clean, aligned plain-text table.
  * Excellent for pasting into Slack, email, runbooks, etc.
  * Columns are automatically sized to content.
+ *
+ * Special case: If only one column is selected, returns a simple vertical list
+ * (one value per line). This is extremely useful for exporting just certnames.
  */
 export function arrayToFormattedText(rows: any[], columns?: string[]): string {
   if (!rows || rows.length === 0) {
@@ -79,11 +82,19 @@ export function arrayToFormattedText(rows: any[], columns?: string[]): string {
     return 'No columns to display';
   }
 
-  // Build string matrix + compute max width per column
+  // Special case: single column → clean vertical list (perfect for certnames)
+  if (cols.length === 1) {
+    const col = cols[0];
+    return rows
+      .map((row) => safeStringify(row?.[col]))
+      .filter((v) => v !== '')
+      .join('\n');
+  }
+
+  // Multi-column: nice aligned table
   const matrix: string[][] = [];
   const widths: number[] = cols.map(() => 0);
 
-  // Header row
   const headerRow = cols.map((col, i) => {
     const s = col;
     widths[i] = Math.max(widths[i], s.length);
@@ -91,7 +102,6 @@ export function arrayToFormattedText(rows: any[], columns?: string[]): string {
   });
   matrix.push(headerRow);
 
-  // Data rows
   for (const row of rows) {
     const dataRow = cols.map((col, i) => {
       const s = safeStringify(row?.[col]);
@@ -101,14 +111,11 @@ export function arrayToFormattedText(rows: any[], columns?: string[]): string {
     matrix.push(dataRow);
   }
 
-  // Build separator
   const separator = widths.map((w) => '-'.repeat(w)).join(' | ');
 
-  // Build final lines
   const lines = matrix.map((row, rowIndex) => {
     const padded = row.map((cell, i) => cell.padEnd(widths[i]));
     const line = padded.join(' | ');
-
     if (rowIndex === 0) {
       return line + '\n' + separator;
     }
@@ -123,4 +130,23 @@ export function arrayToFormattedText(rows: any[], columns?: string[]): string {
  */
 export function arrayToPrettyJSON(rows: any[]): string {
   return JSON.stringify(rows, null, 2);
+}
+
+/**
+ * Filter results to only include the specified columns.
+ * Useful for column-selective exports.
+ */
+export function filterResultsToColumns(results: any[], selectedColumns: string[]): any[] {
+  if (!selectedColumns || selectedColumns.length === 0) {
+    return results;
+  }
+  return results.map((row) => {
+    const filtered: any = {};
+    selectedColumns.forEach((col) => {
+      if (row && col in row) {
+        filtered[col] = row[col];
+      }
+    });
+    return filtered;
+  });
 }
