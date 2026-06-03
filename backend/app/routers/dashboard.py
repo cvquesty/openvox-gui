@@ -121,8 +121,18 @@ async def get_dashboard_data():
         # Derive environments from the node data we already have
         envs = sorted({n.get("report_environment", "") for n in raw_nodes if n.get("report_environment")})
 
+        # Explicit dedup of the nodes list we emit (get_nodes() already dedups,
+        # but presentation layers and any direct consumers must see unique hosts).
+        seen: set[str] = set()
+        deduped_nodes = []
+        for n in raw_nodes:
+            k = n.get("certname", "").strip().lower()
+            if k and k not in seen:
+                seen.add(k)
+                deduped_nodes.append(n)
+
         return {
-            "nodes": [NodeSummary(**n) for n in raw_nodes],
+            "nodes": [NodeSummary(**n) for n in deduped_nodes],
             "node_status": status_counts,
             "node_trends": trends,
             "environments": envs,

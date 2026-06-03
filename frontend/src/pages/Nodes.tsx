@@ -215,13 +215,21 @@ export function NodesPage() {
       // Fallback: all nodes ungrouped
       nodeList.forEach((node: NodeSummary) => {
         if (!groupNodes['Ungrouped']) groupNodes['Ungrouped'] = [];
-        groupNodes['Ungrouped'].push(node);
+        if (!groupNodes['Ungrouped'].find((n: NodeSummary) => n.certname === node.certname)) {
+          groupNodes['Ungrouped'].push(node);
+        }
       });
     }
 
-    // If no groups exist, create "All Nodes" group
+    // If no groups exist, create "All Nodes" group (dedup defensively)
     if (Object.keys(groupNodes).length === 0) {
-      groupNodes['All Nodes'] = nodeList;
+      const seen = new Set<string>();
+      groupNodes['All Nodes'] = nodeList.filter((n: NodeSummary) => {
+        const k = n.certname.toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
     }
 
     // Build grouped nodes

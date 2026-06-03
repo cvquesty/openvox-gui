@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.9] - 2026-05-30
+
+### Bug Fixes
+- **Duplicate hosts in lists**: Fixed intermittent duplicate nodes appearing in node lists on Dashboard, Nodes page, and especially Reports (per-group "Staging Nodes" etc. views and search results). Root cause was missing deduplication guards in the Reports grouped-nodes builder (and a couple of fallback paths in Nodes) combined with the possibility of duplicate certname entries reaching presentation code from ENC hierarchy or PuppetDB-derived lists. All affected list builders now enforce uniqueness (case-insensitive) so exactly one line per host.
+  - Also hardened backend ENC hierarchy and /enc/nodes responses with explicit dedup.
+  - Dashboard /data now explicitly dedups the emitted nodes list.
+  - useApi hook was also repaired (was causing fetch-on-every-render due to fresh deps arrays; now uses stable refetch + serialized depsKey so only real value changes trigger).
+- **useApi stability**: Prevented spurious network requests on every component re-render (typing, auto-refresh, etc.) which could contribute to intermittent data anomalies under load or during rapid navigation.
+
 ## [3.7.8] - 2026-05-29
 
 ### Bug Fixes

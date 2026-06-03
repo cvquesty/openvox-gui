@@ -117,6 +117,19 @@ async def get_hierarchy(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Could not filter hierarchy nodes against PuppetDB: {e}")
 
+    # Deduplicate by certname (defensive). The DB PK guarantees uniqueness and
+    # the listcomp above preserves order, but races, stale queries, or
+    # intermittent PuppetDB weirdness must never leak duplicates into the UI
+    # node lists (Dashboard, Nodes, Reports groups, etc.).
+    seen_certs: set[str] = set()
+    deduped: list = []
+    for n in nodes:
+        key = n.certname.strip().lower()
+        if key and key not in seen_certs:
+            seen_certs.add(key)
+            deduped.append(n)
+    nodes = deduped
+
     # Sort nodes alphabetically by certname for consistent display in
     # Reports (grouped nodes), Node Classifier, and other hierarchy consumers.
     nodes.sort(key=lambda n: n.certname.lower())
@@ -315,6 +328,17 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
                "classes": n.classes or {}, "parameters": n.parameters or {},
                "groups": [g.name for g in n.groups]}
               for n in nodes]
+
+    # Deduplicate by certname (defensive). PK + filter should suffice, but
+    # guarantee no duplicate host entries ever reach Node Classifier etc.
+    seen: set[str] = set()
+    deduped_result = []
+    for r in result:
+        k = (r.get("certname") or "").strip().lower()
+        if k and k not in seen:
+            seen.add(k)
+            deduped_result.append(r)
+    result = deduped_result
 
     # Always return nodes in alphabetical order by certname for consistent
     # UI behavior in dropdowns and dialogs that list classified hosts.

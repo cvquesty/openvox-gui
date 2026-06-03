@@ -318,7 +318,10 @@ export function ReportsPage() {
       groupNodes[group.name] = [];
     });
 
-    // Assign nodes to groups
+    // Assign nodes to groups — use Set per group to guarantee uniqueness.
+    // A node appearing multiple times in hierarchy.nodes (intermittent source
+    // data glitches, races, or stale ENC entries) must never produce duplicate
+    // entries in a group's node list or inflate the "X nodes" counts.
     hierarchy.nodes?.forEach((node: any) => {
       // Nodes may have groups array (group names) or group_ids
       const nodeGroups = node.groups || [];
@@ -336,14 +339,18 @@ export function ReportsPage() {
 
     // If no groups exist, create "All Nodes" group
     if (Object.keys(groupNodes).length === 0) {
-      groupNodes['All Nodes'] = hierarchy.nodes?.map((n: any) => n.certname) || [];
+      const allCerts = hierarchy.nodes?.map((n: any) => n.certname) || [];
+      groupNodes['All Nodes'] = Array.from(new Set(allCerts));
     }
 
     // Group reports by node groups
     Object.entries(groupNodes).forEach(([groupName, nodeList]) => {
+      // Deduplicate per-group node list (defensive — Set above on push sites
+      // plus this final pass guarantees one entry per certname).
+      const uniqueNodeList = Array.from(new Set(nodeList));
       // Sort the node's certnames alphabetically (defensive; backend hierarchy
       // now also returns nodes sorted, but per-group lists benefit from explicit sort).
-      const sortedNodeList = [...nodeList].sort((a, b) => a.localeCompare(b));
+      const sortedNodeList = [...uniqueNodeList].sort((a, b) => a.localeCompare(b));
 
       // Filter reports for this group and sort by certname so nodes appear
       // in alphabetical order when the group is expanded (consistent with
