@@ -22,10 +22,11 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
-  const s = status || 'unknown';
+  const s = (status || '').toString().toLowerCase() || 'unreported';
+  const label = s === 'unreported' || s === 'unknown' ? 'unreported' : s;
   return (
-    <Badge color={STATUS_COLORS[s] || 'gray'} variant="filled" size={size}>
-      {s}
+    <Badge color={STATUS_COLORS[label] || STATUS_COLORS['unknown'] || 'gray'} variant="filled" size={size}>
+      {label}
     </Badge>
   );
 }

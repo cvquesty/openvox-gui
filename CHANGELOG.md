@@ -18,6 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - useApi hook was also repaired (was causing fetch-on-every-render due to fresh deps arrays; now uses stable refetch + serialized depsKey so only real value changes trigger).
 - **useApi stability**: Prevented spurious network requests on every component re-render (typing, auto-refresh, etc.) which could contribute to intermittent data anomalies under load or during rapid navigation.
 
+## [3.7.10] - 2026-05-30
+
+### Bug Fixes
+- **Fleet normalization & missing nodes on Dashboard**: The "total nodes" displayed on Dashboard, Nodes page, and derived counts are now *always* based on the complete set of signed certificates from the Puppet CA (`puppetserver ca list --all`). Previously these views only showed active nodes from PuppetDB (typically ~87), while reality (signed certs) was 92. The 5 "lost" nodes are now visible:
+  - They appear in the main node tables and "All Nodes" / "Unclassified Nodes" sections.
+  - They surface with `latest_report_status: null` → shown as "unreported" (gray badge, "Never" for last report).
+  - Status counts, donut, trends, etc. on Dashboard now reflect the full fleet (extra unreported nodes contribute to the unreported slice).
+- Added `puppetdb_service.get_fleet_nodes()` that unions signed certs + PDB records (active *and* deactivated/expired) + synthetic entries for cert-only nodes.
+- Updated `/api/nodes/` (Nodes page source) and `/api/dashboard/data` to use the fleet list (filters for env/status are applied in Python post-merge for synthetic nodes).
+- `StatusBadge` now consistently renders falsy/unknown statuses as "unreported".
+- Updated comments and unclassified section description in Nodes page to document the new model (CA signed certs = fleet source of truth; PDB provides status for nodes that have checked in).
+- Other counts (Reports total = report rows, Classification Tree "Classified Nodes" = ENC nodes that exist in PDB, CertAudit signed vs active vs orphaned) remain semantically correct and now have a stable 92 as the reference fleet size.
+- This eliminates the previous inconsistency (87 on Dashboard/Classification, 92 signed, Reports showing different aggregates).
+
+The root cause of the "lost" nodes: `get_nodes()` (default) + ENC hierarchy filters explicitly drop nodes that are deactivated/expired in PDB or that have a signed cert but have never submitted a report/catalog to PuppetDB. The fleet view brings them back into operational lists.
+
 ## [3.7.9-1] - 2026-05-30
 
 ### Bug Fixes

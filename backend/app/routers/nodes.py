@@ -60,24 +60,49 @@ async def list_nodes(
     guard against injection.
     """
     try:
-        query = None
-        conditions = []
-        if environment:
-            environment = _validate_pql_value(environment, "environment")
-            conditions.append(f'["=", "report_environment", "{environment}"]')
-        if status:
-            status = _validate_pql_value(status, "status")
-            conditions.append(f'["=", "latest_report_status", "{status}"]')
-        if conditions:
-            if len(conditions) == 1:
-                query = conditions[0]
-            else:
-                query = '["and", ' + ', '.join(conditions) + ']'
+        # Use the canonical fleet (all signed certs from the CA) as the source
+        # of truth. This normalizes every "total nodes" / "X nodes" count in the
+        # UI (Dashboard, Nodes page, etc.) to the number of trusted signed
+        # certificates (the "absolutely 92" in the user's report).
+        # Previously only active PDB nodes were shown, causing the 5 "lost"
+        # nodes (signed certs with no active PDB record) to be invisible on
+        # the dashboard and causing count mismatches vs. Certs / reality.
+        fleet = await puppetdb_service.get_fleet_nodes()
 
-        nodes = await puppetdb_service.get_nodes(query=query)
-        # Deduplicate by certname (case-insensitive, stripped).
-        # PuppetDB should enforce uniqueness but stale/reactivated
-        # nodes or case mismatches can produce duplicates.
+        # Apply environment / status filters *after* building the fleet (in
+        # Python). Synthetic (never-reported) nodes have no environment or
+        # status; they are only included when no filter is active, or when
+        # status explicitly matches "unreported".
+        if environment or status:
+            if environment:
+                environment = _validate_pql_value(environment, "environment")
+            if status:
+                status = _validate_pql_value(status, "status")
+
+            env_l = environment.lower() if environment else None
+            status_l = status.lower() if status else None
+
+            filtered = []
+            for n in fleet:
+                if env_l:
+                    if (n.get("report_environment") or "").lower() != env_l:
+                        continue
+                if status_l:
+                    st = (n.get("latest_report_status") or "").lower()
+                    if not st:
+                        st = "unreported"
+                    if st != status_l:
+                        # allow "unreported" to be selected via status filter
+                        if not (status_l in ("unreported", "none", "") and st == "unreported"):
+                            continue
+                filtered.append(n)
+            nodes = filtered
+        else:
+            nodes = fleet
+
+        # Fleet construction + the Set logic inside get_fleet_nodes already
+        # guarantees uniqueness and proper casing from the CA list.
+        # Still do a final defensive dedup + sort for belt-and-suspenders.
         seen: set[str] = set()
         unique = []
         for node in nodes:
@@ -86,10 +111,6 @@ async def list_nodes(
                 seen.add(cn)
                 unique.append(node)
 
-        # Always return hosts in alphabetical order by certname.
-        # This guarantees consistent ordering in every dropdown, dialog,
-        # select, and list that consumes the node inventory (Hiera Lookup,
-        # Orchestration targets, Node Classifier, PQL console, Metrics, etc.).
         unique.sort(key=lambda n: (n.get("certname") or "").lower())
         return [NodeSummary(**node) for node in unique]
     except HTTPException:

@@ -240,8 +240,11 @@ export function NodesPage() {
     return groups;
   }, [nodeList, hierarchy]);
 
-  // Build unclassified nodes list: PuppetDB nodes NOT in the ENC hierarchy.
-  // PuppetDB is the single source of truth for node existence.
+  // Build unclassified nodes list: nodes in the full fleet (CA signed certs, now the
+  // source of truth) that are not present in the ENC hierarchy.
+  // The fleet = all signed certs (92) unioned with their PDB status where available.
+  // Nodes that only exist as signed certs (never reported) appear here until classified
+  // (note: classification currently requires a PDB entry).
   const unclassifiedNodes = useMemo(() => {
     if (!nodeList) return [];
 
@@ -436,7 +439,10 @@ export function NodesPage() {
         )}
       </Card>
 
-      {/* Unclassified nodes — signed certs not in the ENC */}
+      {/* Unclassified nodes — signed certs (from CA) that are not (yet) classified in the ENC.
+         This now includes nodes that have a signed certificate but have never reported
+         to PuppetDB (the previously "lost" nodes). PuppetDB + CA signed certs together
+         form the complete fleet. */}
       <Title order={4}>Unclassified Nodes ({filteredUnclassified.length})</Title>
       <Card withBorder shadow="sm">
         {filteredUnclassified.length === 0 ? (

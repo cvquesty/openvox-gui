@@ -131,6 +131,87 @@ class PuppetDBService:
                 unique.append(node)
         return unique
 
+    async def get_fleet_nodes(self) -> List[Dict]:
+        """Return the canonical fleet list based on *all signed CA certificates*.
+
+        This is the single source of truth for "how many nodes are in the fleet".
+
+        - Starts from `puppetserver ca list --all` (signed certs).
+        - Enriches every certname with its full PuppetDB record (if present),
+          including deactivated/expired nodes (by calling get_nodes with include_inactive).
+        - For signed certs that have never appeared in PuppetDB (newly signed,
+          never bootstrapped, or long-term orphans not yet cleaned), returns a
+          minimal "synthetic" NodeSummary entry with status=None (treated as
+          "unreported").
+        - Result is always exactly one entry per signed certname, sorted.
+
+        Using this for Dashboard, Nodes list, etc. ensures every total/count
+        across the UI normalizes to the same number (the number of trusted
+        signed certificates), and the previously "lost" nodes become visible
+        (with appropriate unreported/orphan status).
+        """
+        # Local import: certificates router already depends on puppetdb_service,
+        # so we import the list function at runtime inside the method to avoid
+        # any module-level import cycles.
+        from ..routers.certificates import list_certificates
+
+        # Get the authoritative list of signed certs (the fleet)
+        try:
+            cert_data = await list_certificates()
+            signed_certs = cert_data.get("signed", []) if isinstance(cert_data, dict) else []
+        except Exception as e:
+            logger.warning(f"Failed to load CA signed cert list for fleet nodes: {e}")
+            signed_certs = []
+
+        # Get the richest possible PDB data (active + deactivated + expired)
+        # so we can attach status, last report, environment, etc. to matching certs.
+        try:
+            pdb_nodes = await self.get_nodes(include_inactive=True)
+        except Exception as e:
+            logger.warning(f"Failed to load full PDB nodes for fleet enrichment: {e}")
+            pdb_nodes = []
+
+        pdb_map: dict[str, dict] = {}
+        for n in pdb_nodes:
+            k = str(n.get("certname", "")).strip().lower()
+            if k:
+                pdb_map[k] = n
+
+        fleet: list[dict] = []
+        seen: set[str] = set()
+        for cert in signed_certs:
+            cn = str(cert.get("name", "")).strip()
+            k = cn.lower()
+            if not cn or k in seen:
+                continue
+            seen.add(k)
+
+            pdb = pdb_map.get(k)
+            if pdb:
+                entry = dict(pdb)  # copy the rich record
+                # Ensure canonical certname casing from the CA (usually matches)
+                entry["certname"] = cn
+            else:
+                # Signed cert with no PDB record at all → synthetic unreported entry.
+                # These are the "lost" nodes that were not appearing on Dashboard/Nodes.
+                entry = {
+                    "certname": cn,
+                    "latest_report_status": None,
+                    "report_timestamp": None,
+                    "catalog_timestamp": None,
+                    "facts_timestamp": None,
+                    "report_environment": None,
+                    "latest_report_noop": None,
+                    "latest_report_corrective_change": None,
+                    "deactivated": None,
+                    "expired": None,
+                }
+            fleet.append(entry)
+
+        # Sort alphabetically (consistent with every other node list in the app)
+        fleet.sort(key=lambda n: str(n.get("certname", "")).lower())
+        return fleet
+
     async def get_node(self, certname: str) -> Dict:
         """Get a single node by certname."""
         result = await self._query(f"nodes/{certname}")
