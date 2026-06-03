@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.12] - 2026-06-03
+
+### Bug Fixes
+- **Metrics Fleet Compliance "Nodes by Category" scroll**: Restructured the expandable node lists inside `<Collapse>` to use a flex-style constrained `<Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }}>` wrapper + `<ScrollArea h="100%" ...>` (matching patterns from Certificates, ResourceExplorer, etc.). This ensures the scroll viewport is properly sized and scrolling activates for categories with many nodes. Previously the direct style on ScrollArea inside Collapse/Paper/Stack wasn't reliably creating a scrollable region after deploy (likely layout/height propagation in Mantine + table). Now you should be able to scroll through full lists (e.g. 50+ nodes in Compliant).
+
 ## [3.7.11] - 2026-06-03
 
 ### Bug Fixes
