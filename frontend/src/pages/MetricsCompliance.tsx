@@ -71,7 +71,7 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
         </Group>
       </Group>
       <Collapse in={open}>
-        <ScrollArea mah={400} mt="xs">
+        <ScrollArea style={{ maxHeight: 400 }} mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -81,8 +81,8 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {[...nodes].sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || '')).map((n: any, i: number) => (
-                <Table.Tr key={i}>
+              {[...nodes].sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || '')).map((n: any) => (
+                <Table.Tr key={n.certname}>
                   <Table.Td><Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
                     onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text></Table.Td>
                   <Table.Td><Text size="sm">{n.environment || '\u2014'}</Text></Table.Td>

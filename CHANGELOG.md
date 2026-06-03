@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.11] - 2026-06-03
+
+### Bug Fixes
+- **Metrics Compliance "Nodes by Category" scroll**: The per-category node lists (Compliant, Drifted, Failed, etc.) under "Nodes by Category" on the Fleet Compliance page now properly use a fixed-height scrollable viewport (`maxHeight: 400px` with auto scrollbars). Previously the ScrollArea was not reliably scrollable (using `mah` + limited props inside Collapse), so users could only see the first "page" of nodes that fit without being able to scroll to the rest of the list for a category. Now each expandable list is independently scrollable when it contains many nodes, matching patterns used elsewhere in the app. Also cleaned up the row `key` to be stable (by certname).
+
 ## [3.7.9] - 2026-05-30
 
 ### Bug Fixes
