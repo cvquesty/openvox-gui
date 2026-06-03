@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - useApi hook was also repaired (was causing fetch-on-every-render due to fresh deps arrays; now uses stable refetch + serialized depsKey so only real value changes trigger).
 - **useApi stability**: Prevented spurious network requests on every component re-render (typing, auto-refresh, etc.) which could contribute to intermittent data anomalies under load or during rapid navigation.
 
+## [3.7.9-1] - 2026-05-30
+
+### Bug Fixes
+- **Bolt inventory targets**: Added deduplication when building group target lists in the ENC Bolt inventory generator (used by Orchestration page). Ensures no duplicate certnames in SSH target lists even if upstream data had anomalies (defense-in-depth).
+
 ## [3.7.8] - 2026-05-29
 
 ### Bug Fixes
