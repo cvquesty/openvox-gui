@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, Modal, TextInput, Badge, ActionIcon, Tooltip, Code,
-  Select, MultiSelect, Grid, ThemeIcon, Divider, Paper, ScrollArea,
+  Select, MultiSelect, Grid, ThemeIcon, Divider, Paper, ScrollArea, Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -404,50 +404,56 @@ function HierarchyTab() {
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Environments ({data.environments?.length || 0})</Text>
-            <ScrollArea style={{ maxHeight: 200 }} type="auto" offsetScrollbars scrollbarSize={6}>
-              {(data.environments || []).map((e: any) => (
-                <Paper key={e.name} p="xs" mb={4} withBorder>
-                  <Group justify="space-between">
-                    <Badge color="blue">{e.name}</Badge>
-                    <ClassBadges classes={e.classes || {}} color="blue" />
-                  </Group>
-                </Paper>
-              ))}
-              {(data.environments || []).length === 0 && <Text size="sm" c="dimmed">No environments defined yet</Text>}
-            </ScrollArea>
+            <Box style={{ maxHeight: 200, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                {(data.environments || []).map((e: any) => (
+                  <Paper key={e.name} p="xs" mb={4} withBorder>
+                    <Group justify="space-between">
+                      <Badge color="blue">{e.name}</Badge>
+                      <ClassBadges classes={e.classes || {}} color="blue" />
+                    </Group>
+                  </Paper>
+                ))}
+                {(data.environments || []).length === 0 && <Text size="sm" c="dimmed">No environments defined yet</Text>}
+              </ScrollArea>
+            </Box>
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Groups ({data.groups?.length || 0})</Text>
-            <ScrollArea style={{ maxHeight: 250 }} type="auto" offsetScrollbars scrollbarSize={6}>
-              {(data.groups || []).map((g: any) => (
-                <Paper key={g.id} p="xs" mb={4} withBorder>
-                  <Group justify="space-between">
-                    <Group gap="xs"><Badge color="orange">{g.name}</Badge><Badge variant="outline" size="xs">{g.environment}</Badge></Group>
-                    <ClassBadges classes={g.classes || {}} color="orange" />
-                  </Group>
-                </Paper>
-              ))}
-              {(data.groups || []).length === 0 && <Text size="sm" c="dimmed">No groups defined yet</Text>}
-            </ScrollArea>
+            <Box style={{ maxHeight: 250, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                {(data.groups || []).map((g: any) => (
+                  <Paper key={g.id} p="xs" mb={4} withBorder>
+                    <Group justify="space-between">
+                      <Group gap="xs"><Badge color="orange">{g.name}</Badge><Badge variant="outline" size="xs">{g.environment}</Badge></Group>
+                      <ClassBadges classes={g.classes || {}} color="orange" />
+                    </Group>
+                  </Paper>
+                ))}
+                {(data.groups || []).length === 0 && <Text size="sm" c="dimmed">No groups defined yet</Text>}
+              </ScrollArea>
+            </Box>
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Classified Nodes ({activeHierarchyNodes.length})</Text>
-            <ScrollArea style={{ maxHeight: 300 }} type="auto" offsetScrollbars scrollbarSize={6}>
-              {activeHierarchyNodes.map((n: any) => (
-                <Paper key={n.certname} p="xs" mb={4} withBorder>
-                  <Group justify="space-between">
-                    <Group gap="xs">
-                      <Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                        onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text>
-                      <Badge variant="outline" size="xs">{n.environment}</Badge>
-                      {(n.groups || []).map((g: string) => <Badge key={g} variant="light" color="orange" size="xs">{g}</Badge>)}
+            <Box style={{ maxHeight: 300, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                {activeHierarchyNodes.map((n: any) => (
+                  <Paper key={n.certname} p="xs" mb={4} withBorder>
+                    <Group justify="space-between">
+                      <Group gap="xs">
+                        <Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                          onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text>
+                        <Badge variant="outline" size="xs">{n.environment}</Badge>
+                        {(n.groups || []).map((g: string) => <Badge key={g} variant="light" color="orange" size="xs">{g}</Badge>)}
+                      </Group>
+                      <ClassBadges classes={n.classes || {}} color="red" />
                     </Group>
-                    <ClassBadges classes={n.classes || {}} color="red" />
-                  </Group>
-                </Paper>
-              ))}
-              {activeHierarchyNodes.length === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
-            </ScrollArea>
+                  </Paper>
+                ))}
+                {activeHierarchyNodes.length === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
+              </ScrollArea>
+            </Box>
           </Card>
         </Grid.Col>
       </Grid>

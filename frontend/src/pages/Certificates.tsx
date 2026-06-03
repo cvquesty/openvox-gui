@@ -380,49 +380,49 @@ export function CertificatesPage() {
           <Title order={4}>Signed Certificates</Title>
           <Badge color="green" size="lg">{signed.length}</Badge>
         </Group>
-        <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} offsetScrollbars scrollbarSize={8}>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Certname</Table.Th>
-              <Table.Th>Fingerprint</Table.Th>
-              <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {[...signed].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')).map((cert: any) => (
-              <Table.Tr key={cert.name}>
-                <Table.Td><Text fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={() => navigate(`/nodes/${cert.name}`)}>{cert.name}</Text></Table.Td>
-                <Table.Td><Code style={{ fontSize: 11 }}>{cert.fingerprint || 'N/A'}</Code></Table.Td>
-                <Table.Td>
-                  <Group gap="xs" justify="flex-end">
-                    <Tooltip label="Certificate details">
-                      <ActionIcon variant="subtle" color="blue" onClick={() => handleInfo(cert.name)}>
-                        <IconInfoCircle size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Revoke certificate">
-                      <ActionIcon variant="subtle" color="yellow" onClick={() => handleRevoke(cert.name)}>
-                        <IconX size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Clean certificate">
-                      <ActionIcon variant="subtle" color="red" onClick={() => handleClean(cert.name)}>
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {signed.length === 0 && (
+        <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={8}>
+          <Table striped highlightOnHover withTableBorder>
+            <Table.Thead>
               <Table.Tr>
-                <Table.Td colSpan={3}><Text c="dimmed" ta="center" py="lg">No signed certificates found</Text></Table.Td>
+                <Table.Th>Certname</Table.Th>
+                <Table.Th>Fingerprint</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
               </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {[...signed].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')).map((cert: any) => (
+                <Table.Tr key={cert.name}>
+                  <Table.Td><Text fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate(`/nodes/${cert.name}`)}>{cert.name}</Text></Table.Td>
+                  <Table.Td><Code style={{ fontSize: 11 }}>{cert.fingerprint || 'N/A'}</Code></Table.Td>
+                  <Table.Td>
+                    <Group gap="xs" justify="flex-end">
+                      <Tooltip label="Certificate details">
+                        <ActionIcon variant="subtle" color="blue" onClick={() => handleInfo(cert.name)}>
+                          <IconInfoCircle size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Revoke certificate">
+                        <ActionIcon variant="subtle" color="yellow" onClick={() => handleRevoke(cert.name)}>
+                          <IconX size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Clean certificate">
+                        <ActionIcon variant="subtle" color="red" onClick={() => handleClean(cert.name)}>
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+              {signed.length === 0 && (
+                <Table.Tr>
+                  <Table.Td colSpan={3}><Text c="dimmed" ta="center" py="lg">No signed certificates found</Text></Table.Td>
+                </Table.Tr>
+              )}
+            </Table.Tbody>
+          </Table>
         </ScrollArea>
       </Card>
 

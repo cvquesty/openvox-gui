@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.21] - 2026-06-03
+
+### Bug Fixes
+- **Reports submenus node lists, scroll, counts and dups**: In Logs | Reports:
+  - All group report tables (Production Nodes, Staging Nodes, Testing Nodes, PuppetServer, Canaries, etc.) now use the reliable constrained ScrollArea pattern (`<Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }}><ScrollArea h="100%" type="auto" ...>`) so lists are always scrollable when exceeding the viewport (addresses 71 nodes not scrollable, only 5 visible, etc.).
+  - Changed the per-group expanded table to iterate over the full group `nodes` list (from ENC hierarchy) and attach the *latest* report per node (or "—" if none in the recent reports window). This ensures exactly one row per node (no duplicates like same certname 3x), the visible list length always matches the "X nodes" count, and all nodes in the submenu/group are listed (even those without recent reports in the loaded set).
+  - Updated search filtering to trim nodes + latest reports consistently.
+  - Added top-level dedup of incoming reports by hash.
+  - This fixes all reported issues: wrong visible counts vs list, no scroll, duplicates (e.g. ovagent1 3x but count 1; api-gateway 3x; cmel-test twice), truncated lists.
+  - The "Reports (N)" title continues to reflect total (unique) reports; node counts and lists now align on unique nodes per group.
+
+## [3.7.20] - 2026-06-03
+
+### Bug Fixes
+- **Reports "Canaries" subgroup node duplication**: In Logs | Reports, the Canaries group was showing the same node (ovagent1.pdxc-it.twitter.biz) listed multiple times in the expanded reports table (e.g. 3x due to duplicate report entries in the fetched list), while the "X nodes" count correctly showed "1 Node" thanks to hierarchy dedup. Added defensive deduplication of groupReports by hash (similar to existing node dedup logic) when building groups from reportList. This prevents duplicate report rows for the same run in the per-group tables.
+
+## [3.7.19] - 2026-06-03
+
+### Bug Fixes
+- **Reports screen node count cap**: The hardcoded `limit: 100` on the reports list fetch in the Logs | Reports screen (which limited distinct nodes covered by recent reports to at most 100) has been increased to the backend maximum of 200. This prevents the number of nodes with visible reports from being erroneously capped at 100.
+
+## [3.7.18] - 2026-06-03
+
+### Bug Fixes
+- **Classification "Classified Nodes" list scroll**: In Code > Classification (NodeClassifier), the "Classified Nodes" list of systems (in the Current Configuration Summary pane on the right) now reliably scrolls using the Box-constrained pattern: `<Box style={{ maxHeight: 300, minHeight: 0, overflow: 'hidden' }}><ScrollArea h="100%" ...>` around the list of Paper entries. Also applied the same robust Box + h=100% ScrollArea wrapper to the Environments and Groups lists in the same summary pane for consistency. The standalone "Classified Nodes" table (flex Card + ScrollArea) was already using the pattern but confirmed.
+
+## [3.7.17] - 2026-06-03
+
+### Bug Fixes
+- **Certificate Authority "Signed Certificates" list scroll**: The list under Infrastructure > Certificate Authority > Signed Certificates now uses the consistent flex + ScrollArea pattern on the Card (maxHeight 520) with `type="auto"`, `offsetScrollbars`, `withTableBorder`, and proper `h="100%" flex:1 minHeight:0` on the ScrollArea. This ensures the (potentially long) list of signed certs/nodes scrolls internally instead of truncating.
+
+## [3.7.16] - 2026-06-03
+
+### Bug Fixes
+- **Nodes page "All Nodes" and "Unclassified Nodes" scroll**: The "All Nodes" (complete fleet view) and "Unclassified Nodes" sections on the main Nodes page now use the flex layout on their Cards (`display: flex; flex-direction: column; maxHeight`) + internal `<ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }}>` to ensure the lists are properly bounded and scroll internally when containing many nodes (full fleet size), preventing truncation without scroll. Matches the reliable pattern applied to the Dashboard "Nodes" panel and Classified Nodes.
+
+## [3.7.15] - 2026-06-03
+
+### Bug Fixes
+- **Dashboard "Nodes" panel scroll**: The node list at the bottom of the Dashboard Overview page ("Nodes" panel) now uses the proven flex layout pattern on the containing Card (`display: flex; flex-direction: column; maxHeight: 500`) + `<ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} ...>`. This ensures the panel itself stays bounded and provides reliable internal scrolling for the full list of nodes (post fleet normalization) instead of forcing the entire page to grow tall or the scroll not activating. Increased maxHeight slightly to 500px for better visibility while still capping.
+
 ## [3.7.14] - 2026-06-03
 
 ### Bug Fixes

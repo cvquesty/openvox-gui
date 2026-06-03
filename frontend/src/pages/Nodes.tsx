@@ -399,11 +399,11 @@ export function NodesPage() {
 
       {/* All nodes — complete fleet view */}
       <Title order={4}>All Nodes ({totalNodes})</Title>
-      <Card withBorder shadow="sm">
+      <Card withBorder shadow="sm" style={{ display: 'flex', flexDirection: 'column', maxHeight: 600 }}>
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 600 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
@@ -448,11 +448,11 @@ export function NodesPage() {
          to PuppetDB (the previously "lost" nodes). PuppetDB + CA signed certs together
          form the complete fleet. */}
       <Title order={4}>Unclassified Nodes ({filteredUnclassified.length})</Title>
-      <Card withBorder shadow="sm">
+      <Card withBorder shadow="sm" style={{ display: 'flex', flexDirection: 'column', maxHeight: 400 }}>
         {filteredUnclassified.length === 0 ? (
           <Text c="dimmed" ta="center">All known nodes are classified</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 400 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>

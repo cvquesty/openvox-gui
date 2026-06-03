@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Box,
 } from '@mantine/core';
 import { IconSearch, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -259,6 +259,7 @@ interface GroupedReports {
   [groupName: string]: {
     nodes: string[];
     reports: any[];
+    latestReportByNode?: Record<string, any>;
     status: 'unchanged' | 'changed' | 'failed';
   };
 }
@@ -300,7 +301,7 @@ export function ReportsPage() {
 
   // Fetch reports
   const { data: reportList, loading: reportsLoading, error } = useApi(
-    () => reports.list({ status: statusFilter || undefined, limit: 100 }),
+    () => reports.list({ status: statusFilter || undefined, limit: 200 }),
     [statusFilter]
   );
 
@@ -309,6 +310,12 @@ export function ReportsPage() {
   // Build group → nodes mapping and group reports
   const groupedReports: GroupedReports = useMemo(() => {
     if (!hierarchy || !reportList) return {};
+
+    // Defensive dedup of the raw report list by hash (defensive against any
+    // backend duplication, similar to node dedup in hierarchy and group building).
+    const dedupedReportList = Array.from(
+      new Map(reportList.map((r: any) => [r.hash, r])).values()
+    );
 
     const groups: GroupedReports = {};
 
@@ -355,13 +362,33 @@ export function ReportsPage() {
       // Filter reports for this group and sort by certname so nodes appear
       // in alphabetical order when the group is expanded (consistent with
       // all other node lists/dropdowns/selectors in the app).
-      const groupReports = reportList
-        .filter((r: any) => sortedNodeList.includes(r.certname))
-        .sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || ''));
+      let groupReports = dedupedReportList
+        .filter((r: any) => sortedNodeList.includes(r.certname));
+      // Deduplicate reports by hash (defensive — similar to node deduping in
+      // hierarchy to avoid duplicate entries in the expanded report list or
+      // inflated counts/behavior).
+      const seenReports = new Set<string>();
+      groupReports = groupReports.filter((r: any) => {
+        if (seenReports.has(r.hash)) return false;
+        seenReports.add(r.hash);
+        return true;
+      });
+      groupReports.sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || ''));
+
+      // Build map of latest report per node (for displaying one row per node in the list,
+      // using the most recent report for that node).
+      const latestReportByNode: Record<string, any> = {};
+      for (const r of groupReports) {
+        const existing = latestReportByNode[r.certname];
+        if (!existing || (r.start_time && (!existing.start_time || new Date(r.start_time) > new Date(existing.start_time)))) {
+          latestReportByNode[r.certname] = r;
+        }
+      }
 
       groups[groupName] = {
         nodes: sortedNodeList,
         reports: groupReports,
+        latestReportByNode,
         status: getGroupStatus(groupReports),
       };
     });
@@ -375,13 +402,30 @@ export function ReportsPage() {
     const searchLower = search.toLowerCase();
     const filtered: GroupedReports = {};
     Object.entries(groupedReports).forEach(([groupName, data]) => {
-      const matchingReports = data.reports.filter((r: any) =>
-        r.certname.toLowerCase().includes(searchLower)
-      );
-      if (groupName.toLowerCase().includes(searchLower) || matchingReports.length > 0) {
+      const groupMatches = groupName.toLowerCase().includes(searchLower);
+      let finalNodes = data.nodes;
+      let finalReports = data.reports;
+      let finalLatest = data.latestReportByNode || {};
+      if (!groupMatches) {
+        const nodeCerts = new Set<string>(data.nodes.filter((n: string) => n.toLowerCase().includes(searchLower)));
+        data.reports.forEach((r: any) => {
+          if (r.certname.toLowerCase().includes(searchLower)) nodeCerts.add(r.certname);
+        });
+        finalNodes = Array.from(nodeCerts).filter((n: string) => data.nodes.includes(n));
+        finalReports = data.reports.filter((r: any) => finalNodes.includes(r.certname));
+        finalLatest = {};
+        finalNodes.forEach((n: string) => {
+          if (data.latestReportByNode && data.latestReportByNode[n]) {
+            finalLatest[n] = data.latestReportByNode[n];
+          }
+        });
+      }
+      if (groupMatches || finalNodes.length > 0 || finalReports.length > 0) {
         filtered[groupName] = {
           ...data,
-          reports: matchingReports,
+          nodes: finalNodes,
+          reports: finalReports,
+          latestReportByNode: finalLatest,
         };
       }
     });
@@ -449,7 +493,7 @@ export function ReportsPage() {
         <Stack gap="md">
           {groupNames.map((groupName) => {
             const groupData = filteredGroups[groupName];
-            const { status, reports: groupReports, nodes } = groupData;
+            const { status, reports: groupReports, nodes, latestReportByNode = {} } = groupData;
             const badgeProps = getStatusBadgeProps(status);
             const isExpanded = expandedGroups[groupName] ?? false;
 
@@ -468,50 +512,60 @@ export function ReportsPage() {
                   </Badge>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <ScrollArea style={{ maxHeight: 350 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
-                    <Table striped highlightOnHover withTableBorder>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th>Certname</Table.Th>
-                            <Table.Th>Status</Table.Th>
-                            <Table.Th>Type</Table.Th>
-                            <Table.Th>Environment</Table.Th>
-                            <Table.Th>Start Time</Table.Th>
-                            <Table.Th>OpenVox Version</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {groupReports.length === 0 ? (
+                  <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }} mt="sm">
+                    <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                      <Table striped highlightOnHover withTableBorder>
+                          <Table.Thead>
                             <Table.Tr>
-                              <Table.Td colSpan={6}><Text c="dimmed" ta="center">No reports for this group</Text></Table.Td>
+                              <Table.Th>Certname</Table.Th>
+                              <Table.Th>Status</Table.Th>
+                              <Table.Th>Type</Table.Th>
+                              <Table.Th>Environment</Table.Th>
+                              <Table.Th>Start Time</Table.Th>
+                              <Table.Th>OpenVox Version</Table.Th>
                             </Table.Tr>
-                          ) : (
-                            groupReports.map((report: any) => (
-                              <Table.Tr
-                                key={report.hash}
-                                style={{ cursor: 'pointer' }}
-                                onClick={() => navigate(`/reports/${report.hash}`)}
-                              >
-                                <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
-                                <Table.Td><StatusBadge status={report.status} /></Table.Td>
-                                <Table.Td>
-                                  {report.corrective_change ? (
-                                    <Badge color="orange" variant="light" size="sm">Corrective</Badge>
-                                  ) : report.noop ? (
-                                    <Badge color="blue" variant="light" size="sm">Noop</Badge>
-                                  ) : (
-                                    <Badge color="gray" variant="light" size="sm">Intentional</Badge>
-                                  )}
-                                </Table.Td>
-                                <Table.Td>{report.environment || '—'}</Table.Td>
-                                <Table.Td>{report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
-                                <Table.Td>{report.puppet_version || '—'}</Table.Td>
+                          </Table.Thead>
+                          <Table.Tbody>
+                            {nodes.length === 0 ? (
+                              <Table.Tr>
+                                <Table.Td colSpan={6}><Text c="dimmed" ta="center">No nodes for this group</Text></Table.Td>
                               </Table.Tr>
-                            ))
-                          )}
-                        </Table.Tbody>
-                      </Table>
+                            ) : (
+                              nodes.map((certname: string) => {
+                                const report = latestReportByNode[certname];
+                                return (
+                                  <Table.Tr
+                                    key={certname}
+                                    style={{ cursor: report ? 'pointer' : 'default' }}
+                                    onClick={() => {
+                                      if (report) navigate(`/reports/${report.hash}`);
+                                      else navigate(`/nodes/${certname}`);
+                                    }}
+                                  >
+                                    <Table.Td><Text fw={500}>{certname}</Text></Table.Td>
+                                    <Table.Td>{report ? <StatusBadge status={report.status} /> : <Text c="dimmed">—</Text>}</Table.Td>
+                                    <Table.Td>
+                                      {report ? (
+                                        report.corrective_change ? (
+                                          <Badge color="orange" variant="light" size="sm">Corrective</Badge>
+                                        ) : report.noop ? (
+                                          <Badge color="blue" variant="light" size="sm">Noop</Badge>
+                                        ) : (
+                                          <Badge color="gray" variant="light" size="sm">Intentional</Badge>
+                                        )
+                                      ) : <Text c="dimmed">—</Text>}
+                                    </Table.Td>
+                                    <Table.Td>{report ? report.environment || '—' : '—'}</Table.Td>
+                                    <Table.Td>{report && report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
+                                    <Table.Td>{report ? report.puppet_version || '—' : '—'}</Table.Td>
+                                  </Table.Tr>
+                                );
+                              })
+                            )}
+                          </Table.Tbody>
+                        </Table>
                     </ScrollArea>
+                  </Box>
                 </Collapse>
               </Card>
             );
