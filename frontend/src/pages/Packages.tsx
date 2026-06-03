@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text,
-  TextInput, Button, Badge, Code, ScrollArea, Box,
+  TextInput, Button, Badge, Code, ScrollArea,
 } from '@mantine/core';
 import { IconSearch, IconPackage } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
@@ -115,9 +115,8 @@ export function PackagesPage() {
               variant="compact"
             />
           </Group>
-          <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
-            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
+          <ScrollArea style={{ maxHeight: 500 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Certname</Table.Th>
@@ -148,7 +147,6 @@ export function PackagesPage() {
                 </Table.Tbody>
               </Table>
             </ScrollArea>
-          </Box>
         </Card>
       )}
 

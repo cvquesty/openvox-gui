@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text,
-  ActionIcon, Tooltip, Collapse, ScrollArea, Box,
+  ActionIcon, Tooltip, Collapse, ScrollArea,
 } from '@mantine/core';
 import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -347,9 +347,8 @@ export function NodesPage() {
                   </Group>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }} mt="sm">
-                    <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-                      <Table striped highlightOnHover withTableBorder>
+                  <ScrollArea style={{ maxHeight: 350 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
+                    <Table striped highlightOnHover withTableBorder>
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th>Certname</Table.Th>
@@ -390,8 +389,7 @@ export function NodesPage() {
                           )}
                         </Table.Tbody>
                       </Table>
-                    </ScrollArea>
-                  </Box>
+                  </ScrollArea>
                 </Collapse>
               </Card>
             );
@@ -405,9 +403,8 @@ export function NodesPage() {
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <Box style={{ maxHeight: 600, minHeight: 0, overflow: 'hidden' }}>
-            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
+          <ScrollArea style={{ maxHeight: 600 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Certname</Table.Th>
@@ -443,7 +440,6 @@ export function NodesPage() {
                 </Table.Tbody>
               </Table>
             </ScrollArea>
-          </Box>
         )}
       </Card>
 
@@ -456,45 +452,43 @@ export function NodesPage() {
         {filteredUnclassified.length === 0 ? (
           <Text c="dimmed" ta="center">All known nodes are classified</Text>
         ) : (
-          <Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }}>
-            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Certname</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Environment</Table.Th>
-                    <Table.Th>Last Report</Table.Th>
-                    <Table.Th>Actions</Table.Th>
+          <ScrollArea style={{ maxHeight: 400 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Certname</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Environment</Table.Th>
+                  <Table.Th>Last Report</Table.Th>
+                  <Table.Th>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredUnclassified.map((node) => (
+                  <Table.Tr
+                    key={node.certname}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => navigate(`/nodes/${node.certname}`)}
+                  >
+                    <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
+                    <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
+                    <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
+                    <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
+                    <Table.Td>
+                      <Tooltip label="View details">
+                        <ActionIcon variant="subtle" onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/nodes/${node.certname}`);
+                        }}>
+                          <IconEye size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Table.Td>
                   </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {filteredUnclassified.map((node) => (
-                    <Table.Tr
-                      key={node.certname}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/nodes/${node.certname}`)}
-                    >
-                      <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
-                      <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
-                      <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
-                      <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
-                      <Table.Td>
-                        <Tooltip label="View details">
-                          <ActionIcon variant="subtle" onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/nodes/${node.certname}`);
-                          }}>
-                            <IconEye size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          </Box>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
         )}
       </Card>
     </Stack>

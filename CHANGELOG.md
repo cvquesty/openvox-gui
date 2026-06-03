@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.14] - 2026-06-03
+
+### Bug Fixes
+- **All node lists now scroll reliably**: Switched all remaining Box+ h=100% wrappers for node lists (in Nodes, Reports, Packages, CertAudit, MetricsCompliance, etc.) to the simpler proven pattern of direct `<ScrollArea style={{ maxHeight: N }} ...>` (as used successfully in Orchestration, CodeDeployment, Certificates, etc.). This fixes height propagation/scroll not activating in some contexts (e.g. inside Collapse, Cards, Stacks). 
+- Updated the "Classified Nodes" lists (both the tabular view and the papers list in the hierarchy summary) in NodeClassifier (the Infrastructure > Code > Classification page) with proper ScrollArea (flex max on the main table card + direct max on the summary lists for envs/groups/nodes).
+- All node/certname lists (tables of nodes, per-group node reports, package results, audit lists, classifier nodes, compliance per-status, dashboard nodes, etc.) are now capped and scrollable when longer than the visible area.
+- Updated README badge, propagated version.
+
 ## [3.7.13] - 2026-06-03
 
 ### Bug Fixes / Improvements

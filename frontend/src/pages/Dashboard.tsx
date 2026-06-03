@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea, Box,
+  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea,
 } from '@mantine/core';
 import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -339,9 +339,8 @@ export function DashboardPage() {
           <Title order={4}>Nodes</Title>
           <Badge variant="light" size="lg">{dedupedNodes.length} total</Badge>
         </Group>
-        <Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }}>
-          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+        <ScrollArea style={{ maxHeight: 400 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('certname')}>
@@ -389,7 +388,6 @@ export function DashboardPage() {
               </Table.Tbody>
             </Table>
           </ScrollArea>
-        </Box>
       </Card>
     </Stack>
   );
