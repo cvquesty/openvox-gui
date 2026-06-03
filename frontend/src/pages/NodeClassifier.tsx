@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text, Tabs,
   Button, Modal, TextInput, Badge, ActionIcon, Tooltip, Code,
-  Select, MultiSelect, Grid, ThemeIcon, Box, Divider, Paper,
+  Select, MultiSelect, Grid, ThemeIcon, Box, Divider, Paper, ScrollArea,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -802,34 +802,38 @@ function NodesTab() {
       </Card>
       <Card withBorder shadow="sm">
         <Text fw={700} mb="sm">Classified Nodes</Text>
-        <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr>
-            <Table.Th>Certname</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Groups</Table.Th>
-            <Table.Th>Node Classes</Table.Th><Table.Th>Node Params</Table.Th>
-            <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-          </Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {activeClassified.map((n) => (
-              <Table.Tr key={n.certname}>
-                <Table.Td><Text fw={500} size="sm">{n.certname}</Text></Table.Td>
-                <Table.Td><Badge variant="outline" size="sm">{n.environment}</Badge></Table.Td>
-                <Table.Td>
-                  <Group gap={4}>{(n.groups || []).map((g: string) => <Badge key={g} variant="light" color="orange" size="sm">{g}</Badge>)}
-                  {(!n.groups || n.groups.length === 0) && <Text size="sm" c="dimmed">—</Text>}</Group>
-                </Table.Td>
-                <Table.Td><ClassBadges classes={n.classes} color="red" /></Table.Td>
-                <Table.Td><ParamBadges params={n.parameters} color="pink" /></Table.Td>
-                <Table.Td>
-                  <Group gap="xs" justify="flex-end">
-                    <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(n)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                    <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(n.certname)}><IconTrash size={16} /></ActionIcon></Tooltip>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {activeClassified.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No nodes classified yet</Text></Table.Td></Table.Tr>}
-          </Table.Tbody>
-        </Table>
+        <Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead><Table.Tr>
+                <Table.Th>Certname</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Groups</Table.Th>
+                <Table.Th>Node Classes</Table.Th><Table.Th>Node Params</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
+              </Table.Tr></Table.Thead>
+              <Table.Tbody>
+                {activeClassified.map((n) => (
+                  <Table.Tr key={n.certname}>
+                    <Table.Td><Text fw={500} size="sm">{n.certname}</Text></Table.Td>
+                    <Table.Td><Badge variant="outline" size="sm">{n.environment}</Badge></Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>{(n.groups || []).map((g: string) => <Badge key={g} variant="light" color="orange" size="sm">{g}</Badge>)}
+                      {(!n.groups || n.groups.length === 0) && <Text size="sm" c="dimmed">—</Text>}</Group>
+                    </Table.Td>
+                    <Table.Td><ClassBadges classes={n.classes} color="red" /></Table.Td>
+                    <Table.Td><ParamBadges params={n.parameters} color="pink" /></Table.Td>
+                    <Table.Td>
+                      <Group gap="xs" justify="flex-end">
+                        <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(n)}><IconPencil size={16} /></ActionIcon></Tooltip>
+                        <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(n.certname)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+                {activeClassified.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No nodes classified yet</Text></Table.Td></Table.Tr>}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Box>
       </Card>
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Node \u2014 ${editing.certname}` : 'Classify Node'} size="lg">

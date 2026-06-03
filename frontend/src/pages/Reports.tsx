@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid, Box,
-  Select, Badge, Collapse, ActionIcon,
+  Select, Badge, Collapse, ActionIcon, ScrollArea,
 } from '@mantine/core';
 import { IconSearch, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -468,48 +468,52 @@ export function ReportsPage() {
                   </Badge>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <Table striped highlightOnHover mt="sm">
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Certname</Table.Th>
-                        <Table.Th>Status</Table.Th>
-                        <Table.Th>Type</Table.Th>
-                        <Table.Th>Environment</Table.Th>
-                        <Table.Th>Start Time</Table.Th>
-                        <Table.Th>OpenVox Version</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {groupReports.length === 0 ? (
-                        <Table.Tr>
-                          <Table.Td colSpan={6}><Text c="dimmed" ta="center">No reports for this group</Text></Table.Td>
-                        </Table.Tr>
-                      ) : (
-                        groupReports.map((report: any) => (
-                          <Table.Tr
-                            key={report.hash}
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => navigate(`/reports/${report.hash}`)}
-                          >
-                            <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
-                            <Table.Td><StatusBadge status={report.status} /></Table.Td>
-                            <Table.Td>
-                              {report.corrective_change ? (
-                                <Badge color="orange" variant="light" size="sm">Corrective</Badge>
-                              ) : report.noop ? (
-                                <Badge color="blue" variant="light" size="sm">Noop</Badge>
-                              ) : (
-                                <Badge color="gray" variant="light" size="sm">Intentional</Badge>
-                              )}
-                            </Table.Td>
-                            <Table.Td>{report.environment || '—'}</Table.Td>
-                            <Table.Td>{report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
-                            <Table.Td>{report.puppet_version || '—'}</Table.Td>
+                  <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }} mt="sm">
+                    <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                      <Table striped highlightOnHover withTableBorder>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Certname</Table.Th>
+                            <Table.Th>Status</Table.Th>
+                            <Table.Th>Type</Table.Th>
+                            <Table.Th>Environment</Table.Th>
+                            <Table.Th>Start Time</Table.Th>
+                            <Table.Th>OpenVox Version</Table.Th>
                           </Table.Tr>
-                        ))
-                      )}
-                    </Table.Tbody>
-                  </Table>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {groupReports.length === 0 ? (
+                            <Table.Tr>
+                              <Table.Td colSpan={6}><Text c="dimmed" ta="center">No reports for this group</Text></Table.Td>
+                            </Table.Tr>
+                          ) : (
+                            groupReports.map((report: any) => (
+                              <Table.Tr
+                                key={report.hash}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => navigate(`/reports/${report.hash}`)}
+                              >
+                                <Table.Td><Text fw={500}>{report.certname}</Text></Table.Td>
+                                <Table.Td><StatusBadge status={report.status} /></Table.Td>
+                                <Table.Td>
+                                  {report.corrective_change ? (
+                                    <Badge color="orange" variant="light" size="sm">Corrective</Badge>
+                                  ) : report.noop ? (
+                                    <Badge color="blue" variant="light" size="sm">Noop</Badge>
+                                  ) : (
+                                    <Badge color="gray" variant="light" size="sm">Intentional</Badge>
+                                  )}
+                                </Table.Td>
+                                <Table.Td>{report.environment || '—'}</Table.Td>
+                                <Table.Td>{report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
+                                <Table.Td>{report.puppet_version || '—'}</Table.Td>
+                              </Table.Tr>
+                            ))
+                          )}
+                        </Table.Tbody>
+                      </Table>
+                    </ScrollArea>
+                  </Box>
                 </Collapse>
               </Card>
             );

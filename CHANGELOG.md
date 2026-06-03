@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.13] - 2026-06-03
+
+### Bug Fixes / Improvements
+- **Global node list scrollability**: Enforced the rule that *any* time a node list (tables containing certnames/nodes, reports keyed by node, package results per node, classified nodes, audit cert/node cross-refs, etc.) exceeds the display area, it must be presented inside a properly constrained ScrollArea. Updated key locations:
+  - Nodes.tsx (per-group tables, "All Nodes", "Unclassified Nodes")
+  - Dashboard.tsx (bottom "Nodes" summary table)
+  - Reports.tsx (per-group report tables)
+  - NodeClassifier.tsx (Classified Nodes table)
+  - CertAudit.tsx (orphaned + healthy cert/node lists)
+  - Packages.tsx (package search results by node)
+  - (MetricsCompliance and prior fixed locations already followed the pattern.)
+  Used the robust `<Box style={{ maxHeight: N, minHeight: 0, overflow: 'hidden' }}><ScrollArea h="100%" type="auto" offsetScrollbars ...>` wrapper + `withTableBorder` on inner Tables for consistency with other scrollable tables in the app. Prevents infinitely tall pages and ensures all nodes are reachable via scroll.
+
 ## [3.7.12] - 2026-06-03
 
 ### Bug Fixes

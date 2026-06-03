@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Button, ActionIcon, Tooltip, Collapse, Paper,
-  Modal, Checkbox,
+  Modal, Checkbox, ScrollArea, Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -188,24 +188,26 @@ export function CertAuditPage() {
               signed but never completed a Puppet run. Cleaning removes the certificate from
               the CA, deactivates the node in PuppetDB, and removes it from the ENC.
             </Alert>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th style={{ width: 40 }}>
-                    <Checkbox
-                      checked={selected.size === orphaned.length && orphaned.length > 0}
-                      indeterminate={selected.size > 0 && selected.size < orphaned.length}
-                      onChange={toggleSelectAll}
-                    />
-                  </Table.Th>
-                  <Table.Th>Certname</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Reason</Table.Th>
-                  <Table.Th>Fingerprint</Table.Th>
-                  <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                <Table striped highlightOnHover withTableBorder>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th style={{ width: 40 }}>
+                        <Checkbox
+                          checked={selected.size === orphaned.length && orphaned.length > 0}
+                          indeterminate={selected.size > 0 && selected.size < orphaned.length}
+                          onChange={toggleSelectAll}
+                        />
+                      </Table.Th>
+                      <Table.Th>Certname</Table.Th>
+                      <Table.Th>Status</Table.Th>
+                      <Table.Th>Reason</Table.Th>
+                      <Table.Th>Fingerprint</Table.Th>
+                      <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
                 {orphaned.map((cert: any) => {
                   const cfg = STATUS_CONFIG[cert.status] || { label: cert.status, color: 'gray', description: '' };
                   return (
@@ -244,6 +246,8 @@ export function CertAuditPage() {
                 })}
               </Table.Tbody>
             </Table>
+              </ScrollArea>
+            </Box>
           </>
         )}
       </Card>
@@ -258,13 +262,15 @@ export function CertAuditPage() {
           <Text size="sm" c="dimmed">Signed certs with matching active PuppetDB nodes</Text>
         </Group>
         <Collapse in={showHealthy}>
-          <Table striped highlightOnHover mt="md">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Certname</Table.Th>
-                <Table.Th>Node Status</Table.Th>
-                <Table.Th>Last Report</Table.Th>
-                <Table.Th>Fingerprint</Table.Th>
+          <Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }} mt="md">
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Certname</Table.Th>
+                    <Table.Th>Node Status</Table.Th>
+                    <Table.Th>Last Report</Table.Th>
+                    <Table.Th>Fingerprint</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -282,7 +288,9 @@ export function CertAuditPage() {
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
+              </Table>
+            </ScrollArea>
+          </Box>
         </Collapse>
       </Card>
 

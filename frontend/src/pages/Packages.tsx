@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Table, Loader, Center, Alert, Stack, Group, Text,
-  TextInput, Button, Badge, Code,
+  TextInput, Button, Badge, Code, ScrollArea, Box,
 } from '@mantine/core';
 import { IconSearch, IconPackage } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
@@ -115,36 +115,40 @@ export function PackagesPage() {
               variant="compact"
             />
           </Group>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Certname</Table.Th>
-                <Table.Th>Package</Table.Th>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Provider</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {results.map((pkg, i) => (
-                <Table.Tr key={i}>
-                  <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => navigate(`/nodes/${pkg.certname}`)}>{pkg.certname}</Text></Table.Td>
-                  <Table.Td><Code>{pkg.package_name}</Code></Table.Td>
-                  <Table.Td><Badge variant="outline" size="sm">{pkg.version}</Badge></Table.Td>
-                  <Table.Td><Text size="sm" c="dimmed">{pkg.provider || '—'}</Text></Table.Td>
-                </Table.Tr>
-              ))}
-              {results.length === 0 && (
-                <Table.Tr>
-                  <Table.Td colSpan={4}>
-                    <Text c="dimmed" ta="center" py="lg">
-                      No packages matching "{name}" found across the fleet
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-          </Table>
+          <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Certname</Table.Th>
+                    <Table.Th>Package</Table.Th>
+                    <Table.Th>Version</Table.Th>
+                    <Table.Th>Provider</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {results.map((pkg, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => navigate(`/nodes/${pkg.certname}`)}>{pkg.certname}</Text></Table.Td>
+                      <Table.Td><Code>{pkg.package_name}</Code></Table.Td>
+                      <Table.Td><Badge variant="outline" size="sm">{pkg.version}</Badge></Table.Td>
+                      <Table.Td><Text size="sm" c="dimmed">{pkg.provider || '—'}</Text></Table.Td>
+                    </Table.Tr>
+                  ))}
+                  {results.length === 0 && (
+                    <Table.Tr>
+                      <Table.Td colSpan={4}>
+                        <Text c="dimmed" ta="center" py="lg">
+                          No packages matching "{name}" found across the fleet
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  )}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea>
+          </Box>
         </Card>
       )}
 

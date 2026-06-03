@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  Badge, Tooltip, Table, ActionIcon, Select, Switch,
+  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea, Box,
 } from '@mantine/core';
 import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -339,53 +339,57 @@ export function DashboardPage() {
           <Title order={4}>Nodes</Title>
           <Badge variant="light" size="lg">{dedupedNodes.length} total</Badge>
         </Group>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('certname')}>
-                <Group gap={4} wrap="nowrap">Certname <SortIcon field="certname" /></Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('latest_report_status')}>
-                <Group gap={4} wrap="nowrap">Status <SortIcon field="latest_report_status" /></Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('report_environment')}>
-                <Group gap={4} wrap="nowrap">Environment <SortIcon field="report_environment" /></Group>
-              </Table.Th>
-              <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('report_timestamp')}>
-                <Group gap={4} wrap="nowrap">Last Report <SortIcon field="report_timestamp" /></Group>
-              </Table.Th>
-              <Table.Th style={{ width: 60 }}>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {sortedNodes.map((node) => (
-              <Table.Tr key={node.certname} style={{ cursor: 'pointer' }}
-                onClick={() => navigate(`/nodes/${node.certname}`)}>
-                <Table.Td><Text fw={500} size="sm">{node.certname}</Text></Table.Td>
-                <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
-                <Table.Td><Text size="sm">{node.report_environment || '\u2014'}</Text></Table.Td>
-                <Table.Td><Text size="sm">{nodeTimeAgo(node.report_timestamp)}</Text></Table.Td>
-                <Table.Td>
-                  <Tooltip label="View details">
-                    <ActionIcon variant="subtle" onClick={(e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      navigate(`/nodes/${node.certname}`);
-                    }}>
-                      <IconEye size={18} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {dedupedNodes.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={5}>
-                  <Text c="dimmed" ta="center" py="md">No nodes found</Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
+        <Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('certname')}>
+                    <Group gap={4} wrap="nowrap">Certname <SortIcon field="certname" /></Group>
+                  </Table.Th>
+                  <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('latest_report_status')}>
+                    <Group gap={4} wrap="nowrap">Status <SortIcon field="latest_report_status" /></Group>
+                  </Table.Th>
+                  <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('report_environment')}>
+                    <Group gap={4} wrap="nowrap">Environment <SortIcon field="report_environment" /></Group>
+                  </Table.Th>
+                  <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('report_timestamp')}>
+                    <Group gap={4} wrap="nowrap">Last Report <SortIcon field="report_timestamp" /></Group>
+                  </Table.Th>
+                  <Table.Th style={{ width: 60 }}>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {sortedNodes.map((node) => (
+                  <Table.Tr key={node.certname} style={{ cursor: 'pointer' }}
+                    onClick={() => navigate(`/nodes/${node.certname}`)}>
+                    <Table.Td><Text fw={500} size="sm">{node.certname}</Text></Table.Td>
+                    <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
+                    <Table.Td><Text size="sm">{node.report_environment || '\u2014'}</Text></Table.Td>
+                    <Table.Td><Text size="sm">{nodeTimeAgo(node.report_timestamp)}</Text></Table.Td>
+                    <Table.Td>
+                      <Tooltip label="View details">
+                        <ActionIcon variant="subtle" onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          navigate(`/nodes/${node.certname}`);
+                        }}>
+                          <IconEye size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+                {dedupedNodes.length === 0 && (
+                  <Table.Tr>
+                    <Table.Td colSpan={5}>
+                      <Text c="dimmed" ta="center" py="md">No nodes found</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Box>
       </Card>
     </Stack>
   );
