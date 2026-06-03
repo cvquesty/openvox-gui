@@ -425,7 +425,7 @@ async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
 
     # Build group → members mapping from node memberships
     group_members: dict = {}
-    ungrouped = []
+    ungrouped: list[str] = []
 
     for node in nodes:
         node_groups = [g.name for g in node.groups]
@@ -433,6 +433,12 @@ async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
             ungrouped.append(node.certname)
         for gname in node_groups:
             group_members.setdefault(gname, []).append(node.certname)
+
+    # Dedup targets within each group (defensive; node list is unique but
+    # group membership lists must be clean for Bolt inventory consumers).
+    for gname in list(group_members.keys()):
+        group_members[gname] = list(dict.fromkeys(group_members[gname]))  # preserve order, unique
+    ungrouped = list(dict.fromkeys(ungrouped))
 
     # Build Bolt inventory groups
     bolt_groups = []
