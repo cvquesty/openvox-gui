@@ -35,6 +35,7 @@ export interface ExportActionsProps {
   filenameBase?: string;
   variant?: 'compact' | 'buttons';
   onCopied?: (format: 'json' | 'text') => void;
+  showDownload?: boolean;
 }
 
 export function ExportActions({
@@ -43,6 +44,7 @@ export function ExportActions({
   filenameBase = 'openvox-results',
   variant = 'compact',
   onCopied,
+  showDownload: _showDownload, // accepted for compatibility but not currently rendered separately
 }: ExportActionsProps) {
   const [copied, setCopied] = useState<'json' | 'text' | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);

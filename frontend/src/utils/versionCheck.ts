@@ -35,7 +35,7 @@ export function handleChunkLoadError(): void {
 // Version checker that periodically checks for updates
 class VersionChecker {
   private checkInterval: number = 5 * 60 * 1000; // 5 minutes
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
   private currentVersion: string = BUILD_VERSION;
   
   start() {

@@ -903,7 +903,7 @@ function ProxyTab() {
   };
 
   if (loading) return <Center h={200}><Loader size="lg" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error.message || String(error)}</Alert>;
+  if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
   return (
     <Card withBorder shadow="sm">

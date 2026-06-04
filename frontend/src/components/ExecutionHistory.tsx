@@ -86,7 +86,7 @@ export function ExecutionHistory() {
     loadHistory();
     
     // Auto-refresh every 10 seconds if enabled
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (autoRefresh) {
       interval = setInterval(loadHistory, 10000);
     }

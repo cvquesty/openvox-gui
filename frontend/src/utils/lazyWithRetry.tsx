@@ -44,7 +44,7 @@ export function lazyWithRetry<T extends ComponentType<any>>(
                 </button>
               </div>
             );
-          }) as T
+          }) as unknown as T
         };
       }
       

@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 
 interface PrettyJsonProps {
   data: any;
-  maxHeight?: number | string;
+  maxHeight?: number | string | false;
   withBorder?: boolean;
   compact?: boolean;
 }
@@ -45,7 +45,7 @@ export function PrettyJson({ data, maxHeight = 400, withBorder = true, compact =
         overflow: 'hidden',
       }}
     >
-      <ScrollArea h={maxHeight} offsetScrollbars>
+      <ScrollArea h={maxHeight === false ? undefined : maxHeight} offsetScrollbars>
         <Code
           block
           style={{

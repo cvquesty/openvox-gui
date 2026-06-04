@@ -443,6 +443,7 @@ export function NodesPage() {
                 </Table.Tbody>
               </Table>
             </ScrollArea>
+          </Box>
         )}
       </Card>
 

@@ -192,9 +192,6 @@ export function ResourceExplorerPage() {
                 value={resourceType}
                 onChange={(v) => setResourceType(v || '')}
                 searchable
-                creatable
-                getCreateLabel={(q) => '+ Search "' + q + '"'}
-                onCreate={(q) => { setResourceType(q); return q; }}
                 style={{ flex: 1 }}
               />
               <TextInput
