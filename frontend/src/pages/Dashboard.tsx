@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea,
+  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea, Box,
 } from '@mantine/core';
 import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -334,13 +334,14 @@ export function DashboardPage() {
         </Grid.Col>
       </Grid>
 
-      <Card withBorder shadow="sm" padding="lg" style={{ display: 'flex', flexDirection: 'column', maxHeight: 500 }}>
+      <Card withBorder shadow="sm" padding="lg">
         <Group justify="space-between" mb="md">
           <Title order={4}>Nodes</Title>
           <Badge variant="light" size="lg">{dedupedNodes.length} total</Badge>
         </Group>
-        <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={6}>
-          <Table striped highlightOnHover withTableBorder>
+        <Box style={{ maxHeight: 440, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('certname')}>
@@ -388,6 +389,7 @@ export function DashboardPage() {
               </Table.Tbody>
             </Table>
           </ScrollArea>
+        </Box>
       </Card>
     </Stack>
   );

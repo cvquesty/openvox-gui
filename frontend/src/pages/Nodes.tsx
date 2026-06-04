@@ -401,12 +401,13 @@ export function NodesPage() {
 
       {/* All nodes — complete fleet view */}
       <Title order={4}>All Nodes ({totalNodes})</Title>
-      <Card withBorder shadow="sm" style={{ display: 'flex', flexDirection: 'column', maxHeight: 600 }}>
+      <Card withBorder shadow="sm" padding="lg">
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+          <Box style={{ maxHeight: 560, minHeight: 0, overflow: 'hidden' }}>
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Certname</Table.Th>
@@ -450,12 +451,13 @@ export function NodesPage() {
          to PuppetDB (the previously "lost" nodes). PuppetDB + CA signed certs together
          form the complete fleet. */}
       <Title order={4}>Unclassified Nodes ({filteredUnclassified.length})</Title>
-      <Card withBorder shadow="sm" style={{ display: 'flex', flexDirection: 'column', maxHeight: 400 }}>
+      <Card withBorder shadow="sm" padding="lg">
         {filteredUnclassified.length === 0 ? (
           <Text c="dimmed" ta="center">All known nodes are classified</Text>
         ) : (
-          <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+          <Box style={{ maxHeight: 360, minHeight: 0, overflow: 'hidden' }}>
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Certname</Table.Th>
@@ -491,6 +493,7 @@ export function NodesPage() {
               </Table.Tbody>
             </Table>
           </ScrollArea>
+        </Box>
         )}
       </Card>
     </Stack>

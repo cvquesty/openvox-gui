@@ -812,10 +812,11 @@ function NodesTab() {
           <Text size="sm" c="dimmed">All PuppetDB nodes are classified.</Text>
         )}
       </Card>
-      <Card withBorder shadow="sm" style={{ display: 'flex', flexDirection: 'column', maxHeight: 480 }}>
+      <Card withBorder shadow="sm" padding="lg">
         <Text fw={700} mb="sm">Classified Nodes</Text>
-        <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={6}>
-          <Table striped highlightOnHover withTableBorder>
+        <Box style={{ maxHeight: 440, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
             <Table.Thead><Table.Tr>
               <Table.Th>Certname</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Groups</Table.Th>
               <Table.Th>Node Classes</Table.Th><Table.Th>Node Params</Table.Th>
@@ -844,6 +845,7 @@ function NodesTab() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+        </Box>
       </Card>
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Node \u2014 ${editing.certname}` : 'Classify Node'} size="lg">

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.23] - 2026-06-03
+
+### Bug Fixes
+- **Dashboard | Nodes | All Nodes and all node lists scroll**: Standardized all node listing tables (Dashboard Nodes panel, Nodes page All Nodes/Unclassified/group categories, Reports submenus, NodeClassifier Classified Nodes table and summary, MetricsCompliance per-category, CertAudit lists, Certificates Signed, Packages results) to use the robust `<Box style={{ maxHeight: N, minHeight: 0, overflow: 'hidden' }}><ScrollArea h="100%" type="auto" ...>` (or equivalent inside flex Cards where appropriate). This ensures reliable internal scrolling with scrollbars when lists exceed the viewport (e.g. 92 nodes showing only 12 before, no scrollbars). The "All Nodes" now properly scrolls to show all 92. Updated imports and adjusted heights for headers. This restores and improves upon previous working scroll behavior across the app.
+
 ## [3.7.22] - 2026-06-03
 
 ### Bug Fixes

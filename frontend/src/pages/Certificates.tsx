@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
-  Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid,
+  Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid, Box,
   ThemeIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -375,13 +375,14 @@ export function CertificatesPage() {
           (3.3.5-20+) so cert workflow stays grouped with agent provisioning. */}
 
       {/* Signed Certificates */}
-      <Card withBorder shadow="sm" padding="md" style={{ display: 'flex', flexDirection: 'column', maxHeight: 520 }}>
+      <Card withBorder shadow="sm" padding="md">
         <Group mb="md">
           <Title order={4}>Signed Certificates</Title>
           <Badge color="green" size="lg">{signed.length}</Badge>
         </Group>
-        <ScrollArea h="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars scrollbarSize={8}>
-          <Table striped highlightOnHover withTableBorder>
+        <Box style={{ maxHeight: 460, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={8}>
+            <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Certname</Table.Th>
@@ -424,6 +425,7 @@ export function CertificatesPage() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+      </Box>
       </Card>
 
       <Modal opened={detailOpen} onClose={() => setDetailOpen(false)}
