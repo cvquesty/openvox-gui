@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.24] - 2026-06-03
+
+### Bug Fixes
+- **Build fix for Nodes.tsx JSX structure**: Fixed malformed ternary in All Nodes section (and verified Unclassified) that was causing esbuild errors: "}" not valid inside JSX, mismatched "Card" / "Box" closing tags, and expected ")". The Box wrapper is now correctly closed before the ternary's closing ")" and before </Card>. This was the root of the "Build is failing" after the scroll standardization edits.
+
 ## [3.7.23] - 2026-06-03
 
 ### Bug Fixes

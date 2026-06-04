@@ -405,7 +405,7 @@ export function NodesPage() {
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <Box style={{ maxHeight: 560, minHeight: 0, overflow: 'hidden' }}>
+          <Box style={{ maxHeight: 550, minHeight: 0, overflow: 'hidden' }}>
             <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
               <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
@@ -456,7 +456,7 @@ export function NodesPage() {
         {filteredUnclassified.length === 0 ? (
           <Text c="dimmed" ta="center">All known nodes are classified</Text>
         ) : (
-          <Box style={{ maxHeight: 360, minHeight: 0, overflow: 'hidden' }}>
+          <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }}>
             <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
               <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
