@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.22] - 2026-06-03
+
+### Bug Fixes
+- **Nodes page group lists scroll**: The per-group ("node grouping") node lists in the Nodes page (e.g. categories like Production, Staging under the main Nodes view, accessible via Dashboard | Nodes) now use the reliable `<Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }}><ScrollArea h="100%" ...>` wrapper inside each `<Collapse>`. This ensures the lists scroll internally when a group/category has too many nodes to fit (e.g. 71+ in a category), matching the proven pattern from other fixes. The "All Nodes" flat list was already using the flex Card pattern (max 600) and remains scrollable.
+
 ## [3.7.21] - 2026-06-03
 
 ### Bug Fixes
