@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.34] - 2026-06-08
+
+### Bug Fixes
+- **Dashboard | Nodes "All Nodes" pane still not scrolling**: Showed only ~17.5 nodes (no internal scrollbar) despite previous Box wrappers. The flat list in the Card was not creating a reliable scroll viewport for the full filtered nodes (92 total).
+  - Switched to direct `<ScrollArea style={{ maxHeight: 650 }} type="auto" offsetScrollbars scrollbarSize={6}>` (no Box/h=100% wrapper) inside the Card. This limits to ~15 rows visible (as suggested) and provides internal vertical scroll for the rest.
+  - Matches the direct style maxHeight pattern that resolved submenu scrolling in Collapses.
+  - Kept Card `style={{ overflow: 'hidden' }}`.
+  - Unclassified Nodes left with Box pattern (no complaint).
+- Full release process followed.
+
 ## [3.7.33] - 2026-06-08
 
 ### Bug Fixes

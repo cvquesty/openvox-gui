@@ -403,9 +403,8 @@ export function NodesPage() {
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <Box style={{ maxHeight: 800, minHeight: 0, overflow: 'hidden' }}>
-            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
+          <ScrollArea style={{ maxHeight: 650 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Certname</Table.Th>
@@ -440,8 +439,7 @@ export function NodesPage() {
                   ))}
                 </Table.Tbody>
               </Table>
-            </ScrollArea>
-          </Box>
+          </ScrollArea>
         )}
       </Card>
 
