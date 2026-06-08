@@ -9,17 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.8.8] - 2026-06-08
-
-### Bug Fixes
-- **ovox infra settings show**: Fixed 500 Internal Server Error when reading infra settings.
-  - The read methods in InfraConfigService could raise on permission errors or unreadable sysconfig/ini files (the GUI service runs as non-root 'puppet' user).
-  - Added robust try/except in `_read_sysconfig_java_args` and `get_puppetdb_pool_settings` (returning safe defaults + warning logs).
-  - Wrapped the logic in `get_infra_settings` to ensure graceful degradation instead of uncaught 500.
-  - The CLI will now receive data (with "unknown"/nulls for unreadable items) instead of 500.
-- Improved error visibility: when hard errors do occur, the API error detail includes the cause instead of generic "Internal Server Error".
-
-## [3.8.7] - 2026-06-08
+## [3.8.7-1] - 2026-06-08
 
 ### Security / Data Leak Prevention
 - Added proactive protections against internal corporate data points leaking into the public repository:
@@ -29,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated internal example hostnames in source comments, README, and bolt-plugin examples to use `example.com` placeholders.
   - Added prominent note in README.md for internal developers.
 - These measures ensure that sensitive internal infrastructure details (registries, test hosts, etc.) cannot accidentally leak again via `package-lock.json` or source files when developers are inside the corporate network.
+
+### Bug Fixes
+- **ovox infra settings show**: Fixed 500 Internal Server Error when reading infra settings.
+  - The read methods in InfraConfigService could raise on permission errors or unreadable sysconfig/ini files (the GUI service runs as non-root 'puppet' user).
+  - Added robust try/except in `_read_sysconfig_java_args` and `get_puppetdb_pool_settings` (returning safe defaults + warning logs).
+  - Wrapped the logic in `get_infra_settings` to ensure graceful degradation instead of uncaught 500.
+  - The CLI will now receive data (with "unknown"/nulls for unreadable items) instead of 500.
+- Improved error visibility: when hard errors do occur, the API error detail includes the cause instead of generic "Internal Server Error".
 
 ## [3.8.5] - 2026-06-08
 
