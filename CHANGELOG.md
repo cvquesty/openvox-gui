@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-7] - 2026-06-08
+
+### Improvements
+- Ensured unattended sudoers installation always produces the exact explicit rules matching `docs/SUDOERS.md` for the `puppet` (service) user (and enabling `bolt` orchestration).
+  - Updated `scripts/update_local.sh` heredoc to the clean explicit version (no unnecessary wildcards, matching install.sh and docs).
+  - Replaced append logic in `scripts/deploy.sh` with full write of the canonical sudoers content (so remote deploys like the test system always get correct up-to-date rules for puppet, bolt, r10k, puppetdb config, services, ca, logs, ssl, etc. without manual edits post-install/update).
+- This guarantees that after `install.sh` or updates/deploys, the `/etc/sudoers.d/openvox-gui` on systems (including the test openvox system) exactly matches the documentation and current backend needs (for puppet/bolt/etc. users), with no post-install sudoers tweaks required.
+- Also manually ensured the test system (10.0.100.225) now has the matching explicit content (validated with visudo).
+- Updated to 3.7.33-7 per policy.
+
 ## [3.7.33-6] - 2026-06-08
 
 ### Bug Fixes
