@@ -75,7 +75,7 @@ puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl
 puppet ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem -text -noout
 
 # Puppet lookup (data resolution only)
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain *
 
 # Package mirror sync script (Agent Installer feature)
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh

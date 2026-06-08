@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.7-2] - 2026-06-08
+
+### Bug Fixes
+- **Sudo rules for puppet lookup**: Updated sudoers generation (install.sh, update_local.sh, deploy.sh) and `docs/SUDOERS.md` to allow `/opt/puppetlabs/bin/puppet lookup --explain *` (with wildcard for the key and optional --node/--environment flags).
+  - The previous exact rule `... lookup --explain` did not match when additional arguments were passed (e.g. `puppet lookup --explain testcommon`), causing "command not allowed" errors in sudo logs from the GUI backend (running as the `puppet` user).
+  - This affected the Hiera Lookup / Puppet Lookup trace feature in the Config > Puppet tab.
+  - Re-release of 3.8.7-1 features under the hyphenated scheme as requested; 3.8.8 removed.
+
 ## [3.8.7-1] - 2026-06-08
 
 ### Security / Data Leak Prevention
