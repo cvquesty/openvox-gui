@@ -50,21 +50,25 @@ async def get_infra_settings(
     """
     result = {}
 
-    if not component or component in ("server", "puppetserver"):
-        jruby = _infra_config.get_puppetserver_jruby_max_active()
-        jvm = _infra_config.get_puppetserver_jvm_settings()
-        result["puppetserver"] = {
-            "jruby_max_active_instances": jruby,
-            "jvm": jvm,
-        }
+    try:
+        if not component or component in ("server", "puppetserver"):
+            jruby = _infra_config.get_puppetserver_jruby_max_active()
+            jvm = _infra_config.get_puppetserver_jvm_settings()
+            result["puppetserver"] = {
+                "jruby_max_active_instances": jruby,
+                "jvm": jvm,
+            }
 
-    if not component or component in ("db", "puppetdb"):
-        pools = _infra_config.get_puppetdb_pool_settings()
-        jvm = _infra_config.get_puppetdb_jvm_settings()
-        result["puppetdb"] = {
-            "pools": pools,
-            "jvm": jvm,
-        }
+        if not component or component in ("db", "puppetdb"):
+            pools = _infra_config.get_puppetdb_pool_settings()
+            jvm = _infra_config.get_puppetdb_jvm_settings()
+            result["puppetdb"] = {
+                "pools": pools,
+                "jvm": jvm,
+            }
+    except Exception as e:
+        logger.exception("Failed to collect infra settings")
+        raise HTTPException(status_code=500, detail=f"Failed to read infrastructure settings: {str(e)}")
 
     return result
 

@@ -95,20 +95,24 @@ class InfraConfigService:
         if not db_conf.exists():
             return {"read": None, "write": None}
 
-        import configparser
-        parser = configparser.ConfigParser()
-        parser.read(str(db_conf))
+        try:
+            import configparser
+            parser = configparser.ConfigParser()
+            parser.read(str(db_conf))
 
-        result = {}
-        for pool in ("read_pool", "write_pool"):
-            if parser.has_section(pool) and parser.has_option(pool, "max_connections"):
-                try:
-                    result[pool.replace("_pool", "")] = int(parser.get(pool, "max_connections"))
-                except ValueError:
+            result = {}
+            for pool in ("read_pool", "write_pool"):
+                if parser.has_section(pool) and parser.has_option(pool, "max_connections"):
+                    try:
+                        result[pool.replace("_pool", "")] = int(parser.get(pool, "max_connections"))
+                    except ValueError:
+                        result[pool.replace("_pool", "")] = None
+                else:
                     result[pool.replace("_pool", "")] = None
-            else:
-                result[pool.replace("_pool", "")] = None
-        return result
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to parse PuppetDB pool settings: {e}")
+            return {"read": None, "write": None}
 
     def set_puppetdb_pool_settings(self, read_max: Optional[int] = None, write_max: Optional[int] = None) -> Path:
         """
@@ -149,17 +153,20 @@ class InfraConfigService:
 
     def _read_sysconfig_java_args(self, service: str) -> str:
         """Read JAVA_ARGS from /etc/sysconfig/<service>."""
-        sysconfig = Path(f"/etc/sysconfig/{service}")
-        if not sysconfig.exists():
+        try:
+            sysconfig = Path(f"/etc/sysconfig/{service}")
+            if not sysconfig.exists():
+                return ""
+            content = sysconfig.read_text()
+            for line in content.splitlines():
+                if line.strip().startswith("JAVA_ARGS"):
+                    # JAVA_ARGS="-Xms2g -Xmx2g ..."
+                    val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    return val
             return ""
-
-        content = sysconfig.read_text()
-        for line in content.splitlines():
-            if line.strip().startswith("JAVA_ARGS"):
-                # JAVA_ARGS="-Xms2g -Xmx2g ..."
-                val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                return val
-        return ""
+        except Exception as e:
+            logger.warning(f"Failed to read sysconfig JAVA_ARGS for {service}: {e}")
+            return ""
 
     def get_puppetserver_jvm_settings(self) -> Dict[str, Any]:
         """Return parsed JVM settings for Puppet Server."""
