@@ -46,7 +46,7 @@ async def resolve_targets(targets: str, db: AsyncSession) -> str:
     """Resolve a target string to actual certnames for Bolt execution.
 
     The Orchestration UI sends target values that can be:
-      - A certname (e.g., 'openvox.pdxc-it.twitter.biz') — passed through as-is
+      - A certname (e.g., 'puppet.example.com') — passed through as-is
       - 'all' — resolved to a comma-separated list of all PuppetDB-known nodes
       - An ENC group name (e.g., 'puppetservers') — resolved to the
         comma-separated certnames of all nodes in that group

@@ -1,12 +1,13 @@
 {
   "name": "openvox-gui",
   "private": true,
-  "version": "3.8.5",
+  "version": "3.8.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:internal-urls": "node -e \"const fs=require('fs'),path=require('path');const bad=/artifactory\\.twitter\\.biz|\\.pdxc-it\\.twitter\\.biz|10\\.0\\.100\\./;function scan(dir){for(const f of fs.readdirSync(dir)){const p=path.join(dir,f);if(fs.statSync(p).isDirectory()&&!['node_modules','dist','.git'].includes(f))scan(p);else if(/\\.(json|lock|ya?ml|md|ts|tsx|js|py|sh|bash|example)$/.test(f)){const c=fs.readFileSync(p,'utf8');if(bad.test(c)&&!p.includes('CHANGELOG.md')){console.error('Internal URL leaked in:',p);process.exit(1);}}}}scan('.');console.log('No internal corporate URLs found in source (excluding CHANGELOG history).');\""
   },
   "dependencies": {
     "@mantine/core": "^7.3.2",

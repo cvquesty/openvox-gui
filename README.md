@@ -18,6 +18,8 @@
 
 [Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Architecture](docs/ARCHITECTURE.md) · [ovox CLI](ovox/README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
+> **⚠️ For internal (Twitter) developers**: Never let internal Artifactory URLs, corporate hostnames (e.g. `*.pdxc-it.twitter.biz`), or other private infrastructure details leak into committed files (especially `package-lock.json`). Use the public npm registry when updating frontend deps. The `frontend/.npmrc` and CI leak-check help enforce this. See v3.8.6 release notes for the previous incident.
+
 </div>
 
 ---
@@ -353,7 +355,7 @@ editing paths — the wizard walks you through the entire process:
   for line count, time range (`--since`), text filter (`grep`), auto-refresh
   every 5 seconds, and download as `.log` file.
 - **Enhanced log line rendering** (dark monospace container for contrast):
-  - FQDNs/certnames (e.g., `ovagent1.pdxc-it.twitter.biz`) highlighted in **bright blue bold**.
+  - FQDNs/certnames (e.g., `agent1.example.com`) highlighted in **bright blue bold**.
   - Executed commands (Orchestration "Run Command", `puppet agent -t`, `bolt ...`,
     `sudo ...`, etc.) and HTTP API calls/responses (e.g., `"GET /api/... HTTP/1.1" 200 OK`)
     highlighted in **bold red**.

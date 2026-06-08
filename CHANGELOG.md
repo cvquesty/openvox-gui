@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.6] - 2026-06-08
+
+### Security / Data Leak Prevention
+- Added proactive protections against internal corporate data points leaking into the public repository:
+  - Committed `frontend/.npmrc` that forces the public npm registry (`registry=https://registry.npmjs.org/`).
+  - Added `npm run check:internal-urls` script in `frontend/package.json`.
+  - New GitHub Action workflow `.github/workflows/leak-check.yml` that runs on every push/PR and fails the build if it detects Artifactory URLs, `*.pdxc-it.twitter.biz` hostnames, internal test IPs (`10.0.100.*`), etc. in committed source (intentionally skips historical CHANGELOG entries).
+  - Updated internal example hostnames in source comments, README, and bolt-plugin examples to use `example.com` placeholders.
+  - Added prominent note in README.md for internal developers.
+- These measures ensure that sensitive internal infrastructure details (registries, test hosts, etc.) cannot accidentally leak again via `package-lock.json` or source files when developers are inside the corporate network.
+
 ## [3.8.5] - 2026-06-08
 
 ### Bug Fixes

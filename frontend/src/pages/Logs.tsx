@@ -92,7 +92,7 @@ export function LogsPage() {
 
   /**
    * Render a single log line with visual enhancements:
-   * - FQDNs / certnames (e.g. ovagent1.pdxc-it.twitter.biz) in bold bright blue
+   * - FQDNs / certnames (e.g. agent1.example.com) in bold bright blue
    * - Command strings being executed (puppet agent, bolt runs, sudo commands, etc.)
    *   in bold red
    * - API calls and responses (e.g. "GET /api/dashboard/data HTTP/1.1" 200 OK)

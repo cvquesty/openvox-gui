@@ -1,0 +1,34 @@
+name: Leak Check (Internal URLs)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-internal-urls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for internal corporate URLs
+        run: |
+          # Fail if internal Artifactory or test host patterns appear outside CHANGELOG
+          if grep -rE 'artifactory\.twitter\.biz|\.pdxc-it\.twitter\.biz|10\.0\.100\.' \
+             --include='*.json' --include='*.lock' --include='*.yml' --include='*.yaml' \
+             --include='*.md' --include='*.ts' --include='*.tsx' --include='*.js' \
+             --include='*.py' --include='*.sh' --include='*.bash' --include='*.example' \
+             --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git \
+             | grep -v 'CHANGELOG.md' | grep -q .; then
+            echo "::error::Internal corporate URLs (Artifactory, test hosts, etc.) detected in committed files!"
+            echo "These must not leak outside the company. Use public registry URLs and example.com placeholders."
+            exit 1
+          else
+            echo "No internal corporate data points found outside historical CHANGELOG."
+          fi
+      - name: Run frontend internal URL script (if applicable)
+        working-directory: frontend
+        run: |
+          if [ -f package.json ]; then
+            npm run check:internal-urls || exit 1
+          fi

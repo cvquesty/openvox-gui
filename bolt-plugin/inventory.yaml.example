@@ -52,7 +52,7 @@ groups:
   # Static group for the OpenVox server itself (local transport)
   - name: puppetserver
     targets:
-      - uri: openvox.pdxc-it.twitter.biz
+      - uri: puppet.example.com
         config:
           transport: local
 

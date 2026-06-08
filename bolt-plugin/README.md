@@ -53,7 +53,7 @@ groups:
 bolt command run "uptime" -t webservers
 
 # Run against a specific node
-bolt command run "puppet agent -t" -t openvox.pdxc-it.twitter.biz
+bolt command run "puppet agent -t" -t puppet.example.com
 
 # Show resolved inventory (very useful for debugging)
 bolt inventory show --verbose
