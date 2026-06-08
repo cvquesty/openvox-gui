@@ -484,7 +484,7 @@ function HieraTron() {
 
 /* ── Hiera Lookup (puppet lookup --explain) ──────────────── */
 export function LookupTrace() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [key, setKey] = useState('');
   const [node, setNode] = useState('');
   const [environment, setEnvironment] = useState<string | null>(null);
@@ -534,7 +534,7 @@ export function LookupTrace() {
   return (
     <Stack>
       <Grid>
-        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 7 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 7 : 12 }}>
       <Card withBorder shadow="sm" padding="md" h="100%">
         <Title order={4} mb="md">Hiera Lookup</Title>
         <Group align="end" grow>
@@ -576,7 +576,7 @@ export function LookupTrace() {
         </Group>
       </Card>
         </Grid.Col>
-        {!isFormal && (
+        {isRobots && (
           <Grid.Col span={{ base: 12, md: 5 }}>
             <Card withBorder shadow="sm" padding={0} h="100%" style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
               <HieraTron />

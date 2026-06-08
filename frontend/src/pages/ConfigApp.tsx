@@ -174,11 +174,15 @@ function ApplicationTab({ onSwitchToServices }: { onSwitchToServices: () => void
           <div>
             <Text fw={700} mb={4}>Application Theme</Text>
             <Text size="sm" c="dimmed">
-              Choose the visual style. <Text span fw={500}>Casual</Text> features dark mode with animated illustrations. <Text span fw={500}>Formal</Text> is a clean, light business theme.
+              Choose the visual style. <Text span fw={500}>Light</Text> is a clean light theme with blue accents. <Text span fw={500}>Dark</Text> is a clean dark theme with orange accents. <Text span fw={500}>Robots!!</Text> features dark mode with orange accents and animated illustrations.
             </Text>
           </div>
           <SegmentedControl value={appTheme} onChange={(v) => setTheme(v as any)}
-            data={[{ label: 'Casual', value: 'casual' }, { label: 'Formal', value: 'formal' }]} size="md" />
+            data={[
+              { label: 'Light', value: 'light' }, 
+              { label: 'Dark', value: 'dark' }, 
+              { label: 'Robots!!', value: 'robots' }
+            ]} size="md" />
         </Group>
       </Card>
       <Card withBorder shadow="sm">
@@ -618,7 +622,7 @@ function AuthSettingsTab() {
 /* ────────────────────── User Manager Tab ────────────────────── */
 function UserManagerTab() {
   const { user: currentUser } = useAuth();
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [userList, setUserList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -709,12 +713,12 @@ function UserManagerTab() {
     <Stack>
       {/* Add User */}
       <Grid align="flex-start">
-        {!isFormal && (
+        {isRobots && (
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}><PeopleProcessingMachine /></Card>
           </Grid.Col>
         )}
-        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 6 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 6 : 12 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Group gap="sm" mb="md">
               <IconPlus size={18} />

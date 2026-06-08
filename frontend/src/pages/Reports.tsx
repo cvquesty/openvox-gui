@@ -287,7 +287,7 @@ function getStatusBadgeProps(status: 'unchanged' | 'changed' | 'failed') {
 }
 
 export function ReportsPage() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -478,7 +478,7 @@ export function ReportsPage() {
       </Group>
 
       {/* Report-O-Scope illustration (casual only) */}
-      {!isFormal && (
+      {isRobots && (
         <Card withBorder shadow="sm" padding={0} style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
           <ReportOScope />
         </Card>

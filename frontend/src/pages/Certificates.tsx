@@ -124,7 +124,7 @@ function CertOStamp() {
 
 export function CertificatesPage() {
   const navigate = useNavigate();
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [data, setData] = useState<any>(null);
   const [caInfo, setCaInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -365,7 +365,7 @@ export function CertificatesPage() {
       )}
 
       {/* Casual illustration */}
-      {!isFormal && (
+      {isRobots && (
         <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
           <CertOStamp />
         </Card>

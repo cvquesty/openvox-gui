@@ -289,7 +289,7 @@ function BoltOMatic() {
    TAB 1: OVERVIEW + CARTOON
    ═══════════════════════════════════════════════════════════════ */
 function OverviewTab() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -302,14 +302,14 @@ function OverviewTab() {
   return (
     <Stack>
       <Grid>
-        {!isFormal && (
+        {isRobots && (
           <Grid.Col span={{ base: 12, md: 7 }}>
             <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
               <BoltOMatic />
             </Card>
           </Grid.Col>
         )}
-        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 5 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 5 : 12 }}>
           <Stack>
             <Card withBorder shadow="sm" padding="md">
               <Text fw={700} mb="sm">OpenBolt Status</Text>

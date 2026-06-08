@@ -157,7 +157,7 @@ function nodeTimeAgo(timestamp: string | null): string {
 }
 
 export function DashboardPage() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const navigate = useNavigate();
   // Single PuppetDB query — nodes, status counts, and trends all derived
   // from the same data fetch.  PuppetDB is the CMDB; query it once.
@@ -258,7 +258,7 @@ export function DashboardPage() {
       </Group>
 
       {/* Casual theme illustration */}
-      {!isFormal && (
+      {isRobots && (
         <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
           <CommandCenterOTron />
         </Card>

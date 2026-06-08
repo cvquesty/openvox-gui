@@ -115,7 +115,7 @@ function QueryOTron() {
 }
 
 export function PQLConsolePage() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [query, setQuery] = useState('nodes {}');
   const [results, setResults] = useState<any>(null);
   const [running, setRunning] = useState(false);
@@ -191,7 +191,7 @@ export function PQLConsolePage() {
       </Alert>
 
       <Grid>
-        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 7 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 7 : 12 }}>
           <Card withBorder shadow="sm" padding="md">
             <Group align="flex-end" mb="sm" grow>
               <Select
@@ -246,7 +246,7 @@ export function PQLConsolePage() {
           </Card>
         </Grid.Col>
 
-        {!isFormal && (
+        {isRobots && (
           <Grid.Col span={{ base: 12, md: 5 }}>
             <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
               <QueryOTron />

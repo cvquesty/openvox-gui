@@ -116,7 +116,7 @@ function InspectOBot() {
 }
 
 export function NodeDetailPage() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const { certname } = useParams<{ certname: string }>();
   const navigate = useNavigate();
   const { data: node, loading, error } = useApi(() => nodes.get(certname!), [certname]);
@@ -227,7 +227,7 @@ export function NodeDetailPage() {
       )}
 
       <Grid>
-        <Grid.Col span={{ base: 12, md: isFormal ? 4 : 3 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 3 : 4 }}>
           <Stack>
             <Card withBorder shadow="sm" padding="md">
               <Text fw={700} mb="sm">Overview</Text>
@@ -251,8 +251,8 @@ export function NodeDetailPage() {
               </Stack>
             </Card>
 
-            {/* Casual robot illustration */}
-            {!isFormal && (
+            {/* Robots!! illustration */}
+            {isRobots && (
               <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
                 <InspectOBot />
               </Card>
@@ -260,7 +260,7 @@ export function NodeDetailPage() {
           </Stack>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: isFormal ? 8 : 9 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 9 : 8 }}>
           <Card withBorder shadow="sm" padding="md">
             <Text fw={700} mb="sm">Applied Classes ({node.classes.length})</Text>
             <Group gap="xs">

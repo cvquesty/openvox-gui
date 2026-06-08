@@ -5,18 +5,20 @@
  */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-export type AppTheme = 'casual' | 'formal';
+export type AppTheme = 'light' | 'dark' | 'robots';
 
 interface ThemeContextType {
   theme: AppTheme;
   setTheme: (t: AppTheme) => void;
-  isFormal: boolean;
+  isDark: boolean;
+  isRobots: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'formal',
+  theme: 'light',
   setTheme: () => {},
-  isFormal: true,
+  isDark: false,
+  isRobots: false,
 });
 
 export function useAppTheme() {
@@ -26,7 +28,13 @@ export function useAppTheme() {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<AppTheme>(() => {
     const stored = localStorage.getItem('openvox_theme');
-    return (stored === 'casual' ? 'casual' : 'formal') as AppTheme;
+    if (stored === 'light' || stored === 'dark' || stored === 'robots') {
+      return stored;
+    }
+    // Migration from old theme names
+    if (stored === 'casual') return 'robots';
+    if (stored === 'formal') return 'light';
+    return 'light';
   });
 
   const setTheme = (t: AppTheme) => {
@@ -44,7 +52,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, isFormal: theme === 'formal' }}>
+    <ThemeContext.Provider value={{ 
+      theme, 
+      setTheme, 
+      isDark: theme === 'dark' || theme === 'robots',
+      isRobots: theme === 'robots' 
+    }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -156,7 +156,7 @@ interface GroupedNodes {
 }
 
 export function NodesPage() {
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [search, setSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const { data: nodeList, loading: nodesLoading, error: nodesError } = useApi<NodeSummary[]>(nodes.list);
@@ -316,7 +316,7 @@ export function NodesPage() {
       </Group>
 
       {/* Casual illustration */}
-      {!isFormal && (
+      {isRobots && (
         <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
           <NodeOVision />
         </Card>

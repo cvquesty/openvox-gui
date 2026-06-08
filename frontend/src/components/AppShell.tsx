@@ -123,7 +123,7 @@ export function AppShellLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { isFormal } = useAppTheme();
+  const { isDark } = useAppTheme();
   const [activeSessions, setActiveSessions] = useState<any>(null);
   const [appName, setAppName] = useState('OpenVox GUI');
   // Track which nav groups are expanded (keyed by label)
@@ -150,12 +150,12 @@ export function AppShellLayout() {
   const activeUsersList = activeSessions?.users || [];
 
   // Theme-dependent styles
-  const headerBg = isFormal ? '#ffffff' : '#1a1b2e';
-  const headerBorder = isFormal ? '1px solid #dee2e6' : 'none';
-  const navBg = isFormal ? '#f8f9fa' : '#141421';
-  const navBorder = isFormal ? '1px solid #dee2e6' : 'none';
-  const titleColor = isFormal ? '#212529' : undefined;
-  const logoSrc = isFormal ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
+  const headerBg = !isDark ? '#ffffff' : '#1a1b2e';
+  const headerBorder = !isDark ? '1px solid #dee2e6' : 'none';
+  const navBg = !isDark ? '#f8f9fa' : '#141421';
+  const navBorder = !isDark ? '1px solid #dee2e6' : 'none';
+  const titleColor = !isDark ? '#212529' : undefined;
+  const logoSrc = !isDark ? '/openvox-logo.svg' : '/openvox-logo-orange.svg';
   // Recursive navigation renderer — supports nested children
   const renderNavItem = (item: NavItem, depth: number = 0): ReactNode => {
     const ItemIcon = item.icon;

@@ -310,7 +310,7 @@ function NodeOScope() {
    ═══════════════════════════════════════════════════════════════ */
 function HierarchyTab() {
   const navigate = useNavigate();
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [data, setData] = useState<any>(null);
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -353,7 +353,7 @@ function HierarchyTab() {
 
   return (
     <Stack>
-      {!isFormal && (
+      {isRobots && (
         <Card withBorder shadow="sm" padding="sm" mb="md" style={{ overflow: 'hidden' }}>
           <NodeOScope />
         </Card>

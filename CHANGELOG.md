@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.7-4] - 2026-06-08
+
+### Features
+- **New Application Theme "Dark"**: Added a third theme option in Settings > Application Configuration > Application Theme.
+  - Renamed "Formal" → "Light" (clean light mode with blue accents).
+  - Renamed "Casual" → "Robots!!" (dark mode with orange accents + animated illustrations), now last in the list.
+  - New "Dark" theme: identical structure to "Light" (clean, no illustrations, defaultRadius 'sm') but using the orange/vporange color scheme from "Robots!!", placed second.
+  - List now reads left-to-right: Light • Dark • Robots!!
+  - Updated ThemeContext (AppTheme type, migration from old 'formal'/'casual', isDark/isRobots flags), main.tsx (three theme objects + selection logic), ConfigApp (UI pane + description), AppShell, Login, and all conditional illustration/layout sites across the app (migrated from legacy isFormal logic).
+
 ## [3.8.7-3] - 2026-06-08
 
 ### Maintenance

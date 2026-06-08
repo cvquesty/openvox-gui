@@ -111,7 +111,7 @@ function FactOScope() {
 
 export function FactExplorerPage() {
   const navigate = useNavigate();
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [factNames, setFactNames] = useState<string[]>([]);
   const [selectedFact, setSelectedFact] = useState<string | null>(null);
   const [factInput, setFactInput] = useState<string>('');
@@ -331,7 +331,7 @@ export function FactExplorerPage() {
 
       {/* Controls + illustration */}
       <Grid>
-        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 7 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 7 : 12 }}>
           <Card withBorder shadow="sm" padding="md">
             <Stack>
               <Group align="flex-end">
@@ -494,7 +494,7 @@ export function FactExplorerPage() {
           </Card>
         </Grid.Col>
 
-        {!isFormal && (
+        {isRobots && (
           <Grid.Col span={{ base: 12, md: 5 }}>
             <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
               <FactOScope />

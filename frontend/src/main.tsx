@@ -9,8 +9,10 @@
  * 
  * Theme Configuration:
  * - vporange: Vox Pupuli Orange (#EC8622) primary color
- * - Casual: Dark mode with orange accents and animations
- * - Formal: Light mode with blue accents, professional look
+ * - vpblue: Bootstrap blue (#0D6EFD) primary color
+ * - Light: Clean light mode with blue accents
+ * - Dark: Clean dark mode with orange accents (color scheme from Robots!!)
+ * - Robots!!: Dark mode with orange accents and animated illustrations (fun theme)
  */
 
 import React from 'react';
@@ -23,19 +25,7 @@ import { ThemeProvider, useAppTheme } from './hooks/ThemeContext';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 
-const casualTheme = createTheme({
-  primaryColor: 'vporange',
-  colors: {
-    vporange: [
-      '#fff4e6', '#ffe8cc', '#ffd8a8', '#ffc078', '#ffa94d',
-      '#EC8622', '#e67700', '#d9730d', '#c2630a', '#a35208',
-    ],
-  },
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  defaultRadius: 'md',
-});
-
-const formalTheme = createTheme({
+const lightTheme = createTheme({
   primaryColor: 'vpblue',
   colors: {
     vpblue: [
@@ -47,13 +37,48 @@ const formalTheme = createTheme({
   defaultRadius: 'sm',
 });
 
+const darkTheme = createTheme({
+  primaryColor: 'vporange',
+  colors: {
+    vporange: [
+      '#fff4e6', '#ffe8cc', '#ffd8a8', '#ffc078', '#ffa94d',
+      '#EC8622', '#e67700', '#d9730d', '#c2630a', '#a35208',
+    ],
+  },
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  defaultRadius: 'sm',
+});
+
+const robotsTheme = createTheme({
+  primaryColor: 'vporange',
+  colors: {
+    vporange: [
+      '#fff4e6', '#ffe8cc', '#ffd8a8', '#ffc078', '#ffa94d',
+      '#EC8622', '#e67700', '#d9730d', '#c2630a', '#a35208',
+    ],
+  },
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  defaultRadius: 'md',
+});
+
 function ThemedApp() {
-  const { isFormal } = useAppTheme();
-  const colorScheme: MantineColorScheme = isFormal ? 'light' : 'dark';
-  const theme = isFormal ? formalTheme : casualTheme;
+  const { theme: appTheme } = useAppTheme();
+  let mantineTheme: any;
+  let colorScheme: MantineColorScheme;
+
+  if (appTheme === 'light') {
+    mantineTheme = lightTheme;
+    colorScheme = 'light';
+  } else if (appTheme === 'dark') {
+    mantineTheme = darkTheme;
+    colorScheme = 'dark';
+  } else { // robots
+    mantineTheme = robotsTheme;
+    colorScheme = 'dark';
+  }
 
   return (
-    <MantineProvider theme={theme} forceColorScheme={colorScheme}>
+    <MantineProvider theme={mantineTheme} forceColorScheme={colorScheme}>
       <Notifications />
       <BrowserRouter>
         <App />

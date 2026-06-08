@@ -127,7 +127,7 @@ function ResourceOMatic() {
 
 export function ResourceExplorerPage() {
   const navigate = useNavigate();
-  const { isFormal } = useAppTheme();
+  const { isRobots } = useAppTheme();
   const [resourceType, setResourceType] = useState('');
   const [titleFilter, setTitleFilter] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -182,7 +182,7 @@ export function ResourceExplorerPage() {
       </Alert>
 
       <Grid>
-        <Grid.Col span={{ base: 12, md: isFormal ? 12 : 7 }}>
+        <Grid.Col span={{ base: 12, md: isRobots ? 7 : 12 }}>
           <Card withBorder shadow="sm" padding="md">
             <Group align="flex-end">
               <Select
@@ -209,7 +209,7 @@ export function ResourceExplorerPage() {
           </Card>
         </Grid.Col>
 
-        {!isFormal && (
+        {isRobots && (
           <Grid.Col span={{ base: 12, md: 5 }}>
             <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
               <ResourceOMatic />
