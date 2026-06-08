@@ -33,7 +33,7 @@ async def infra_health(_user: str = Depends(_AUTH)):
     try:
         # Leverage existing service status endpoint
         # In a fuller implementation we would also check PuppetDB JMX, disk, etc.
-        return {"status": "ok", "message": "Use /api/dashboard/services for detailed component status."}
+        return {"status": "ok", "message": "Use /api/config/services for detailed component status."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

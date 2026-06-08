@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.5] - 2026-06-08
+
+### Bug Fixes
+- **ovox CLI compliance**: Fixed `ovox infra health` which was calling the non-existent legacy `/api/services` endpoint (causing 404 "API endpoint not found").
+  - Updated `ovox/ovox/commands/infra.py` to call the authoritative `/api/config/services`.
+  - Cleaned up outdated comments and references across `backend/app/routers/infra.py`, `dashboard.py`, `config.py`, maintenance middleware, and frontend api.ts (removed dead legacy dashboard.getServices).
+  - The `ovox infra health` (and related infra commands) now correctly retrieve service status for puppetserver, puppetdb, puppet, and openvox-gui.
+
 ## [3.8.4] - 2026-06-08
 
 ### Dependencies

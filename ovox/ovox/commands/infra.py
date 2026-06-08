@@ -51,11 +51,10 @@ def health(
     )
 
     try:
-        # Use the clean services endpoint (the legacy /api/dashboard/services
-        # still contains a hardcoded "httpd" entry from older Apache-based
-        # deployments). This gives accurate status for modern direct uvicorn
-        # deployments.
-        services = client.get("/api/services")
+        # Use the authoritative services endpoint under config.
+        # (Previously lived at top-level /api/services or /api/dashboard/services;
+        # now consolidated under /api/config/services for cleaner routing.)
+        services = client.get("/api/config/services")
     except OvoxAPIError as exc:
         console.print(f"[red]Failed to fetch service health:[/red] {exc}")
         raise typer.Exit(1)

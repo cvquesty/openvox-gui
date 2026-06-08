@@ -74,7 +74,8 @@ export const dashboard = {
   getNodeStatus: () => fetchJSON<any>('/dashboard/node-status'),
   getReportTrends: () => fetchJSON<any[]>('/dashboard/report-trends'),
   getNodeStatusTrends: () => fetchJSON<any[]>('/dashboard/node-status-trends'),
-  getServices: () => fetchJSON<any[]>('/dashboard/services'),
+  // getServices removed: use config.getServices which points to the authoritative /api/config/services
+  // (legacy /dashboard/services retained only in backend for extreme backward compat)
   getActiveSessions: () => fetchJSON<any>('/dashboard/active-sessions'),
 };
 

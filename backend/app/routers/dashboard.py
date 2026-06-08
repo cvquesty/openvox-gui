@@ -182,12 +182,11 @@ async def get_report_trends():
 async def get_service_status():
     """Get status of core Puppet/OpenVox services (legacy path).
 
-    Prefer /api/services for new usage. This endpoint is retained only
-    for any external scripts or older clients that still hit it.
+    Prefer /api/config/services for new usage (authoritative source).
+    This endpoint is retained only for backward compatibility with
+    very old clients/scripts.
     """
     from ..services.puppetserver import puppetserver_service
-    # Legacy endpoint kept for backward compatibility.
-    # The authoritative list now lives in /api/services (config router).
     services = ["puppetserver", "puppetdb", "puppet", "openvox-gui"]
     result = []
     for svc in services:
