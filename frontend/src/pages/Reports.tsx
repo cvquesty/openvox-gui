@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea, Box,
+  Select, Badge, Collapse, ActionIcon, ScrollArea,
 } from '@mantine/core';
 import { IconSearch, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -512,9 +512,8 @@ export function ReportsPage() {
                   </Badge>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }} mt="sm">
-                    <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-                      <Table striped highlightOnHover withTableBorder>
+                  <ScrollArea mah={480} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
+                    <Table striped highlightOnHover withTableBorder>
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Certname</Table.Th>
@@ -564,8 +563,7 @@ export function ReportsPage() {
                             )}
                           </Table.Tbody>
                         </Table>
-                    </ScrollArea>
-                  </Box>
+                  </ScrollArea>
                 </Collapse>
               </Card>
             );

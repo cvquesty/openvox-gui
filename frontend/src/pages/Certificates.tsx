@@ -7,7 +7,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
-  Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid, Box,
+  Table, Badge, Code, Modal, ActionIcon, Tooltip, ScrollArea, Grid,
   ThemeIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -380,9 +380,8 @@ export function CertificatesPage() {
           <Title order={4}>Signed Certificates</Title>
           <Badge color="green" size="lg">{signed.length}</Badge>
         </Group>
-        <Box style={{ maxHeight: 550, minHeight: 0, overflow: 'hidden' }}>
-          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={8}>
-            <Table striped highlightOnHover withTableBorder>
+        <ScrollArea mah={550} type="auto" offsetScrollbars scrollbarSize={8}>
+          <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Certname</Table.Th>
@@ -425,7 +424,6 @@ export function CertificatesPage() {
             </Table.Tbody>
           </Table>
           </ScrollArea>
-        </Box>
       </Card>
 
       <Modal opened={detailOpen} onClose={() => setDetailOpen(false)}

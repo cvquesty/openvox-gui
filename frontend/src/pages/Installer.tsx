@@ -28,8 +28,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Title, Card, Stack, Group, Text, Button, Alert, Loader, Center,
   Table, Badge, Code, ScrollArea, Grid, Divider, Tabs, Checkbox,
-  CopyButton, ActionIcon, Tooltip, Progress, Anchor, SimpleGrid,
-  Box,
+  CopyButton, ActionIcon, Tooltip, Progress, Anchor, SimpleGrid, Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -807,9 +806,8 @@ export function InstallerPage() {
             checked in for the first time will appear here, ready to sign.
           </Text>
         ) : (
-          <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }}>
-            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover>
+          <ScrollArea mah={350} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Certname</Table.Th>
@@ -852,7 +850,6 @@ export function InstallerPage() {
             </Table.Tbody>
           </Table>
           </ScrollArea>
-          </Box>
         )}
       </Card>
     </Stack>
