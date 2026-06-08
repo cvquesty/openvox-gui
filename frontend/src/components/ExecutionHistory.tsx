@@ -170,8 +170,8 @@ export function ExecutionHistory() {
   const uniqueNodes = Array.from(new Set(history.map(h => h.node_name))).sort();
 
   return (
-    <Card shadow="sm" radius="md" withBorder p="md" h="100%">
-      <Stack gap="sm" h="100%">
+    <Card shadow="sm" radius="md" withBorder p="md">
+      <Stack gap="sm">
         {/* Header */}
         <Group justify="space-between">
           <Group>
@@ -253,7 +253,7 @@ export function ExecutionHistory() {
         </Paper>
 
         {/* Table */}
-        <Box style={{ flex: 1, minHeight: 0 }}>
+        <Box style={{ maxHeight: 720, minHeight: 0, overflow: 'hidden' }}>
           <ScrollArea h="100%" offsetScrollbars scrollbarSize={8}>
             {loading && !history.length ? (
               <Flex align="center" justify="center" h={200}>

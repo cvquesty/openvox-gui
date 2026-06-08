@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-6] - 2026-06-08
+
+### Bug Fixes
+- **Infrastructure | Orchestration "Execution History" pane**: The list of executions had no height limit and would grow indefinitely ("scrolls on forever"). Limited the visible display to ~20 lines by applying the established Box + ScrollArea pattern:
+  - Removed `h="100%"` from the outer `<Card>` and `<Stack>` (which allowed unbounded growth in the page layout).
+  - Wrapped the table area in `<Box style={{ maxHeight: 720, minHeight: 0, overflow: 'hidden' }}>`.
+  - Kept `<ScrollArea h="100%" ...>` inside it.
+  - This matches the fixes previously applied to node lists on Dashboard/Overview/Nodes and Signed Certificates panes.
+- Updated versioning, docs, and CHANGELOG per hyphenated 3.7.33-N policy.
+- Full release process followed.
+
 ## [3.7.33-5] - 2026-06-08
 
 ### Bug Fixes
