@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text,
-  ActionIcon, Tooltip, Collapse, ScrollArea,
+  ActionIcon, Tooltip, Collapse, ScrollArea, Box,
 } from '@mantine/core';
 import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -347,8 +347,9 @@ export function NodesPage() {
                   </Group>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <ScrollArea style={{ maxHeight: 480 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
-                    <Table striped highlightOnHover withTableBorder>
+                  <Box style={{ maxHeight: 480, minHeight: 0, overflow: 'hidden' }} mt="sm">
+                    <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                      <Table striped highlightOnHover withTableBorder>
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Certname</Table.Th>
@@ -389,7 +390,8 @@ export function NodesPage() {
                             )}
                           </Table.Tbody>
                         </Table>
-                  </ScrollArea>
+                    </ScrollArea>
+                  </Box>
                 </Collapse>
               </Card>
             );
@@ -403,8 +405,9 @@ export function NodesPage() {
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 800 }} type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+          <Box style={{ maxHeight: 800, minHeight: 0, overflow: 'hidden' }}>
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Certname</Table.Th>
@@ -439,7 +442,8 @@ export function NodesPage() {
                   ))}
                 </Table.Tbody>
               </Table>
-          </ScrollArea>
+            </ScrollArea>
+          </Box>
         )}
       </Card>
 
@@ -452,8 +456,9 @@ export function NodesPage() {
         {filteredUnclassified.length === 0 ? (
           <Text c="dimmed" ta="center">All known nodes are classified</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 600 }} type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+          <Box style={{ maxHeight: 600, minHeight: 0, overflow: 'hidden' }}>
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Certname</Table.Th>
@@ -488,7 +493,8 @@ export function NodesPage() {
                 ))}
               </Table.Tbody>
             </Table>
-          </ScrollArea>
+            </ScrollArea>
+          </Box>
         )}
       </Card>
     </Stack>
