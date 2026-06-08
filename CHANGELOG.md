@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.32] - 2026-06-08
+
+### Bug Fixes
+- **Dashboard | Nodes submenus still not scrolling**: The classified group submenus (e.g. Production Nodes) inside <Collapse> continued to not provide functional internal vertical scroll for their node lists, despite previous attempts with direct style and Box wrappers. 
+  - The issue was height propagation and viewport sizing inside the animated Collapse + Card + Stack layout; percentage heights and maxHeight alone on ScrollArea were not creating a reliable constrained scroll region for the <Table> content when the group had many nodes (e.g. 71 nodes but only ~10 shown, no scrollbar).
+  - Fixed by using explicit fixed `h={480}` on the <ScrollArea> directly inside each <Collapse> for the group lists. This forces the ScrollArea to allocate a specific height (showing ~10-11 rows) and provides a proper internal vertical scrollbar for the remaining nodes in the group. The Collapse sizes to this height when open.
+  - This delivers the requested "scrollable window within a window" for each submenu's node list on the overall scrollable page.
+  - The All Nodes and Unclassified sections retain the Box + h="100%" maxHeight pattern for their flat lists.
+- Full release process followed.
+
 ## [3.7.31] - 2026-06-08
 
 ### Bug Fixes

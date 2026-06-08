@@ -347,9 +347,8 @@ export function NodesPage() {
                   </Group>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <Box style={{ maxHeight: 480, minHeight: 0, overflow: 'hidden' }} mt="sm">
-                    <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-                      <Table striped highlightOnHover withTableBorder>
+                  <ScrollArea h={480} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
+                    <Table striped highlightOnHover withTableBorder>
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Certname</Table.Th>
@@ -390,8 +389,7 @@ export function NodesPage() {
                             )}
                           </Table.Tbody>
                         </Table>
-                    </ScrollArea>
-                  </Box>
+                  </ScrollArea>
                 </Collapse>
               </Card>
             );
