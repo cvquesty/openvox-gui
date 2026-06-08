@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33] - 2026-06-08
+
+### Bug Fixes
+- **Code | Classification page scrolling issues**: The "Classified Nodes" pane (full list of nodes with applied classes/groups/params) only showed ~5 rows with no internal vertical scroll, and the overall page did not scroll for the content. Similar issues in Environments and Groups tabs' tables, and small summary lists in the hierarchy view.
+  - Fixed "Classified Nodes" table (Nodes tab) with Box maxHeight:650 + ScrollArea h="100%" wrapper (increased from 440 to allow more visible rows before internal scroll).
+  - Wrapped Environments and Groups tables (their tabs) in Box + ScrollArea (maxHeight 500) for internal scrolling of potentially long lists with classes/params.
+  - Increased hierarchy summary ScrollAreas (Envs 200→300, Groups 250→350, Classified Nodes summary 300→450) and wrapped with Box for reliable internal scrolling.
+  - Uses the consistent Box + h="100%" pattern (with minHeight:0, overflow:hidden on Box, overflow:hidden on Cards where needed) to ensure constrained viewports in Cards/Stacks/Grids without relying on fragile direct maxHeight in complex layouts.
+  - This allows viewing/scrolling full lists internally while the page can still use outer scroll if content grows.
+- Full release process followed.
+
 ## [3.7.32] - 2026-06-08
 
 ### Bug Fixes

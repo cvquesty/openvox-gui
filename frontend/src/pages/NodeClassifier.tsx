@@ -404,7 +404,8 @@ function HierarchyTab() {
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Environments ({data.environments?.length || 0})</Text>
-            <ScrollArea style={{ maxHeight: 200 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Box style={{ maxHeight: 300, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
               {(data.environments || []).map((e: any) => (
                   <Paper key={e.name} p="xs" mb={4} withBorder>
                     <Group justify="space-between">
@@ -415,10 +416,12 @@ function HierarchyTab() {
                 ))}
                 {(data.environments || []).length === 0 && <Text size="sm" c="dimmed">No environments defined yet</Text>}
               </ScrollArea>
+            </Box>
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Groups ({data.groups?.length || 0})</Text>
-            <ScrollArea style={{ maxHeight: 250 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
               {(data.groups || []).map((g: any) => (
                   <Paper key={g.id} p="xs" mb={4} withBorder>
                     <Group justify="space-between">
@@ -429,10 +432,12 @@ function HierarchyTab() {
                 ))}
                 {(data.groups || []).length === 0 && <Text size="sm" c="dimmed">No groups defined yet</Text>}
               </ScrollArea>
+            </Box>
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Classified Nodes ({activeHierarchyNodes.length})</Text>
-            <ScrollArea style={{ maxHeight: 300 }} type="auto" offsetScrollbars scrollbarSize={6}>
+            <Box style={{ maxHeight: 450, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
               {activeHierarchyNodes.map((n: any) => (
                   <Paper key={n.certname} p="xs" mb={4} withBorder>
                     <Group justify="space-between">
@@ -448,6 +453,7 @@ function HierarchyTab() {
                 ))}
                 {activeHierarchyNodes.length === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
               </ScrollArea>
+            </Box>
           </Card>
         </Grid.Col>
       </Grid>
@@ -537,13 +543,15 @@ function EnvironmentsTab() {
         Classes and parameters set here apply to every node in this environment.
       </Alert>
       <Card withBorder shadow="sm">
-        <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr>
-            <Table.Th>Environment</Table.Th><Table.Th>Description</Table.Th>
-            <Table.Th>Classes</Table.Th><Table.Th>Parameters</Table.Th>
-            <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-          </Table.Tr></Table.Thead>
-          <Table.Tbody>
+        <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover>
+              <Table.Thead><Table.Tr>
+                <Table.Th>Environment</Table.Th><Table.Th>Description</Table.Th>
+                <Table.Th>Classes</Table.Th><Table.Th>Parameters</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
+              </Table.Tr></Table.Thead>
+              <Table.Tbody>
             {envs.map((e) => (
               <Table.Tr key={e.name}>
                 <Table.Td><Badge color="blue" size="lg">{e.name}</Badge></Table.Td>
@@ -561,6 +569,8 @@ function EnvironmentsTab() {
             {envs.length === 0 && <Table.Tr><Table.Td colSpan={5}><Text c="dimmed" ta="center" py="lg">No environments defined</Text></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
+        </ScrollArea>
+      </Box>
       </Card>
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Environment \u2014 ${editing.name}` : 'Add Environment'} size="lg">
@@ -652,13 +662,15 @@ function GroupsTab() {
         Classes and parameters set here apply to every node in the group.
       </Alert>
       <Card withBorder shadow="sm">
-        <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr>
-            <Table.Th>Group</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Description</Table.Th>
-            <Table.Th>Classes</Table.Th><Table.Th>Parameters</Table.Th>
-            <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-          </Table.Tr></Table.Thead>
-          <Table.Tbody>
+        <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover>
+              <Table.Thead><Table.Tr>
+                <Table.Th>Group</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Description</Table.Th>
+                <Table.Th>Classes</Table.Th><Table.Th>Parameters</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
+              </Table.Tr></Table.Thead>
+              <Table.Tbody>
             {groups.map((g) => (
               <Table.Tr key={g.id}>
                 <Table.Td><Text fw={500}>{g.name}</Text></Table.Td>
@@ -677,6 +689,8 @@ function GroupsTab() {
             {groups.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No groups defined yet</Text></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
+        </ScrollArea>
+      </Box>
       </Card>
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Group \u2014 ${editing.name}` : 'Create Group'} size="lg">
@@ -808,8 +822,9 @@ function NodesTab() {
       </Card>
       <Card withBorder shadow="sm" padding="lg">
         <Text fw={700} mb="sm">Classified Nodes</Text>
-        <ScrollArea style={{ maxHeight: 440 }} type="auto" offsetScrollbars scrollbarSize={6}>
-          <Table striped highlightOnHover withTableBorder>
+        <Box style={{ maxHeight: 650, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
             <Table.Thead><Table.Tr>
               <Table.Th>Certname</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Groups</Table.Th>
               <Table.Th>Node Classes</Table.Th><Table.Th>Node Params</Table.Th>
@@ -837,7 +852,8 @@ function NodesTab() {
               {activeClassified.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No nodes classified yet</Text></Table.Td></Table.Tr>}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
+          </ScrollArea>
+        </Box>
       </Card>
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Node \u2014 ${editing.certname}` : 'Classify Node'} size="lg">
