@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-5] - 2026-06-08
+
+### Bug Fixes
+- **Infrastructure | Certificate Authority "Signed Certificates" pane**: Applied the exact same fix as Dashboard | Overview Nodes and Dashboard | Nodes All Nodes: changed from `mah={550}` to explicit `h={650}` on `<ScrollArea>`, added `style={{ overflow: 'hidden' }}` to the Card, and standardized `scrollbarSize={6}`. This makes the list of signed certificates scroll internally (~15 rows visible) to view the entire estate, consistent with the other fixed panes.
+- Followed hyphenated versioning policy.
+
 ## [3.7.33-4] - 2026-06-08
 
 ### Bug Fixes

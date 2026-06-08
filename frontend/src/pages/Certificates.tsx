@@ -375,12 +375,12 @@ export function CertificatesPage() {
           (3.3.5-20+) so cert workflow stays grouped with agent provisioning. */}
 
       {/* Signed Certificates */}
-      <Card withBorder shadow="sm" padding="md">
+      <Card withBorder shadow="sm" padding="md" style={{ overflow: 'hidden' }}>
         <Group mb="md">
           <Title order={4}>Signed Certificates</Title>
           <Badge color="green" size="lg">{signed.length}</Badge>
         </Group>
-        <ScrollArea mah={550} type="auto" offsetScrollbars scrollbarSize={8}>
+        <ScrollArea h={650} type="auto" offsetScrollbars scrollbarSize={6}>
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -423,7 +423,7 @@ export function CertificatesPage() {
               )}
             </Table.Tbody>
           </Table>
-          </ScrollArea>
+        </ScrollArea>
       </Card>
 
       <Modal opened={detailOpen} onClose={() => setDetailOpen(false)}
