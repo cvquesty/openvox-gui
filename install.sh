@@ -1023,6 +1023,8 @@ cat > /etc/sudoers.d/openvox-gui << SUDOEOF
 
 # The service runs as a daemon without a TTY — sudo must not require one.
 Defaults:${SERVICE_USER} !requiretty
+# Suppress the sudo lecture message (it leaks into command output and breaks the GUI).
+Defaults:${SERVICE_USER} lecture=never
 
 # r10k code deployment
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh

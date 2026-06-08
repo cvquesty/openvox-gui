@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-10] - 2026-06-08
+
+### Bug Fixes
+- **Sudo lecture and "no nodes" breakage after sudo alignment**: The sudo lecture message ("We trust you have received the usual lecture...") was leaking into command output (journalctl, tail, subprocess sudo calls, etc.) and appearing in the GUI. This, combined with the recent explicit sudoers changes and a failed update, broke node visibility (no nodes shown) and polluted UI/logs everywhere.
+  - Root cause: No `lecture=never` in sudoers for the `puppet` service user. Sudo prints the lecture on first use per user/context, and the GUI backend captures stdout/stderr from sudo-wrapped commands (logs, config reads, etc.) without stripping it.
+  - Added `Defaults:puppet lecture=never` (and for bolt targets) to `docs/SUDOERS.md`.
+  - Added the same to the heredocs in `install.sh`, `scripts/update_local.sh`, and `scripts/deploy.sh` so future installs/updates/deploy produce it automatically.
+  - Manually applied the full corrected sudoers (with lecture=never + all explicit rules matching docs) to the live test system and validated.
+  - This should restore node visibility and eliminate the lecture spam. The "no nodes" was likely due to polluted output or transient permission issues during the bad update state.
+- Bumped to 3.7.33-10.
+
 ## [3.7.33-9] - 2026-06-08
 
 ### Improvements

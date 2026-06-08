@@ -19,6 +19,8 @@ Create a file at `/etc/sudoers.d/openvox-gui` with the following content:
 
 # The service runs as a daemon without a TTY — sudo must not require one.
 Defaults:puppet !requiretty
+# Suppress the sudo lecture message (it leaks into command output and breaks the GUI).
+Defaults:puppet lecture=never
 
 # r10k code deployment
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/r10k-deploy.sh
@@ -170,6 +172,7 @@ the broad one:
 #   - Target /var/log/secure or journalctl (sudo log entries)
 #   - Bolt job logs on the controller
 Defaults:bolt !requiretty
+Defaults:bolt lecture=never
 Defaults:bolt env_keep += "PATH"
 Defaults:bolt !env_reset
 Defaults:bolt secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/opt/puppetlabs/bin
