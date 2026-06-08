@@ -115,6 +115,7 @@ async def maintenance_page(request: Request):
     if not is_maintenance_active():
         raise HTTPException(status_code=404, detail="Not in maintenance")
 
-    # For now return the minimal fallback. In the future we could serve the
-    # actual static file from the filesystem if it is present and readable.
-    return HTMLResponse(content=get_maintenance_html_fallback(), status_code=503)
+    # Serve the (now pleasing) fallback HTML. Apache normally serves the
+    # much nicer themed static pages when the maintenance flag is present.
+    info = get_maintenance_info()
+    return HTMLResponse(content=get_maintenance_html_fallback(info), status_code=503)

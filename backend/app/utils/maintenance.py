@@ -122,21 +122,138 @@ def disable_maintenance() -> None:
         # Best effort — do not crash the caller.
 
 
-def get_maintenance_html_fallback() -> str:
+def get_maintenance_html_fallback(info: Optional[Dict[str, Any]] = None) -> str:
     """
-    Return a minimal HTML string that the backend can serve as a last resort
-    if Apache is not intercepting requests (e.g. direct access to the app port
-    during testing or misconfiguration).
+    Return a pleasing, human-viewable HTML maintenance page.
 
-    In normal operation Apache should serve the much nicer branded pages from
-    the maintenance/ directory.
+    Used as last-resort by the backend middleware and /api/maintenance/page
+    when Apache is not serving the themed static pages from the maintenance/
+    directory (e.g. direct access during testing or in containerized setups).
+
+    Accepts optional maintenance info dict (message, eta, etc.) for a richer
+    experience. Falls back to sensible defaults when info is missing.
     """
-    return """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>OpenVox GUI — Maintenance</title>
-<style>body{font-family:sans-serif;background:#f8f9fa;color:#222;padding:2rem;text-align:center}</style>
-</head><body>
-<h1>OpenVox GUI is currently under maintenance</h1>
-<p>The interface is temporarily unavailable while updates are applied.</p>
-<p>Backend services (Puppet/OpenVox Server, PuppetDB, Bolt) are unaffected.</p>
-<p>Please try again in a few minutes or contact your administrator.</p>
-</body></html>"""
+    if info is None:
+        info = get_maintenance_info()
+
+    message = info.get("message") or "The OpenVox GUI is currently undergoing maintenance."
+    eta = info.get("eta")
+    started_at = info.get("started_at")
+    activated_by = info.get("activated_by")
+
+    # Format started time nicely if present
+    started_display = ""
+    if started_at:
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+            started_display = dt.strftime("%Y-%m-%d %H:%M UTC")
+        except Exception:
+            started_display = started_at
+
+    eta_html = ""
+    if eta:
+        eta_html = f"""
+        <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <div class="text-sm font-medium text-blue-800">Expected return</div>
+          <div class="text-blue-700 font-semibold text-lg">{eta}</div>
+        </div>
+        """
+
+    started_html = ""
+    if started_display or activated_by:
+        parts = []
+        if started_display:
+            parts.append(f"<span>Started <strong>{started_display}</strong></span>")
+        if activated_by and activated_by != "unknown":
+            parts.append(f"<span>by <strong>{activated_by}</strong></span>")
+        started_html = f"""
+        <div class="mt-2 text-xs text-slate-500">
+          {" • ".join(parts)}
+        </div>
+        """
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenVox GUI — Under Maintenance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+    body {{
+      font-family: 'Inter', system_ui, sans-serif;
+    }}
+    .heading {{
+      font-family: 'Space Grotesk', system_ui, sans-serif;
+      letter-spacing: -0.02em;
+    }}
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-6">
+  <div class="max-w-md w-full">
+    <!-- Logo -->
+    <div class="flex justify-center mb-8">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 bg-orange-500 rounded-2xl flex items-center justify-center text-white text-3xl shadow-inner">
+          🦊
+        </div>
+        <div>
+          <div class="text-2xl font-semibold tracking-tighter text-slate-900">OpenVox</div>
+          <div class="text-[10px] text-orange-500 -mt-1 font-medium tracking-[2px]">GUI</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+      <!-- Status badge -->
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100 text-amber-800 text-sm font-semibold mb-6">
+        <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+        MAINTENANCE IN PROGRESS
+      </div>
+
+      <h1 class="heading text-4xl font-semibold text-slate-900 tracking-tight mb-4">
+        We'll be right back
+      </h1>
+
+      <p class="text-lg text-slate-600 leading-relaxed mb-6">
+        {message}
+      </p>
+
+      {eta_html}
+
+      {started_html}
+
+      <div class="mt-8 pt-6 border-t border-slate-100 text-sm text-slate-600">
+        <p class="mb-2">Good news: your OpenVox infrastructure is still running normally.</p>
+        <p>Puppet Server, PuppetDB, and Bolt orchestration continue without interruption.</p>
+      </div>
+    </div>
+
+    <!-- Footer actions -->
+    <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+      <button onclick="window.location.reload()" 
+              class="px-5 py-2.5 rounded-2xl bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 transition font-medium text-slate-700 flex items-center gap-2 shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.058 11H1m18 0v5" />
+        </svg>
+        Try again
+      </button>
+
+      <div class="text-slate-500 text-xs sm:text-sm text-center sm:text-right">
+        Need help? Contact your<br class="hidden sm:block">OpenVox administrator.
+      </div>
+    </div>
+
+    <div class="text-center mt-8 text-xs text-slate-400 tracking-widest font-mono">
+      OPENVOX GUI • MAINTENANCE MODE
+    </div>
+  </div>
+
+  <script>
+    // Optional: gentle auto-reload hint
+    // setTimeout(() => {{ window.location.reload(); }}, 180000);
+  </script>
+</body>
+</html>"""

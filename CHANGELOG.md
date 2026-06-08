@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.7-7] - 2026-06-08
+
+### Improvements
+- The 503 maintenance page is now pleasing and human-friendly for browsers.
+  - `get_maintenance_html_fallback()` now returns a modern, clean HTML experience (Tailwind-styled card, includes custom message/ETA/started time/who enabled it, retry button, and note that backend services continue normally).
+  - `MaintenanceMiddleware` performs content negotiation: requests that accept `text/html` (typical browsers) receive the nice HTML 503 page. API clients, curl, and the `ovox` CLI still receive the structured JSON 503 (with `Retry-After`).
+  - The `/api/maintenance/page` last-resort endpoint also serves the improved HTML.
+  - This replaces the previous raw JSON or ultra-minimal HTML that users would see when hitting the backend directly.
+
 ## [3.8.7-6] - 2026-06-08
 
 ### Features

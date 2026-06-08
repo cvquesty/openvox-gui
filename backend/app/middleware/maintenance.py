@@ -3,9 +3,9 @@ Maintenance mode middleware.
 
 When maintenance mode is active (via the flag managed by
 `ovox maintenance enable` or the /api/maintenance/enable endpoint), this
-middleware short-circuits most requests and returns a clean 503 response
-with structured JSON instead of letting the request hit business logic
-(which could return confusing errors or stack traces).
+middleware short-circuits most requests and returns a clean 503 response.
+We prefer a friendly HTML page for humans (browsers) and structured JSON
+for API clients / the ovox CLI.
 
 This is a key part of the holistic maintenance program:
 - Web users see the nice static branded page (Apache layer, preferred).
@@ -25,7 +25,7 @@ import logging
 from typing import Callable
 
 from fastapi import Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..utils.maintenance import is_maintenance_active, get_maintenance_info
@@ -69,10 +69,25 @@ class MaintenanceMiddleware(BaseHTTPMiddleware):
         if path.startswith("/assets/") or path.startswith("/packages/"):
             return await call_next(request)
 
-        # Everything else gets a clean 503 with the maintenance details.
+        # Everything else gets a clean 503.
+        # We do light content negotiation so humans (browsers) get a friendly
+        # HTML page while API clients and the ovox CLI still get structured JSON.
         info = get_maintenance_info()
         logger.info(f"Maintenance active — rejecting {request.method} {path}")
 
+        accept = request.headers.get("accept", "").lower()
+
+        if "text/html" in accept and "application/json" not in accept:
+            # Browser-like request → serve pleasing human page
+            from ..utils.maintenance import get_maintenance_html_fallback
+            html = get_maintenance_html_fallback(info)
+            return HTMLResponse(
+                content=html,
+                status_code=503,
+                headers={"Retry-After": "300"},
+            )
+
+        # API / CLI / machines get the nice JSON
         return JSONResponse(
             status_code=503,
             content={
