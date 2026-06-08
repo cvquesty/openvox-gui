@@ -334,12 +334,12 @@ export function DashboardPage() {
         </Grid.Col>
       </Grid>
 
-      <Card withBorder shadow="sm" padding="lg">
+      <Card withBorder shadow="sm" padding="lg" style={{ overflow: 'hidden' }}>
         <Group justify="space-between" mb="md">
           <Title order={4}>Nodes</Title>
           <Badge variant="light" size="lg">{dedupedNodes.length} total</Badge>
         </Group>
-        <ScrollArea mah={600} type="auto" offsetScrollbars scrollbarSize={6}>
+        <ScrollArea h={650} type="auto" offsetScrollbars scrollbarSize={6}>
           <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>

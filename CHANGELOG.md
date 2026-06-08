@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-4] - 2026-06-08
+
+### Bug Fixes
+- **Dashboard | Overview "Nodes" pane**: Was not scrolling internally (using mah=600, showing limited nodes without functional scrollbar). Matched the successful direct explicit height pattern from Dashboard | Nodes "All Nodes" (and submenus): changed to `<ScrollArea h={650} ...>` directly, plus `style={{ overflow: 'hidden' }}` on the Card. This creates a consistent scrollable region (~15 rows visible) for the full list of nodes while the page remains scrollable.
+- Followed hyphenated versioning policy on 3.7.33 base.
+
 ## [3.7.33-3] - 2026-06-08
 
 ### Bug Fixes
