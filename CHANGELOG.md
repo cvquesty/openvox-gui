@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.4] - 2026-06-08
+
+### Dependencies
+- **chore(deps)**: Bumped `react-router-dom` (and transitive `react-router`) from ^6.21.0 to ^6.30.4 (via Dependabot PR #22). This is a patch update in the stable v6 series, bringing in fixes from @remix-run/router@1.23.3. No code changes required; verified build succeeds. Addresses any potential security or stability updates in the router.
+
 ## [3.8.3] - 2026-06-08
 
 ### Bug Fixes
