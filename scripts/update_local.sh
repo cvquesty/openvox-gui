@@ -461,6 +461,8 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/${PUPPET
 SUDOEOF
 chmod 440 /etc/sudoers.d/openvox-gui-users
 visudo -cf /etc/sudoers.d/openvox-gui-users >/dev/null 2>&1
+# Clean up any old separate or legacy sudoers files (we consolidate everything into openvox-gui-users)
+rm -f /etc/sudoers.d/openvox-gui /etc/sudoers.d/openvox-gui-r10k /etc/sudoers.d/openvox-gui-puppetdb /etc/sudoers.d/bolt /etc/sudoers.d/groupsudo 2>/dev/null || true
 log_ok "Updated sudoers rules"
 
 log_info "Deployed: ${OLD_VERSION} → ${NEW_VERSION}"

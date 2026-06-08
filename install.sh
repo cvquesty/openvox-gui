@@ -1111,8 +1111,8 @@ chmod 440 /etc/sudoers.d/openvox-gui-users
 visudo -cf /etc/sudoers.d/openvox-gui-users >/dev/null 2>&1
 log_ok "Installed sudoers rules (r10k, PuppetDB config, service management, Puppet Bolt)"
 
-# Remove old split sudoers files if they exist
-rm -f /etc/sudoers.d/openvox-gui-users-r10k /etc/sudoers.d/openvox-gui-users-puppetdb /etc/sudoers.d/openvox-gui-users 2>/dev/null
+# Remove old sudoers files if they exist (we now use a single openvox-gui-users file)
+rm -f /etc/sudoers.d/openvox-gui-users-r10k /etc/sudoers.d/openvox-gui-users-puppetdb /etc/sudoers.d/openvox-gui-users /etc/sudoers.d/openvox-gui /etc/sudoers.d/bolt /etc/sudoers.d/groupsudo 2>/dev/null
 
 systemctl daemon-reload
 log_ok "Reloaded systemd"

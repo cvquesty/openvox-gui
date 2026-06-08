@@ -409,6 +409,8 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/${PUPPET
 SUDOEOF
 chmod 440 "$SUDOERS_FILE"
 visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1 || true
+# Clean up legacy files so only the single openvox-gui-users remains
+rm -f /etc/sudoers.d/openvox-gui /etc/sudoers.d/openvox-gui-r10k /etc/sudoers.d/openvox-gui-puppetdb /etc/sudoers.d/bolt /etc/sudoers.d/groupsudo 2>/dev/null || true
 echo "  wrote full explicit /etc/sudoers.d/openvox-gui-users (matching docs/SUDOERS.md)"
 
 # 5i. Make everything in the mirror world-readable so puppetserver

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-14] - 2026-06-08
+
+### Improvements
+- Consolidated OpenVox GUI sudoers: scripts now always write a single file `/etc/sudoers.d/openvox-gui-users` and explicitly remove legacy files (openvox-gui, openvox-gui-r10k, openvox-gui-puppetdb, bolt, groupsudo, etc.) during install/update/deploy.
+- This addresses the situation where /etc/sudoers.d had multiple files (bolt, groupsudo, openvox-gui, openvox-gui-users).
+- The content of openvox-gui-users on the system remains the authoritative template (as previously requested).
+- Added the missing exact rule for the command actually executed by the code: `puppetserver ca list --all` (used for full signed certs fleet in dashboard overview node list, status, trends).
+- Docs/SUDOERS.md updated to document the single file and cleanup behavior.
+- Bumped to 3.7.33-14.
+
 ## [3.7.33-13] - 2026-06-08
 
 ### Bug Fixes

@@ -6,7 +6,11 @@ applies: **only the exact commands listed below should be allowed**.
 
 ## Required Sudo Rules
 
-Create a file at `/etc/sudoers.d/openvox-gui-users` with the following content:
+All OpenVox GUI related sudoers entries are consolidated into a single file `/etc/sudoers.d/openvox-gui-users` (the template is taken from the existing settings on the system).
+
+The install, update, and deploy scripts automatically create/update this file (and clean up any legacy files like openvox-gui, bolt, groupsudo, etc.).
+
+Create or ensure the file at `/etc/sudoers.d/openvox-gui-users` with content like the following (exact content on your system is the authoritative template):
 
 ```sudoers
 # OpenVox GUI — sudoers configuration (explicit, no wildcards)
