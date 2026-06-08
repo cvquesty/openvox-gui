@@ -403,7 +403,7 @@ export function NodesPage() {
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 650 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea h={650} type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
