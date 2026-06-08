@@ -235,6 +235,12 @@ chmod 755 "${INSTALL_DIR}/frontend/dist/" 2>/dev/null || true
 find "${INSTALL_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null || true
 find "${INSTALL_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
 
+# Belt-and-suspenders: ensure the service user can read Puppet SSL certs
+# (owned by 'puppet' group). This is needed for mTLS when fetching
+# node data, trends, lists from PuppetDB.
+usermod -aG puppet "${SERVICE_USER}" 2>/dev/null || true
+echo "  ensured ${SERVICE_USER} in 'puppet' group for cert access"
+
 # 5. Agent installer feature (3.3.5-1+) -- idempotent
 #
 # Sets up /opt/openvox-pkgs/ + the puppetserver static-content mount

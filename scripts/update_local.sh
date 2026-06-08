@@ -571,6 +571,12 @@ find "${INSTALL_DIR}/frontend/dist/" -type d -exec chmod 755 {} \; 2>/dev/null |
 find "${INSTALL_DIR}/frontend/dist/" -type f -exec chmod 644 {} \; 2>/dev/null || true
 log_ok "Permissions fixed (owner: ${SERVICE_USER})"
 
+# Belt-and-suspenders: ensure the service user can read Puppet SSL certs
+# (owned by 'puppet' group). This is needed for mTLS client cert when
+# the GUI fetches node status, trends, lists, etc. from PuppetDB.
+usermod -aG puppet "${SERVICE_USER}" 2>/dev/null || true
+log_ok "Ensured ${SERVICE_USER} is in the 'puppet' group for Puppet cert access"
+
 # ─── Step 5b: SSL Configuration ──────────────────────────────
 # Check if SSL is enabled in .env; if not, offer to enable it
 SSL_ENABLED="false"

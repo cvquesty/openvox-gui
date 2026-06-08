@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-12] - 2026-06-08
+
+### Improvements
+- Added "belt and suspenders" `usermod -aG puppet "${SERVICE_USER}"` in `install.sh`, `update_local.sh`, and `deploy.sh` after permissions step.
+  - Ensures the GUI service user (whatever it is configured as in the systemd unit) is a member of the 'puppet' group.
+  - This guarantees read access to the Puppet SSL private keys and certs (typically 640 root:puppet or similar), which are required for the mTLS client certificate when the GUI connects to PuppetDB to fetch node status, active node status trends, and the node list on the Dashboard | Overview page.
+  - Previously, if a custom SERVICE_USER was used (or group membership was missing), the process could not present the correct client cert, leading to "no access" to the "database" (PuppetDB) and empty data on the overview.
+- This complements the sudo rules for reading .ini files (which are owned by the puppetdb user) and the direct file access for certs.
+- The existing system settings remain the template for the sudoers content (via the consolidated openvox-gui-users file).
+- Bumped to 3.7.33-12.
+
 ## [3.7.33-11] - 2026-06-08
 
 ### Improvements

@@ -601,6 +601,13 @@ else
     log_ok "Created system user '${SERVICE_USER}'"
 fi
 
+# Belt-and-suspenders: ensure the service user can read Puppet SSL certs
+# (which are typically owned by the 'puppet' group with 640 perms on keys).
+# This allows the GUI process to present the correct client cert for mTLS
+# to PuppetDB, PuppetServer, etc. when fetching node data, reports, etc.
+usermod -aG puppet "${SERVICE_USER}" 2>/dev/null || true
+log_ok "Ensured ${SERVICE_USER} is in the 'puppet' group for cert access"
+
 # ─── Step 2: Directory Structure ─────────────────────────────
 
 log_step 2 "Directory Structure"
