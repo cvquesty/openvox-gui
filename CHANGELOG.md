@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.0] - 2026-06-08
+
+### Major Changes
+- **Sudoers Consolidation**: All OpenVox GUI-related sudoers entries are now consolidated into a single file `/etc/sudoers.d/openvox-gui-users` (the system's existing settings serve as the authoritative template). Legacy files (e.g., `openvox-gui`, `openvox-gui-r10k`, `openvox-gui-puppetdb`, `bolt`, `groupsudo`) are automatically cleaned up during install, update, and deploy.
+- **Improved Unattended Sudo Setup**: Scripts (`install.sh`, `update_local.sh`, `deploy.sh`) now ensure correct permissions for the service user (including adding to the `puppet` group for SSL cert access) and generate explicit rules matching the actual commands executed by the backend (e.g., `puppetserver ca list --all` for full fleet data).
+- **Dashboard Data Fixes**: Resolved issues preventing node status, trends, and node lists from displaying on the Dashboard | Overview page by ensuring the service user has proper access to PuppetDB configs and certs via sudo and group membership. Added `lecture=never` to suppress sudo lecture messages.
+- **Documentation and Versioning**: Bumped to 3.8.0. All references, headers, and examples updated across docs (INSTALL.md, UPDATE.md, TROUBLESHOOTING.md, SUDOERS.md, etc.). The 3.7.33 hyphenated series is now superseded.
+
+All changes follow the principle that the live system's sudoers configuration (not just docs or scripts) is the source of truth for ongoing maintenance.
+
 ## [3.7.33-14] - 2026-06-08
 
 ### Improvements
