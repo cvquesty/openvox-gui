@@ -320,6 +320,15 @@ if [ -f /etc/systemd/system/openvox-gui.service ]; then
     UNIT_GROUP=$(grep "^Group=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
     [ -n "$UNIT_GROUP" ] && SERVICE_GROUP="$UNIT_GROUP"
 fi
+
+# Detect PUPPET_SERVER_HOST early (needed for the sudoers letsencrypt rule below)
+PUPPET_SERVER_HOST=""
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    PSH_LINE=$(grep "^OPENVOX_GUI_PUPPET_SERVER_HOST=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    [ -n "$PSH_LINE" ] && PUPPET_SERVER_HOST="${PSH_LINE#*=}"
+fi
+[ -z "$PUPPET_SERVER_HOST" ] && PUPPET_SERVER_HOST=$(hostname -f)
+
 # Ensure /etc/puppetlabs/bolt exists so the GUI can manage bolt-project.yaml
 # and inventory.yaml via the Orchestration > Configuration tab.
 # We deliberately do NOT chown it here. Ownership is a site policy decision:

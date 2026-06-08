@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-8] - 2026-06-08
+
+### Bug Fixes
+- **update_local.sh sudoers generation**: The script failed with "PUPPET_SERVER_HOST: unbound variable" during the sudoers heredoc (which references the var for the Let's Encrypt rule). The detection for `PUPPET_SERVER_HOST` (used for the cert path) was only done much later in the "Agent Installer" step.
+  - Moved/added early detection of `PUPPET_SERVER_HOST` (from .env or `hostname -f`) right after service user detection, before the sudoers write. This matches the early setup in `install.sh` and `deploy.sh`.
+  - Ensures unattended updates (like on the test system) succeed without the variable error, and the generated `/etc/sudoers.d/openvox-gui` uses the correct FQDN.
+- This completes the alignment so that install/update/deploy always produce the correct, explicit sudoers matching `docs/SUDOERS.md` for puppet/bolt/etc. users.
+
 ## [3.7.33-7] - 2026-06-08
 
 ### Improvements
