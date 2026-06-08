@@ -6,7 +6,7 @@ applies: **only the exact commands listed below should be allowed**.
 
 ## Required Sudo Rules
 
-Create a file at `/etc/sudoers.d/openvox-gui` with the following content:
+Create a file at `/etc/sudoers.d/openvox-gui-users` with the following content:
 
 ```sudoers
 # OpenVox GUI — sudoers configuration (explicit, no wildcards)
@@ -128,12 +128,12 @@ The previous behavior of flipping the directory to `puppet:puppet` on every
 
 3. After creating the sudoers file, validate it with:
    ```bash
-   sudo visudo -cf /etc/sudoers.d/openvox-gui
+   sudo visudo -cf /etc/sudoers.d/openvox-gui-users-users
    ```
 
 4. Ensure the file has correct permissions:
    ```bash
-   sudo chmod 440 /etc/sudoers.d/openvox-gui
+   sudo chmod 440 /etc/sudoers.d/openvox-gui-users
    ```
 
 5. The install script (`install.sh`) creates this file automatically

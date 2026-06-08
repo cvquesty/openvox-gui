@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.7.33-10**
+**OpenVox GUI Version 3.7.33-11**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -118,7 +118,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.7.33-10"}
+   # Should return: {"status":"ok","version":"3.7.33-11"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -521,7 +521,7 @@ To use a real certificate, see the Configuration documentation.
 1. **Verify sudo permissions:**
 
    ```bash
-   sudo cat /etc/sudoers.d/openvox-gui
+   sudo cat /etc/sudoers.d/openvox-gui-users
    # Should allow puppetserver ca commands
    ```
 
@@ -582,7 +582,7 @@ To use a real certificate, see the Configuration documentation.
 3. **Check sudo permissions:**
 
    ```bash
-   grep r10k /etc/sudoers.d/openvox-gui
+   grep r10k /etc/sudoers.d/openvox-gui-users
    ```
 
 4. **Run r10k manually to see errors:**

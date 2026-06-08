@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-11] - 2026-06-08
+
+### Improvements
+- Consolidated all OpenVox GUI related sudoers entries into a single file in `/etc/sudoers.d/openvox-gui-users` (per operator request to use the existing system settings as the template).
+- Updated `install.sh`, `scripts/update_local.sh`, and `scripts/deploy.sh` to write to `/etc/sudoers.d/openvox-gui-users` (instead of openvox-gui) and remove old files.
+- Updated `docs/SUDOERS.md` (the content is derived from the test system's current explicit rules as the template), `frontend/src/pages/ConfigSSL.tsx`, `TROUBLESHOOTING.md`, etc. to reference the new file name.
+- Applied the rename on the test system (mv to openvox-gui-users, validated).
+- This ensures all rules for puppet, bolt (orchestration via the puppet user), etc. are in one place under /etc/sudoers.d/ and installed unattended from the system's current template.
+- Bumped to 3.7.33-11.
+
 ## [3.7.33-10] - 2026-06-08
 
 ### Bug Fixes

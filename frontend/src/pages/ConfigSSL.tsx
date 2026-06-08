@@ -444,7 +444,7 @@ Thank you!`}
                       <Text size="sm">
                         OpenVox GUI uses a dedicated sudoers rule to read your Let's Encrypt certificate
                         without broad wildcards. The rule is written with your server's actual FQDN at install time.
-                        You can view or adjust it in <Code>/etc/sudoers.d/openvox-gui</Code>.
+                        You can view or adjust it in <Code>/etc/sudoers.d/openvox-gui-users</Code>.
                       </Text>
                     </Alert>
 
