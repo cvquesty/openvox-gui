@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.7-5] - 2026-06-08
+
+### Features
+- Added a favicon using `~/Desktop/openvox-logo-orange.svg` (copied to `frontend/public/openvox-favicon.svg` and referenced in `frontend/index.html`). Applies to all themes (Light, Dark, Robots!!).
+
 ## [3.8.7-4] - 2026-06-08
 
 ### Features
