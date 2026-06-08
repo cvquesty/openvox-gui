@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased / 3.7.26 follow-up] - 2026-06-08
+
+### Bug Fixes
+- **Comprehensive node list / results pane scrolling fixes (page-by-page per operator report)**: 
+  - Dashboard Overview "Nodes" panel: bumped from 440px (showing ~9/92) to 600px vertical ScrollArea.
+  - Dashboard | Nodes page: group lists (e.g. Production 71 nodes) 350→500px, All Nodes 550→650px, Unclassified 350→500px. All inside Collapses and flat lists now reliably scroll vertically.
+  - Infrastructure | Certificate Authority "Signed Certificates": 460→550px + improved long fingerprint cell truncation (max-width + ellipsis) to prevent horizontal scroll from dominating.
+  - Infrastructure | Agent Install "Pending Certificate Requests": added missing ScrollArea (max 350px) wrapper around the pending CSRs table.
+  - Metrics | Fleet Compliance "Nodes by Category": 400→500px in the per-status NodeList components (inside Collapses).
+  - Tools | Package Inventory Results: 500→550px.
+  - Tools | Certificate Audit "Healthy Certificates": 400→500px (Orphaned already at 500).
+  - Logs | Reports: all per-group expandable menus (e.g. Production Nodes showing only 5 of 71) bumped 350→500px inside Collapses. Consistent vertical scrolling now applies to every report group list.
+- All changes use the direct `<ScrollArea style={{ maxHeight: N }} type="auto" ...>` pattern (with offsetScrollbars) for reliable internal vertical scrolling within Cards/Collapses/Papers in the flowing page layout. tsc + full production build clean.
+- **Settings | OpenVox Configuration "OpenVox DB" (PuppetDB) files incorrectly showing "missing"**: The file tree builder in routers/config.py used plain `Path.is_dir()` / `iterdir()` / `exists()` (via _safe_* helpers that swallow PermissionError and return false/empty). The puppet user (GUI service) typically cannot directly read /etc/puppetlabs/puppetdb/conf.d/* (owned by puppetdb with restrictive perms), even though files exist and `sudo cat` works (as used in read_config_file and puppetserver_service.read_puppetdb_config). Fallback path was correct but marked exists=False. Fixed by marking the canonical known PuppetDB conf.d files (database.ini, jetty.ini, config.ini, etc.) as `exists: True` in the fallback (they are "potentially accessible" via the sudo path for management). Parent dir check and hardcoded paths were accurate; root cause was permissions + listing (not read) logic. Matches operator shell inspection.
+
 ## [3.7.25] - 2026-06-08
 
 ### Bug Fixes

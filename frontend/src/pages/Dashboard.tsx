@@ -339,7 +339,7 @@ export function DashboardPage() {
           <Title order={4}>Nodes</Title>
           <Badge variant="light" size="lg">{dedupedNodes.length} total</Badge>
         </Group>
-        <ScrollArea style={{ maxHeight: 440 }} type="auto" offsetScrollbars scrollbarSize={6}>
+        <ScrollArea style={{ maxHeight: 600 }} type="auto" offsetScrollbars scrollbarSize={6}>
           <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>

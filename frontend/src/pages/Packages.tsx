@@ -115,7 +115,7 @@ export function PackagesPage() {
               variant="compact"
             />
           </Group>
-          <ScrollArea style={{ maxHeight: 500 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea style={{ maxHeight: 550 }} type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>

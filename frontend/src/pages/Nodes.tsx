@@ -347,7 +347,7 @@ export function NodesPage() {
                   </Group>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <ScrollArea style={{ maxHeight: 350 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
+                  <ScrollArea style={{ maxHeight: 500 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
                     <Table striped highlightOnHover withTableBorder>
                           <Table.Thead>
                             <Table.Tr>
@@ -403,7 +403,7 @@ export function NodesPage() {
         {filtered.length === 0 ? (
           <Text c="dimmed" ta="center">No nodes found</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 550 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea style={{ maxHeight: 650 }} type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
@@ -452,7 +452,7 @@ export function NodesPage() {
         {filteredUnclassified.length === 0 ? (
           <Text c="dimmed" ta="center">All known nodes are classified</Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 350 }} type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea style={{ maxHeight: 500 }} type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>

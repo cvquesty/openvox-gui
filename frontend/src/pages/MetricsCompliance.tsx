@@ -71,7 +71,7 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
         </Group>
       </Group>
       <Collapse in={open}>
-        <ScrollArea style={{ maxHeight: 400 }} mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
+        <ScrollArea style={{ maxHeight: 500 }} mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
           <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>

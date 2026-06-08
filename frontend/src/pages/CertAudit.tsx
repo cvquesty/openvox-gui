@@ -260,7 +260,7 @@ export function CertAuditPage() {
           <Text size="sm" c="dimmed">Signed certs with matching active PuppetDB nodes</Text>
         </Group>
         <Collapse in={showHealthy}>
-          <ScrollArea style={{ maxHeight: 400 }} mt="md" type="auto" offsetScrollbars scrollbarSize={6}>
+          <ScrollArea style={{ maxHeight: 500 }} mt="md" type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>

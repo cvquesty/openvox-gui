@@ -512,7 +512,7 @@ export function ReportsPage() {
                   </Badge>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <ScrollArea style={{ maxHeight: 350 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
+                  <ScrollArea style={{ maxHeight: 500 }} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
                     <Table striped highlightOnHover withTableBorder>
                           <Table.Thead>
                             <Table.Tr>

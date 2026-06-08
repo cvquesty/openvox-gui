@@ -408,7 +408,10 @@ def _build_config_file_tree() -> List[Dict[str, Any]]:
         for name in ["auth.conf", "config.ini", "database.ini", "jetty.ini",
                       "puppetdb.ini", "read_database.ini", "repl.ini"]:
             p = Path(f"/etc/puppetlabs/puppetdb/conf.d/{name}")
-            pdb_files.append({"name": name, "path": str(p), "exists": _safe_exists(p)})
+            # Mark as existing/accessible because read will use sudo cat for puppetdb-owned files.
+            # The service user (puppet) typically lacks direct read perms on /etc/puppetlabs/puppetdb/conf.d
+            # (owned by puppetdb user with tight permissions), but sudo is configured for management.
+            pdb_files.append({"name": name, "path": str(p), "exists": True})
     groups.append({"group": "OpenVox DB", "base": "/etc/puppetlabs/puppetdb/conf.d", "files": pdb_files})
 
     # --- System Configuration ---

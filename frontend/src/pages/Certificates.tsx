@@ -380,7 +380,7 @@ export function CertificatesPage() {
           <Title order={4}>Signed Certificates</Title>
           <Badge color="green" size="lg">{signed.length}</Badge>
         </Group>
-        <ScrollArea style={{ maxHeight: 460 }} type="auto" offsetScrollbars scrollbarSize={8}>
+        <ScrollArea style={{ maxHeight: 550 }} type="auto" offsetScrollbars scrollbarSize={8}>
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
@@ -394,7 +394,7 @@ export function CertificatesPage() {
                 <Table.Tr key={cert.name}>
                   <Table.Td><Text fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
                     onClick={() => navigate(`/nodes/${cert.name}`)}>{cert.name}</Text></Table.Td>
-                  <Table.Td><Code style={{ fontSize: 11 }}>{cert.fingerprint || 'N/A'}</Code></Table.Td>
+                  <Table.Td><Code style={{ fontSize: 10, maxWidth: 280, display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cert.fingerprint || 'N/A'}</Code></Table.Td>
                   <Table.Td>
                     <Group gap="xs" justify="flex-end">
                       <Tooltip label="Certificate details">
