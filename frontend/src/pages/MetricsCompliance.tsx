@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
-  Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon, Box,
+  Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon,
 } from '@mantine/core';
 import {
   IconShieldCheck, IconChevronDown, IconChevronRight,
@@ -71,9 +71,8 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
         </Group>
       </Group>
       <Collapse in={open}>
-        <Box style={{ maxHeight: 400, minHeight: 0, overflow: 'hidden' }} mt="xs">
-          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+        <ScrollArea style={{ maxHeight: 400 }} mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
+          <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Certname</Table.Th>
@@ -93,7 +92,6 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
               </Table.Tbody>
             </Table>
           </ScrollArea>
-        </Box>
       </Collapse>
     </Paper>
   );

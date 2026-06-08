@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.25] - 2026-06-08
+
+### Bug Fixes
+- **Critical: Node list scrollbars (Dashboard, Nodes, Reports, Metrics, Classification, CA, Audit, Packages)**: All pages/sections that display lists of nodes from fleet queries (complete estate view for operators) had non-functional or missing internal scrollbars after recent changes — node tables would render full height, content would run off-screen with no scrollbar (internal or page) to reach nodes beyond the first visible "page". Root cause: the Box + `<ScrollArea h="100%">` wrapper (rolled out across 3.7.21–3.7.23 "standardize" + dedup work and 3.7.24 build fix) does not reliably establish a CSS scrollport for Mantine's ScrollArea component when placed inside content-flow Cards / Stacks / Collapses within the unconstrained AppShell.Main (percentage height resolves against the Box's content size rather than its max-height cap; overflow hidden on ancestor doesn't create a viewport the child scroll machinery can use). 
+  - Fixed by switching every affected node list (and the 3 small "summary" Paper lists of envs/groups/classified nodes) to the direct pattern: `<ScrollArea style={{ maxHeight: N }} type="auto" offsetScrollbars scrollbarSize={6}>` (no Box wrapper, no h="100%"). This is the pattern previously described in the history as "proven" / "reliable direct ScrollArea maxHeight" before the Box iteration. Explicit max-height on the ScrollArea itself bounds its viewport regardless of parent flow.
+  - Updated locations: Dashboard "Nodes" panel; Nodes page (Classified groups in Collapse, All Nodes 550px, Unclassified); Reports (all per-group node lists in Collapse); MetricsCompliance "Nodes by Category" (all 5 status categories); NodeClassifier (main Classified Nodes table + Environments/Groups/Classified-Nodes summary lists in the hierarchy summary pane); Certificates "Signed Certificates"; CertAudit (Orphaned + Healthy); Packages results table.
+  - Heights preserved/adjusted for good UX (350–550px depending on context and expected density). withTableBorder and other polish from prior passes kept.
+  - TS clean (`tsc --noEmit`) and full `npm run build` succeeded with no JSX/structure regressions.
+  - This restores (and improves on) the scroll behavior that was working before the recent flurry of scroll + dedup changes. Operators can now scroll any node list to the end and back to the top.
+
+## [3.7.24] - 2026-06-03
+
 ## [3.7.24] - 2026-06-03
 
 ### Bug Fixes
