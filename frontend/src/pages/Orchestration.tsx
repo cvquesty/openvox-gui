@@ -73,33 +73,12 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
 
     const outputText = result.output || result.error || '';
     
-    if (format === 'rainbow') {
-      try {
-        const outputHtml = ansiConverter.toHtml(outputText);
-        return (
-          <Box
-            style={{
-              backgroundColor: '#1e1e1e',
-              borderRadius: 6,
-              padding: '12px 16px',
-              fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
-              fontSize: 13,
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-            dangerouslySetInnerHTML={{ __html: outputHtml }}
-          />
-        );
-      } catch {
-        return (
-          <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-            {outputText}
-          </Code>
-        );
-      }
-    }
-    
+    // SECURITY FIX (GitHub #26): ANSI escapes are now stripped server-side
+    // (see strip_ansi in backend/utils/validation.py) before returning output.
+    // This prevents ANSI/terminal injection XSS via dangerouslySetInnerHTML.
+    // We no longer use dangerouslySetInnerHTML or ansi-to-html for command
+    // output (rainbow mode is now plain text for safety; colors not rendered).
+    // All output rendered safely in <Code block> (pre/code).
     if (format === 'json') {
       try {
         const parsed = JSON.parse(outputText);
@@ -113,9 +92,13 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
       }
     }
     
-    // Default (human format)
+    // Safe plain-text rendering for human + rainbow (ANSI stripped on backend)
+    const style = format === 'rainbow' 
+      ? { backgroundColor: '#1e1e1e' as const }
+      : {};
+    
     return (
-      <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+      <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', ...style }}>
         {outputText}
       </Code>
     );

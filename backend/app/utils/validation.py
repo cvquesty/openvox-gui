@@ -226,3 +226,16 @@ def validate_url(url: str) -> str:
         return url
     except Exception as e:
         raise ValueError(f"Invalid URL: {e}")
+
+
+def strip_ansi(text: str) -> str:
+    """
+    Strip ANSI escape codes from text (for safe display of command output, logs, etc.).
+    This mitigates risks from terminal escape injection / ANSI smuggling attacks
+    when rendering untrusted output (e.g., from Bolt commands on remote nodes).
+    Uses a standard regex for CSI/OSC/etc. sequences.
+    See: dgl.cx ANSI terminal security research, Doyensec ansi_up advisory.
+    """
+    import re
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)

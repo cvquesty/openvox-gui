@@ -90,6 +90,23 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Strong runtime guard for the dangerous "none" auth backend (GitHub #25)
+    # This backend makes every request appear as an unauthenticated "admin" user.
+    # It must never be active on anything resembling a production or network-exposed instance.
+    if settings.auth_backend == "none":
+        logger.warning(
+            "⚠️  Authentication backend is 'none'. This disables all auth and grants full admin to EVERY request. "
+            "This is ONLY for initial setup or local development. It is a critical misconfiguration risk in production."
+        )
+        if not settings.debug:
+            logger.critical(
+                "SECURITY: Refusing to start with auth_backend='none' when debug=False. "
+                "Set OPENVOX_GUI_AUTH_BACKEND=local (or ldap) for production. "
+                "Use debug=true ONLY for local development on localhost."
+            )
+            import sys
+            sys.exit(1)
+
     # Migrate legacy htpasswd users to database (one-time)
     # This ensures backward compatibility with pre-database authentication
     if settings.auth_backend == "local":

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.2] - 2026-06-08
+
+### Security (GitHub #24, #25, #26, #27, #28)
+- **Bolt / Orchestration hardening (#24, #26, #28)**: 
+  - Server-side ANSI escape stripping added (`strip_ansi` in `utils/validation.py`, applied to all Bolt command/task/plan/script outputs in `routers/bolt.py`). This mitigates terminal escape injection / ANSI smuggling risks when displaying output from remote nodes.
+  - Removed `dangerouslySetInnerHTML` + ansi-to-html usage in `frontend/src/pages/Orchestration.tsx` for command output rendering. All outputs now use safe `<Code block>` (plain text). Rainbow mode preserved in UI but now shows sanitized plain text (colors not rendered for security). Addresses XSS + potential JWT theft via localStorage (cross-ref #26, #27).
+  - Continued sudoers consolidation and explicit rules from 3.8.0/3.8.1 (single `openvox-gui-users` file, cleanup of legacy bolt/groupsudo/etc. files, `usermod` for puppet group cert access, `lecture=never`, exact `ca list --all`). This directly reduces the extensive controller-side subprocess + sudo attack surface (#28) and improves validation/PTY safety (#24).
+- **Auth 'none' backend hardening (#25)**: Added strong runtime guard in `main.py`. If `auth_backend == "none"` and `debug=false`, the app now refuses to start with a critical log and `sys.exit(1)`. Loud warnings always emitted. This closes the unauthenticated full-admin footgun.
+- **JWT / secrets hardening notes (#27)**: Added comments and reinforced docs around localStorage risks and shared `secret_key` (for JWT + Fernet at-rest). No breaking change in this release (would require client changes), but warnings and prior token denylist/revocation (jti) provide defense-in-depth. Recommend httpOnly cookies + separate secrets in future.
+- These address the remaining items from the 3.7.25 security assessment (cross-referenced in the issues). PQL auditing was handled in 3.8.1 (#29).
+
 ## [3.8.1] - 2026-06-08
 
 ### Security

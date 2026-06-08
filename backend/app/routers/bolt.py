@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 from ..database import get_db
 from ..models import ExecutionHistory
 from ..dependencies import get_current_user, require_role
-from ..utils.validation import validate_command
+from ..utils.validation import validate_command, strip_ansi
 from ..services.enc import enc_service
 from ..services.puppetdb import puppetdb_service
 
@@ -471,7 +471,9 @@ async def run_command(
     history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
     await db.commit()
     
-    return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
+    stdout = strip_ansi(result.get("stdout", ""))
+    stderr = strip_ansi(result.get("stderr", ""))
+    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 
 @router.post("/run/task")
@@ -530,7 +532,9 @@ async def run_task(
     history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
     await db.commit()
     
-    return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
+    stdout = strip_ansi(result.get("stdout", ""))
+    stderr = strip_ansi(result.get("stderr", ""))
+    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 
 @router.post("/run/plan")
@@ -572,7 +576,9 @@ async def run_plan(
     history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
     await db.commit()
     
-    return {"returncode": result["returncode"], "output": result["stdout"], "error": result["stderr"]}
+    stdout = strip_ansi(result.get("stdout", ""))
+    stderr = strip_ansi(result.get("stderr", ""))
+    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 
 # ─── File Transfer (Upload / Download) ───────────────────
@@ -646,7 +652,7 @@ async def upload_file_to_targets(
             "size": len(content),
             "destination": destination,
             "targets": resolved_targets,
-            "output": result["stdout"],
+            "output": strip_ansi(result.get("stdout", "")),
             "error": result["stderr"],
         }
     except Exception as e:
@@ -804,7 +810,7 @@ async def run_script_on_targets(
             "returncode": result["returncode"],
             "filename": file.filename,
             "targets": resolved_targets,
-            "output": result["stdout"],
+            "output": strip_ansi(result.get("stdout", "")),
             "error": result["stderr"],
         }
     except Exception as e:
