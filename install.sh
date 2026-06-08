@@ -1069,7 +1069,7 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list --all
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname

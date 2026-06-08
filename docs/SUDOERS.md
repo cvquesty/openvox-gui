@@ -58,7 +58,7 @@ puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
 puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list --all
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname

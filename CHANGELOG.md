@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-13] - 2026-06-08
+
+### Bug Fixes
+- **No nodes on Dashboard | Overview Nodes pane**: The `puppetserver ca list --all` command (used by `list_certificates` and `get_fleet_nodes` to get the full signed certs for the complete node fleet, including "lost" nodes not yet in PuppetDB) was failing with "command not allowed".
+  - The sudoers rule was only for `puppetserver ca list` (without `--all`).
+  - Updated the rule in the generation (install.sh, update_local.sh, deploy.sh) and in `docs/SUDOERS.md` to the exact command the code executes: `puppetserver ca list --all`.
+  - This matches the explicit style, using the system's current settings as template.
+- Bumped to 3.7.33-13.
+
 ## [3.7.33-12] - 2026-06-08
 
 ### Improvements
