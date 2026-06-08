@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-9] - 2026-06-08
+
+### Improvements
+- **"Belt and suspenders" for PUPPET_SERVER_HOST in install.sh**: Added explicit early detection of `PUPPET_SERVER_HOST` (fallback to `hostname -f`, override from .env if present) right before the sudoers heredoc. This matches the robust pattern added to `update_local.sh` (and already present in `deploy.sh`). Ensures the variable is always bound for the Let's Encrypt rule in `/etc/sudoers.d/openvox-gui`, even in edge cases during fresh interactive or non-interactive installs.
+- This completes the hardening so that all entry points (install, update_local, deploy) reliably produce the exact same explicit sudoers content as documented in `docs/SUDOERS.md` for the `puppet` (service), `bolt`, and related users — fully unattended with no post-install sudoers edits required.
+- Bumped to 3.7.33-9 per hyphenated policy.
+
 ## [3.7.33-8] - 2026-06-08
 
 ### Bug Fixes

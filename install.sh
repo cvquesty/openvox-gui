@@ -995,6 +995,16 @@ WantedBy=multi-user.target
 SVCEOF
 log_ok "Installed systemd service unit"
 
+# Belt-and-suspenders: ensure PUPPET_SERVER_HOST is defined before the sudoers
+# heredoc (the letsencrypt rule below references it). This mirrors the
+# early detection added to update_local.sh and deploy.sh for robustness
+# across interactive/non-interactive installs and updates.
+[ -z "${PUPPET_SERVER_HOST:-}" ] && PUPPET_SERVER_HOST=$(hostname -f)
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    PSH_LINE=$(grep "^OPENVOX_GUI_PUPPET_SERVER_HOST=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    [ -n "$PSH_LINE" ] && PUPPET_SERVER_HOST="${PSH_LINE#*=}"
+fi
+
 # Sudoers rules — puppet user needs sudo for r10k and reading PuppetDB configs
 #
 # NOTE: This heredoc is intentionally LEFT UNQUOTED because it performs
