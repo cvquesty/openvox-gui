@@ -458,25 +458,25 @@ export const performance = {
 // ─── Metrics / Visualization ────────────────────────────────
 
 export const metrics = {
-  compliance: (hours: number = 24) => fetchJSON<any>(`/metrics/compliance?hours=${hours}`),
+  compliance: (hours: number = 24) => fetchJSON<any>(`/insights/compliance?hours=${hours}`),
   events: (params?: { limit?: number; status?: string }) => {
     const qs = new URLSearchParams();
     if (params?.limit) qs.set('limit', params.limit.toString());
     if (params?.status) qs.set('status', params.status);
     const query = qs.toString();
-    return fetchJSON<any>(`/metrics/events${query ? '?' + query : ''}`);
+    return fetchJSON<any>(`/insights/events${query ? '?' + query : ''}`);
   },
   factDistribution: (factPath: string) =>
-    fetchJSON<any>(`/metrics/fact-distribution/${encodeURIComponent(factPath)}`),
-  factOverview: () => fetchJSON<any>('/metrics/fact-overview'),
+    fetchJSON<any>(`/insights/fact-distribution/${encodeURIComponent(factPath)}`),
+  factOverview: () => fetchJSON<any>('/insights/fact-overview'),
   catalog: (certname: string) =>
-    fetchJSON<any>(`/metrics/catalog/${certname}`),
-  puppetdbHealth: () => fetchJSON<any>('/metrics/puppetdb-health'),
-  puppetdbPerformance: () => fetchJSON<any>('/metrics/puppetdb-performance'),
-  heatmap: () => fetchJSON<any>('/metrics/heatmap'),
-  environments: () => fetchJSON<any>('/metrics/environments'),
+    fetchJSON<any>(`/insights/catalog/${certname}`),
+  puppetdbHealth: () => fetchJSON<any>('/insights/puppetdb-health'),
+  puppetdbPerformance: () => fetchJSON<any>('/insights/puppetdb-performance'),
+  heatmap: () => fetchJSON<any>('/insights/heatmap'),
+  environments: () => fetchJSON<any>('/insights/environments'),
   classCoverage: (limit: number = 50) =>
-    fetchJSON<any>(`/metrics/class-coverage?limit=${limit}`),
+    fetchJSON<any>(`/insights/class-coverage?limit=${limit}`),
 };
 
 // ─── Log Viewer ─────────────────────────────────────────────

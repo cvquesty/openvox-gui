@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.3] - 2026-06-08
+
+### Bug Fixes
+- **Ad blocker compatibility for /metrics/timeline (GitHub #23)**: The `/api/metrics/events` (and related) endpoints were being blocked by ad blockers like uBlock Origin because the path contained "metrics" and "events" (common analytics/tracking keywords).
+  - Renamed the entire Metrics/Insights API prefix from `/api/metrics` to `/api/insights` (and corresponding frontend API calls and UI routes from `/metrics/*` to `/insights/*`).
+  - This affects: compliance, events (timeline), fact-distribution, fact-overview, catalog, puppetdb-health, puppetdb-performance, heatmap, environments, class-coverage.
+  - UI navigation and routes updated for consistency.
+  - Internal PuppetDB `/metrics/v2/*` calls (for JMX) remain unchanged.
+  - Maintenance middleware and docs updated where relevant.
+  - Historical references in CHANGELOG preserved.
+
 ## [3.8.2] - 2026-06-08
 
 ### Security (GitHub #24, #25, #26, #27, #28)

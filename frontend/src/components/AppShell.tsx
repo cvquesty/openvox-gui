@@ -96,16 +96,16 @@ const explorerNav: NavItem[] = [
 ];
 
 const metricsNav: NavItem[] = [
-  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/metrics/compliance' },
-  { label: 'Run Performance', icon: IconActivity, path: '/metrics/performance' },
-  { label: 'Change Timeline', icon: IconTimeline, path: '/metrics/timeline' },
-  { label: 'Fact Distribution', icon: IconChartPie, path: '/metrics/facts' },
-  { label: 'Classification Tree', icon: IconBinaryTree, path: '/metrics/classification' },
-  { label: 'Catalog Graph', icon: IconTopologyRing, path: '/metrics/catalog' },
-  { label: 'PuppetDB Health', icon: IconHeartRateMonitor, path: '/metrics/health' },
-  { label: 'Node Heatmap', icon: IconGridDots, path: '/metrics/heatmap' },
-  { label: 'Environments', icon: IconWorldNav, path: '/metrics/environments' },
-  { label: 'Class Coverage', icon: IconStack2, path: '/metrics/classes' },
+  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/insights/compliance' },
+  { label: 'Run Performance', icon: IconActivity, path: '/insights/performance' },
+  { label: 'Change Timeline', icon: IconTimeline, path: '/insights/timeline' },
+  { label: 'Fact Distribution', icon: IconChartPie, path: '/insights/facts' },
+  { label: 'Classification Tree', icon: IconBinaryTree, path: '/insights/classification' },
+  { label: 'Catalog Graph', icon: IconTopologyRing, path: '/insights/catalog' },
+  { label: 'PuppetDB Health', icon: IconHeartRateMonitor, path: '/insights/health' },
+  { label: 'Node Heatmap', icon: IconGridDots, path: '/insights/heatmap' },
+  { label: 'Environments', icon: IconWorldNav, path: '/insights/environments' },
+  { label: 'Class Coverage', icon: IconStack2, path: '/insights/classes' },
 ];
 
 const logsNav: NavItem[] = [

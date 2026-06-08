@@ -24,7 +24,7 @@ from ..services.puppetdb import puppetdb_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/metrics", tags=["metrics"])
+router = APIRouter(prefix="/api/insights", tags=["insights"])
 
 _AUTH = require_role("admin", "operator", "viewer")
 

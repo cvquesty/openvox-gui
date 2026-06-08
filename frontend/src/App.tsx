@@ -138,16 +138,16 @@ function AppRoutes() {
           <Route path="/cert-audit" element={<CertAuditPage />} />
 
           {/* Metrics */}
-          <Route path="/metrics/compliance" element={<MetricsCompliancePage />} />
-          <Route path="/metrics/performance" element={<MetricsPerformancePage />} />
-          <Route path="/metrics/timeline" element={<MetricsTimelinePage />} />
-          <Route path="/metrics/facts" element={<MetricsFactDistPage />} />
-          <Route path="/metrics/classification" element={<MetricsClassificationPage />} />
-          <Route path="/metrics/catalog" element={<MetricsCatalogPage />} />
-          <Route path="/metrics/health" element={<MetricsPuppetDBHealthPage />} />
-          <Route path="/metrics/heatmap" element={<MetricsHeatmapPage />} />
-          <Route path="/metrics/environments" element={<MetricsEnvironmentsPage />} />
-          <Route path="/metrics/classes" element={<MetricsClassCoveragePage />} />
+          <Route path="/insights/compliance" element={<MetricsCompliancePage />} />
+          <Route path="/insights/performance" element={<MetricsPerformancePage />} />
+          <Route path="/insights/timeline" element={<MetricsTimelinePage />} />
+          <Route path="/insights/facts" element={<MetricsFactDistPage />} />
+          <Route path="/insights/classification" element={<MetricsClassificationPage />} />
+          <Route path="/insights/catalog" element={<MetricsCatalogPage />} />
+          <Route path="/insights/health" element={<MetricsPuppetDBHealthPage />} />
+          <Route path="/insights/heatmap" element={<MetricsHeatmapPage />} />
+          <Route path="/insights/environments" element={<MetricsEnvironmentsPage />} />
+          <Route path="/insights/classes" element={<MetricsClassCoveragePage />} />
 
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />
