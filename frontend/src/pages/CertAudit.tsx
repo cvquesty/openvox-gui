@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Button, ActionIcon, Tooltip, Collapse, Paper,
-  Modal, Checkbox, ScrollArea,
+  Modal, Checkbox, ScrollArea, Box,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -188,8 +188,9 @@ export function CertAuditPage() {
               signed but never completed a Puppet run. Cleaning removes the certificate from
               the CA, deactivates the node in PuppetDB, and removes it from the ENC.
             </Alert>
-            <ScrollArea style={{ maxHeight: 500 }} type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
+            <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
+              <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+                <Table striped highlightOnHover withTableBorder>
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th style={{ width: 40 }}>
@@ -246,6 +247,7 @@ export function CertAuditPage() {
               </Table.Tbody>
             </Table>
             </ScrollArea>
+          </Box>
           </>
         )}
       </Card>
@@ -260,8 +262,9 @@ export function CertAuditPage() {
           <Text size="sm" c="dimmed">Signed certs with matching active PuppetDB nodes</Text>
         </Group>
         <Collapse in={showHealthy}>
-          <ScrollArea style={{ maxHeight: 500 }} mt="md" type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+          <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }} mt="md">
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Certname</Table.Th>
@@ -287,6 +290,7 @@ export function CertAuditPage() {
             </Table.Tbody>
               </Table>
             </ScrollArea>
+          </Box>
         </Collapse>
       </Card>
 

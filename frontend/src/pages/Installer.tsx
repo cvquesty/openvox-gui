@@ -807,8 +807,9 @@ export function InstallerPage() {
             checked in for the first time will appear here, ready to sign.
           </Text>
         ) : (
-          <ScrollArea style={{ maxHeight: 350 }} type="auto" offsetScrollbars scrollbarSize={6}>
-          <Table striped highlightOnHover>
+          <Box style={{ maxHeight: 350, minHeight: 0, overflow: 'hidden' }}>
+            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
+              <Table striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Certname</Table.Th>
@@ -851,6 +852,7 @@ export function InstallerPage() {
             </Table.Tbody>
           </Table>
           </ScrollArea>
+          </Box>
         )}
       </Card>
     </Stack>

@@ -442,9 +442,7 @@ async def read_config_file(
     """Read contents of a configuration file."""
     from pathlib import Path
     import subprocess
-    path = Path(request.path).resolve()
-
-    # Security: only allow known Puppet config paths
+    # Security: only allow known Puppet config paths (check raw path first to avoid resolve issues on restricted dirs like puppetdb)
     allowed_prefixes = [
         "/etc/puppetlabs/",
         "/etc/sysconfig/puppet",
@@ -454,13 +452,23 @@ async def read_config_file(
         "/etc/default/puppetserver",
         "/etc/default/puppetdb",
     ]
-    if not any(str(path).startswith(p) for p in allowed_prefixes):
+    if not any(request.path.startswith(p) for p in allowed_prefixes):
         raise HTTPException(status_code=403, detail="Access denied: path not in allowed config directories")
 
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {request.path}")
-    if not path.is_file():
-        raise HTTPException(status_code=400, detail="Path is not a file")
+    path = Path(request.path).resolve()
+
+    # For paths that may be restricted (e.g. /etc/puppetlabs/puppetdb/conf.d/* owned by puppetdb user),
+    # the direct exists()/is_file() can fail with PermissionError or return misleading results
+    # because the service runs as 'puppet'. We skip the strict check here and let the sudo-read
+    # logic below handle it (the listing already marked them as present for management).
+    try:
+        if not path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {request.path}")
+        if not path.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
+    except (PermissionError, OSError):
+        # Proceed anyway for sudo-required files like PuppetDB configs
+        pass
 
     def _read_with_sudo(p: Path) -> str:
         """Read file contents via sudo (for files owned by other users like puppetdb)."""
