@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.7-3] - 2026-06-08
+
+### Maintenance
+- Removed `.github/workflows/leak-check.yml` as it was not working out.
+- Updated the internal developer note in README.md accordingly (the `frontend/.npmrc` still provides local protection against leaking internal URLs into package-lock.json).
+
 ## [3.8.7-2] - 2026-06-08
 
 ### Bug Fixes

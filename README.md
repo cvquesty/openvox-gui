@@ -18,7 +18,7 @@
 
 [Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Architecture](docs/ARCHITECTURE.md) · [ovox CLI](ovox/README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
-> **⚠️ For internal (Twitter) developers**: Never let internal Artifactory URLs, corporate hostnames (e.g. `*.pdxc-it.twitter.biz`), or other private infrastructure details leak into committed files (especially `package-lock.json`). Use the public npm registry when updating frontend deps. The `frontend/.npmrc` and CI leak-check help enforce this. See v3.8.6 release notes for the previous incident.
+> **⚠️ For internal (Twitter) developers**: Never let internal Artifactory URLs, corporate hostnames (e.g. `*.pdxc-it.twitter.biz`), or other private infrastructure details leak into committed files (especially `package-lock.json`). Use the public npm registry when updating frontend deps. The `frontend/.npmrc` helps enforce this. See v3.8.6 release notes for the previous incident.
 
 </div>
 
