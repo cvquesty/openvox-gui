@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.7.34] - 2026-06-08
+## [3.7.33-1] - 2026-06-08
 
 ### Bug Fixes
 - **Dashboard | Nodes "All Nodes" pane still not scrolling**: Showed only ~17.5 nodes (no internal scrollbar) despite previous Box wrappers. The flat list in the Card was not creating a reliable scroll viewport for the full filtered nodes (92 total).
