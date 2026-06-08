@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.7.33-3] - 2026-06-08
+
+### Bug Fixes
+- **Code | Classification "Classified Nodes" pane**: Only showing 7 nodes with no vertical scroll to see the full estate. The pane in the Nodes tab (detailed table) and the summary in hierarchy view were capped too low.
+  - Increased the main Classified Nodes table (in Nodes tab) to explicit `h={800}` on ScrollArea (to show more rows before internal scroll, matching the direct pattern that worked for All Nodes and submenus). Removed the Box wrapper for this one to use the successful explicit h pattern.
+  - Increased the summary "Classified Nodes" list in the hierarchy view from 450 to 600 in the Box + ScrollArea.
+  - This ensures the pane scrolls vertically to show the entire estate.
+- Updated versions, docs, CHANGELOG to 3.7.33-3 per policy.
+- Full release process followed.
+
 ## [3.7.33-2] - 2026-06-08
 
 ### Bug Fixes

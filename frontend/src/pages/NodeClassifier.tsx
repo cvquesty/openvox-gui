@@ -436,7 +436,7 @@ function HierarchyTab() {
             <Divider my="sm" />
 
             <Text fw={600} size="sm" mb={4}>Classified Nodes ({activeHierarchyNodes.length})</Text>
-            <Box style={{ maxHeight: 450, minHeight: 0, overflow: 'hidden' }}>
+            <Box style={{ maxHeight: 600, minHeight: 0, overflow: 'hidden' }}>
               <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
               {activeHierarchyNodes.map((n: any) => (
                   <Paper key={n.certname} p="xs" mb={4} withBorder>
@@ -822,9 +822,8 @@ function NodesTab() {
       </Card>
       <Card withBorder shadow="sm" padding="lg">
         <Text fw={700} mb="sm">Classified Nodes</Text>
-        <Box style={{ maxHeight: 650, minHeight: 0, overflow: 'hidden' }}>
-          <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
+        <ScrollArea h={800} type="auto" offsetScrollbars scrollbarSize={6}>
+          <Table striped highlightOnHover withTableBorder>
             <Table.Thead><Table.Tr>
               <Table.Th>Certname</Table.Th><Table.Th>Environment</Table.Th><Table.Th>Groups</Table.Th>
               <Table.Th>Node Classes</Table.Th><Table.Th>Node Params</Table.Th>
@@ -852,8 +851,7 @@ function NodesTab() {
               {activeClassified.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="lg">No nodes classified yet</Text></Table.Td></Table.Tr>}
             </Table.Tbody>
           </Table>
-          </ScrollArea>
-        </Box>
+        </ScrollArea>
       </Card>
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)}
         title={editing ? `Edit Node \u2014 ${editing.certname}` : 'Classify Node'} size="lg">
