@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.7-6] - 2026-06-08
+
+### Features
+- Per-theme favicons: Explicitly use `~/Desktop/openvox-logo-black.svg` (copied to `frontend/public/openvox-logo-black.svg`) for the "light" theme.
+  - "dark" and "robots" themes use the orange logo (`/openvox-logo-orange.svg`).
+  - Added dynamic favicon switching in `ThemeContext.tsx` (useEffect updates the `<link rel="icon">` href based on current theme).
+  - Updated `frontend/index.html` initial favicon to the black logo (matches default light theme).
+  - This provides theme-appropriate icons (black for light, orange for dark/robots) while keeping it simple across the app.
+
 ## [3.8.7-5] - 2026-06-08
 
 ### Features

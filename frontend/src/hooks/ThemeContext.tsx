@@ -51,6 +51,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }).catch(() => {});
   };
 
+  // Dynamically update the favicon based on theme for better theme-specific branding.
+  // Light theme uses black logo; Dark and Robots!! use orange.
+  useEffect(() => {
+    const faviconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+    if (faviconLink) {
+      if (theme === 'light') {
+        faviconLink.href = '/openvox-logo-black.svg';
+      } else {
+        faviconLink.href = '/openvox-logo-orange.svg';
+      }
+    }
+  }, [theme]);
+
   return (
     <ThemeContext.Provider value={{ 
       theme, 

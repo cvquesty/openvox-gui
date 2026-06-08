@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="256"
+   height="256"
+   viewBox="0 0 67.733332 67.733333"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   sodipodi:docname="logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <title
+     id="title1">OpenVox Logo (multiple objects)</title>
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     inkscape:zoom="2"
+     inkscape:cx="55.5"
+     inkscape:cy="121.75"
+     inkscape:window-width="1916"
+     inkscape:window-height="1030"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1">
+    <rect
+       x="38.129066"
+       y="301.98221"
+       width="707.67548"
+       height="402.64294"
+       id="rect1" />
+  </defs>
+  <g
+     inkscape:label="Calque 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="letter-v-right-side"
+       style="font-size:26.6667px;line-height:1.25;font-family:'Linux Biolinum';-inkscape-font-specification:'Linux Biolinum, Normal';text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;white-space:pre;fill:#000000;stroke-width:3.15172"
+       d="m 49.094011,7.4253707 v 0.00633 C 47.902124,11.79574 48.174022,15.576299 47.807473,20.746518 l 1.575866,1.957505 6.851316,-15.2784993 C 55.550701,7.5897329 54.581511,7.6716774 53.323,7.6716774 c -2.133974,0 -3.544999,-0.08226 -4.228989,-0.2461494 z"
+       sodipodi:nodetypes="cccccscc" />
+    <path
+       id="fox"
+       style="fill:#000000;stroke:none;stroke-width:0.168309px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 31.89195,5.0270832 C 28.246505,11.185369 23.872883,23.787781 23.872883,23.787781 l 8.019067,20.845234 c 0.318052,-2.985717 1.845173,-6.243743 4.169091,-8.338093 -1.755711,-2.284705 -4.922766,-2.9663 -6.25358,-2.084524 1.732366,-2.342097 5.076198,-5.414117 11.294754,-3.731386 2.763717,0.747838 5.595083,2.21814 7.404642,2.616907 4.643196,1.023245 8.117699,-0.210962 8.117699,-0.210962 -0.03573,1.094597 0.512217,1.906689 1.645764,2.436358 -4.851053,4.528933 -11.225304,0.851353 -15.715309,1.548017 -4.91777,0.762966 -10.57384,13.894812 -10.57384,13.894812 L 31.44751,62.706248 38.953166,46.041563 c 2.354415,-5.227595 4.738132,-6.661638 11.663432,-6.355058 2.045657,0.09053 6.281102,0.125077 8.708539,-2.845929 3.497015,-4.280245 2.532138,-5.104165 0.455037,-5.60627 -3.051387,-0.737593 -9.102938,-2.612107 -9.579184,-6.269282 -0.228711,-1.759967 -1.646483,-3.706442 -2.392414,-4.220887 L 49.093883,7.4278596 38.078229,18.166932 c 0,0 -3.594343,-9.2897229 -6.1864,-13.1398488 z"
+       sodipodi:nodetypes="cccccssccsccsssssccccc" />
+    <path
+       id="fox-eye"
+       style="fill:#ffffff;stroke:none;stroke-width:0.168309px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 45.035336,27.709987 c -2.446618,0.707098 -3.86617,-0.446464 -4.911094,-2.107371 2.003602,-0.190831 3.687963,0.483748 4.911094,2.107371 z"
+       sodipodi:nodetypes="ccc" />
+    <path
+       id="fox-right-ear"
+       style="fill:#ffffff;stroke:none;stroke-width:0.168309px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 31.914226,8.6171094 c 1.604193,2.8048926 3.996251,10.0013716 3.996251,10.0013716 -3.016727,0.854451 -5.668462,2.932053 -6.6817,4.713855 0,0 1.361183,-10.695855 2.685449,-14.7152266 z"
+       sodipodi:nodetypes="cccc" />
+    <path
+       id="fox-left-ear"
+       style="fill:#ffffff;stroke:none;stroke-width:0.168309px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 47.771289,11.185834 -1.621466,8.394151 c -0.764749,-0.403342 -2.37371,-1.043495 -2.936195,-1.152847 z"
+       sodipodi:nodetypes="cccc" />
+    <path
+       d="m 31.981114,50.764137 c 0.843621,4.352123 0.66577,8.332851 -0.533498,11.942111 H 29.108439 C 27.302781,58.356203 24.60793,51.790115 21.023943,43.007924 17.467283,34.225764 14.389401,26.729477 11.790329,20.519031 9.2186153,14.308584 7.3171785,9.9448611 6.0860512,7.4278603 c 0.9575576,0.1642049 2.6401067,0.2461501 5.0476798,0.2461501 2.106645,0 3.638731,-0.081945 4.596288,-0.2461501 3.365131,11.9284347 8.713769,26.3738387 16.045913,43.3362767 z"
+       id="letter-v-left-side"
+       style="font-size:26.6667px;line-height:1.25;font-family:'Linux Biolinum';-inkscape-font-specification:'Linux Biolinum, Normal';text-align:center;letter-spacing:0px;word-spacing:0px;text-anchor:middle;white-space:pre;stroke-width:3.15172"
+       aria-label="V"
+       sodipodi:nodetypes="ccccccsccc" />
+  </g>
+  <metadata
+     id="metadata1">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Romain Tartiere</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:title>OpenVox Logo (multiple objects)</dc:title>
+        <dc:date>2025-10-20</dc:date>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>
