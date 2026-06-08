@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.8.1] - 2026-06-08
+
+### Security
+- **PQL Console Auditing (GitHub #29)**: Added fine-grained audit logging for all successful PQL queries in `backend/app/routers/pql.py`:
+  - Logs authenticated user (admin/operator), truncated query, limit, result count, and UTC timestamp at INFO level.
+  - Updated module and function docstrings to document the blast radius (PQL can expose sensitive fleet-wide data like facts, resources, Hiera values) and the new auditing.
+  - This addresses the "powerful unaudited query surface" concern from the security assessment. Queries are still restricted to admin/operator roles and validated for length/dangerous patterns.
+  - Note: Rate-limiting/approval workflows and full dependency supply-chain CI scanning (other parts of #29) remain open.
+
 ## [3.8.0] - 2026-06-08
 
 ### Major Changes

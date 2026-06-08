@@ -11,8 +11,20 @@ for excessive length and patterns that look like SQL injection (even though
 PQL is not SQL, defence-in-depth never hurts). The actual query is
 executed by PuppetDB, which has its own parser and will reject malformed
 queries with a 400 error.
+
+All successful PQL queries are now logged at INFO level with:
+- The authenticated user (admin/operator)
+- The query string (truncated)
+- Limit and result count/size
+- Timestamp
+
+This provides the fine-grained auditing recommended for this powerful
+query surface (see GitHub issue #29). Operators should be aware that
+PQL can expose sensitive data (facts, resources, reports) across the
+entire fleet.
 """
 import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -72,9 +84,22 @@ async def execute_pql(
 
         resp.raise_for_status()
         data = resp.json()
+        result_count = len(data) if isinstance(data, list) else 1
+
+        # Fine-grained auditing for PQL queries (addresses security issue #29).
+        # Logs who ran what, when, and result size. This provides audit trail
+        # for data access via the powerful PQL surface.
+        logger.info(
+            f"AUDIT PQL: user={_user} "
+            f"query=\"{request.query[:1000]}\" "
+            f"limit={request.limit} "
+            f"result_count={result_count} "
+            f"timestamp={datetime.utcnow().isoformat()}Z"
+        )
+
         return {
             "results": data if isinstance(data, list) else [data],
-            "count": len(data) if isinstance(data, list) else 1,
+            "count": result_count,
             "query": request.query,
         }
     except HTTPException:
