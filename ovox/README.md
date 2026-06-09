@@ -27,13 +27,21 @@ ovox --help
 
 ## Versioning
 
-As of OpenVox GUI 3.7.3, the `ovox` CLI is versioned in lockstep with the main project. The single source of truth is the root `VERSION` file at the repository root. `scripts/bump-version.sh` automatically keeps the ovox files in sync:
+The project follows **Semantic Versioning (SemVer 2.0.0) + pre-releases** (canonized across AGENTS.md, skills, scripts, and docs).
+
+- Stable releases: clean `MAJOR.MINOR.PATCH` (e.g. 3.9.0). These are intentional and infrequent ("only when necessary").
+- Development trains: pre-release identifiers on the upcoming stable, e.g. `3.9.0-dev.1`, `3.9.0-dev.42`, `3.9.0-beta.N`, `3.9.0-rc.N`.
+  - Daily workflow = ordinary git pushes. The `/commit` skill handles pre-release version bumps, CHANGELOG, conventional commits, annotated tags (for "tryable but unreleased" versions), and deploys.
+- Promotion to stable: Use the `/release` skill when a pre-release train is ready for users. It promotes to clean stable SemVer, creates the stable tag, pushes it, and prepares the manual GitHub Release.
+- GitHub Releases: separate, manual, only for shippable stable versions (on schedule). Never automatic from /commit or /release.
+
+As of OpenVox GUI 3.7.3, the `ovox` CLI is versioned in lockstep with the main project (single source of truth: root `VERSION`). `scripts/bump-version.sh` keeps the ovox files in sync:
 
 - `ovox/VERSION`
 - `ovox/ovox/__init__.py` (`__version__`)
 - `ovox/pyproject.toml` (the Python package version)
 
-This means that when the GUI is released as (for example) 3.7.3, the shipped `ovox` CLI carries exactly the same version string.
+This means that when the GUI is released as (for example) 3.9.0, the shipped `ovox` CLI carries exactly the same version string.
 
 At runtime the CLI prefers (in order):
 1. `OPENVOX_CLI_VERSION` or `OPENVOX_VERSION` environment variable
@@ -43,7 +51,7 @@ At runtime the CLI prefers (in order):
 
 The root `VERSION` is also read by several GUI components at runtime.
 
-This allows the CLI to move faster (or slower) than the web GUI.
+This model keeps development velocity high (pre-release tags + deploys on every meaningful push via /commit) while preventing version number churn from overwhelming users. Full stable releases + GitHub Releases are high-signal events only when necessary. See the full canon in project AGENTS.md (Version Discipline + Using the Release Skill) and global ~/.grok/Agents.md.
 
 ## Quick Start
 

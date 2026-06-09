@@ -9,7 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.8.7-7] - 2026-06-08
+## [3.9.0] - 2026-06-09
+
+### Process Changes (Major Versioning & Release Model Canonization)
+This release formalizes a full migration across the entire code estate (AGENTS.md files, skills, bump scripts, ovox/README.md, CHANGELOG process notes, global .grok/Agents.md, and supporting tooling) to proper **Semantic Versioning (SemVer 2.0.0) + pre-releases**.
+
+**Previous model (retired):**
+- Strict "increment on EVERY meaningful push" produced rapid hyphenated pre-releases (3.8.7-1, 3.8.7-2, ..., 3.8.7-7, etc.).
+- Every commit got a CHANGELOG entry + conventional commit + annotated tag + branch+tag push.
+- This enabled excellent internal velocity and "PUSH EVERY TIME so I can deploy," with the /commit skill automating the full pre-commit checklist (including active heredoc safety) plus immediate deploy.
+- **Problem:** Too many rapidly changing version numbers overwhelmed and potentially confused users. They saw constant churn even for minor/internal iterations and might hesitate to keep up with updates.
+
+**New canonical model (SemVer + pre-releases, now enforced everywhere):**
+- **Stable user-facing releases:** Clean `MAJOR.MINOR.PATCH` only (e.g., `3.9.0`). These are intentional, high-signal, and infrequent.
+- **Development / pre-release trains:** Use standard SemVer pre-release identifiers for rapid work: `3.9.0-dev.1`, `3.9.0-dev.42`, `3.9.0-beta.N`, `3.9.0-rc.N`, etc.
+  - The project-scoped `/commit` skill handles daily development workflow: proposes the next pre-release, updates CHANGELOG, produces conventional commits (always with "Assisted By: Grok AI"), creates the pre-release annotated tag, pushes branch + tag, runs the full pre-commit checklist, enforces heredoc safety on .sh changes, and can drive the final deploy step.
+  - Pre-release tags are now explicitly for "tryable, but unreleased versions" — lightweight, traceable, and immediately deployable for testing/iteration without polluting the user-visible version space.
+- **Promotion to stable:** The new project-scoped `/release` skill (separate from /commit) is used when a dev train is ready for users. It promotes the pre-release series to a clean stable SemVer (e.g., 3.9.0 by bumping the minor and resetting patch per the rules), ensures the CHANGELOG is finalized, creates/pushes the stable annotated tag, and prepares (but does **not** auto-execute) the manual GitHub Release.
+- **GitHub Releases:** Strictly separate and manual. Only created (via `gh release create` with proper notes) when a clean stable tag is tested and explicitly "ready to ship" — typically on a pre-determined schedule. This prevents noisy releases and keeps the "tag and push only until ready" philosophy.
+- **Daily workflow:** Plain git pushes (with the /commit skill managing all the pre-release versioning noise internally). No requirement to produce a new user-visible version number on every change.
+- **ovox CLI:** Remains versioned in lockstep with the GUI (single source of truth: root `VERSION` file) via `scripts/bump-version.sh` (in place since 3.7.3). The CLI prefers `OPENVOX_CLI_VERSION` / `OPENVOX_VERSION` env, installed VERSION, dev VERSION, or baked package version.
+
+**Rationale & benefits (directly addressing user feedback):**
+- Users now primarily see clean, stable, infrequent versions (e.g., 3.9.0) instead of dozens of rapidly changing numbers. This reduces confusion and makes it easier for admins to decide when to upgrade.
+- We retain full internal velocity, traceability (every meaningful change still has a pre-release tag + CHANGELOG entry), and fast deploy capability.
+- Pre-release tags are "tryable" (you can deploy and test them immediately) but clearly marked as unreleased.
+- Stable releases + GitHub Releases are now high-signal events, only when necessary.
+- All of this knowledge is now canonized and cross-referenced in:
+  - `AGENTS.md` (project-specific Version Discipline, Release Process, "Using the Commit Skill", and new "Using the Release Skill" sections).
+  - Global `~/.grok/Agents.md` (Pre-Commit Checklist section + Harness Capabilities Area 1 on skills).
+  - The `/commit` and `/release` skills themselves (with detailed procedures and safety notes).
+  - `scripts/bump-version.sh` (updated comments and promotion logic).
+  - `ovox/README.md` (Versioning section).
+  - This CHANGELOG (and future process notes).
+- The `/commit` skill continues to drive the pre-commit checklist (CHANGELOG + docs + bump + stage/commit/push/deploy) plus active heredoc safety.
+- GitHub Releases remain deliberately manual to preserve the "lightweight tags for iteration, intentional releases for shipping" balance.
+
+This change was developed and tested through the enhanced commit skill (Phases 1-3 for heredoc enforcement, auto pre-release suggestion, and deploy execution) plus the new release skill and documentation updates. The old rapid hyphenated pattern is now legacy/migrated; new development uses proper SemVer pre-releases.
 
 ### Improvements
 - The 503 maintenance page is now pleasing and human-friendly for browsers.
@@ -18,14 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `/api/maintenance/page` last-resort endpoint also serves the improved HTML.
   - This replaces the previous raw JSON or ultra-minimal HTML that users would see when hitting the backend directly.
 
-## [3.8.7-7] - 2026-06-08
+## [3.8.7-7] - 2026-06-08 (legacy pre-release train)
 
-### Process Changes
+### Process Changes (Retired Model)
 - Updated release workflow per operator request:
   - On every meaningful commit: update CHANGELOG, bump version(s), conventional commit, **create annotated tag**, and push (branch + tag).
   - GitHub Releases (`gh release create`) are now deferred. They are only created when a tag is clean and explicitly "ready to ship", typically on a pre-determined release schedule or date.
   - This keeps development velocity high (lightweight tags for testing) while making official releases intentional and less noisy.
   - Primary governing document (AGENTS.md) and supporting script comments updated to reflect the new "tag and push only until ready" policy.
+
+(Note: The 3.8.7-N series above represents the final development under the old rapid hyphenated pre-release model. All future work follows the 3.9.0+ SemVer + pre-release model documented in this 3.9.0 entry.)
 
 ## [3.8.7-6] - 2026-06-08
 

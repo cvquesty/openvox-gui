@@ -16,25 +16,42 @@ When writing files with heredocs in shell scripts (`install.sh`, `update_local.s
 This rule was added after backticks in an unquoted sudoers heredoc caused installation failures on Ubuntu.
 
 ## Version Discipline (STRICT — standing order)
-- **Increment version on EVERY meaningful push.**
-  - ovox CLI has independent versioning via `ovox/VERSION` (also `__init__.py` + `pyproject.toml`).
-  - Pattern: within a prerelease train use suffixes (e.g. `3.7.1-beta1` → `3.7.1-beta1-1`, `-2`, ...).
+- **Use Semantic Versioning (SemVer) + pre-releases for all versioning.**
+  - Format: `MAJOR.MINOR.PATCH` for stable releases (e.g. `3.9.0`).
+  - During active development of a release train: use pre-release identifiers, e.g. `3.9.0-dev.1`, `3.9.0-dev.2`, ..., `3.9.0-beta.1`, `3.9.0-beta.2`, or `3.9.0-rc.1`.
+  - ovox CLI is versioned in lockstep with the GUI (single source of truth: root `VERSION` file) as of 3.7.3. `scripts/bump-version.sh` keeps `ovox/VERSION`, `ovox/ovox/__init__.py`, `ovox/pyproject.toml`, `frontend/package.json`, and doc headers/examples in sync.
   - This applies to ovox features, bolt-plugin/openvox_enc fixes, auth changes, etc.
-  - Always pair with: update CHANGELOG.md, conventional commit, **tag the commit**, and push (both branch and the new tag).
+  - **Every meaningful push increments the pre-release counter** (via the `/commit` skill + bump script) and pairs with: update CHANGELOG.md, conventional commit (with "Assisted By: Grok AI"), **annotated tag** (`v3.9.0-dev.42`), and push (branch + tag).
   - User explicit reminder: "remember to increment versions on every single push" + "PUSH EVERY TIME so I can deploy".
   - Pre-commit checklist from global AGENTS.md applies in addition (docs, bump script for GUI if root VERSION moves, etc.).
+  - The project-scoped `/commit` skill (in `.grok/skills/commit/SKILL.md`) automates dev pre-release versioning, CHANGELOG, conventional commit, annotated tag, branch+tag push, active heredoc safety, and the final deploy step.
+  - Use the separate project-scoped `/release` skill (in `.grok/skills/release/SKILL.md`) to promote a completed pre-release train to a clean stable SemVer version (e.g. `3.9.0`), update CHANGELOG if needed, create the final annotated tag, push the tag, and prepare for manual GitHub Release.
+
+## Using the Release Skill
+- Run `/release` when a dev train (series of `-dev.N` / `-beta.N` etc. commits) is ready for users.
+- It will:
+  - Determine the next stable SemVer (strip pre-release suffix or apply promotion rules such as incrementing minor and resetting patch).
+  - Ensure CHANGELOG reflects the release.
+  - Create the clean annotated tag (e.g. `v3.9.0`).
+  - Push the tag.
+  - Remind that GitHub Releases (`gh release create`) are a separate, deliberate, manual step only when the tag is clean/tested/"ready to ship" (typically on a schedule).
+- Never auto-create GitHub Releases from the skill or commit flow.
 
 ## Release Process (Tags vs. GitHub Releases)
-- **"Tag and push only" on every commit** (the new standing rule).
-  - After updating CHANGELOG, bumping version(s), and making a conventional commit:
-    - Create an annotated tag: `git tag -a vX.Y.Z-N -m "..."` (following the hyphenated prerelease pattern).
-    - `git push origin main && git push origin vX.Y.Z-N`
-  - **Do not create a GitHub Release** (`gh release create`, polished notes, etc.) at this stage.
+- **"Tag and push only" on every commit** for development (the standing rule for pre-release trains).
+  - The `/commit` skill handles pre-release SemVer tags (e.g. `v3.9.0-dev.42`) + push during active work.
+  - **Do not create a GitHub Release** (`gh release create`, polished notes, etc.) at commit time. The `/commit` and `/release` skills explicitly exclude this.
+- Use the `/release` skill to promote a completed pre-release train to a stable SemVer tag (e.g. `v3.9.0`).
 - GitHub Releases are a **separate, deliberate, atomic step**.
-  - Only create a GitHub Release when the tag is clean, tested, and "ready to ship".
+  - Only create a GitHub Release (via `gh release create` with proper title/notes) when the stable tag is clean, tested, and explicitly "ready to ship".
   - This can (and should) happen on a pre-determined release schedule or date/time.
-  - Use `gh release create` (with proper title and notes) only at release time.
   - This prevents voluminous/noisy releases and gives us freedom to test/iterate on tags freely before "shipping" the official release artifact and announcement.
-- Rationale (per user): Tags are lightweight and perfect for continuous testing/deployment. Full GitHub releases should only be produced when we're confident the tag represents a shippable state.
+- Rationale (per user): Lightweight pre-release tags are perfect for continuous testing/deployment. Full GitHub releases should only be produced when we're confident the (clean SemVer) tag represents a shippable state for users.
+
+## Using the Commit Skill
+
+Use `/commit` (the project-scoped skill in `.grok/skills/commit/SKILL.md`) to handle version increment, CHANGELOG update, conventional commit (with "Assisted By: Grok AI"), annotated tag, and push (branch + tag). It enforces the rules in the sections above plus the global pre-commit checklist, including active heredoc safety enforcement for shell script changes and driving the final deploy step.
+
+GitHub Releases remain a separate, deliberate, manual step performed only when a tag is clean, tested, and explicitly "ready to ship".
 
 The goal is to keep the development cadence fast (tag+push on every change) while making releases intentional and high-signal.
