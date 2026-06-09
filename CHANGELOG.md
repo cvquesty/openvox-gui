@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `/api/maintenance/page` last-resort endpoint also serves the improved HTML.
   - This replaces the previous raw JSON or ultra-minimal HTML that users would see when hitting the backend directly.
 
+## [3.8.7-7] - 2026-06-08
+
+### Process Changes
+- Updated release workflow per operator request:
+  - On every meaningful commit: update CHANGELOG, bump version(s), conventional commit, **create annotated tag**, and push (branch + tag).
+  - GitHub Releases (`gh release create`) are now deferred. They are only created when a tag is clean and explicitly "ready to ship", typically on a pre-determined release schedule or date.
+  - This keeps development velocity high (lightweight tags for testing) while making official releases intentional and less noisy.
+  - Primary governing document (AGENTS.md) and supporting script comments updated to reflect the new "tag and push only until ready" policy.
+
 ## [3.8.7-6] - 2026-06-08
 
 ### Features

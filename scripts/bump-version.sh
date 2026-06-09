@@ -6,6 +6,11 @@
 # It is called by build processes, CI pipelines, or AI agents
 # when the application version needs to change.
 #
+# IMPORTANT (per current release policy):
+#   This script is used as part of the "tag and push only" flow on every commit.
+#   GitHub Releases (`gh release create`) are created separately and only when
+#   a tag is clean and explicitly "ready to ship" (on a schedule).
+#
 # The single source of truth is the VERSION file at the repo root.
 # As of 3.7.3, the ovox CLI is versioned in lockstep with the main GUI.
 # This script writes the new version and propagates it to all derived locations:
