@@ -4,12 +4,21 @@
 #
 # This is an internal automation script, not a user-facing tool.
 # It is called by build processes, CI pipelines, or AI agents
-# when the application version needs to change.
+# (e.g. the /commit and /release skills) when the application version
+# needs to change.
 #
-# IMPORTANT (per current release policy):
-#   This script is used as part of the "tag and push only" flow on every commit.
-#   GitHub Releases (`gh release create`) are created separately and only when
-#   a tag is clean and explicitly "ready to ship" (on a schedule).
+# CURRENT MODEL (SemVer + pre-releases):
+#   - During active development: use pre-release identifiers on the
+#     upcoming stable (e.g. 3.9.0-dev.1, 3.9.0-dev.42, 3.9.0-beta.3).
+#     These are created on every meaningful push via the /commit skill
+#     ("tag and push only" for tryable/unreleased versions).
+#   - When a train is ready for users: the /release skill promotes to
+#     a clean stable SemVer (e.g. 3.9.0) by calling this script with the
+#     target stable version.
+#   - GitHub Releases (`gh release create`) are created separately and
+#     only when a clean stable tag is explicitly "ready to ship"
+#     (typically on a schedule). Pre-release tags exist for fast
+#     iteration and testing; stable releases are high-signal.
 #
 # The single source of truth is the VERSION file at the repo root.
 # As of 3.7.3, the ovox CLI is versioned in lockstep with the main GUI.
@@ -30,18 +39,76 @@
 #     ├─ frontend/vite.config.ts   (reads at Vite build time)
 #     ├─ install.sh                (reads at shell runtime)
 #     └─ scripts/update_remote.sh  (reads at shell runtime)
+#
+# Promotion support:
+#   Pass the target stable version (e.g. 3.9.0) to promote from a
+#   pre-release train. Use --promote <pre-release> as a convenience
+#   to auto-strip the pre-release suffix and apply the clean stable.
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <new-version>" >&2
+usage() {
+    cat >&2 <<EOF
+Usage: $0 [OPTIONS] <new-version>
+       $0 --promote <pre-release-version>
+
+Options:
+  --promote <ver>   Promote a pre-release (e.g. 3.9.0-dev.42) to its
+                    clean stable equivalent (3.9.0) and apply it.
+  -h, --help        Show this help.
+
+The script always treats the provided (or computed) value as the
+target version to write into the source tree.
+EOF
+}
+
+PROMOTE=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --promote)
+            PROMOTE=true
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo "Error: --promote requires a pre-release version" >&2
+                usage
+                exit 1
+            fi
+            PRE_VERSION="$1"
+            # Strip any pre-release or build metadata suffix to get the stable base
+            NEW_VERSION=$(echo "$PRE_VERSION" | sed -E 's/[-+].*$//')
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            if [[ -z "${NEW_VERSION:-}" ]]; then
+                NEW_VERSION="$1"
+                shift
+            else
+                echo "Error: unexpected argument '$1'" >&2
+                usage
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+if [[ -z "${NEW_VERSION:-}" ]]; then
+    echo "Error: <new-version> is required" >&2
+    usage
     exit 1
 fi
 
-NEW_VERSION="$1"
+if $PROMOTE; then
+    echo "Promoting $PRE_VERSION → $NEW_VERSION (stable SemVer)"
+fi
+
 OLD_VERSION="$(cat "$REPO_ROOT/VERSION" 2>/dev/null || echo 'unknown')"
 
 # ── 1. VERSION file (single source of truth) ────────────────
