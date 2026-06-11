@@ -43,61 +43,79 @@ logger = logging.getLogger(__name__)
 
 
 async def resolve_targets(targets: str, db: AsyncSession) -> str:
-    """Resolve a target string to actual certnames for Bolt execution.
+    """Resolve a target string (or comma-separated list) to actual certnames for Bolt.
 
-    The Orchestration UI sends target values that can be:
-      - A certname (e.g., 'puppet.example.com') — passed through as-is
-      - 'all' — resolved to a comma-separated list of all PuppetDB-known nodes
-      - An ENC group name (e.g., 'puppetservers') — resolved to the
-        comma-separated certnames of all nodes in that group
+    Supports:
+      - Single value or comma-separated list of: certnames, ENC group names, or 'all'
+      - Multiple groups: "staging,production" → union of their nodes
+      - Mix of groups + ad-hoc nodes: "webservers,node1,node2"
+      - 'all' anywhere expands to all known nodes (deduped overall)
 
-    Bolt's --targets flag expects certnames or hostnames, not ENC group names.
-    This function bridges the gap between the GUI's group-based target
-    selection and Bolt's host-based execution model by querying the ENC
-    database to look up group membership.
-
-    Args:
-        targets: The raw target string from the frontend (certname, 'all',
-                 or an ENC group name).
-        db:      The async database session for ENC queries.
-
-    Returns:
-        A comma-separated string of certnames suitable for Bolt's --targets flag.
-        If the input is already a certname (not a group), it is returned unchanged.
+    Output is always a comma-separated list of certnames (deduplicated, sorted for determinism)
+    suitable for Bolt's --targets flag.
     """
-    # Resolve 'all' to every node known to PuppetDB
-    if targets == 'all':
+    if not targets or not targets.strip():
+        return ''
+
+    # Split on commas and normalize
+    raw_parts = [p.strip() for p in targets.split(',') if p.strip()]
+    if not raw_parts:
+        return ''
+
+    # Dedup while preserving first-seen order, then we'll sort at end for output
+    seen: set[str] = set()
+    resolved: list[str] = []
+
+    # Pre-fetch groups and nodes once
+    try:
+        groups = await enc_service.list_groups(db)
+        all_nodes_list = await enc_service.list_nodes(db)
+    except Exception:
+        groups = []
+        all_nodes_list = []
+
+    group_map = {g.name.lower(): g for g in groups}
+
+    all_certnames: list[str] = []
+    if any(p.lower() == 'all' for p in raw_parts):
         try:
-            nodes = await puppetdb_service.get_nodes()
-            certnames = [n['certname'] for n in nodes if 'certname' in n]
-            if certnames:
-                logger.info(f"Resolved 'all' to {len(certnames)} PuppetDB nodes")
-                return ','.join(certnames)
-        except Exception as e:
-            logger.warning(f"PuppetDB query failed for 'all', falling back to Bolt inventory: {e}")
-        return targets
+            pdb_nodes = await puppetdb_service.get_nodes()
+            all_certnames = [n['certname'] for n in pdb_nodes if n.get('certname')]
+        except Exception:
+            # fallback to ENC nodes
+            all_certnames = [n.certname for n in all_nodes_list if n.certname]
 
-    # Check if the target matches an ENC group name. If so, resolve it to
-    # the comma-separated certnames of all nodes in that group.
-    groups = await enc_service.list_groups(db)
-    for group in groups:
-        if group.name.lower() == targets.lower():
-            # Found a matching group — get its member nodes
-            nodes = await enc_service.list_nodes(db)
+    for part in raw_parts:
+        part_lower = part.lower()
+
+        if part_lower == 'all':
+            for cn in all_certnames:
+                if cn not in seen:
+                    seen.add(cn)
+                    resolved.append(cn)
+            continue
+
+        # Check for ENC group
+        group = group_map.get(part_lower)
+        if group:
             members = []
-            for node in nodes:
-                node_groups = [g.name for g in node.groups]
-                if group.name in node_groups:
+            for node in all_nodes_list:
+                if node.certname and group.name in [g.name for g in node.groups]:
                     members.append(node.certname)
-            if members:
-                logger.info(f"Resolved ENC group '{targets}' to {len(members)} targets: {', '.join(members)}")
-                return ','.join(members)
-            else:
-                logger.warning(f"ENC group '{targets}' exists but has no member nodes")
-                return targets
+            for cn in members:
+                if cn not in seen:
+                    seen.add(cn)
+                    resolved.append(cn)
+            continue
 
-    # Not a group name — assume it's a certname and pass through to Bolt
-    return targets
+        # Otherwise treat as literal certname / hostname
+        if part not in seen:
+            seen.add(part)
+            resolved.append(part)
+
+    # Sort for stable, predictable --targets ordering
+    resolved.sort(key=lambda x: x.lower())
+    return ','.join(resolved)
 
 BOLT_PATHS = [
     "/opt/puppetlabs/bolt/bin/bolt",

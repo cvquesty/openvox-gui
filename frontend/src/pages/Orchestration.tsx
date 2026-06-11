@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Tabs,
-  Button, TextInput, Textarea, Select, Badge, Code, Grid, Divider,
+  Button, TextInput, Textarea, Select, MultiSelect, Badge, Code, Grid, Divider,
   Paper, ThemeIcon, Box, SegmentedControl, ScrollArea, Checkbox,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -373,7 +373,7 @@ function OverviewTab() {
    ═══════════════════════════════════════════════════════════════ */
 function RunCommandTab() {
   const [command, setCommand] = useState('');
-  const [targets, setTargets] = useState('');
+  const [targets, setTargets] = useState<string[]>([]);
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [running, setRunning] = useState(false);
@@ -391,11 +391,11 @@ function RunCommandTab() {
   }, []);
 
   const handleRun = async () => {
-    if (!command || !targets) return;
+    if (!command || targets.length === 0) return;
     setRunning(true); 
     setResults(null);
     
-    const payload: any = { command, targets, format: 'human' };
+    const payload: any = { command, targets: targets.join(','), format: 'human' };
     if (runPrivileged) payload.run_as = 'root';
 
     try {
@@ -432,7 +432,11 @@ function RunCommandTab() {
         <Stack>
           <TextInput label="Command" required value={command} onChange={(e) => setCommand(e.currentTarget.value)}
             placeholder="e.g. uptime, df -h, systemctl status puppet" />
-          <Select label="Targets" required searchable
+          <MultiSelect 
+            label="Targets" 
+            required 
+            searchable 
+            clearable
             data={[
               { group: 'Groups', items: [
                 { value: 'all', label: '🌐 All nodes' },
@@ -440,8 +444,11 @@ function RunCommandTab() {
               ]},
               { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
             ]}
-            value={targets} onChange={(v) => setTargets(v || '')}
-            placeholder="Select a group or node" />
+            value={targets} 
+            onChange={setTargets}
+            placeholder="Select one or more groups or nodes"
+            description="Multi-select supported: pick several groups and/or individual ad-hoc nodes. They are unioned (duplicates removed) when sent to Bolt." 
+          />
 
           <Checkbox
             label="Run privileged (use sudo on target via the bolt user's sudoers entry)"
@@ -450,7 +457,7 @@ function RunCommandTab() {
             onChange={(e) => setRunPrivileged(e.currentTarget.checked)}
           />
 
-          <Button onClick={handleRun} loading={running} disabled={!command || !targets}
+          <Button onClick={handleRun} loading={running} disabled={!command || targets.length === 0}
             leftSection={<IconPlayerPlay size={16} />} color="green">
             Run Command
           </Button>
@@ -471,7 +478,7 @@ function RunTaskTab() {
   const [puppetNodes, setPuppetNodes] = useState<string[]>([]);
   const [encGroups, setEncGroups] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState('');
-  const [targets, setTargets] = useState('');
+  const [targets, setTargets] = useState<string[]>([]);
   const [params, setParams] = useState<Array<{ key: string; val: string }>>([]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
@@ -493,14 +500,14 @@ function RunTaskTab() {
   }, []);
 
   const handleRun = async () => {
-    if (!selectedTask || !targets) return;
+    if (!selectedTask || targets.length === 0) return;
     setRunning(true); 
     setResults(null);
     
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
     
-    const taskPayload: any = { task: selectedTask, targets, params: paramDict, format: 'human' };
+    const taskPayload: any = { task: selectedTask, targets: targets.join(','), params: paramDict, format: 'human' };
     if (runPrivileged) taskPayload.run_as = 'root';
 
     try {
@@ -542,7 +549,11 @@ function RunTaskTab() {
             value={selectedTask} onChange={(v) => setSelectedTask(v || '')}
             placeholder={tasks.length > 0 ? 'Select a task' : 'No tasks available'}
             nothingFoundMessage="No matching tasks" />
-          <Select label="Targets" required searchable
+          <MultiSelect 
+            label="Targets" 
+            required 
+            searchable 
+            clearable
             data={[
               { group: 'Groups', items: [
                 { value: 'all', label: '🌐 All nodes' },
@@ -550,8 +561,11 @@ function RunTaskTab() {
               ]},
               { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
             ]}
-            value={targets} onChange={(v) => setTargets(v || '')}
-            placeholder="Select a group or node" />
+            value={targets} 
+            onChange={setTargets}
+            placeholder="Select one or more groups or nodes"
+            description="Multi-select supported: pick several groups and/or individual ad-hoc nodes. Unioned when executing the task." 
+          />
 
           <Checkbox
             label="Run privileged (use sudo / --run-as root on target)"
@@ -575,7 +589,7 @@ function RunTaskTab() {
               </Group>
             ))}
           </div>
-          <Button onClick={handleRun} loading={running} disabled={!selectedTask || !targets}
+          <Button onClick={handleRun} loading={running} disabled={!selectedTask || targets.length === 0}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Task</Button>
         </Stack>
       </Card>
@@ -854,7 +868,7 @@ function FilesTab() {
 
   // Upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadTargets, setUploadTargets] = useState('');
+  const [uploadTargets, setUploadTargets] = useState<string[]>([]);
   const [uploadDest, setUploadDest] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
@@ -862,7 +876,7 @@ function FilesTab() {
 
   // Script run state
   const [scriptFile, setScriptFile] = useState<File | null>(null);
-  const [scriptTargets, setScriptTargets] = useState('');
+  const [scriptTargets, setScriptTargets] = useState<string[]>([]);
   const [scriptArgs, setScriptArgs] = useState('');
   const [runningScript, setRunningScript] = useState(false);
   const [scriptResult, setScriptResult] = useState<any>(null);
@@ -871,7 +885,7 @@ function FilesTab() {
   // Download state
   const [downloadSource, setDownloadSource] = useState('');
   const [downloadDest, setDownloadDest] = useState('/opt/openvox-gui/data/bolt-downloads');
-  const [downloadTargets, setDownloadTargets] = useState('');
+  const [downloadTargets, setDownloadTargets] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadResult, setDownloadResult] = useState<any>(null);
 
@@ -905,14 +919,14 @@ function FilesTab() {
   };
 
   const handleUpload = async () => {
-    if (!uploadFile || !uploadTargets || !uploadDest) return;
+    if (!uploadFile || uploadTargets.length === 0 || !uploadDest) return;
     setUploading(true);
     setUploadResult(null);
     try {
-      const result = await bolt.uploadFile(uploadFile, uploadTargets, uploadDest);
+      const result = await bolt.uploadFile(uploadFile, uploadTargets.join(','), uploadDest);
       setUploadResult(result);
       if (result.success) {
-        notifications.show({ title: 'Upload Complete', message: `${uploadFile.name} uploaded to ${uploadTargets}`, color: 'green' });
+        notifications.show({ title: 'Upload Complete', message: `${uploadFile.name} uploaded to ${uploadTargets.join(', ')}`, color: 'green' });
       } else {
         notifications.show({ title: 'Upload Failed', message: `Exit code ${result.returncode}`, color: 'red' });
       }
@@ -925,12 +939,12 @@ function FilesTab() {
 
   // ─── Download handler ────────────────────────────────────
   const handleDownload = async () => {
-    if (!downloadSource || !downloadTargets || !downloadDest) return;
+    if (!downloadSource || downloadTargets.length === 0 || !downloadDest) return;
     setDownloading(true);
     setDownloadResult(null);
     try {
       const result = await bolt.downloadFile({
-        source: downloadSource, destination: downloadDest, targets: downloadTargets,
+        source: downloadSource, destination: downloadDest, targets: downloadTargets.join(','),
       });
       setDownloadResult(result);
       if (result.success) {
@@ -947,14 +961,14 @@ function FilesTab() {
 
   // ─── Script run handler ───────────────────────────────
   const handleScriptRun = async () => {
-    if (!scriptFile || !scriptTargets) return;
+    if (!scriptFile || scriptTargets.length === 0) return;
     setRunningScript(true);
     setScriptResult(null);
     try {
-      const result = await bolt.runScript(scriptFile, scriptTargets, scriptArgs);
+      const result = await bolt.runScript(scriptFile, scriptTargets.join(','), scriptArgs);
       setScriptResult(result);
       if (result.success) {
-        notifications.show({ title: 'Script Complete', message: `${scriptFile.name} executed on ${scriptTargets}`, color: 'green' });
+        notifications.show({ title: 'Script Complete', message: `${scriptFile.name} executed on ${scriptTargets.join(', ')}`, color: 'green' });
       } else {
         notifications.show({ title: 'Script Failed', message: `Exit code ${result.returncode}`, color: 'red' });
       }
@@ -1025,14 +1039,14 @@ function FilesTab() {
                 )}
               </Box>
 
-              <Select label="Targets" required searchable data={targetSelectData}
-                value={uploadTargets} onChange={(v) => setUploadTargets(v || '')}
-                placeholder="Select group or node" />
+              <MultiSelect label="Targets" required searchable clearable data={targetSelectData}
+                value={uploadTargets} onChange={setUploadTargets}
+                placeholder="Select one or more groups or nodes" />
               <TextInput label="Remote Destination Path" required
                 value={uploadDest} onChange={(e) => setUploadDest(e.currentTarget.value)}
                 placeholder="/tmp/myfile.conf or /etc/myapp/config.yaml" />
               <Button onClick={handleUpload} loading={uploading}
-                disabled={!uploadFile || !uploadTargets || !uploadDest}
+                disabled={!uploadFile || uploadTargets.length === 0 || !uploadDest}
                 leftSection={<IconFileUpload size={16} />} color="green">
                 Upload File
               </Button>
@@ -1060,14 +1074,14 @@ function FilesTab() {
               <TextInput label="Remote Source Path" required
                 value={downloadSource} onChange={(e) => setDownloadSource(e.currentTarget.value)}
                 placeholder="/etc/hosts or /var/log/messages" />
-              <Select label="Targets" required searchable data={targetSelectData}
-                value={downloadTargets} onChange={(v) => setDownloadTargets(v || '')}
-                placeholder="Select group or node" />
+              <MultiSelect label="Targets" required searchable clearable data={targetSelectData}
+                value={downloadTargets} onChange={setDownloadTargets}
+                placeholder="Select one or more groups or nodes" />
               <TextInput label="Local Destination Directory" required
                 value={downloadDest} onChange={(e) => setDownloadDest(e.currentTarget.value)}
                 placeholder="/opt/openvox-gui/data/bolt-downloads" />
               <Button onClick={handleDownload} loading={downloading}
-                disabled={!downloadSource || !downloadTargets || !downloadDest}
+                disabled={!downloadSource || downloadTargets.length === 0 || !downloadDest}
                 leftSection={<IconFileDownload size={16} />} color="blue">
                 Download File
               </Button>
@@ -1134,14 +1148,14 @@ function FilesTab() {
                   <Text size="sm" c="dimmed">Drag a script here or click to browse (.sh, .py, .rb, .ps1)</Text>
                 )}
               </Box>
-              <Select label="Targets" required searchable data={targetSelectData}
-                value={scriptTargets} onChange={(v) => setScriptTargets(v || '')}
-                placeholder="Select group or node" />
+              <MultiSelect label="Targets" required searchable clearable data={targetSelectData}
+                value={scriptTargets} onChange={setScriptTargets}
+                placeholder="Select one or more groups or nodes" />
               <TextInput label="Script Arguments (optional)"
                 value={scriptArgs} onChange={(e) => setScriptArgs(e.currentTarget.value)}
                 placeholder="--flag1 value1 --flag2 value2" />
               <Button onClick={handleScriptRun} loading={runningScript}
-                disabled={!scriptFile || !scriptTargets}
+                disabled={!scriptFile || scriptTargets.length === 0}
                 leftSection={<IconPlayerPlay size={16} />} color="violet">
                 Run Script
               </Button>
