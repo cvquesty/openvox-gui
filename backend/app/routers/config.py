@@ -536,7 +536,11 @@ async def save_config_file(
 
 @router.get("/hiera/files")
 async def list_hiera_files():
-    """List all hiera.yaml, common.yaml, and node data files per environment."""
+    """List hiera.yaml + all data/*.yaml (recursively) per environment.
+
+    This now properly descends into subdirectories such as data/nodes/, data/locations/,
+    data/roles/ etc. so their contents can be viewed and edited in the Hiera Data Files page.
+    """
     from pathlib import Path
     environments = []
 
@@ -548,7 +552,7 @@ async def list_hiera_files():
             env_name = env_dir.name
             env_files = []
 
-            # hiera.yaml
+            # hiera.yaml at environment root
             h = env_dir / "hiera.yaml"
             if h.exists():
                 try:
@@ -557,28 +561,34 @@ async def list_hiera_files():
                 except PermissionError:
                     env_files.append({"name": "hiera.yaml", "path": str(h), "content": "(permission denied)"})
 
-            # data/common.yaml
-            common = env_dir / "data" / "common.yaml"
-            if common.exists():
-                try:
-                    content = common.read_text(encoding="utf-8", errors="replace")
-                    env_files.append({"name": "data/common.yaml", "path": str(common), "content": content})
-                except PermissionError:
-                    env_files.append({"name": "data/common.yaml", "path": str(common), "content": "(permission denied)"})
+            # Recursively collect from both data/ and hieradata/ (common layouts)
+            for sub in ("data", "hieradata"):
+                data_dir = env_dir / sub
+                if not data_dir.is_dir():
+                    continue
 
-            # data/nodes/*.yaml
-            nodes_dir = env_dir / "data" / "nodes"
-            if nodes_dir.is_dir():
-                try:
-                    for nf in sorted(nodes_dir.iterdir()):
-                        if nf.is_file() and nf.suffix == ".yaml":
-                            try:
-                                content = nf.read_text(encoding="utf-8", errors="replace")
-                                env_files.append({"name": f"data/nodes/{nf.name}", "path": str(nf), "content": content})
-                            except PermissionError:
-                                env_files.append({"name": f"data/nodes/{nf.name}", "path": str(nf), "content": "(permission denied)"})
-                except PermissionError:
-                    pass
+                # Recurse for .yaml and .yml so nodes/, locations/, etc. are included
+                for suffix in ("*.yaml", "*.yml"):
+                    for yaml_file in sorted(data_dir.rglob(suffix)):
+                        if not yaml_file.is_file():
+                            continue
+                        try:
+                            rel = str(yaml_file.relative_to(data_dir))
+                            content = yaml_file.read_text(encoding="utf-8", errors="replace")
+                            # Present a nice name that shows the subdirectory structure
+                            display_name = f"{sub}/{rel}"
+                            env_files.append({
+                                "name": display_name,
+                                "path": str(yaml_file),
+                                "content": content,
+                            })
+                        except PermissionError:
+                            rel = str(yaml_file.relative_to(data_dir))
+                            env_files.append({
+                                "name": f"{sub}/{rel}",
+                                "path": str(yaml_file),
+                                "content": "(permission denied)",
+                            })
 
             environments.append({"environment": env_name, "files": env_files})
 

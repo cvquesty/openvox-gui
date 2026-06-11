@@ -640,6 +640,9 @@ See the detailed sections below for the full history of changes that led to this
 
 ## [Unreleased]
 
+### Fixes
+- **Data | Hiera Data Files**: The listing now properly recurses into subdirectories (`data/nodes/`, `data/locations/`, `data/roles/`, etc.) under both `data/` and `hieradata/` using `rglob`. Previously it only showed a hardcoded flat list of `common.yaml` + direct children of `data/nodes/`. Subdirectory files (with full relative paths in the name) are now discoverable and viewable. Also scans `*.yml` in addition to `*.yaml`. (The per-environment Hiera data editor already used recursive listing; this makes the read-only "Hiera Data Files" page consistent.)
+
 ### Fixed — Signed Certificates table in CA pane did not scroll
 
 - The "Signed Certificates" list in Infrastructure | Certificate Authority only showed ~4 entries visibly with no scrollbar, even when many more signed certs existed (the count badge was correct).
