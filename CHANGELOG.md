@@ -38,6 +38,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The rest of the page (CSV export, refresh, display of multi-line disks, badges, graceful "—" for missing facts like a custom `location`, etc.) was already correct.
   - If your nodes still show many "—" values, it usually means those specific facts (especially custom ones or `disks`) were not reported by that node.
 
+- Fixed "all machines are listed as Physical" in the Inventory report even when most nodes are virtual (KVM, VMware, etc.).
+  - The classification logic only checked `is_virt is True` (strict boolean) and had limited fallback to the `virtual` fact.
+  - Updated to properly leverage the standard Facter facts as recommended:
+    - `is_virtual` (the primary boolean/string fact indicating virtualization status)
+    - `virtual` (the hypervisor type or "physical")
+  - Now robustly handles:
+    - Python bool True/False (from JSON)
+    - String forms "true"/"1"/"yes" (sometimes seen in fact data or older serializations)
+    - Falls back intelligently to the `virtual` fact value
+    - Produces labels like "Virtual (kvm)", "Virtual (vmware)", or "Physical"
+  - Comment added referencing Facter documentation.
+  - No other columns were affected; this directly addresses the virtual/physical column ("Whether a virtual or physical system").
+
 Assisted By: Grok AI
 
 ## [3.9.0] - 2026-06-09

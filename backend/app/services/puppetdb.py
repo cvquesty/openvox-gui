@@ -619,14 +619,39 @@ class PuppetDBService:
             disks = "\n".join(disk_lines)
 
             # Virtual vs Physical
+            # Leverage standard Facter facts: is_virtual (boolean or string) and virtual (type or "physical").
+            # This is the authoritative source for "whether a virtual or physical system".
+            # See: https://puppet.com/docs/puppet/latest/facter.html (is_virtual / virtual facts)
             is_virt = facts.get("is_virtual")
             virt_val = facts.get("virtual")
-            if is_virt is True:
-                vlabel = f"Virtual ({virt_val})" if virt_val and str(virt_val).lower() not in ("true", "1") else "Virtual"
-            elif isinstance(virt_val, str) and virt_val and virt_val.lower() not in ("physical", "false", "0", ""):
-                vlabel = f"Virtual ({virt_val})"
+
+            # Normalize is_virtual to boolean (handles bool, "true", "1", "yes", etc.)
+            if isinstance(is_virt, bool):
+                is_virt_bool = is_virt
+            elif isinstance(is_virt, (str, int)):
+                is_virt_bool = str(is_virt).strip().lower() in ("true", "1", "yes")
             else:
-                vlabel = "Physical"
+                is_virt_bool = False
+
+            if is_virt_bool:
+                if isinstance(virt_val, str) and virt_val.strip():
+                    v = virt_val.strip()
+                    if v.lower() not in ("physical", "true", "1"):
+                        vlabel = f"Virtual ({v})"
+                    else:
+                        vlabel = "Virtual"
+                else:
+                    vlabel = "Virtual"
+            else:
+                # Fallback to the virtual fact itself (common when is_virtual is false or absent)
+                if isinstance(virt_val, str) and virt_val.strip():
+                    v = virt_val.strip()
+                    if v.lower() not in ("physical", "false", "0", ""):
+                        vlabel = f"Virtual ({v})"
+                    else:
+                        vlabel = "Physical"
+                else:
+                    vlabel = "Physical"
 
             # Uptime (prefer the human 'uptime' string)
             up_block = facts.get("system_uptime") or {}
