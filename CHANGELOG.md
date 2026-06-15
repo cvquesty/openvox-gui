@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Also hardened the report detail error handler to return 400 (instead of 500) for hash validation failures.
   - No changes to frontend or the inventory query itself were needed.
 
+- Fixed empty cells in the Inventory report table (the tabular structure and headers appeared, but fact columns showed only "—").
+  - Root cause: The selective PQL projection (`inventory[certname, facts.os.name, facts.disks, ...] {}`) did not reliably deliver the nested `{"facts": {"os": {...}, "disks": {...}}}` structure expected by the row normalizer (PuppetDB's handling of dotted fact projections inside inventory[] can vary and sometimes doesn't populate the intermediate containers the way full fact records do).
+  - Fix: Changed `get_system_inventory()` to call the plain `inventory` endpoint (via the existing `_query("inventory")`). This returns the standard full-fact records `{"certname": "...", "facts": <complete fact hash>}` for every node that has reported facts. The downstream extraction (already written to walk `facts["os"]`, `facts["processors"]`, `facts["memory"]`, `facts["disks"]`, `facts["location"]`, `facts["is_virtual"]`, `facts["system_uptime"]`, etc.) now works and the table cells populate with real live data.
+  - The rest of the page (CSV export, refresh, display of multi-line disks, badges, graceful "—" for missing facts like a custom `location`, etc.) was already correct.
+  - If your nodes still show many "—" values, it usually means those specific facts (especially custom ones or `disks`) were not reported by that node.
+
 Assisted By: Grok AI
 
 ## [3.9.0] - 2026-06-09

@@ -558,28 +558,11 @@ class PuppetDBService:
         Missing facts are represented as empty strings for UI robustness.
         Disks are pre-formatted as newline-separated "name: size" strings.
         """
-        client = await self._get_client()
-        # Project only the columns/facts we need. Inventory PQL groups projected
-        # facts under a top-level "facts" key in each result row.
-        pql = (
-            "inventory["
-            "certname, "
-            "facts.os.name, "
-            "facts.os.release.full, "
-            "facts.processors.physicalcount, "
-            "facts.location, "
-            "facts.memory.system.total, "
-            "facts.disks, "
-            "facts.is_virtual, "
-            "facts.virtual, "
-            "facts.system_uptime.uptime, "
-            "facts.uptime, "  # legacy fallback for some fact sets
-            "facts.processors.count"
-            "] { }"
-        )
-        resp = await client.get("/pdb/query/v4", params={"query": pql})
-        resp.raise_for_status()
-        raw = resp.json() or []
+        # Use the inventory endpoint directly (full current facts for nodes that
+        # have reported factsets). This is the most reliable way to get the
+        # structured facts we need without fragile PQL column projections.
+        # The response items contain "certname" + "facts": { full fact hash }.
+        raw = await self._query("inventory") or []
 
         results: List[Dict] = []
         for item in raw:
