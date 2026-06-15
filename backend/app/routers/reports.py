@@ -98,6 +98,33 @@ async def list_reports(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/inventory")
+async def get_inventory_report():
+    """
+    Live system inventory report (one row per node).
+
+    Pulls current facts directly from PuppetDB for:
+      - certname
+      - OS Name + Full Release
+      - Physical processor count
+      - Location (custom 'location' fact if present)
+      - System Memory
+      - Disks (name: size, one per line)
+      - Virtual/Physical classification
+      - Total uptime
+
+    This is intentionally a "live" view — no caching, always current
+    fact data from the latest Puppet run on each node.
+    """
+    try:
+        rows = await puppetdb_service.get_system_inventory()
+        return rows
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PuppetDB error: {e}")
+
+
 @router.get("/{report_hash}")
 async def get_report_detail(report_hash: str):
     """Get detailed report data including events, logs, and metrics."""
@@ -154,32 +181,10 @@ async def get_report_detail(report_hash: str):
         }
     except HTTPException:
         raise
+    except ValueError as e:
+        # Bad report hash (or similar) from the service layer — return 4xx instead of 500
+        if "report hash" in str(e).lower():
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/inventory")
-async def get_inventory_report():
-    """
-    Live system inventory report (one row per node).
-
-    Pulls current facts directly from PuppetDB for:
-      - certname
-      - OS Name + Full Release
-      - Physical processor count
-      - Location (custom 'location' fact if present)
-      - System Memory
-      - Disks (name: size, one per line)
-      - Virtual/Physical classification
-      - Total uptime
-
-    This is intentionally a "live" view — no caching, always current
-    fact data from the latest Puppet run on each node.
-    """
-    try:
-        rows = await puppetdb_service.get_system_inventory()
-        return rows
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PuppetDB error: {e}")

@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend API client, lazy route, and AppShell navigation all wired up.
   - Files: `backend/app/services/puppetdb.py`, `backend/app/routers/reports.py`, `frontend/src/services/api.ts`, `frontend/src/App.tsx`, `frontend/src/components/AppShell.tsx`, new `frontend/src/pages/Inventory.tsx`, plus CHANGELOG + version bump.
 
+### Bug Fixes (for 3.9.1-dev.1)
+- Fixed 500 "Invalid report hash: must be a hex string" when loading the Inventory page.
+  - Root cause: FastAPI route ordering. The dynamic `/{report_hash}` catch-all (used for report detail) was registered before the literal `/inventory` route, so `/reports/inventory` was being captured as a bogus report hash and failing validation inside `get_report_detail`.
+  - Fix: Reordered endpoint definitions in `reports.py` so specific literal paths (`/`, `/inventory`) are declared before the dynamic `/{report_hash}`.
+  - Also hardened the report detail error handler to return 400 (instead of 500) for hash validation failures.
+  - No changes to frontend or the inventory query itself were needed.
+
 Assisted By: Grok AI
 
 ## [3.9.0] - 2026-06-09
