@@ -58,6 +58,7 @@ const DataHieraPage = lazyWithRetry(() => import('./pages/DataHiera').then(m => 
 const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m => ({ default: m.DataLookupPage })));
 const InstallerPage = lazyWithRetry(() => import('./pages/Installer').then(m => ({ default: m.InstallerPage })));
 const LogsPage = lazyWithRetry(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })));
+const InventoryPage = lazyWithRetry(() => import('./pages/Inventory').then(m => ({ default: m.InventoryPage })));
 const CertAuditPage = lazyWithRetry(() => import('./pages/CertAudit').then(m => ({ default: m.CertAuditPage })));
 const MetricsCompliancePage = lazyWithRetry(() => import('./pages/MetricsCompliance').then(m => ({ default: m.MetricsCompliancePage })));
 const MetricsPerformancePage = lazyWithRetry(() => import('./pages/MetricsPerformance').then(m => ({ default: m.MetricsPerformancePage })));
@@ -133,6 +134,7 @@ function AppRoutes() {
 
           {/* Logs */}
           <Route path="/logs" element={<LogsPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
 
           {/* Certificate Audit */}
           <Route path="/cert-audit" element={<CertAuditPage />} />

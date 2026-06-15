@@ -49,6 +49,7 @@ import {
   IconGridDots,
   IconWorld as IconWorldNav,
   IconStack2,
+  IconListDetails,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -111,6 +112,7 @@ const metricsNav: NavItem[] = [
 const logsNav: NavItem[] = [
   { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
+  { label: 'Inventory', icon: IconListDetails, path: '/inventory' },
 ];
 
 const configNav: NavItem[] = [

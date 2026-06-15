@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.1-dev.1] - 2026-06-15
+
+### Features
+- Added live "Inventory" report page under the Logs navigation group as **Logs | Reports | Inventory**.
+  - New frontend route `/inventory` with a full-width table report.
+  - Columns (exact per request): certname, OS Name, OS Full Release Version, Number of physical Processors, System Location, System Memory, List of Hard Disks and their size (one per line inside the cell), Whether a virtual or physical system, Total System Uptime.
+  - Backend: new `GET /api/reports/inventory` (mounted under the existing reports router) + `PuppetDBService.get_system_inventory()`.
+  - Data source is fully live — on-demand PQL projection against PuppetDB's inventory endpoint (no server-side caching). Only the minimal required facts are requested for efficiency.
+  - "Location" pulls the top-level `location` custom fact when present (standard pattern for site-specific facts).
+  - Disks rendered one-per-line in the table cell (pre-line whitespace) and correctly round-tripped in CSV.
+  - Export: dedicated CSV download button (RFC-compliant quoting for embedded newlines/commas/quotes in the disks column) + full ExportActions (JSON + formatted text) for the other formats already used across the app.
+  - UI: Refresh button (live refetch), row count badge, scrollable table, loading / empty states, theme-aware whimsical illustration ("INVENTORY-O-MATIC 3000") shown only in robots/casual theme, consistent with Reports page.
+  - Nav: Added as third child under the "Logs" sidebar group (Log Viewer | Reports | Inventory) using `IconListDetails`.
+  - Frontend API client, lazy route, and AppShell navigation all wired up.
+  - Files: `backend/app/services/puppetdb.py`, `backend/app/routers/reports.py`, `frontend/src/services/api.ts`, `frontend/src/App.tsx`, `frontend/src/components/AppShell.tsx`, new `frontend/src/pages/Inventory.tsx`, plus CHANGELOG + version bump.
+
+Assisted By: Grok AI
+
 ## [3.9.0] - 2026-06-09
 
 ### Process Changes (Major Versioning & Release Model Canonization)

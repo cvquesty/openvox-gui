@@ -119,6 +119,8 @@ export const reports = {
     return fetchJSON<any[]>(`/reports/${query ? '?' + query : ''}`);
   },
   get: (hash: string) => fetchJSON<any>(`/reports/${hash}`),
+  // Live Inventory report (Logs | Reports | Inventory)
+  inventory: () => fetchJSON<any[]>('/reports/inventory'),
 };
 
 // ─── Deployment ─────────────────────────────────────────────

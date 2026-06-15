@@ -542,6 +542,133 @@ class PuppetDBService:
             logger.warning(f"Failed to get PuppetDB metric {metric_name}: {e}")
             return {}
 
+    # ─── System Inventory Report ────────────────────────────
+
+    async def get_system_inventory(self) -> List[Dict]:
+        """
+        Live fleet-wide system inventory report.
+
+        Uses a PQL projection against the inventory endpoint to pull only
+        the facts needed for the Inventory page (certname, OS, physical CPU
+        count, location custom fact, memory, disks, virtualization status,
+        uptime). This keeps the payload small while remaining fully "live"
+        (direct from PuppetDB's current fact data).
+
+        Returns a list of flat dict rows, one per node (sorted by certname).
+        Missing facts are represented as empty strings for UI robustness.
+        Disks are pre-formatted as newline-separated "name: size" strings.
+        """
+        client = await self._get_client()
+        # Project only the columns/facts we need. Inventory PQL groups projected
+        # facts under a top-level "facts" key in each result row.
+        pql = (
+            "inventory["
+            "certname, "
+            "facts.os.name, "
+            "facts.os.release.full, "
+            "facts.processors.physicalcount, "
+            "facts.location, "
+            "facts.memory.system.total, "
+            "facts.disks, "
+            "facts.is_virtual, "
+            "facts.virtual, "
+            "facts.system_uptime.uptime, "
+            "facts.uptime, "  # legacy fallback for some fact sets
+            "facts.processors.count"
+            "] { }"
+        )
+        resp = await client.get("/pdb/query/v4", params={"query": pql})
+        resp.raise_for_status()
+        raw = resp.json() or []
+
+        results: List[Dict] = []
+        for item in raw:
+            certname = item.get("certname", "") or ""
+            facts = item.get("facts") or {}
+
+            # OS
+            os_block = facts.get("os") or {}
+            os_name = ""
+            os_full = ""
+            if isinstance(os_block, dict):
+                os_name = os_block.get("name") or ""
+                rel = os_block.get("release") or {}
+                if isinstance(rel, dict):
+                    os_full = rel.get("full") or ""
+                elif isinstance(rel, str):
+                    os_full = rel
+
+            # Physical processors (prefer physicalcount)
+            proc = facts.get("processors") or {}
+            phys_cpus = ""
+            if isinstance(proc, dict):
+                phys_cpus = proc.get("physicalcount") or proc.get("count") or ""
+            else:
+                # In case projection flattened (defensive)
+                phys_cpus = facts.get("processors.physicalcount") or facts.get("processors.count") or ""
+
+            # Location (custom fact users often drop via facts.d or external fact)
+            location = facts.get("location") or ""
+
+            # Memory (human string preferred)
+            mem_block = facts.get("memory") or {}
+            memory = ""
+            if isinstance(mem_block, dict):
+                sysmem = mem_block.get("system") or {}
+                if isinstance(sysmem, dict):
+                    memory = sysmem.get("total") or ""
+                else:
+                    memory = mem_block.get("system.total") or ""
+            else:
+                memory = facts.get("memory.system.total") or ""
+
+            # Disks: dict name -> info; format one "name: size" per line
+            disks_block = facts.get("disks") or {}
+            disk_lines: List[str] = []
+            if isinstance(disks_block, dict):
+                for dname in sorted(disks_block.keys()):
+                    dinfo = disks_block[dname]
+                    if isinstance(dinfo, dict):
+                        size = dinfo.get("size") or dinfo.get("size_bytes") or "?"
+                        disk_lines.append(f"{dname}: {size}")
+                    else:
+                        disk_lines.append(f"{dname}: {dinfo}")
+            disks = "\n".join(disk_lines)
+
+            # Virtual vs Physical
+            is_virt = facts.get("is_virtual")
+            virt_val = facts.get("virtual")
+            if is_virt is True:
+                vlabel = f"Virtual ({virt_val})" if virt_val and str(virt_val).lower() not in ("true", "1") else "Virtual"
+            elif isinstance(virt_val, str) and virt_val and virt_val.lower() not in ("physical", "false", "0", ""):
+                vlabel = f"Virtual ({virt_val})"
+            else:
+                vlabel = "Physical"
+
+            # Uptime (prefer the human 'uptime' string)
+            up_block = facts.get("system_uptime") or {}
+            uptime = ""
+            if isinstance(up_block, dict):
+                uptime = up_block.get("uptime") or ""
+            if not uptime:
+                uptime = facts.get("uptime") or facts.get("system_uptime.uptime") or ""
+
+            results.append({
+                "certname": certname,
+                "os_name": os_name,
+                "os_full_release": os_full,
+                "physical_processors": phys_cpus,
+                "location": location,
+                "memory": memory,
+                "disks": disks,
+                "virtual_physical": vlabel,
+                "uptime": uptime,
+            })
+
+        # Stable sort by certname (case-insensitive) like other lists
+        results.sort(key=lambda r: (r.get("certname") or "").lower())
+        return results
+
 
 # Singleton
 puppetdb_service = PuppetDBService()
