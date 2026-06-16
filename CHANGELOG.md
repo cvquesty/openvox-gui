@@ -9,7 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.9.1-dev.1] - 2026-06-15
+## [3.9.2] - 2026-06-16
+
+Stable release promoting the 3.9.1-dev pre-release train (final dev.4).
+
+### Features
+- Added live "Inventory" report page under the Logs navigation group as **Logs | Reports | Inventory**.
+  - Full live PQL-driven inventory table (certname, OS details, processors, location, memory, disks, is_virtual/physical, uptime).
+  - CSV export with proper RFC quoting for multi-line disk data; full ExportActions support.
+  - UI: refresh, theming (including whimsical "INVENTORY-O-MATIC 3000" illustration in casual/robots theme), scrollable, empty/loading states.
+  - Backend: new `/api/reports/inventory` using live `inventory[]` facts from PuppetDB.
+  - Navigation integrated under Logs group.
+
+### Bug Fixes
+- Fixed route ordering and 500 errors on /inventory (report hash validation collision with catch-all).
+- Fixed table population for full fact records and virtual/physical classification using standard Facter `is_virtual` + `virtual` facts (with robust fallbacks).
+- Various robustness improvements for the new report.
+
+See the detailed 3.9.1-dev.1 entry below for the full implementation notes. This release also includes prior work from the train (multi-select orchestration targets, etc.).
+
+Assisted By: Grok AI
+
+## [3.9.1-dev.1] - 2026-06-15 (pre-release; promoted in 3.9.2)
 
 ### Features
 - Added live "Inventory" report page under the Logs navigation group as **Logs | Reports | Inventory**.
