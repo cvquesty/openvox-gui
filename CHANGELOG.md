@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.3] - 2026-06-16
+
+### Security
+- Resolved all open Dependabot alerts by updating vulnerable dependencies (previously 2 high, 3 moderate, 2 low on default branch):
+  - **backend/requirements.txt**:
+    - `python-multipart`: 0.0.29 → 0.0.31 (fixed quadratic-time querystring DoS with semicolons, negative Content-Length memory DoS, parameter smuggling, Content-Disposition RFC 2231 smuggling).
+    - `PyJWT[crypto]`: 2.12.1 → 2.13.0 (fixed PyJWKClient scheme allowlist SSRF + token forgery (file:// etc.), public-key JWK as HMAC secret forgery, unbounded Base64URL DoS, algorithm allow-list bypass in PyJWK, unbounded JWKS DoS).
+    - `cryptography`: 48.0.0 → 48.0.1 (fixed vulnerable OpenSSL included in wheels).
+  - **frontend**:
+    - `vite`: ^6.4.1 → ^7.3.5 (fixed `server.fs.deny` bypass on Windows alternate paths, launch-editor NTLMv2 hash disclosure via UNC paths on Windows).
+    - Added/strengthened `overrides` in `package.json` for transitive issues: `esbuild` ^0.25.0 (binary integrity / RCE via registry), `@babel/core` ^7.28.0 (arbitrary file read via sourceMappingURL).
+- `npm run build` succeeds post-update. Python changes are direct pins; frontend lockfile updated via `npm install`.
+- These fixes close the Dependabot alerts for `backend/requirements.txt` and `frontend/package-lock.json`.
+
 ## [3.9.2] - 2026-06-16
 
 Stable release promoting the 3.9.1-dev pre-release train (final dev.4).

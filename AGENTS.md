@@ -46,7 +46,20 @@ This rule was added after backticks in an unquoted sudoers heredoc caused instal
   - Only create a GitHub Release (via `gh release create` with proper title/notes) when the stable tag is clean, tested, and explicitly "ready to ship".
   - This can (and should) happen on a pre-determined release schedule or date/time.
   - This prevents voluminous/noisy releases and gives us freedom to test/iterate on tags freely before "shipping" the official release artifact and announcement.
-- Rationale (per user): Lightweight pre-release tags are perfect for continuous testing/deployment. Full GitHub releases should only be produced when we're confident the (clean SemVer) tag represents a shippable state for users.
+- **Press release / announcement document** (new regular step for official GitHub releases).
+  - As part of preparing every official GitHub release, create (or update) the press release announcement document at `docs/releases/press_<version>.md` (e.g. `press_3.9.2.md`).
+  - Use the established template and structure from `docs/releases/press_3.6.2.md` or (preferred for new releases) start from `docs/releases/TEMPLATE.md`. It provides ready-to-paste, platform-optimized copy for:
+    - GitHub Discussions (canonical long post)
+    - VoxPupuli Connect / Discourse
+    - Slack
+    - Reddit (r/sysadmin, r/Puppet, etc.)
+    - Mastodon
+    - X/Twitter thread
+    - LinkedIn
+    - Hacker News (optional Show HN)
+  - The document leads with the headline user-facing feature(s), links to the release and relevant docs, and keeps internal dev-train / pre-release churn in the CHANGELOG only.
+  - Treat press document creation as part of the "official release" preparation alongside `gh release create`. This ensures every shippable stable release gets a complete announcement kit.
+- Rationale (per user): Lightweight pre-release tags are perfect for continuous testing/deployment. Full GitHub releases should only be produced when we're confident the (clean SemVer) tag represents a shippable state for users. Pairing each official release with a press document keeps community communication consistent and high-signal.
 
 ## Using the Commit Skill
 
