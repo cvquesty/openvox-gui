@@ -231,7 +231,7 @@ export function MetricsPuppetServerHealthPage() {
     },
     {
       id: 'compile-time',
-      title: 'Compilation Time',
+      title: 'Catalog Route Mean (ms) - compile proxy',
       stats: [{ label: 'Current', value: `${currentCompile} ms`, color: 'orange' }],
       render: () => (
         <LineChart data={compileData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -239,24 +239,21 @@ export function MetricsPuppetServerHealthPage() {
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="compile" stroke="#e67e22" strokeWidth={2} dot={false} name="Avg Compile (ms)" />
+          <Line type="natural" dataKey="compile" stroke="#e67e22" strokeWidth={2} dot={false} name="Catalog mean (ms)" />
         </LineChart>
       ),
     },
     {
       id: 'jruby-pool',
-      title: 'JRuby Pool',
-      stats: [
-        { label: 'Active', value: String(currentJRuby), color: 'violet' },
-        ...(data.jruby_max ? [{ label: 'Max', value: String(data.jruby_max) }] : []),
-      ],
+      title: 'Total Req Mean (ms) - server load proxy',
+      stats: [{ label: 'Current', value: `${currentJRuby} ms`, color: 'violet' }],
       render: () => (
         <AreaChart data={jrubyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
-          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="active" stroke="#9b59b6" fillOpacity={0.3} strokeWidth={2} dot={false} name="Active JRubies" />
+          <Area type="natural" dataKey="active" stroke="#9b59b6" fillOpacity={0.3} strokeWidth={2} dot={false} name="Total mean (ms)" />
         </AreaChart>
       ),
     },
@@ -265,8 +262,8 @@ export function MetricsPuppetServerHealthPage() {
   // Top level stats like Run Performance
   const topStats = [
     { label: 'Status', value: data.status || '—', color: statusColor },
-    { label: 'Compile (ms)', value: currentCompile, color: 'orange' },
-    { label: 'JRuby Active', value: currentJRuby, color: 'violet' },
+    { label: 'Catalog mean (ms)', value: currentCompile, color: 'orange' },
+    { label: 'Total mean (ms)', value: currentJRuby, color: 'violet' },
     { label: 'Heap %', value: `${heapPct.toFixed(1)}%`, color: heapPct > 85 ? 'red' : 'blue' },
     { label: 'Heap Used', value: `${jvm.used_mb ?? '—'} / ${jvm.max_mb ?? '—'} MB` },
   ];

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta3] - 2026-06-17 (pre-release)
+
+### Bug Fixes
+- Made OpenVox Server Health graphs actually receive and display data:
+  - The `/status/v1/services/master?level=debug` response only exposes `experimental.http-metrics` (no traditional `average_compile_time_ms`/`num_jrubies` keys in PS 8.x, and `/metrics/v2` returns 403).
+  - Now parse the available http-metrics list: use "puppet-v3-catalog" mean as compilation proxy, "total" mean as server load proxy.
+  - Forced `level=debug` fetch, updated chart titles/labels in the UI to accurately describe the proxies.
+  - Silenced noisy 403 warnings for metrics (now debug level).
+- Charts now populate with real numeric time-series points on every poll.
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta2] - 2026-06-17 (pre-release)
 
 ### Bug Fixes

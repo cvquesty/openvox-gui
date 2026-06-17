@@ -445,7 +445,7 @@ class PuppetServerService:
             except Exception as e:
                 logger.debug(f"PS metrics attempt for {name} failed: {e}")
                 continue
-        logger.warning(f"Failed to get Puppet Server metric {mbean} after attempts")
+        logger.debug(f"Failed to get Puppet Server metric {mbean} after attempts (may be expected if metrics/v2 restricted)")
         return {}
 
     async def list_ps_metrics(self) -> Dict[str, Any]:
@@ -487,27 +487,33 @@ class PuppetServerService:
                     return found
             return None
 
-        # Fetch status - try full services list first (more reliable for structure), then specific master, then debug
+        # Fetch status - try full services list first (more reliable), prefer level=debug for rich data (info level often has empty "status")
         status = None
         try:
             client = await self._get_ps_client()
-            resp = await client.get("/status/v1/services")
+            resp = await client.get("/status/v1/services?level=debug")
             full = resp.json()
             if isinstance(full, dict):
                 if "master" in full:
-                    status = full  # will extract ["master"]
+                    status = full
                 else:
                     status = full
         except Exception:
             pass
 
         if not status:
-            status = await self.get_ps_status("master")
+            status = await self.get_ps_status("master", level="debug")
 
-        if not status or (isinstance(status, dict) and not status.get("master") and not status.get("state")):
-            status_debug = await self.get_ps_status("master", level="debug")
-            if status_debug:
-                status = status_debug
+        if not status:
+            # fallback without debug
+            try:
+                client = await self._get_ps_client()
+                resp = await client.get("/status/v1/services")
+                full = resp.json()
+                if isinstance(full, dict):
+                    status = full.get("master") or full
+            except Exception:
+                pass
 
         if status:
             master = status.get("master", {}) if isinstance(status, dict) else {}
@@ -601,6 +607,21 @@ class PuppetServerService:
                     if isinstance(k, str) and "jruby" in k.lower() and "max" in k.lower() and isinstance(v, (int, float)):
                         result["jruby_max"] = v
                         break
+
+            # Fallback to experimental http-metrics (available in current PS 8.x debug status)
+            # since traditional keys and /metrics/v2 may not be present/accessible.
+            # Use catalog mean as compile proxy, total mean as activity.
+            exp = _find_key(status, ["experimental"]) or _find_key(svc, ["experimental"]) or _find_key(master, ["experimental"]) or {}
+            http_m = exp.get("http-metrics", []) if isinstance(exp, dict) else []
+            cat_item = next((it for it in http_m if isinstance(it, dict) and "catalog" in str(it.get("route-id","")).lower()), {})
+            tot_item = next((it for it in http_m if isinstance(it, dict) and it.get("route-id") == "total"), {})
+            if result.get("compile_time_ms") is None and cat_item.get("mean") is not None:
+                result["compile_time_ms"] = cat_item.get("mean")
+            if result.get("jruby_active") is None and tot_item.get("mean") is not None:
+                result["jruby_active"] = tot_item.get("mean")  # proxy using total mean time
+            if cat_item.get("count") is not None:
+                result["catalog_count"] = cat_item.get("count")
+            result["raw"]["http_metrics_sample"] = http_m[:2]
 
         # JVM heap via metrics/v2 (primary). Falls back gracefully if not enabled.
         jvm = await self.get_ps_metrics("java.lang:type=Memory")
