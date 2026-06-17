@@ -10,6 +10,8 @@ import os
 import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+import httpx
+import ssl
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,31 @@ class PuppetServerService:
     def __init__(self):
         self.confdir = Path(settings.puppet_confdir)
         self.codedir = Path(settings.puppet_codedir)
+        # For metrics / health queries to Puppet Server (same mTLS certs as PuppetDB)
+        self.ps_base_url = f"https://{settings.puppet_server_host}:{settings.puppet_server_port}"
+        self._ps_client: Optional[httpx.AsyncClient] = None
+
+    def _create_ps_ssl_context(self) -> ssl.SSLContext:
+        """Create mTLS context using the Puppet agent's certs (same as PuppetDB)."""
+        ctx = ssl.create_default_context(cafile=settings.puppet_ssl_ca)
+        ctx.load_cert_chain(
+            certfile=settings.puppet_ssl_cert,
+            keyfile=settings.puppet_ssl_key,
+        )
+        return ctx
+
+    async def _get_ps_client(self) -> httpx.AsyncClient:
+        if self._ps_client is None or self._ps_client.is_closed:
+            self._ps_client = httpx.AsyncClient(
+                base_url=self.ps_base_url,
+                verify=self._create_ps_ssl_context(),
+                timeout=30.0,
+            )
+        return self._ps_client
+
+    async def close(self):
+        if self._ps_client and not self._ps_client.is_closed:
+            await self._ps_client.aclose()
 
     # ─── puppet.conf ────────────────────────────────────────
 
@@ -374,6 +401,81 @@ class PuppetServerService:
             logger.error(f"Permission denied writing to {file_path}")
             return False
 
+    # ─── Puppet Server Metrics & Health (for Metrics | PuppetServer Health) ───
+
+    async def get_ps_status(self, level: str = "master") -> Dict[str, Any]:
+        """Fetch Puppet Server status (high-level health, compile times, JRuby, etc.)."""
+        try:
+            client = await self._get_ps_client()
+            # Common paths: /status/v1/services/master or with ?level=debug
+            url = f"/status/v1/services/{level}"
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to get Puppet Server status: {e}")
+            return {}
+
+    async def get_ps_metrics(self, mbean: str) -> Dict[str, Any]:
+        """Query a specific JMX/mbean from Puppet Server's /metrics/v2 (Jolokia-style)."""
+        try:
+            client = await self._get_ps_client()
+            resp = await client.get(f"/metrics/v2/read/{mbean}")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to get Puppet Server metric {mbean}: {e}")
+            return {}
+
+    async def list_ps_metrics(self) -> Dict[str, Any]:
+        """List available metrics beans from Puppet Server."""
+        try:
+            client = await self._get_ps_client()
+            resp = await client.get("/metrics/v2/list")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to list Puppet Server metrics: {e}")
+            return {"error": str(e)}
+
+    async def get_ps_health_snapshot(self) -> Dict[str, Any]:
+        """Convenience snapshot combining status + key JVM/metrics for the health page."""
+        result: Dict[str, Any] = {
+            "status": None,
+            "jvm_heap": None,
+            "compile_time_ms": None,
+            "jruby_active": None,
+            "jruby_max": None,
+            "raw": {},
+        }
+
+        # Status (rich high-level info)
+        status = await self.get_ps_status("master")
+        if status:
+            master = status.get("master", status)
+            result["status"] = master.get("state", "unknown")
+            svc = master.get("status", {}) or master
+            result["raw"]["status"] = svc
+            # Common fields in status
+            result["compile_time_ms"] = svc.get("average_compile_time_ms") or svc.get("average_compile_time")
+            jruby = svc.get("jruby", {}) or {}
+            result["jruby_active"] = jruby.get("active_instances") or jruby.get("num_jrubies")
+            result["jruby_max"] = jruby.get("max_active_instances") or jruby.get("max_jrubies")
+
+        # JVM heap (standard)
+        jvm = await self.get_ps_metrics("java.lang:type=Memory")
+        if jvm and "value" in jvm:
+            mem = jvm["value"].get("HeapMemoryUsage", {})
+            if mem:
+                result["jvm_heap"] = {
+                    "used_mb": round(mem.get("used", 0) / 1048576, 1),
+                    "max_mb": round(mem.get("max", 0) / 1048576, 1),
+                    "committed_mb": round(mem.get("committed", 0) / 1048576, 1),
+                    "pct": round(mem.get("used", 0) / max(mem.get("max", 1), 1) * 100, 1),
+                }
+            result["raw"]["jvm"] = jvm
+
+        return result
 
 # Singleton
 puppetserver_service = PuppetServerService()

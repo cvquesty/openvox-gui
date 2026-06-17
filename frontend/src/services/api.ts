@@ -477,6 +477,12 @@ export const metrics = {
   puppetdbHealth: () => fetchJSON<any>('/insights/puppetdb-health'),
   puppetdbPerformance: () => fetchJSON<any>('/insights/puppetdb-performance'),
   heatmap: () => fetchJSON<any>('/insights/heatmap'),
+
+  // PuppetServer Health (placed between Catalog Graph and PuppetDB Health)
+  puppetserverHealth: () => fetchJSON<any>('/insights/puppetserver-health'),
+  puppetserverPerformance: () => fetchJSON<any>('/insights/puppetserver-performance'),
+  puppetserverMetricsList: () => fetchJSON<any>('/insights/puppetserver-metrics-list'),
+  puppetserverMetric: (name: string) => fetchJSON<any>(`/insights/puppetserver-metric?name=${encodeURIComponent(name)}`),
   environments: () => fetchJSON<any>('/insights/environments'),
   classCoverage: (limit: number = 50) =>
     fetchJSON<any>(`/insights/class-coverage?limit=${limit}`),

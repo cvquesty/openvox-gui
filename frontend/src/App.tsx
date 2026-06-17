@@ -66,6 +66,7 @@ const MetricsTimelinePage = lazyWithRetry(() => import('./pages/MetricsTimeline'
 const MetricsFactDistPage = lazyWithRetry(() => import('./pages/MetricsFactDist').then(m => ({ default: m.MetricsFactDistPage })));
 const MetricsClassificationPage = lazyWithRetry(() => import('./pages/MetricsClassification').then(m => ({ default: m.MetricsClassificationPage })));
 const MetricsCatalogPage = lazyWithRetry(() => import('./pages/MetricsCatalog').then(m => ({ default: m.MetricsCatalogPage })));
+const MetricsPuppetServerHealthPage = lazyWithRetry(() => import('./pages/MetricsPuppetServerHealth').then(m => ({ default: m.MetricsPuppetServerHealthPage })));
 const MetricsPuppetDBHealthPage = lazyWithRetry(() => import('./pages/MetricsPuppetDBHealth').then(m => ({ default: m.MetricsPuppetDBHealthPage })));
 const MetricsHeatmapPage = lazyWithRetry(() => import('./pages/MetricsHeatmap').then(m => ({ default: m.MetricsHeatmapPage })));
 const MetricsEnvironmentsPage = lazyWithRetry(() => import('./pages/MetricsEnvironments').then(m => ({ default: m.MetricsEnvironmentsPage })));
@@ -146,6 +147,7 @@ function AppRoutes() {
           <Route path="/insights/facts" element={<MetricsFactDistPage />} />
           <Route path="/insights/classification" element={<MetricsClassificationPage />} />
           <Route path="/insights/catalog" element={<MetricsCatalogPage />} />
+          <Route path="/insights/puppetserver-health" element={<MetricsPuppetServerHealthPage />} />
           <Route path="/insights/health" element={<MetricsPuppetDBHealthPage />} />
           <Route path="/insights/heatmap" element={<MetricsHeatmapPage />} />
           <Route path="/insights/environments" element={<MetricsEnvironmentsPage />} />

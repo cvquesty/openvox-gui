@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..dependencies import require_role
 from ..services.puppetdb import puppetdb_service
+from ..services.puppetserver import puppetserver_service
 
 logger = logging.getLogger(__name__)
 
@@ -611,6 +612,103 @@ async def get_puppetdb_health(_user: str = Depends(_AUTH)):
     result["server_time"] = await puppetdb_service.get_server_time()
 
     return result
+
+
+# ─── PuppetServer Health & Performance (Metrics | PuppetServer Health) ───
+
+# In-memory ring buffer for shared server-side history (Phase 3)
+_ps_health_history: List[Dict[str, Any]] = []
+_PS_HISTORY_MAX = 360  # ~1h at 10s polls
+
+
+@router.get("/puppetserver-health")
+async def get_puppetserver_health(_user: str = Depends(_AUTH)):
+    """Puppet Server health snapshot + JVM + key stats. Returns current + recent history."""
+    snapshot = await puppetserver_service.get_ps_health_snapshot()
+
+    # Augment with more detailed metrics attempts (robust)
+    try:
+        # JVM GC
+        gc_young = await puppetserver_service.get_ps_metrics("java.lang:name=G1 Young Generation,type=GarbageCollector")
+        gc_old = await puppetserver_service.get_ps_metrics("java.lang:name=G1 Old Generation,type=GarbageCollector")
+        if gc_young:
+            snapshot["raw"]["gc_young"] = gc_young.get("value", gc_young)
+        if gc_old:
+            snapshot["raw"]["gc_old"] = gc_old.get("value", gc_old)
+    except Exception:
+        pass
+
+    # Build point for history (for time series on frontend)
+    now = _time.time()
+    point = {
+        "ts": now,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "heap_used_mb": (snapshot.get("jvm_heap") or {}).get("used_mb"),
+        "heap_pct": (snapshot.get("jvm_heap") or {}).get("pct"),
+        "compile_time_ms": snapshot.get("compile_time_ms"),
+        "jruby_active": snapshot.get("jruby_active"),
+    }
+    _ps_health_history.append(point)
+    if len(_ps_health_history) > _PS_HISTORY_MAX:
+        del _ps_health_history[0]
+
+    snapshot["history"] = _ps_health_history[-_PS_HISTORY_MAX:]
+    snapshot["server_time"] = datetime.now(timezone.utc).isoformat()
+
+    return snapshot
+
+
+@router.get("/puppetserver-metrics-list")
+async def list_puppetserver_metrics(_user: str = Depends(_AUTH)):
+    """List available mbeans from Puppet Server /metrics/v2."""
+    return await puppetserver_service.list_ps_metrics()
+
+
+@router.get("/puppetserver-metric")
+async def get_puppetserver_metric(
+    name: str = Query(..., description="MBean name e.g. java.lang:type=Memory"),
+    _user: str = Depends(_AUTH),
+):
+    return await puppetserver_service.get_ps_metrics(name)
+
+
+@router.get("/puppetserver-performance")
+async def get_puppetserver_performance(_user: str = Depends(_AUTH)):
+    """Richer set of Puppet Server metrics for detailed charts (Phase 2)."""
+    cached = _get_cached("ps_performance")
+    if cached is not None:
+        return cached
+
+    # Curated set of interesting mbeans (names may vary slightly by server-id; we try common)
+    candidates = {
+        "jvm_memory": "java.lang:type=Memory",
+        "gc_young": "java.lang:name=G1 Young Generation,type=GarbageCollector",
+        "gc_old": "java.lang:name=G1 Old Generation,type=GarbageCollector",
+        # Compiler / catalog
+        "compiler": "puppetlabs.localhost.compiler:name=compile",
+        "compiler_mean": "puppetlabs.localhost.compiler:name=compile",
+        # HTTP / requests
+        "http_requests": "puppetlabs.localhost.http:name=requests",
+        # JRuby
+        "jruby_pool": "puppetlabs.localhost.jruby:name=server-pool",
+        # Common fallbacks seen in status + metrics
+        "http_client": "puppetlabs.localhost.http-client.experimental",
+    }
+
+    results: Dict[str, Any] = {}
+    for key, mbean in candidates.items():
+        try:
+            data = await puppetserver_service.get_ps_metrics(mbean)
+            results[key] = data.get("value", data) if isinstance(data, dict) else data
+        except Exception:
+            results[key] = None
+
+    # Also pull fresh status for high-level
+    status = await puppetserver_service.get_ps_status("master")
+    results["status"] = status
+
+    _set_cached("ps_performance", results)
+    return results
 
 
 # ─── 8. Node Status Heatmap ───────────────────────────────

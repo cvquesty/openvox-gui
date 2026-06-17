@@ -103,6 +103,7 @@ const metricsNav: NavItem[] = [
   { label: 'Fact Distribution', icon: IconChartPie, path: '/insights/facts' },
   { label: 'Classification Tree', icon: IconBinaryTree, path: '/insights/classification' },
   { label: 'Catalog Graph', icon: IconTopologyRing, path: '/insights/catalog' },
+  { label: 'PuppetServer Health', icon: IconServer, path: '/insights/puppetserver-health' },
   { label: 'PuppetDB Health', icon: IconHeartRateMonitor, path: '/insights/health' },
   { label: 'Node Heatmap', icon: IconGridDots, path: '/insights/heatmap' },
   { label: 'Environments', icon: IconWorldNav, path: '/insights/environments' },

@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta1] - 2026-06-17 (pre-release)
+
+### Features
+- Added **PuppetServer Health** page in the Metrics section, positioned between "Catalog Graph" and "PuppetDB Health" in the navigation.
+- Full backend support for Puppet Server operational metrics without requiring the separate `puppet_operational_dashboards` stack:
+  - Extended `PuppetServerService` with async mTLS HTTP client (using Puppet agent certs) to query `/status/v1/services/master` and `/metrics/v2` (Jolokia-style).
+  - New `/api/insights/puppetserver-health` endpoint returning status, JVM heap, compile times, JRuby pool + server-side history ring buffer.
+  - Additional endpoints for performance snapshot, metrics list, and single mbean queries.
+  - In-memory shared history buffer for Phase 3 (shared across users/sessions).
+- New frontend page `MetricsPuppetServerHealth.tsx`:
+  - Live auto-refreshing view with configurable interval.
+  - Time-series charts (Recharts) for JVM heap usage, compilation time, JRuby activity.
+  - Stat cards, status badge, and raw metrics explorer.
+  - Prefers server-provided history (Phase 3) with client-side accumulation fallback.
+  - Covers Phase 1 (basic health), Phase 2 (richer charts + data), Phase 3 (server history).
+- Directly addresses the metrics gap vs `puppet_operational_dashboards` (Puppetserver Performance, etc.) by exposing equivalent graphs natively inside the GUI.
+
+Assisted By: Grok AI
+
 ## [3.9.3] - 2026-06-16
 
 ### Security
