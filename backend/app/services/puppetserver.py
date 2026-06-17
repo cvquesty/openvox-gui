@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 import httpx
 import ssl
+import urllib.parse
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -403,29 +404,49 @@ class PuppetServerService:
 
     # ─── Puppet Server Metrics & Health (for Metrics | PuppetServer Health) ───
 
-    async def get_ps_status(self, level: str = "master") -> Dict[str, Any]:
-        """Fetch Puppet Server status (high-level health, compile times, JRuby, etc.)."""
+    async def get_ps_status(self, service: str = "master", level: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch Puppet Server status.
+
+        service: usually "master"
+        level: optionally "debug" to get more detail (passed as ?level=debug)
+        """
         try:
             client = await self._get_ps_client()
-            # Common paths: /status/v1/services/master or with ?level=debug
-            url = f"/status/v1/services/{level}"
-            resp = await client.get(url)
+            url = f"/status/v1/services/{service}"
+            params = {}
+            if level:
+                params["level"] = level
+            resp = await client.get(url, params=params)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to get Puppet Server status: {e}")
+            logger.warning(f"Failed to get Puppet Server status for {service}: {e}")
             return {}
 
     async def get_ps_metrics(self, mbean: str) -> Dict[str, Any]:
-        """Query a specific JMX/mbean from Puppet Server's /metrics/v2 (Jolokia-style)."""
-        try:
-            client = await self._get_ps_client()
-            resp = await client.get(f"/metrics/v2/read/{mbean}")
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.warning(f"Failed to get Puppet Server metric {mbean}: {e}")
-            return {}
+        """Query a specific JMX/mbean from Puppet Server's /metrics/v2 (Jolokia-style).
+
+        Tries both raw and URL-encoded mbean name for compatibility.
+        """
+        client = await self._get_ps_client()
+        candidates = [
+            mbean,
+            urllib.parse.quote(mbean, safe=""),
+            mbean.replace(":", "%3A").replace("=", "%3D").replace(",", "%2C"),
+        ]
+        for name in candidates:
+            try:
+                resp = await client.get(f"/metrics/v2/read/{name}")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Some responses wrap, some return value directly
+                    if data and (isinstance(data, dict) and data.get("value") is not None or "HeapMemoryUsage" in str(data)):
+                        return data
+            except Exception as e:
+                logger.debug(f"PS metrics attempt for {name} failed: {e}")
+                continue
+        logger.warning(f"Failed to get Puppet Server metric {mbean} after attempts")
+        return {}
 
     async def list_ps_metrics(self) -> Dict[str, Any]:
         """List available metrics beans from Puppet Server."""
@@ -439,7 +460,11 @@ class PuppetServerService:
             return {"error": str(e)}
 
     async def get_ps_health_snapshot(self) -> Dict[str, Any]:
-        """Convenience snapshot combining status + key JVM/metrics for the health page."""
+        """Convenience snapshot combining status + key JVM/metrics for the health page.
+
+        Tries basic status first, then with level=debug for richer data.
+        Uses flexible key lookup because Puppet Server status structure varies by version/config.
+        """
         result: Dict[str, Any] = {
             "status": None,
             "jvm_heap": None,
@@ -449,29 +474,82 @@ class PuppetServerService:
             "raw": {},
         }
 
-        # Status (rich high-level info)
-        status = await self.get_ps_status("master")
-        if status:
-            master = status.get("master", status)
-            result["status"] = master.get("state", "unknown")
-            svc = master.get("status", {}) or master
-            result["raw"]["status"] = svc
-            # Common fields in status
-            result["compile_time_ms"] = svc.get("average_compile_time_ms") or svc.get("average_compile_time")
-            jruby = svc.get("jruby", {}) or {}
-            result["jruby_active"] = jruby.get("active_instances") or jruby.get("num_jrubies")
-            result["jruby_max"] = jruby.get("max_active_instances") or jruby.get("max_jrubies")
+        def _find_key(obj: Any, keys: List[str]) -> Any:
+            """Recursively search for a key in nested dicts."""
+            if not isinstance(obj, dict):
+                return None
+            for k in keys:
+                if k in obj:
+                    return obj[k]
+            for v in obj.values():
+                found = _find_key(v, keys)
+                if found is not None:
+                    return found
+            return None
 
-        # JVM heap (standard)
+        # Fetch status - basic + debug for more fields (compile time, jruby counts etc.)
+        status = await self.get_ps_status("master")
+        if not status or not (isinstance(status, dict) and status.get("master", {}).get("status")):
+            status_debug = await self.get_ps_status("master", level="debug")
+            if status_debug:
+                status = status_debug
+
+        if status:
+            master = status.get("master", {}) if isinstance(status, dict) else {}
+            if not master and isinstance(status, dict):
+                master = status
+            result["status"] = master.get("state", "unknown") if isinstance(master, dict) else "unknown"
+
+            svc = {}
+            if isinstance(master, dict):
+                svc = master.get("status", {}) or {}
+            if not svc and isinstance(status, dict):
+                svc = status.get("status", {}) or status
+
+            result["raw"]["status"] = svc
+
+            # Compile time - very common key
+            compile_val = _find_key(svc, [
+                "average_compile_time_ms", "avg_compile_time_ms",
+                "average_compile_time", "compile_time_ms"
+            ])
+            if compile_val is not None:
+                result["compile_time_ms"] = compile_val
+
+            # JRuby pool info - try common locations
+            jruby_active = _find_key(svc, [
+                "num_jrubies", "current_jruby_instances", "jruby_instances",
+                "active_jrubies", "current_active_jrubies"
+            ])
+            jruby_max = _find_key(svc, [
+                "max_jrubies", "max_active_jrubies", "max_jruby_instances"
+            ])
+
+            jruby_section = _find_key(svc, ["jruby", "jruby_puppet"]) or {}
+            if isinstance(jruby_section, dict):
+                jruby_active = jruby_active or jruby_section.get("num_jrubies") or jruby_section.get("active_instances") or jruby_section.get("current")
+                jruby_max = jruby_max or jruby_section.get("max_jrubies") or jruby_section.get("max_active_instances")
+
+            if jruby_active is not None:
+                result["jruby_active"] = jruby_active
+            if jruby_max is not None:
+                result["jruby_max"] = jruby_max
+
+        # JVM heap via metrics/v2 (primary). Falls back gracefully if not enabled.
         jvm = await self.get_ps_metrics("java.lang:type=Memory")
-        if jvm and "value" in jvm:
-            mem = jvm["value"].get("HeapMemoryUsage", {})
-            if mem:
+        if jvm and isinstance(jvm, dict):
+            value = jvm.get("value", jvm)  # sometimes top level, sometimes wrapped
+            mem = {}
+            if isinstance(value, dict):
+                mem = value.get("HeapMemoryUsage", value.get("heap", {}))
+            if mem and isinstance(mem, dict) and mem.get("max"):
+                used = mem.get("used", 0)
+                maxm = mem.get("max", 1)
                 result["jvm_heap"] = {
-                    "used_mb": round(mem.get("used", 0) / 1048576, 1),
-                    "max_mb": round(mem.get("max", 0) / 1048576, 1),
+                    "used_mb": round(used / 1048576, 1),
+                    "max_mb": round(maxm / 1048576, 1),
                     "committed_mb": round(mem.get("committed", 0) / 1048576, 1),
-                    "pct": round(mem.get("used", 0) / max(mem.get("max", 1), 1) * 100, 1),
+                    "pct": round(used / max(maxm, 1) * 100, 1),
                 }
             result["raw"]["jvm"] = jvm
 

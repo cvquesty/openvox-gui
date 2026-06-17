@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.9.4-beta1] - 2026-06-17 (pre-release)
 
+### Bug Fixes (post initial deploy)
+- Fixed PuppetServer Health data collection:
+  - Improved status parsing (now fetches with `level=debug`, uses flexible recursive key lookup for `average_compile_time_ms`, `num_jrubies`, etc.).
+  - More robust `/metrics/v2` calls with URL encoding for mbeans.
+  - Better extraction of JVM heap, compilation time, and JRuby pool stats.
+  - Frontend history accumulation no longer requires JVM heap on every poll (other metrics now record properly).
+- This resolves "only one data point" and dash/0.0% values in the panels and status cards.
+
 ### Features
 - Added **PuppetServer Health** page in the Metrics section, positioned between "Catalog Graph" and "PuppetDB Health" in the navigation.
 - Full backend support for Puppet Server operational metrics without requiring the separate `puppet_operational_dashboards` stack:

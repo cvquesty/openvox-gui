@@ -73,7 +73,8 @@ export function MetricsPuppetServerHealthPage() {
       setData(result);
       setError(null);
 
-      // Prefer server history (Phase 3), fall back to building local
+      // Prefer server-provided history (Phase 3). It will contain points even if some
+      // values were temporarily missing. Fall back to local accumulation.
       if (result.history && Array.isArray(result.history) && result.history.length > 0) {
         setHistory(result.history.map((p: any) => ({
           time: p.time,
@@ -82,20 +83,26 @@ export function MetricsPuppetServerHealthPage() {
           compile_time_ms: p.compile_time_ms,
           jruby_active: p.jruby_active,
         })));
-      } else if (result.jvm_heap) {
+      } else {
+        // Always try to record a point when we have a successful response.
+        // This way compile time and JRuby trends accumulate even if heap metrics
+        // are not yet available on this poll.
         const now = Date.now();
         const point: HistoryPoint = {
           time: new Date().toLocaleTimeString(),
           ts: now,
-          heap_used_mb: result.jvm_heap.used_mb,
-          heap_pct: result.jvm_heap.pct,
+          heap_used_mb: result.jvm_heap ? result.jvm_heap.used_mb : undefined,
+          heap_pct: result.jvm_heap ? result.jvm_heap.pct : undefined,
           compile_time_ms: result.compile_time_ms,
           jruby_active: result.jruby_active,
         };
-        setHistory(prev => {
-          const updated = [...prev, point];
-          return updated.length > 360 ? updated.slice(-360) : updated;
-        });
+        // Only append if we have at least one interesting value, to avoid pure-empty spam
+        if (point.heap_used_mb != null || point.compile_time_ms != null || point.jruby_active != null) {
+          setHistory(prev => {
+            const updated = [...prev, point];
+            return updated.length > 360 ? updated.slice(-360) : updated;
+          });
+        }
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load PuppetServer health');
@@ -135,18 +142,20 @@ export function MetricsPuppetServerHealthPage() {
   const currentJRuby = data.jruby_active ?? '—';
 
   // Prepare chart data
-  const heapData = history.filter(h => h.heap_used_mb != null).map(h => ({
+  // Include all points so the time axis shows the full history even if a particular
+  // metric is temporarily unavailable on some polls.
+  const heapData = history.map(h => ({
     time: h.time,
     used: h.heap_used_mb,
     pct: h.heap_pct,
   }));
 
-  const compileData = history.filter(h => h.compile_time_ms != null).map(h => ({
+  const compileData = history.map(h => ({
     time: h.time,
     compile: h.compile_time_ms,
   }));
 
-  const jrubyData = history.filter(h => h.jruby_active != null).map(h => ({
+  const jrubyData = history.map(h => ({
     time: h.time,
     active: h.jruby_active,
   }));
