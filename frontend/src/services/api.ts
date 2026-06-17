@@ -478,7 +478,7 @@ export const metrics = {
   puppetdbPerformance: () => fetchJSON<any>('/insights/puppetdb-performance'),
   heatmap: () => fetchJSON<any>('/insights/heatmap'),
 
-  // PuppetServer Health (placed between Catalog Graph and PuppetDB Health)
+  // OpenVox Server Health and OpenVoxDB Health (in Metrics section)
   puppetserverHealth: () => fetchJSON<any>('/insights/puppetserver-health'),
   puppetserverPerformance: () => fetchJSON<any>('/insights/puppetserver-performance'),
   puppetserverMetricsList: () => fetchJSON<any>('/insights/puppetserver-metrics-list'),

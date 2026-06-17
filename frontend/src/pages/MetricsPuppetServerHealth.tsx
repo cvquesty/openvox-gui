@@ -1,30 +1,29 @@
 /**
  * OpenVox GUI - MetricsPuppetServerHealth.tsx
  *
- * PuppetServer Health page.
- * Positioned between Catalog Graph and PuppetDB Health in the Metrics nav.
+ * OpenVox Server Health page.
+ * Positioned between Catalog Graph and OpenVoxDB Health in the Metrics nav.
  *
  * Covers the metrics shortfall vs puppet_operational_dashboards:
  * - Service status
  * - JVM heap & GC trends (live polling + history)
  * - Catalog compilation metrics
  * - JRuby pool / instance usage
- * - HTTP / request serving metrics
- * - Additional performance charts (Phase 2)
  *
  * Uses server-side history (Phase 3) when available + client accumulation.
- * Auto-refreshes. Recharts for graphs. Pattern-matched to PuppetDB Health.
+ * Auto-refreshes. Recharts for graphs. Layout matches Run Performance page (thumbnail grid, click to expand).
+ * Renamed to OpenVox Server Health for branding consistency.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
-  Grid, Button, Select,
+  Grid, Button, Select, Paper,
 } from '@mantine/core';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
-import { IconServer, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconServer, IconRefresh, IconTrash, IconArrowsMaximize, IconArrowsMinimize, IconChartLine } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 
 interface HistoryPoint {
@@ -53,6 +52,47 @@ function StatCard({ label, value, color, description }: {
       <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{label}</Text>
       <Text size="xl" fw={700} c={color}>{value}</Text>
       {description && <Text size="xs" c="dimmed" mt={2}>{description}</Text>}
+    </Card>
+  );
+}
+
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    padding: '10px 14px', fontSize: 12, color: '#e0e0e0',
+  },
+  labelStyle: { fontWeight: 600, color: '#fff', marginBottom: 4 } as const,
+  itemStyle: { color: '#e0e0e0' } as const,
+};
+
+interface ChartPanelProps {
+  title: string;
+  expanded: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  stats?: Array<{ label: string; value: string; color?: string }>;
+}
+
+function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelProps) {
+  const height = expanded ? 450 : 200;
+  return (
+    <Card withBorder shadow="sm" padding="sm" style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+      onClick={onClick}>
+      <Group justify="space-between" mb={4}>
+        <Text size={expanded ? 'md' : 'sm'} fw={700}>{title}</Text>
+        {expanded ? <IconArrowsMinimize size={14} color="#8899aa" /> : <IconArrowsMaximize size={14} color="#8899aa" />}
+      </Group>
+      {stats && expanded && (
+        <Group gap="xs" mb="xs">
+          {stats.map((s, i) => (
+            <Badge key={i} size="sm" variant="light" color={s.color || 'blue'}>{s.label}: {s.value}</Badge>
+          ))}
+        </Group>
+      )}
+      <ResponsiveContainer width="100%" height={height}>
+        {children as any}
+      </ResponsiveContainer>
     </Card>
   );
 }
@@ -162,12 +202,81 @@ export function MetricsPuppetServerHealthPage() {
 
   const hasHistory = history.length > 2;
 
+  // Define charts like Run Performance page for consistent thumbnail grid + expand UX
+  const charts: Array<{ id: string; title: string; stats?: any[]; render: () => React.ReactNode }> = [
+    {
+      id: 'jvm-heap',
+      title: 'JVM Heap Usage',
+      stats: [
+        { label: 'Used', value: `${jvm.used_mb ?? 0} MB` },
+        { label: 'Max', value: `${jvm.max_mb ?? 0} MB` },
+        { label: 'Pct', value: `${heapPct.toFixed(1)}%` },
+      ],
+      render: () => (
+        <AreaChart data={heapData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="gPsHeap" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Area type="natural" dataKey="used" stroke="#0D6EFD" fill="url(#gPsHeap)" strokeWidth={2} dot={false} name="Used" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'compile-time',
+      title: 'Compilation Time',
+      stats: [{ label: 'Current', value: `${currentCompile} ms`, color: 'orange' }],
+      render: () => (
+        <LineChart data={compileData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="compile" stroke="#e67e22" strokeWidth={2} dot={false} name="Avg Compile (ms)" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'jruby-pool',
+      title: 'JRuby Pool',
+      stats: [
+        { label: 'Active', value: String(currentJRuby), color: 'violet' },
+        ...(data.jruby_max ? [{ label: 'Max', value: String(data.jruby_max) }] : []),
+      ],
+      render: () => (
+        <AreaChart data={jrubyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Area type="natural" dataKey="active" stroke="#9b59b6" fillOpacity={0.3} strokeWidth={2} dot={false} name="Active JRubies" />
+        </AreaChart>
+      ),
+    },
+  ];
+
+  // Top level stats like Run Performance
+  const topStats = [
+    { label: 'Status', value: data.status || '—', color: statusColor },
+    { label: 'Compile (ms)', value: currentCompile, color: 'orange' },
+    { label: 'JRuby Active', value: currentJRuby, color: 'violet' },
+    { label: 'Heap %', value: `${heapPct.toFixed(1)}%`, color: heapPct > 85 ? 'red' : 'blue' },
+    { label: 'Heap Used', value: `${jvm.used_mb ?? '—'} / ${jvm.max_mb ?? '—'} MB` },
+  ];
+
   return (
     <Stack>
       <Group justify="space-between">
         <Group gap="sm">
           <IconServer size={28} />
-          <Title order={2}>PuppetServer Health</Title>
+          <Title order={2}>OpenVox Server Health</Title>
           <Badge color={statusColor} variant="filled" size="lg">
             {data.status || 'unknown'}
           </Badge>
@@ -186,96 +295,40 @@ export function MetricsPuppetServerHealthPage() {
         </Group>
       </Group>
 
-      {/* JVM Heap Over Time */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Group justify="space-between" mb="md">
-          <Title order={4}>JVM Heap Usage</Title>
-          <Group gap="xs">
-            <Badge color={heapPct >= 90 ? 'red' : heapPct >= 70 ? 'yellow' : 'green'} variant="filled" size="lg">
-              {heapPct.toFixed(1)}%
-            </Badge>
-            <Text size="sm" c="dimmed">{jvm.used_mb ?? 0} / {jvm.max_mb ?? 0} MB</Text>
-          </Group>
-        </Group>
-        <ResponsiveContainer width="100%" height={320}>
-          <AreaChart data={heapData.length ? heapData : [{time: '—', used: 0}]} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gPsHeap" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} unit=" MB" />
-            <ReTooltip
-              contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
-            />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Area type="monotone" dataKey="used" name="Used Heap" stroke="#0D6EFD" fill="url(#gPsHeap)" strokeWidth={2} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-        {!hasHistory && <Text size="xs" c="dimmed" ta="center" mt="xs">Chart populates on refresh (server history or live samples)</Text>}
-      </Card>
+      {/* Top stats row, matching Run Performance style */}
+      <Group grow>
+        {topStats.map((s, i) => (
+          <Paper key={i} withBorder p="sm" ta="center">
+            <Text size="xs" c="dimmed">{s.label}</Text>
+            <Text size="lg" fw={700} c={s.color}>{s.value}</Text>
+          </Paper>
+        ))}
+      </Group>
 
-      {/* Compilation & JRuby */}
-      <Grid>
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">Compilation Time</Title>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={compileData.length ? compileData : [{time: '—', compile: 0}]} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} unit=" ms" />
-                <ReTooltip contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }} />
-                <Line type="monotone" dataKey="compile" name="Avg Compile (ms)" stroke="#e67e22" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-            <Text size="sm" mt="xs">Current: <b>{currentCompile}</b> ms</Text>
-          </Card>
-        </Grid.Col>
+      {/* Expandable chart grid like Run Performance */}
+      {expanded ? (
+        (() => {
+          const chart = charts.find(c => c.id === expanded);
+          if (!chart) return null;
+          return (
+            <ChartPanel title={chart.title} expanded={true} onClick={() => toggleExpand(chart.id)} stats={chart.stats}>
+              {chart.render()}
+            </ChartPanel>
+          );
+        })()
+      ) : (
+        <Grid>
+          {charts.map(chart => (
+            <Grid.Col key={chart.id} span={6}>
+              <ChartPanel title={chart.title} expanded={false} onClick={() => toggleExpand(chart.id)} stats={chart.stats}>
+                {chart.render()}
+              </ChartPanel>
+            </Grid.Col>
+          ))}
+        </Grid>
+      )}
 
-        <Grid.Col span={{ base: 12, md: 6 }}>
-          <Card withBorder shadow="sm" padding="lg">
-            <Title order={4} mb="md">JRuby Pool</Title>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={jrubyData.length ? jrubyData : [{time: '—', active: 0}]} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
-                <ReTooltip contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }} />
-                <Area type="monotone" dataKey="active" name="Active JRubies" stroke="#9b59b6" fillOpacity={0.3} strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-            <Text size="sm" mt="xs">Active: <b>{currentJRuby}</b> {data.jruby_max ? `/ ${data.jruby_max}` : ''}</Text>
-          </Card>
-        </Grid.Col>
-      </Grid>
-
-      {/* Stat cards */}
-      <Grid>
-        <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Status" value={data.status || '—'} color={statusColor} />
-        </Grid.Col>
-        <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Compile (ms)" value={currentCompile} color="orange" description="avg / recent" />
-        </Grid.Col>
-        <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="JRuby Active" value={currentJRuby} color="violet" />
-        </Grid.Col>
-        <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Heap %" value={heapPct.toFixed(1) + '%'} color={heapPct > 85 ? 'red' : 'blue'} />
-        </Grid.Col>
-        <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Heap Used" value={`${jvm.used_mb ?? '—'} MB`} description={`${jvm.max_mb ?? '—'} max`} />
-        </Grid.Col>
-        <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Last Update" value={lastRefresh.toLocaleTimeString()} color="gray" />
-        </Grid.Col>
-      </Grid>
-
-      {/* Phase 2: Additional performance insights (if richer data present) */}
+      {/* Additional raw metrics for debugging / Phase 2 */}
       {data.raw && (
         <Card withBorder shadow="sm" padding="lg">
           <Title order={4} mb="sm">Additional Server Metrics (raw)</Title>

@@ -487,9 +487,24 @@ class PuppetServerService:
                     return found
             return None
 
-        # Fetch status - basic + debug for more fields (compile time, jruby counts etc.)
-        status = await self.get_ps_status("master")
-        if not status or not (isinstance(status, dict) and status.get("master", {}).get("status")):
+        # Fetch status - try full services list first (more reliable for structure), then specific master, then debug
+        status = None
+        try:
+            client = await self._get_ps_client()
+            resp = await client.get("/status/v1/services")
+            full = resp.json()
+            if isinstance(full, dict):
+                if "master" in full:
+                    status = full  # will extract ["master"]
+                else:
+                    status = full
+        except Exception:
+            pass
+
+        if not status:
+            status = await self.get_ps_status("master")
+
+        if not status or (isinstance(status, dict) and not status.get("master") and not status.get("state")):
             status_debug = await self.get_ps_status("master", level="debug")
             if status_debug:
                 status = status_debug
@@ -508,24 +523,32 @@ class PuppetServerService:
 
             result["raw"]["status"] = svc
 
-            # Compile time - very common key
-            compile_val = _find_key(svc, [
-                "average_compile_time_ms", "avg_compile_time_ms",
-                "average_compile_time", "compile_time_ms"
-            ])
+            # Compile time - very common key, search broadly
+            compile_val = None
+            for search_target in [svc, master, status]:
+                if compile_val is None:
+                    compile_val = _find_key(search_target, [
+                        "average_compile_time_ms", "avg_compile_time_ms",
+                        "average_compile_time", "compile_time_ms"
+                    ])
             if compile_val is not None:
                 result["compile_time_ms"] = compile_val
 
-            # JRuby pool info - try common locations
-            jruby_active = _find_key(svc, [
-                "num_jrubies", "current_jruby_instances", "jruby_instances",
-                "active_jrubies", "current_active_jrubies"
-            ])
-            jruby_max = _find_key(svc, [
-                "max_jrubies", "max_active_jrubies", "max_jruby_instances"
-            ])
+            # JRuby pool info - try common locations, search broadly
+            jruby_active = None
+            jruby_max = None
+            for search_target in [svc, master, status]:
+                if jruby_active is None:
+                    jruby_active = _find_key(search_target, [
+                        "num_jrubies", "current_jruby_instances", "jruby_instances",
+                        "active_jrubies", "current_active_jrubies"
+                    ])
+                if jruby_max is None:
+                    jruby_max = _find_key(search_target, [
+                        "max_jrubies", "max_active_jrubies", "max_jruby_instances"
+                    ])
 
-            jruby_section = _find_key(svc, ["jruby", "jruby_puppet"]) or {}
+            jruby_section = _find_key(svc, ["jruby", "jruby_puppet"]) or _find_key(master, ["jruby", "jruby_puppet"]) or {}
             if isinstance(jruby_section, dict):
                 jruby_active = jruby_active or jruby_section.get("num_jrubies") or jruby_section.get("active_instances") or jruby_section.get("current")
                 jruby_max = jruby_max or jruby_section.get("max_jrubies") or jruby_section.get("max_active_instances")
@@ -534,6 +557,50 @@ class PuppetServerService:
                 result["jruby_active"] = jruby_active
             if jruby_max is not None:
                 result["jruby_max"] = jruby_max
+
+            # Direct common keys as additional fallback (some responses put them at master level)
+            if result.get("compile_time_ms") is None:
+                for k in ["average_compile_time_ms", "compile_time_ms", "avg_compile_time_ms"]:
+                    if k in master:
+                        result["compile_time_ms"] = master[k]
+                        break
+                    if k in svc:
+                        result["compile_time_ms"] = svc[k]
+                        break
+            if result.get("jruby_active") is None:
+                for k in ["num_jrubies", "current_jruby_instances", "jruby_instances"]:
+                    if k in master:
+                        result["jruby_active"] = master[k]
+                        break
+                    if k in svc:
+                        result["jruby_active"] = svc[k]
+                        break
+            if result.get("jruby_max") is None:
+                for k in ["max_jrubies", "max_active_jrubies"]:
+                    if k in master:
+                        result["jruby_max"] = master[k]
+                        break
+                    if k in svc:
+                        result["jruby_max"] = svc[k]
+                        break
+
+            # Last resort scan for keys containing relevant terms (handles version differences)
+            if result.get("compile_time_ms") is None:
+                for k, v in list(master.items()) + list(svc.items()):
+                    if isinstance(k, str) and "compile" in k.lower() and isinstance(v, (int, float)):
+                        result["compile_time_ms"] = v
+                        break
+            if result.get("jruby_active") is None:
+                for k, v in list(master.items()) + list(svc.items()):
+                    if isinstance(k, str) and "jruby" in k.lower() and isinstance(v, (int, float)):
+                        if any(x in k.lower() for x in ["num", "current", "active", "instances"]):
+                            result["jruby_active"] = v
+                            break
+            if result.get("jruby_max") is None:
+                for k, v in list(master.items()) + list(svc.items()):
+                    if isinstance(k, str) and "jruby" in k.lower() and "max" in k.lower() and isinstance(v, (int, float)):
+                        result["jruby_max"] = v
+                        break
 
         # JVM heap via metrics/v2 (primary). Falls back gracefully if not enabled.
         jvm = await self.get_ps_metrics("java.lang:type=Memory")

@@ -1,7 +1,7 @@
 /**
  * OpenVox GUI - MetricsPuppetDBHealth.tsx
  *
- * PuppetDB Health Dashboard — JVM heap usage over time as a line chart,
+ * OpenVoxDB Health Dashboard — JVM heap usage over time as a line chart,
  * service status badge, command queue stats, active node count.
  * Auto-refreshes every 10 seconds, accumulating data points for the graph.
  */
@@ -119,7 +119,7 @@ export function MetricsPuppetDBHealthPage() {
       <Group justify="space-between">
         <Group gap="sm">
           <IconDatabase size={28} />
-          <Title order={2}>PuppetDB Health</Title>
+          <Title order={2}>OpenVoxDB Health</Title>
           <Badge color={statusColor} variant="filled" size="lg">
             {data.status || 'unknown'}
           </Badge>

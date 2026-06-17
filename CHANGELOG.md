@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta2] - 2026-06-17 (pre-release)
+
+### Bug Fixes
+- Further improved OpenVox Server Health data extraction:
+  - Broader recursive + direct + keyword-scan key lookup for `average_compile_time_ms`, `num_jrubies`, `jruby_*` etc. across the full status response.
+  - Prefer fetching `/status/v1/services` (with optional `?level=debug`) for more reliable structure before falling back to `/master`.
+  - This ensures JVM heap (when metrics accessible), compilation time, and JRuby pool values are captured on every poll and properly graphed in the time-series charts.
+- Resolves cases where only one data point (or none) appeared despite status showing "running".
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta1] - 2026-06-17 (pre-release)
 
 ### Bug Fixes (post initial deploy)

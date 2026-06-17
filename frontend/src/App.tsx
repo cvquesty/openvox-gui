@@ -147,8 +147,8 @@ function AppRoutes() {
           <Route path="/insights/facts" element={<MetricsFactDistPage />} />
           <Route path="/insights/classification" element={<MetricsClassificationPage />} />
           <Route path="/insights/catalog" element={<MetricsCatalogPage />} />
-          <Route path="/insights/puppetserver-health" element={<MetricsPuppetServerHealthPage />} />
-          <Route path="/insights/health" element={<MetricsPuppetDBHealthPage />} />
+          <Route path="/insights/openvox-server-health" element={<MetricsPuppetServerHealthPage />} />
+          <Route path="/insights/openvoxdb-health" element={<MetricsPuppetDBHealthPage />} />
           <Route path="/insights/heatmap" element={<MetricsHeatmapPage />} />
           <Route path="/insights/environments" element={<MetricsEnvironmentsPage />} />
           <Route path="/insights/classes" element={<MetricsClassCoveragePage />} />
