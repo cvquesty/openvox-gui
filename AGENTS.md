@@ -61,6 +61,34 @@ This rule was added after backticks in an unquoted sudoers heredoc caused instal
   - Treat press document creation as part of the "official release" preparation alongside `gh release create`. This ensures every shippable stable release gets a complete announcement kit.
 - Rationale (per user): Lightweight pre-release tags are perfect for continuous testing/deployment. Full GitHub releases should only be produced when we're confident the (clean SemVer) tag represents a shippable state for users. Pairing each official release with a press document keeps community communication consistent and high-signal.
 
+## Infrastructure & Deployment Targets (Test Lab vs Real Production)
+
+**Critical distinction — do not confuse these in any reporting, commit messages, or future work.**
+
+### Test-only / Isolated Lab Server (what almost all openvox-gui development deploys have targeted)
+- Hostname: `openvox.questy.org`
+- IP: `10.0.100.225`
+- SSH: Direct (`jsheets@openvox` or `jsheets@10.0.100.225`)
+- Purpose: Personal development and testing lab.
+- Typical deploy command used with this repo:
+  ```bash
+  OPENVOX_DEPLOY_HOST=10.0.100.225 OPENVOX_DEPLOY_USER=jsheets scripts/update_remote.sh --yes
+  ```
+- **WARNING**: This server is **not** production. Scale, certificate volume, performance characteristics, and any deployed state here must be clearly labeled "lab" or "test server" when discussing or reporting work.
+
+### Real Production Server (final / official deploys at xAI)
+- Hostname: `openvox.pdxc-it.twitter.biz` (user has also written it as `openvox.opdxc-it.twitter.biz`)
+- Access model: **Not directly SSH-reachable** from the development laptop.
+- Must traverse a bastion/jump host first:
+  - `wormhole-1.atlc-it.twitter.biz` (Atlanta)
+  - `wormhole-2.pdxc-it.twitter.biz` (Portland)
+- Typical real-world workflow: `ssh wormhole-1...` (or wormhole-2), then from the bastion `ssh openvox.pdxc-it.twitter.biz`.
+- This is the server that runs the actual xAI / Twitter-internal OpenVox fleet. When the user talks about "production" or "final deploy," this (and its bastions) is what is meant.
+
+**Rule for this project**: The deploy scripts in this repository (`update_remote.sh`, `deploy.sh`, `update_local.sh`, etc.) have historically been exercised almost exclusively against the test lab (10.0.100.225). Any claim that "we deployed X" in the context of openvox-gui work should default to "lab" unless the user explicitly states production bastion access was used.
+
+Add a short clarifying sentence in any summary or release notes when discussing deployment behavior.
+
 ## Using the Commit Skill
 
 Use `/commit` (the project-scoped skill in `.grok/skills/commit/SKILL.md`) to handle version increment, CHANGELOG update, conventional commit (with "Assisted By: Grok AI"), annotated tag, and push (branch + tag). It enforces the rules in the sections above plus the global pre-commit checklist, including active heredoc safety enforcement for shell script changes and driving the final deploy step.
