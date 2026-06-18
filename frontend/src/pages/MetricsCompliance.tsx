@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
-  Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon,
+  Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon, Box,
 } from '@mantine/core';
 import {
   IconShieldCheck, IconChevronDown, IconChevronRight,
@@ -71,27 +71,29 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
         </Group>
       </Group>
       <Collapse in={open}>
-        <ScrollArea h={480} mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
-          <Table striped highlightOnHover withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Certname</Table.Th>
-                <Table.Th>Environment</Table.Th>
-                <Table.Th>Last Report</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {[...nodes].sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || '')).map((n: any) => (
-                <Table.Tr key={n.certname}>
-                  <Table.Td><Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{n.environment || '\u2014'}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{n.report_timestamp ? timeAgo(n.report_timestamp) : '\u2014'}</Text></Table.Td>
+        <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
+          <ScrollArea h="100%" mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Certname</Table.Th>
+                  <Table.Th>Environment</Table.Th>
+                  <Table.Th>Last Report</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </ScrollArea>
+              </Table.Thead>
+              <Table.Tbody>
+                {[...nodes].sort((a: any, b: any) => (a.certname || '').localeCompare(b.certname || '')).map((n: any) => (
+                  <Table.Tr key={n.certname}>
+                    <Table.Td><Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => navigate(`/nodes/${n.certname}`)}>{n.certname}</Text></Table.Td>
+                    <Table.Td><Text size="sm">{n.environment || '\u2014'}</Text></Table.Td>
+                    <Table.Td><Text size="sm">{n.report_timestamp ? timeAgo(n.report_timestamp) : '\u2014'}</Text></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Box>
       </Collapse>
     </Paper>
   );
