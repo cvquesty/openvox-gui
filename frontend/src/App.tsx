@@ -68,6 +68,7 @@ const MetricsClassificationPage = lazyWithRetry(() => import('./pages/MetricsCla
 const MetricsCatalogPage = lazyWithRetry(() => import('./pages/MetricsCatalog').then(m => ({ default: m.MetricsCatalogPage })));
 const MetricsPuppetServerHealthPage = lazyWithRetry(() => import('./pages/MetricsPuppetServerHealth').then(m => ({ default: m.MetricsPuppetServerHealthPage })));
 const MetricsPuppetDBHealthPage = lazyWithRetry(() => import('./pages/MetricsPuppetDBHealth').then(m => ({ default: m.MetricsPuppetDBHealthPage })));
+const MetricsNodeHealthPage = lazyWithRetry(() => import('./pages/MetricsNodeHealth').then(m => ({ default: m.MetricsNodeHealthPage })));
 const MetricsHeatmapPage = lazyWithRetry(() => import('./pages/MetricsHeatmap').then(m => ({ default: m.MetricsHeatmapPage })));
 const MetricsEnvironmentsPage = lazyWithRetry(() => import('./pages/MetricsEnvironments').then(m => ({ default: m.MetricsEnvironmentsPage })));
 const MetricsClassCoveragePage = lazyWithRetry(() => import('./pages/MetricsClassCoverage').then(m => ({ default: m.MetricsClassCoveragePage })));
@@ -149,6 +150,7 @@ function AppRoutes() {
           <Route path="/insights/catalog" element={<MetricsCatalogPage />} />
           <Route path="/insights/openvox-server-health" element={<MetricsPuppetServerHealthPage />} />
           <Route path="/insights/openvoxdb-health" element={<MetricsPuppetDBHealthPage />} />
+          <Route path="/insights/node-health" element={<MetricsNodeHealthPage />} />
           <Route path="/insights/heatmap" element={<MetricsHeatmapPage />} />
           <Route path="/insights/environments" element={<MetricsEnvironmentsPage />} />
           <Route path="/insights/classes" element={<MetricsClassCoveragePage />} />

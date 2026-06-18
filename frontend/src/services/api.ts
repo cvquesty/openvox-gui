@@ -486,6 +486,15 @@ export const metrics = {
   environments: () => fetchJSON<any>('/insights/environments'),
   classCoverage: (limit: number = 50) =>
     fetchJSON<any>(`/insights/class-coverage?limit=${limit}`),
+
+  // Node Health (agent disabled/enabled status + live checks)
+  nodeHealth: () => fetchJSON<any>('/insights/node-health'),
+  nodeHealthCheck: (data: { targets: string; run_as?: string }) =>
+    fetchJSON<any>('/insights/node-health/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
 };
 
 // ─── Log Viewer ─────────────────────────────────────────────

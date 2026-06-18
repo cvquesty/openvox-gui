@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta10] - 2026-06-18 (pre-release)
+
+### New Feature
+- **Metrics | Node Health** page:
+  - Detects Puppet agent disabled state using the custom fact `puppet_agent_disabled` (and optional `puppet_agent_disable_message`).
+  - Shows last-known state from facts + report/fact staleness signals ("stale = possibly disabled or offline").
+  - Live "Check Current Status (via Bolt)" button runs an on-demand check using Bolt/SSH. This works *even when the agent is disabled* (the fundamental limitation of any fact-based approach).
+  - Table with filtering, status badges, disable messages, timestamps, and live results.
+  - Summary counts + help text.
+- Added supporting documentation: `docs/puppet-agent-disabled-fact.md` (bash external fact + Ruby alternative + caveats).
+
+### Brainstorm / Options considered for disabled agent detection
+1. Custom fact only (as initially requested) — works for last successful run but fundamentally cannot update once disabled (no run = no facts sent). Still useful for "last known" and in manifests.
+2. Staleness heuristics on report/fact timestamps — good signal for "hasn't checked in".
+3. Live remote check via Bolt (chosen for "current" accuracy) — independent of agent, uses existing orchestration transport. Recommended primary source of truth for disabled nodes.
+4. Hybrid (implemented) — fact for integrated/Puppet-native data + Bolt live + staleness.
+5. Scheduled background Bolt audits cached server-side (future enhancement).
+6. Other (external monitoring feed, cron fact push) — out of scope / less integrated.
+
+See the Node Health page and the fact doc for details and deployment instructions.
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta9] - 2026-06-18 (pre-release)
 
 ### Features / Improvements

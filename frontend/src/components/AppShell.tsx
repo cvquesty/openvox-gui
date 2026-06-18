@@ -50,6 +50,7 @@ import {
   IconWorld as IconWorldNav,
   IconStack2,
   IconListDetails,
+  IconHeartbeat,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -105,6 +106,7 @@ const metricsNav: NavItem[] = [
   { label: 'Catalog Graph', icon: IconTopologyRing, path: '/insights/catalog' },
   { label: 'OpenVox Server Health', icon: IconServer, path: '/insights/openvox-server-health' },
   { label: 'OpenVoxDB Health', icon: IconHeartRateMonitor, path: '/insights/openvoxdb-health' },
+  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
   { label: 'Node Heatmap', icon: IconGridDots, path: '/insights/heatmap' },
   { label: 'Environments', icon: IconWorldNav, path: '/insights/environments' },
   { label: 'Class Coverage', icon: IconStack2, path: '/insights/classes' },

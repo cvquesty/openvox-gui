@@ -12,6 +12,7 @@ Provides aggregated data for the Metrics section:
   8. Class coverage
 """
 import asyncio
+import json
 import logging
 import time as _time
 from collections import Counter, defaultdict
@@ -19,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from ..dependencies import require_role
 from ..services.puppetdb import puppetdb_service
@@ -890,3 +892,188 @@ async def get_class_coverage(
         classes = []
 
     return {"classes": classes, "total": len(classes)}
+
+
+# ─── Node Health (Metrics | Node Health) ──────────────────────────────────────
+#
+# Detects disabled Puppet agents.
+# - Uses custom fact "puppet_agent_disabled" (last known at report time)
+# - Provides live checks via Bolt (independent of agent being enabled/disabled)
+# - Combines with report/fact timestamp staleness signals.
+#
+# See docs/puppet-agent-disabled-fact.md for the required custom fact.
+# The fact approach alone has limitations (disabled agents don't run and thus
+# don't send updated facts), which is why live Bolt checks are provided.
+
+
+@router.get("/node-health")
+async def get_node_health(_user: str = Depends(_AUTH)):
+    """Node health overview focused on Puppet agent enabled/disabled status.
+
+    Pulls from PuppetDB facts (if the supporting custom fact is deployed)
+    + node inventory timestamps for staleness.
+    """
+    try:
+        # Get base nodes (active)
+        nodes = await puppetdb_service.get_nodes()
+
+        # Get the agent disabled fact values (may be empty if fact not yet deployed)
+        disabled_facts: List[Dict] = []
+        try:
+            disabled_facts = await puppetdb_service.get_facts(fact_name="puppet_agent_disabled")
+        except Exception:
+            pass
+
+        fact_map: Dict[str, Any] = {}
+        for f in disabled_facts:
+            cn = f.get("certname")
+            if cn:
+                val = f.get("value")
+                # Normalize boolean-ish
+                if isinstance(val, str):
+                    val = val.lower() in ("true", "1", "yes")
+                fact_map[cn] = bool(val) if val is not None else None
+
+        # Also try to get disable messages if the second fact is present
+        msg_facts: List[Dict] = []
+        try:
+            msg_facts = await puppetdb_service.get_facts(fact_name="puppet_agent_disable_message")
+        except Exception:
+            pass
+        msg_map: Dict[str, str] = {f.get("certname"): f.get("value") for f in msg_facts if f.get("certname")}
+
+        result_nodes = []
+        now = datetime.now(timezone.utc)
+        disabled_count = 0
+        stale_count = 0
+
+        for n in nodes:
+            cn = n.get("certname")
+            disabled = fact_map.get(cn)
+            if disabled is True:
+                disabled_count += 1
+
+            # Staleness: no recent report or facts
+            report_ts = n.get("report_timestamp") or n.get("latest_report_timestamp")
+            facts_ts = n.get("facts_timestamp")
+            last_seen = report_ts or facts_ts
+            is_stale = False
+            if last_seen:
+                try:
+                    ts = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+                    hours = (now - ts).total_seconds() / 3600
+                    if hours > 2:  # > 2 hours without checkin is suspect
+                        is_stale = True
+                        stale_count += 1
+                except Exception:
+                    pass
+
+            entry = {
+                "certname": cn,
+                "agent_disabled": disabled,  # true/false/None (None = fact not present)
+                "disable_message": msg_map.get(cn),
+                "facts_timestamp": facts_ts,
+                "report_timestamp": report_ts,
+                "latest_report_status": n.get("latest_report_status"),
+                "is_stale": is_stale,
+                "environment": n.get("report_environment") or n.get("environment"),
+            }
+            result_nodes.append(entry)
+
+        return {
+            "nodes": result_nodes,
+            "summary": {
+                "total": len(result_nodes),
+                "disabled": disabled_count,
+                "stale": stale_count,
+                "fact_deployed": len(fact_map) > 0,
+            },
+        }
+    except Exception as e:
+        logger.warning(f"node-health error: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to load node health: {str(e)}")
+
+
+class NodeHealthCheckRequest(BaseModel):
+    targets: str = Field(..., description="certnames, groups, or 'all'")
+    run_as: Optional[str] = None
+
+
+@router.post("/node-health/check")
+async def check_agent_disabled_live(
+    req: NodeHealthCheckRequest,
+    db: AsyncSession = Depends(get_db),
+    _user: str = Depends(_AUTH),
+):
+    """Live check of the agent_disabled.lock file using Bolt (SSH).
+
+    This works even if the Puppet agent is disabled on the target(s), because
+    it uses the transport (SSH) configured in Bolt inventory, not the agent.
+    """
+    try:
+        # Local import to keep module load clean (Bolt may have side effects or be optional in some deploys)
+        from .bolt import resolve_targets, run_bolt_command
+
+        resolved = await resolve_targets(req.targets, db)
+
+        # Safe one-liner. We use a simple output so we can parse per target.
+        # Bolt with --format json gives structured per-target stdout.
+        check_cmd = (
+            'if [ -f /opt/puppetlabs/puppet/cache/state/agent_disabled.lock ]; then '
+            '  msg=$(cat /opt/puppetlabs/puppet/cache/state/agent_disabled.lock 2>/dev/null | head -c 200 | tr -d "\n\r" | sed "s/\"/\\\\\"/g"); '
+            '  echo "DISABLED:$msg"; '
+            'else '
+            '  echo "ENABLED"; '
+            'fi'
+        )
+
+        # We force privileged because the state dir is typically root-owned.
+        # The run_command will handle sudo via the GUI's standard escalation.
+        normalized = check_cmd
+        escalate = True  # force for the lock file
+        command = "sudo " + normalized if escalate else normalized
+
+        args = ["command", "run", command, "--targets", resolved, "--format", "json"]
+
+        result = await run_bolt_command(args, timeout=300)
+        stdout = result.get("stdout", "") or ""
+        stderr = result.get("stderr", "") or ""
+
+        # Parse bolt json output. Typical structure has "items" with per target "stdout" or "result".
+        # Bolt command json varies slightly by version; we try to extract per-target status.
+        parsed: Dict[str, Dict[str, Any]] = {}
+        try:
+            data = json.loads(stdout) if stdout.strip().startswith("{") else {}
+            items = data.get("items", []) if isinstance(data, dict) else []
+            for item in items:
+                target = item.get("target") or item.get("name")
+                if not target:
+                    continue
+                out = ""
+                if "stdout" in item:
+                    out = item["stdout"] or ""
+                elif "result" in item and isinstance(item["result"], dict):
+                    out = item["result"].get("stdout", "") or ""
+                out = out.strip()
+                if out.startswith("DISABLED"):
+                    parts = out.split(":", 1)
+                    msg = parts[1] if len(parts) > 1 else ""
+                    parsed[target] = {"disabled": True, "message": msg, "checked_at": datetime.now(timezone.utc).isoformat()}
+                elif out.startswith("ENABLED"):
+                    parsed[target] = {"disabled": False, "message": None, "checked_at": datetime.now(timezone.utc).isoformat()}
+                else:
+                    # fallback
+                    parsed[target] = {"disabled": None, "raw": out, "checked_at": datetime.now(timezone.utc).isoformat()}
+        except Exception as parse_err:
+            logger.debug(f"node-health check parse warning: {parse_err}")
+            # Fallback: return raw so UI can show it
+            parsed["_raw"] = {"stdout": stdout[:2000], "stderr": stderr[:500]}
+
+        return {
+            "targets": resolved,
+            "results": parsed,
+            "returncode": result.get("returncode"),
+        }
+    except Exception as e:
+        logger.warning(f"node-health live check error: {e}")
+        raise HTTPException(status_code=502, detail=f"Live check failed: {str(e)}")
