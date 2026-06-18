@@ -25,6 +25,8 @@ from pydantic import BaseModel, Field
 from ..dependencies import require_role
 from ..services.puppetdb import puppetdb_service
 from ..services.puppetserver import puppetserver_service
+from ..database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
