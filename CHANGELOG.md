@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes
 - Made OpenVox Server Health graphs actually receive and display data:
   - More robust recursive search across the entire /status response to locate the experimental.http-metrics list (handles "http-metrics" or "http-client-metrics" keys, variations in structure between dev and prod).
+  - Parser now handles both "route-id" and "metric-id" (array or string) for identifying catalog/total routes.
 - Note: top-level `enabled = true` under `metrics` in metrics.conf is invalid for Puppet Server 8 (causes errors). Use the structure with `registries.puppetserver.reporters.jmx.enabled` (or omit — JMX defaults to on when metrics-allowed is set). See Puppet Server 8 metrics.conf docs.
 - The "experimental http metrics" (route means for Catalog/Total) are the http-client metrics. Enable with `metrics-enabled = true` in the `http-client` section of puppetserver.conf (defaults to true). This is separate from metrics.conf (which controls registries/JMX).
   - The `/status/v1/services/master?level=debug` response only exposes `experimental.http-metrics` (no traditional `average_compile_time_ms`/`num_jrubies` keys in PS 8.x, and `/metrics/v2` returns 403).

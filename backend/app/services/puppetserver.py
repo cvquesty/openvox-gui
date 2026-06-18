@@ -632,10 +632,23 @@ class PuppetServerService:
                 if isinstance(lst, list):
                     http_m.extend([it for it in lst if isinstance(it, dict)])
 
-            # Find catalog related (any route with "catalog" or "compile" in id)
-            cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in str(it.get("route-id", "")).lower() for x in ["catalog", "compile"])), {})
+            def get_id(it):
+                if not isinstance(it, dict):
+                    return ""
+                rid = it.get("route-id")
+                if rid:
+                    return str(rid).lower()
+                mid = it.get("metric-id")
+                if mid:
+                    if isinstance(mid, list):
+                        return ".".join(str(x).lower() for x in mid)
+                    return str(mid).lower()
+                return ""
+
+            # Find catalog related (any route with "catalog" or "compile" in id or metric-id)
+            cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in get_id(it) for x in ["catalog", "compile"])), {})
             # Find total
-            tot_item = next((it for it in http_m if isinstance(it, dict) and str(it.get("route-id", "")).lower() == "total"), {})
+            tot_item = next((it for it in http_m if isinstance(it, dict) and "total" in get_id(it)), {})
 
             # Set proxies (these are what the UI uses for the "Catalog Route Mean" and "Total Req Mean" charts)
             if cat_item and cat_item.get("mean") is not None:
