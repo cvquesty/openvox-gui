@@ -9,14 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.9.4-beta14] - 2026-06-18 (pre-release)
+## [3.9.5] - 2026-06-18
 
-### Bug Fixes
-- **Metrics | Fleet Compliance**: "Nodes by Category" pane now properly scrollable using the standard `Box` (maxHeight: 500, minHeight: 0, overflow: hidden) + `ScrollArea h="100%"` pattern (like Nodes, NodeClassifier, etc.). Each category list now shows the full set of nodes with a scrollbar instead of truncating at ~11. All node lists are sorted alphabetically by certname.
-
-Assisted By: Grok AI
-
-## [3.9.4-beta13] - 2026-06-18 (pre-release)
+### New Features
+- **Metrics | Node Health** page:
+  - Detects Puppet agent disabled state using the custom fact `puppet_agent_disabled` (and optional `puppet_agent_disable_message`).
+  - Shows last-known state from facts + report/fact staleness signals ("stale = possibly disabled or offline").
+  - Live "Check Current Status (via Bolt)" button runs an on-demand check using Bolt/SSH. This works *even when the agent is disabled* (the fundamental limitation of any fact-based approach).
+  - Table with filtering, status badges, disable messages, timestamps, and live results.
+  - Summary counts + help text.
+- Added supporting documentation: `docs/puppet-agent-disabled-fact.md` (bash external fact + Ruby alternative + caveats).
+- Installer and updater now stage `puppet_agent_disabled` external fact at `share/facts.d/puppet_agent_disabled` (executable bash script with the exact required name). Post-install/update messages guide users on copying it into their Puppet module's facts.d/ so it gets pluginsynced to agents as executable.
 
 ### Improvements
 - **Metrics | Fact Distribution**: significantly upgraded graphing from basic/juvenile charts to professional Recharts visualizations matching the rest of the app.
@@ -25,7 +28,10 @@ Assisted By: Grok AI
   - Consistent tooltips, axes, colors, and styling with Run Performance and health pages.
 - Clarified `puppet_agent_disabled` fact deployment docs and installer messaging for exact executable bash filename.
 
-See the Fleet Fact Overview page for the updated experience.
+### Bug Fixes
+- **Metrics | Fleet Compliance**: "Nodes by Category" pane now properly scrollable using the standard `Box` (maxHeight: 500, minHeight: 0, overflow: hidden) + `ScrollArea h="100%"` pattern (like Nodes, NodeClassifier, etc.). Each category list now shows the full set of nodes with a scrollbar instead of truncating at ~11. All node lists are sorted alphabetically by certname.
+
+See the Fleet Fact Overview and Node Health pages for details.
 
 Assisted By: Grok AI
 
