@@ -645,10 +645,16 @@ class PuppetServerService:
                     return str(mid).lower()
                 return ""
 
-            # Find catalog related (any route with "catalog" or "compile" in id or metric-id)
-            cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in get_id(it) for x in ["catalog", "compile"])), {})
+            # Find catalog related (any route with "catalog" or "compile" in id or metric-id, and has mean)
+            cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in get_id(it) for x in ["catalog", "compile"]) and it.get("mean") is not None), {})
             # Find total
-            tot_item = next((it for it in http_m if isinstance(it, dict) and "total" in get_id(it)), {})
+            tot_item = next((it for it in http_m if isinstance(it, dict) and "total" in get_id(it) and it.get("mean") is not None), {})
+
+            # Super fallback: any item containing the keyword in its string rep and has mean
+            if not cat_item:
+                cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in str(it).lower() for x in ["catalog", "compile"]) and it.get("mean") is not None), {})
+            if not tot_item:
+                tot_item = next((it for it in http_m if isinstance(it, dict) and "total" in str(it).lower() and it.get("mean") is not None), {})
 
             # Set proxies (these are what the UI uses for the "Catalog Route Mean" and "Total Req Mean" charts)
             if cat_item and cat_item.get("mean") is not None:
