@@ -611,17 +611,45 @@ class PuppetServerService:
             # Fallback to experimental http-metrics (available in current PS 8.x debug status)
             # since traditional keys and /metrics/v2 may not be present/accessible.
             # Use catalog mean as compile proxy, total mean as activity.
-            exp = _find_key(status, ["experimental"]) or _find_key(svc, ["experimental"]) or _find_key(master, ["experimental"]) or {}
-            http_m = exp.get("http-metrics", []) if isinstance(exp, dict) else []
-            cat_item = next((it for it in http_m if isinstance(it, dict) and "catalog" in str(it.get("route-id","")).lower()), {})
-            tot_item = next((it for it in http_m if isinstance(it, dict) and it.get("route-id") == "total"), {})
-            if result.get("compile_time_ms") is None and cat_item.get("mean") is not None:
+            # Search the entire response tree for the http-metrics list
+            def _find_http_metrics(obj, results=None):
+                if results is None:
+                    results = []
+                if isinstance(obj, dict):
+                    if "http-metrics" in obj and isinstance(obj["http-metrics"], list):
+                        results.append(obj["http-metrics"])
+                    for v in obj.values():
+                        _find_http_metrics(v, results)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        _find_http_metrics(item, results)
+                return results
+
+            http_metrics_lists = _find_http_metrics(status) or _find_http_metrics(svc) or _find_http_metrics(master) or []
+            http_m = []
+            for lst in http_metrics_lists:
+                if isinstance(lst, list):
+                    http_m.extend([it for it in lst if isinstance(it, dict)])
+
+            # Find catalog related (any route with "catalog" or "compile" in id)
+            cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in str(it.get("route-id", "")).lower() for x in ["catalog", "compile"])), {})
+            # Find total
+            tot_item = next((it for it in http_m if isinstance(it, dict) and str(it.get("route-id", "")).lower() == "total"), {})
+
+            # Set proxies (these are what the UI uses for the "Catalog Route Mean" and "Total Req Mean" charts)
+            if cat_item and cat_item.get("mean") is not None:
                 result["compile_time_ms"] = cat_item.get("mean")
-            if result.get("jruby_active") is None and tot_item.get("mean") is not None:
-                result["jruby_active"] = tot_item.get("mean")  # proxy using total mean time
-            if cat_item.get("count") is not None:
+            if tot_item and tot_item.get("mean") is not None:
+                result["jruby_active"] = tot_item.get("mean")
+            if cat_item and cat_item.get("count") is not None:
                 result["catalog_count"] = cat_item.get("count")
-            result["raw"]["http_metrics_sample"] = http_m[:2]
+
+            # Also store sample in raw for debugging in the UI
+            result["raw"]["http_metrics_sample"] = http_m[:3] if http_m else []
+            if cat_item:
+                result["raw"]["catalog_route"] = cat_item
+            if tot_item:
+                result["raw"]["total_route"] = tot_item
 
         # JVM heap via metrics/v2 (primary). Falls back gracefully if not enabled.
         jvm = await self.get_ps_metrics("java.lang:type=Memory")
