@@ -97,11 +97,13 @@ export function MetricsNodeHealthPage() {
   const nodes: NodeHealthEntry[] = data.nodes || [];
   const summary = data.summary || {};
 
-  const filtered = nodes.filter(n =>
-    !search ||
-    n.certname.toLowerCase().includes(search.toLowerCase()) ||
-    (n.environment || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = nodes
+    .filter(n =>
+      !search ||
+      n.certname.toLowerCase().includes(search.toLowerCase()) ||
+      (n.environment || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => a.certname.localeCompare(b.certname));
 
   const disabledNow = nodes.filter(n => n.agent_disabled === true).length;
   const withLiveDisabled = Object.keys(liveResults).filter(cn => liveResults[cn].disabled === true).length;

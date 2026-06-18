@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See the Node Health page and the fact doc for details and deployment instructions.
 
+### Improvements
+- **Metrics | Node Health**: the node list in the table is now sorted alphabetically by certname (both in the API response and frontend rendering).
+
 Assisted By: Grok AI
 
 ## [3.9.4-beta9] - 2026-06-18 (pre-release)

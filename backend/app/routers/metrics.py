@@ -982,6 +982,9 @@ async def get_node_health(_user: str = Depends(_AUTH)):
             }
             result_nodes.append(entry)
 
+        # Alphabetize the node list by certname
+        result_nodes.sort(key=lambda x: x["certname"])
+
         return {
             "nodes": result_nodes,
             "summary": {

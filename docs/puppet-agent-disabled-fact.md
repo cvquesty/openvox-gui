@@ -8,7 +8,9 @@ Place this script in a module that gets distributed to all agents (e.g. `site/pr
 
 ```bash
 #!/bin/bash
-# fact: puppet_agent_disabled
+# External fact script.
+# Each line "fact_name=value" registers a fact where the left side (before =) is the fact *name*.
+# Your understanding is correct: the fact name in PuppetDB / $facts must exactly match the key you output here.
 # Detects if this Puppet agent has been disabled via `puppet agent --disable`.
 # Returns:
 #   puppet_agent_disabled=true|false
@@ -39,19 +41,32 @@ External facts in modules are pluginsynced automatically when the module is in t
 In `site/profile/lib/facter/puppet_agent_disabled.rb`:
 
 ```ruby
+# Main fact: returns true if the lock file exists
 Facter.add(:puppet_agent_disabled) do
   setcode do
     lockfile = '/opt/puppetlabs/puppet/cache/state/agent_disabled.lock'
-    if File.exist?(lockfile)
-      message = File.read(lockfile).lines.first.to_s.strip rescue ''
-      Facter.add(:puppet_agent_disable_message) { setcode { message } }
-      true
+    File.exist?(lockfile)
+  end
+end
+
+# Separate fact for the optional disable message (nil if not disabled or no message)
+Facter.add(:puppet_agent_disable_message) do
+  setcode do
+    lockfile = '/opt/puppetlabs/puppet/cache/state/agent_disabled.lock'
+    if File.exist?(lockfile) && File.size(lockfile) > 0
+      File.readlines(lockfile).first.to_s.strip rescue nil
     else
-      false
+      nil
     end
   end
 end
 ```
+
+**Important for fact names**: In Facter (Ruby), the symbol passed to `Facter.add(:fact_name)` **is** the fact name. It will appear in PuppetDB as `facts.name = 'fact_name'` and be queryable as `$facts['fact_name']` (or the legacy `$fact_name`).
+
+The value returned by `setcode` (or the block) is the fact *value*, not the name.
+
+For external facts (the bash script above), the left side of each `key=value` line **is** the fact name. This must match what you intend to query in PuppetDB / the GUI.
 
 ## Important Limitation
 
