@@ -616,8 +616,9 @@ class PuppetServerService:
                 if results is None:
                     results = []
                 if isinstance(obj, dict):
-                    if "http-metrics" in obj and isinstance(obj["http-metrics"], list):
-                        results.append(obj["http-metrics"])
+                    for key in ["http-metrics", "http-client-metrics"]:
+                        if key in obj and isinstance(obj[key], list):
+                            results.append(obj[key])
                     for v in obj.values():
                         _find_http_metrics(v, results)
                 elif isinstance(obj, list):
