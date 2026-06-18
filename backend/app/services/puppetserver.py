@@ -738,13 +738,94 @@ class PuppetServerService:
             if tm is not None:
                 result["raw"]["extracted_total_mean"] = tm
 
+            # Rich data for expanded charts (8+ streams)
+            # Full useful http metrics (for per-route graphs on server health)
+            interesting_keywords = {"catalog", "report", "file", "facts", "total", "node", "compile", "environment"}
+            useful_http = []
+            for it in http_m:
+                rid = get_id(it) or str(it)
+                m = _get_mean(it)
+                c = _get_count(it)
+                if (m is not None or c is not None or any(kw in rid for kw in interesting_keywords)):
+                    useful_http.append({"route": rid, "mean": m, "count": c})
+            result["http_metrics"] = useful_http[:15]
+
+            # Other experimental sections (DB ones will be surfaced on OpenVoxDB Health page)
+            def _find_section(obj, name):
+                if isinstance(obj, dict):
+                    if name in obj and isinstance(obj[name], (list, dict)):
+                        return obj[name]
+                    for v in obj.values():
+                        found = _find_section(v, name)
+                        if found is not None:
+                            return found
+                elif isinstance(obj, list):
+                    for item in obj:
+                        found = _find_section(item, name)
+                        if found is not None:
+                            return found
+                return None
+
+            for sec_name in ["catalog-metrics", "puppetdb-metrics", "function-metrics", "resource-metrics"]:
+                sec_data = _find_section(status, sec_name)
+                if sec_data:
+                    result[sec_name.replace("-", "_")] = sec_data if isinstance(sec_data, list) else [sec_data]
+
+            hc_list = _find_section(status, "http-client-metrics")
+            if hc_list and isinstance(hc_list, list):
+                result["http_client_metrics"] = [
+                    {
+                        "metric": ".".join(str(x) for x in (it.get("metric-id") or [])) if it.get("metric-id") else str(it.get("route-id", it)),
+                        "mean": it.get("mean") or it.get("Mean"),
+                        "count": it.get("count") or it.get("Count"),
+                    }
+                    for it in hc_list if isinstance(it, dict)
+                ]
+
+            # Direct JRuby pool info
+            jruby_section = _find_key(svc, ["jruby", "jruby_puppet"]) or _find_key(master, ["jruby", "jruby_puppet"]) or {}
+            if isinstance(jruby_section, dict) and jruby_section:
+                result["jruby_pool"] = {
+                    "active": jruby_section.get("num_jrubies") or jruby_section.get("current_active") or jruby_section.get("active"),
+                    "max": jruby_section.get("max_jrubies") or jruby_section.get("max"),
+                }
+
+            # OS stats
+            try:
+                osb = await self.get_ps_metrics("java.lang:type=OperatingSystem")
+                osval = (osb or {}).get("value", osb) if isinstance(osb, dict) else {}
+                if isinstance(osval, dict):
+                    result["os"] = {
+                        "process_cpu_load": osval.get("ProcessCpuLoad"),
+                        "system_load_average": osval.get("SystemLoadAverage"),
+                        "open_file_descriptors": osval.get("OpenFileDescriptorCount"),
+                        "max_file_descriptors": osval.get("MaxFileDescriptorCount"),
+                    }
+            except Exception:
+                pass
+
+            # Threading
+            try:
+                tb = await self.get_ps_metrics("java.lang:type=Threading")
+                tval = (tb or {}).get("value", tb) if isinstance(tb, dict) else {}
+                if isinstance(tval, dict):
+                    tids = tval.get("AllThreadIds") or []
+                    result["threads"] = {
+                        "current": len(tids) if isinstance(tids, list) else tval.get("ThreadCount"),
+                        "peak": tval.get("PeakThreadCount"),
+                    }
+            except Exception:
+                pass
+
         # JVM heap via metrics/v2 (primary). Falls back gracefully if not enabled.
         jvm = await self.get_ps_metrics("java.lang:type=Memory")
         if jvm and isinstance(jvm, dict):
             value = jvm.get("value", jvm)  # sometimes top level, sometimes wrapped
             mem = {}
+            nonheap = {}
             if isinstance(value, dict):
                 mem = value.get("HeapMemoryUsage", value.get("heap", {}))
+                nonheap = value.get("NonHeapMemoryUsage", value.get("nonheap", {}))
             if mem and isinstance(mem, dict) and mem.get("max"):
                 used = mem.get("used", 0)
                 maxm = mem.get("max", 1)
@@ -754,7 +835,32 @@ class PuppetServerService:
                     "committed_mb": round(mem.get("committed", 0) / 1048576, 1),
                     "pct": round(used / max(maxm, 1) * 100, 1),
                 }
+            if nonheap and isinstance(nonheap, dict) and nonheap.get("committed", 0) > 0:
+                nused = nonheap.get("used", 0)
+                nmax = nonheap.get("committed", 1)  # non-heap often has no hard max
+                result["jvm_nonheap"] = {
+                    "used_mb": round(nused / 1048576, 1),
+                    "committed_mb": round(nmax / 1048576, 1),
+                    "pct": round(nused / max(nmax, 1) * 100, 1),
+                }
             result["raw"]["jvm"] = jvm
+
+        # GC details for charts (beyond raw)
+        try:
+            for gkey, gname in [
+                ("gc_young", "java.lang:name=G1 Young Generation,type=GarbageCollector"),
+                ("gc_old", "java.lang:name=G1 Old Generation,type=GarbageCollector"),
+            ]:
+                g = await self.get_ps_metrics(gname)
+                gval = (g or {}).get("value", g) if isinstance(g, dict) else {}
+                if isinstance(gval, dict) and (gval.get("CollectionCount") is not None or gval.get("CollectionTime") is not None):
+                    result[gkey] = {
+                        "count": gval.get("CollectionCount"),
+                        "time_ms": gval.get("CollectionTime"),
+                        "last_duration": (gval.get("LastGcInfo") or {}).get("duration") if gval.get("LastGcInfo") else None,
+                    }
+        except Exception:
+            pass
 
         return result
 

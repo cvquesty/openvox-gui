@@ -612,6 +612,43 @@ async def get_puppetdb_health(_user: str = Depends(_AUTH)):
     # Server time
     result["server_time"] = await puppetdb_service.get_server_time()
 
+    # Pull DB-related metrics from Puppet Server's experimental status (puppetdb-metrics, http-client-metrics)
+    # These represent the Puppet Server's view of talking to PuppetDB and belong on OpenVoxDB Health.
+    try:
+        ps_snap = await puppetserver_service.get_ps_health_snapshot()
+        if ps_snap.get("puppetdb_metrics"):
+            result["ps_puppetdb_metrics"] = ps_snap["puppetdb_metrics"]
+        if ps_snap.get("http_client_metrics"):
+            result["http_client_metrics"] = ps_snap["http_client_metrics"]
+        # Also surface a small catalog_munge/save summary if present for correlation
+        if ps_snap.get("catalog_metrics"):
+            result["ps_catalog_related"] = ps_snap["catalog_metrics"][:5]
+    except Exception:
+        pass
+
+    # Enrich PDB JVM with NonHeap + GC for PDB process
+    try:
+        pdb_nonheap = await puppetdb_service.get_pdb_metrics("java.lang:type=Memory")
+        if pdb_nonheap and "value" in pdb_nonheap:
+            nh = pdb_nonheap["value"].get("NonHeapMemoryUsage", {})
+            if nh and nh.get("committed"):
+                result["jvm_nonheap"] = {
+                    "used_mb": round(nh.get("used", 0) / 1048576, 1),
+                    "committed_mb": round(nh.get("committed", 0) / 1048576, 1),
+                }
+    except Exception:
+        pass
+
+    try:
+        for gk, gn in [("pdb_gc_young", "java.lang:name=G1 Young Generation,type=GarbageCollector"),
+                       ("pdb_gc_old", "java.lang:name=G1 Old Generation,type=GarbageCollector")]:
+            g = await puppetdb_service.get_pdb_metrics(gn)
+            if g and "value" in g:
+                gv = g["value"]
+                result[gk] = {"count": gv.get("CollectionCount"), "time_ms": gv.get("CollectionTime")}
+    except Exception:
+        pass
+
     return result
 
 
@@ -635,14 +672,36 @@ async def _append_ps_health_point():
     try:
         snapshot = await puppetserver_service.get_ps_health_snapshot()
         now = _time.time()
+        jvmh = snapshot.get("jvm_heap") or {}
+        jvmnh = snapshot.get("jvm_nonheap") or {}
+        gcy = snapshot.get("gc_young") or {}
+        gco = snapshot.get("gc_old") or {}
+        osstat = snapshot.get("os") or {}
         point = {
             "ts": now,
             "time": datetime.now().strftime("%H:%M:%S"),
-            "heap_used_mb": (snapshot.get("jvm_heap") or {}).get("used_mb"),
-            "heap_pct": (snapshot.get("jvm_heap") or {}).get("pct"),
+            "heap_used_mb": jvmh.get("used_mb"),
+            "heap_pct": jvmh.get("pct"),
+            "nonheap_used_mb": jvmnh.get("used_mb"),
+            "nonheap_pct": jvmnh.get("pct"),
             "compile_time_ms": snapshot.get("compile_time_ms"),
             "jruby_active": snapshot.get("jruby_active"),
+            "gc_young_time": gcy.get("time_ms"),
+            "gc_young_count": gcy.get("count"),
+            "gc_old_time": gco.get("time_ms"),
+            "gc_old_count": gco.get("count"),
+            "process_cpu_load": osstat.get("process_cpu_load"),
+            "open_fds": osstat.get("open_file_descriptors"),
         }
+        # carry current route means when present
+        for hm in (snapshot.get("http_metrics") or []):
+            r = (hm.get("route") or "").lower()
+            if "catalog" in r:
+                point["http_catalog_mean"] = hm.get("mean")
+            elif "report" in r:
+                point["http_report_mean"] = hm.get("mean")
+            elif "file" in r:
+                point["http_file_mean"] = hm.get("mean")
         _ps_health_history.append(point)
         if len(_ps_health_history) > _PS_HISTORY_MAX:
             del _ps_health_history[0]
@@ -687,22 +746,15 @@ async def stop_ps_health_collector():
 
 @router.get("/puppetserver-health")
 async def get_puppetserver_health(_user: str = Depends(_AUTH)):
-    """Puppet Server health snapshot + JVM + key stats. Returns current + recent history."""
+    """Puppet Server health snapshot + JVM + key stats. Returns current + recent history.
+    Includes expanded metrics: more http routes, catalog/puppetdb phases, GC, nonheap, OS, etc.
+    DB-related (puppetdb_* and http_client_*) are also present here but primarily surfaced
+    on the OpenVoxDB Health page.
+    """
     snapshot = await puppetserver_service.get_ps_health_snapshot()
 
-    # Augment with more detailed metrics attempts (robust)
-    try:
-        # JVM GC
-        gc_young = await puppetserver_service.get_ps_metrics("java.lang:name=G1 Young Generation,type=GarbageCollector")
-        gc_old = await puppetserver_service.get_ps_metrics("java.lang:name=G1 Old Generation,type=GarbageCollector")
-        if gc_young:
-            snapshot["raw"]["gc_young"] = gc_young.get("value", gc_young)
-        if gc_old:
-            snapshot["raw"]["gc_old"] = gc_old.get("value", gc_old)
-    except Exception:
-        pass
-
-    # Append via shared helper (also used by background collector)
+    # Append via shared helper (also used by background collector). Snapshot already contains
+    # the rich fields from service extraction.
     await _append_ps_health_point()
 
     snapshot["history"] = _ps_health_history[-_PS_HISTORY_MAX:]

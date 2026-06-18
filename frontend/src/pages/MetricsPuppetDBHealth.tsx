@@ -14,7 +14,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
-import { IconDatabase, IconRefresh } from '@tabler/icons-react';
+import { IconDatabase, IconRefresh, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 
 interface HeapDataPoint {
@@ -25,6 +25,13 @@ interface HeapDataPoint {
   max_mb: number;
   pct: number;
   queue_depth: number;
+  nonheap_used_mb?: number;
+  // DB interaction proxies from PS
+  catalog_save_mean?: number;
+  report_process_mean?: number;
+  replace_catalog_mean?: number;
+  store_report_mean?: number;
+  replace_facts_mean?: number;
 }
 
 const STORAGE_KEY = 'openvox_pdb_heap_history';
@@ -56,6 +63,47 @@ function StatCard({ label, value, color, description }: {
   );
 }
 
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    padding: '10px 14px', fontSize: 12, color: '#e0e0e0',
+  },
+  labelStyle: { fontWeight: 600, color: '#fff', marginBottom: 4 } as const,
+  itemStyle: { color: '#e0e0e0' } as const,
+};
+
+interface ChartPanelProps {
+  title: string;
+  expanded: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  stats?: Array<{ label: string; value: string; color?: string }>;
+}
+
+function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelProps) {
+  const height = expanded ? 420 : 180;
+  return (
+    <Card withBorder shadow="sm" padding="sm" style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+      onClick={onClick}>
+      <Group justify="space-between" mb={4}>
+        <Text size={expanded ? 'md' : 'sm'} fw={700}>{title}</Text>
+        {expanded ? <IconArrowsMinimize size={14} color="#8899aa" /> : <IconArrowsMaximize size={14} color="#8899aa" />}
+      </Group>
+      {stats && expanded && (
+        <Group gap="xs" mb="xs">
+          {stats.map((s, i) => (
+            <Badge key={i} size="sm" variant="light" color={s.color || 'blue'}>{s.label}: {s.value}</Badge>
+          ))}
+        </Group>
+      )}
+      <ResponsiveContainer width="100%" height={height}>
+        {children as any}
+      </ResponsiveContainer>
+    </Card>
+  );
+}
+
 export function MetricsPuppetDBHealthPage() {
   const [data, setData] = useState<any>(null);
   const [heapHistory, setHeapHistory] = useState<HeapDataPoint[]>(loadHistory);
@@ -63,6 +111,7 @@ export function MetricsPuppetDBHealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -70,18 +119,30 @@ export function MetricsPuppetDBHealthPage() {
       setData(result);
       setError(null);
 
-      // Accumulate heap data point
+      // Accumulate heap + DB interaction data points (persistent client history)
       const jvm = result.jvm_heap || {};
-      if (jvm.used_mb !== undefined) {
+      const nh = result.jvm_nonheap || {};
+      if (jvm.used_mb !== undefined || result.ps_puppetdb_metrics || result.http_client_metrics) {
         const now = Date.now();
+        // Pull some means from ps_ lists for history
+        const pdbm = result.ps_puppetdb_metrics || [];
+        const hcm = result.http_client_metrics || [];
+        const findMean = (arr: any[], key: string) => arr.find((x: any) => (x.metric || '').includes(key))?.mean;
+
         const point: HeapDataPoint = {
           time: new Date().toLocaleTimeString(),
           ts: now,
-          used_mb: jvm.used_mb,
-          committed_mb: jvm.committed_mb,
-          max_mb: jvm.max_mb,
-          pct: jvm.pct,
+          used_mb: jvm.used_mb ?? 0,
+          committed_mb: jvm.committed_mb ?? 0,
+          max_mb: jvm.max_mb ?? 0,
+          pct: jvm.pct ?? 0,
           queue_depth: result.queue_depth ?? 0,
+          nonheap_used_mb: nh.used_mb,
+          catalog_save_mean: findMean(pdbm, 'catalog_save'),
+          report_process_mean: findMean(pdbm, 'report_process'),
+          replace_catalog_mean: findMean(hcm, 'replace_catalog'),
+          store_report_mean: findMean(hcm, 'store_report'),
+          replace_facts_mean: findMean(hcm, 'replace_facts'),
         };
         setHeapHistory(prev => {
           const updated = [...prev, point];
@@ -111,8 +172,136 @@ export function MetricsPuppetDBHealthPage() {
   if (!data) return null;
 
   const jvm = data.jvm_heap || {};
+  const nh = data.jvm_nonheap || {};
   const heapPct = jvm.pct ?? 0;
   const statusColor = data.status === 'running' ? 'green' : 'red';
+
+  // Prepare series from history (now carries DB interaction means)
+  const pdbHeapData = heapHistory.map(h => ({ time: h.time, used: h.used_mb, pct: h.pct }));
+  const pdbNonheapData = heapHistory.map(h => ({ time: h.time, used: h.nonheap_used_mb }));
+  const queueData = heapHistory.map(h => ({ time: h.time, depth: h.queue_depth }));
+  const catSaveData = heapHistory.map(h => ({ time: h.time, mean: h.catalog_save_mean }));
+  const reportProcData = heapHistory.map(h => ({ time: h.time, mean: h.report_process_mean }));
+  const repCatData = heapHistory.map(h => ({ time: h.time, mean: h.replace_catalog_mean }));
+  const storeRepData = heapHistory.map(h => ({ time: h.time, mean: h.store_report_mean }));
+  const repFactsData = heapHistory.map(h => ({ time: h.time, mean: h.replace_facts_mean }));
+
+  // Rich chart set for OpenVoxDB Health (DB interaction + core PDB health)
+  const dbCharts: Array<{ id: string; title: string; stats?: any[]; render: () => React.ReactNode }> = [
+    {
+      id: 'pdb-heap',
+      title: 'PDB JVM Heap',
+      stats: [{ label: 'Used', value: `${jvm.used_mb ?? 0} MB` }, { label: '%', value: `${heapPct.toFixed(1)}%` }],
+      render: () => (
+        <AreaChart data={pdbHeapData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <defs><linearGradient id="gPdbH" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.3} /><stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.02} /></linearGradient></defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
+          <Area type="natural" dataKey="used" stroke="#0D6EFD" fill="url(#gPdbH)" strokeWidth={2} dot={false} name="Heap used" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'pdb-nonheap',
+      title: 'PDB Non-Heap',
+      stats: [{ label: 'Used', value: `${nh.used_mb ?? 0} MB` }],
+      render: () => (
+        <AreaChart data={pdbNonheapData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Area type="natural" dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'queue',
+      title: 'PDB Command Queue Depth',
+      stats: [{ label: 'Current', value: data.queue_depth ?? 0 }],
+      render: () => (
+        <LineChart data={queueData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="depth" stroke="#e67e22" strokeWidth={2} dot={false} name="Queue" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'catalog-save',
+      title: 'PS: catalog_save mean (ms)',
+      stats: [{ label: 'Last', value: (catSaveData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      render: () => (
+        <LineChart data={catSaveData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="mean" stroke="#2980b9" strokeWidth={2} dot={false} name="catalog_save" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'report-proc',
+      title: 'PS: report_process mean (ms)',
+      stats: [{ label: 'Last', value: (reportProcData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      render: () => (
+        <LineChart data={reportProcData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="mean" stroke="#16a085" strokeWidth={2} dot={false} name="report_process" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'replace-cat',
+      title: 'http-client: replace_catalog (ms)',
+      stats: [{ label: 'Last', value: (repCatData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      render: () => (
+        <AreaChart data={repCatData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Area type="natural" dataKey="mean" stroke="#e74c3c" fillOpacity={0.25} strokeWidth={2} dot={false} name="replace_catalog" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'store-report',
+      title: 'http-client: store_report (ms)',
+      stats: [{ label: 'Last', value: (storeRepData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      render: () => (
+        <AreaChart data={storeRepData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Area type="natural" dataKey="mean" stroke="#c0392b" fillOpacity={0.25} strokeWidth={2} dot={false} name="store_report" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'replace-facts',
+      title: 'http-client: replace_facts (ms)',
+      stats: [{ label: 'Last', value: (repFactsData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      render: () => (
+        <LineChart data={repFactsData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="mean" stroke="#9b59b6" strokeWidth={2} dot={false} name="replace_facts" />
+        </LineChart>
+      ),
+    },
+  ];
 
   return (
     <Stack>
@@ -133,84 +322,30 @@ export function MetricsPuppetDBHealthPage() {
           {heapHistory.length > 0 && (
             <Text size="xs" c="dimmed" style={{ cursor: 'pointer', textDecoration: 'underline' }}
               onClick={() => { setHeapHistory([]); saveHistory([]); }}>
-              Clear history ({heapHistory.length} points)
+              Clear history
             </Text>
           )}
         </Group>
       </Group>
 
-      {/* JVM Heap Usage Over Time */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Group justify="space-between" mb="md">
-          <Title order={4}>JVM Heap Usage Over Time</Title>
-          <Group gap="xs">
-            <Badge color={heapPct >= 90 ? 'red' : heapPct >= 70 ? 'yellow' : 'green'} variant="filled" size="lg">
-              {heapPct.toFixed(1)}%
-            </Badge>
-            <Text size="sm" c="dimmed">{jvm.used_mb ?? 0} / {jvm.max_mb ?? 0} MB</Text>
-          </Group>
-        </Group>
-        <ResponsiveContainer width="100%" height={400}>
-          <AreaChart data={heapHistory} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gHeapUsed" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="gHeapCommit" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2ecc71" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#2ecc71" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }}
-              axisLine={{ stroke: '#ccc' }} tickLine={{ stroke: '#ccc' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#8899aa' }}
-              axisLine={{ stroke: '#ccc' }} tickLine={{ stroke: '#ccc' }}
-              domain={[0, jvm.max_mb ? Math.ceil(jvm.max_mb / 100) * 100 : 'auto']}
-              unit=" MB" />
-            <ReTooltip
-              contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
-              labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
-              formatter={(value: number, name: string) => [`${value.toFixed(1)} MB`, name]}
-            />
-            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-            <Area type="monotone" dataKey="max_mb" name="Max Heap"
-              stroke="#95a5a6" fill="none" strokeWidth={1} strokeDasharray="4 4" dot={false} />
-            <Area type="monotone" dataKey="committed_mb" name="Committed"
-              stroke="#2ecc71" fill="url(#gHeapCommit)" strokeWidth={1.5} dot={false} />
-            <Area type="monotone" dataKey="used_mb" name="Used"
-              stroke="#0D6EFD" fill="url(#gHeapUsed)" strokeWidth={2.5} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-        {heapHistory.length < 3 && (
-          <Text size="xs" c="dimmed" ta="center" mt="xs">
-            Chart populates as data is collected (one point every 10 seconds)
-          </Text>
-        )}
-      </Card>
-
-      {/* Queue Depth Over Time */}
-      {heapHistory.length > 2 && (
-        <Card withBorder shadow="sm" padding="lg">
-          <Title order={4} mb="md">Command Queue Depth Over Time</Title>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={heapHistory} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-              <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#8899aa' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
-              <ReTooltip
-                contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
-                labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
-              />
-              <Line type="monotone" dataKey="queue_depth" name="Queue Depth"
-                stroke="#e67e22" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
+      {/* Expandable chart grid (like Server Health / Run Performance) */}
+      {expanded ? (
+        (() => {
+          const ch = dbCharts.find(c => c.id === expanded);
+          if (!ch) return null;
+          return <ChartPanel title={ch.title} expanded={true} onClick={() => toggleExpand(ch.id)} stats={ch.stats}>{ch.render()}</ChartPanel>;
+        })()
+      ) : (
+        <Grid>
+          {dbCharts.map(ch => (
+            <Grid.Col key={ch.id} span={6}>
+              <ChartPanel title={ch.title} expanded={false} onClick={() => toggleExpand(ch.id)} stats={ch.stats}>{ch.render()}</ChartPanel>
+            </Grid.Col>
+          ))}
+        </Grid>
       )}
 
-      {/* Stat cards */}
+      {/* Stat cards - core + new DB interaction */}
       <Grid>
         <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
           <StatCard label="Queue Depth" value={data.queue_depth ?? 0}
@@ -218,28 +353,27 @@ export function MetricsPuppetDBHealthPage() {
             description="Pending commands" />
         </Grid.Col>
         <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Processed" value={(data.processed ?? 0).toLocaleString()}
-            color="blue" description="Total commands" />
+          <StatCard label="Processed" value={(data.processed ?? 0).toLocaleString()} color="blue" description="Total commands" />
         </Grid.Col>
         <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Retried" value={data.retried ?? 0}
-            color={data.retried > 0 ? 'orange' : 'green'} description="Retry attempts" />
+          <StatCard label="Active Nodes" value={data.active_nodes ?? 0} color="blue" description="Reporting in" />
         </Grid.Col>
         <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Discarded" value={data.discarded ?? 0}
-            color={data.discarded > 0 ? 'red' : 'green'} description="Dropped commands" />
+          <StatCard label="catalog_save (PS)" value={data.ps_puppetdb_metrics ? (data.ps_puppetdb_metrics.find((x: any) => x.metric?.includes('catalog_save'))?.mean?.toFixed(0) + 'ms') : '—'} color="teal" description="Server view" />
         </Grid.Col>
         <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Active Nodes" value={data.active_nodes ?? 0}
-            color="blue" description="Reporting in" />
+          <StatCard label="replace_catalog (PS→PDB)" value={data.http_client_metrics ? (data.http_client_metrics.find((x: any) => (x.metric||'').includes('replace_catalog'))?.mean?.toFixed(0) + 'ms') : '—'} color="red" description="Command" />
         </Grid.Col>
         <Grid.Col span={{ base: 6, sm: 4, md: 2 }}>
-          <StatCard label="Server Time"
-            value={data.server_time ? new Date(data.server_time).toLocaleTimeString() : '\u2014'}
-            color="gray"
-            description={data.server_time ? new Date(data.server_time).toLocaleDateString() : ''} />
+          <StatCard label="Heap %" value={`${heapPct.toFixed(1)}%`} color={heapPct > 85 ? 'red' : 'blue'} />
         </Grid.Col>
       </Grid>
+
+      {/* Note about full performance data also available in Run Performance */}
+      <Text size="xs" c="dimmed">
+        DB interaction metrics (puppetdb_* and http-client-*) come from Puppet Server experimental status.
+        Additional PDB Jolokia metrics (pools, storage, GC, population) are available in Metrics → Run Performance.
+      </Text>
     </Stack>
   );
 }

@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta9] - 2026-06-18 (pre-release)
+
+### Features / Improvements
+- Expanded metrics collection and graphing (8+ data streams + more JMX):
+  - Puppet Server Health now graphs: Heap + NonHeap, GC Young/Old time, more http-metrics routes (Catalog, Report, File, Facts proxies), JRuby proxy + direct pool, OS (Process CPU load, open FDs), plus existing.
+  - OpenVoxDB Health now receives **all database-related** data: ps_puppetdb_metrics (catalog_save, report_process, facts_save...), http-client-metrics (replace_catalog/store_report/replace_facts from PS), PDB JVM + NonHeap + GC, core queue/stats + new time series for the above.
+  - Additional JMX pulled: NonHeapMemoryUsage for both PS and PDB, full GC details (count/time/last), OperatingSystem (ProcessCpuLoad, FDs, load avg), Threading basics.
+  - catalog-metrics, function-metrics, resource-metrics, full http lists available in raw (and used for current values); great for debugging phases/hot functions/expensive resources.
+- Both health pages upgraded to thumbnail grid + click-to-expand ChartPanels (consistent with Run Performance).
+- Server history points now carry the additional series; background collector keeps them populated.
+- "More data is better": history and current snapshots expose the rich experimental sections and extra JMX.
+
+### Notes
+- DB interaction metrics (from Puppet Server experimental) live primarily on OpenVoxDB Health.
+- Server process health (JVM/GC/HTTP routes for agents/catalog compile/OS) on OpenVox Server Health.
+- Full PDB Jolokia (pools, storage, population, its GC) remain accessible via Run Performance as before.
+- Menu labels unchanged; rearrange OK per user.
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta8] - 2026-06-18 (pre-release)
 
 ### Bug Fixes

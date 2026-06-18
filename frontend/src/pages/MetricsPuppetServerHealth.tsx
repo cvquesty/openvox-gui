@@ -31,8 +31,17 @@ interface HistoryPoint {
   ts?: number;
   heap_used_mb?: number;
   heap_pct?: number;
+  nonheap_used_mb?: number;
+  nonheap_pct?: number;
   compile_time_ms?: number;
   jruby_active?: number;
+  gc_young_time?: number;
+  gc_old_time?: number;
+  http_catalog_mean?: number;
+  http_report_mean?: number;
+  http_file_mean?: number;
+  process_cpu_load?: number;
+  open_fds?: number;
   [key: string]: any;
 }
 
@@ -150,8 +159,17 @@ export function MetricsPuppetServerHealthPage() {
           time: p.time,
           heap_used_mb: p.heap_used_mb,
           heap_pct: p.heap_pct,
+          nonheap_used_mb: p.nonheap_used_mb,
+          nonheap_pct: p.nonheap_pct,
           compile_time_ms: p.compile_time_ms,
           jruby_active: p.jruby_active,
+          gc_young_time: p.gc_young_time,
+          gc_old_time: p.gc_old_time,
+          http_catalog_mean: p.http_catalog_mean,
+          http_report_mean: p.http_report_mean,
+          http_file_mean: p.http_file_mean,
+          process_cpu_load: p.process_cpu_load,
+          open_fds: p.open_fds,
         }));
       } else {
         // Always try to record a point when we have a successful response.
@@ -163,8 +181,14 @@ export function MetricsPuppetServerHealthPage() {
           ts: now,
           heap_used_mb: result.jvm_heap ? result.jvm_heap.used_mb : undefined,
           heap_pct: result.jvm_heap ? result.jvm_heap.pct : undefined,
+          nonheap_used_mb: result.jvm_nonheap ? result.jvm_nonheap.used_mb : undefined,
+          nonheap_pct: result.jvm_nonheap ? result.jvm_nonheap.pct : undefined,
           compile_time_ms: result.compile_time_ms,
           jruby_active: result.jruby_active,
+          gc_young_time: (result.gc_young || {}).time_ms,
+          gc_old_time: (result.gc_old || {}).time_ms,
+          process_cpu_load: (result.os || {}).process_cpu_load,
+          open_fds: (result.os || {}).open_file_descriptors,
         };
         // Only append if we have at least one interesting value, to avoid pure-empty spam
         if (point.heap_used_mb != null || point.compile_time_ms != null || point.jruby_active != null) {
@@ -217,19 +241,26 @@ export function MetricsPuppetServerHealthPage() {
   if (!data) return null;
 
   const jvm = data.jvm_heap || {};
+  const jvmnh = data.jvm_nonheap || {};
   const heapPct = jvm.pct ?? 0;
   const statusColor = (data.status || '').toLowerCase() === 'running' ? 'green' : 'red';
 
   const currentCompile = data.compile_time_ms ?? '—';
   const currentJRuby = data.jruby_active ?? '—';
+  const currentReport = (data.http_metrics || []).find((h: any) => (h.route || '').includes('report'))?.mean ?? data.http_report_mean ?? '—';
+  const currentFile = (data.http_metrics || []).find((h: any) => (h.route || '').includes('file_content'))?.mean ?? data.http_file_mean ?? '—';
 
-  // Prepare chart data
-  // Include all points so the time axis shows the full history even if a particular
-  // metric is temporarily unavailable on some polls.
+  // Prepare chart data for expanded set (more streams)
   const heapData = history.map(h => ({
     time: h.time,
     used: h.heap_used_mb,
     pct: h.heap_pct,
+  }));
+
+  const nonheapData = history.map(h => ({
+    time: h.time,
+    used: h.nonheap_used_mb,
+    pct: h.nonheap_pct,
   }));
 
   const compileData = history.map(h => ({
@@ -237,14 +268,45 @@ export function MetricsPuppetServerHealthPage() {
     compile: h.compile_time_ms,
   }));
 
+  const reportData = history.map(h => ({
+    time: h.time,
+    mean: h.http_report_mean,
+  }));
+
+  const fileData = history.map(h => ({
+    time: h.time,
+    mean: h.http_file_mean,
+  }));
+
   const jrubyData = history.map(h => ({
     time: h.time,
     active: h.jruby_active,
   }));
 
+  const gcYoungData = history.map(h => ({
+    time: h.time,
+    time_ms: h.gc_young_time,
+  }));
+
+  const gcOldData = history.map(h => ({
+    time: h.time,
+    time_ms: h.gc_old_time,
+  }));
+
+  const cpuData = history.map(h => ({
+    time: h.time,
+    load: h.process_cpu_load != null ? h.process_cpu_load * 100 : undefined,
+  }));
+
+  const fdsData = history.map(h => ({
+    time: h.time,
+    fds: h.open_fds,
+  }));
+
   const hasHistory = history.length > 2;
 
   // Define charts like Run Performance page for consistent thumbnail grid + expand UX
+  // Expanded to cover the 8+ data streams (server side JVM/GC/HTTP/JRuby/OS + phases in raw)
   const charts: Array<{ id: string; title: string; stats?: any[]; render: () => React.ReactNode }> = [
     {
       id: 'jvm-heap',
@@ -272,8 +334,25 @@ export function MetricsPuppetServerHealthPage() {
       ),
     },
     {
+      id: 'jvm-nonheap',
+      title: 'JVM Non-Heap (Metaspace)',
+      stats: [
+        { label: 'Used', value: `${jvmnh.used_mb ?? 0} MB` },
+        { label: 'Committed', value: `${jvmnh.committed_mb ?? 0} MB` },
+      ],
+      render: () => (
+        <AreaChart data={nonheapData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
+          <Area type="natural" dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap used" />
+        </AreaChart>
+      ),
+    },
+    {
       id: 'compile-time',
-      title: 'Catalog Route Mean (ms) - compile proxy',
+      title: 'Catalog Route Mean (ms)',
       stats: [{ label: 'Current', value: `${currentCompile} ms`, color: 'orange' }],
       render: () => (
         <LineChart data={compileData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -286,8 +365,36 @@ export function MetricsPuppetServerHealthPage() {
       ),
     },
     {
+      id: 'report-mean',
+      title: 'Report Submission Mean (ms)',
+      stats: [{ label: 'Current', value: `${currentReport} ms`, color: 'green' }],
+      render: () => (
+        <LineChart data={reportData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="mean" stroke="#27ae60" strokeWidth={2} dot={false} name="Report mean (ms)" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'file-mean',
+      title: 'File Content Mean (ms)',
+      stats: [{ label: 'Current', value: `${currentFile} ms`, color: 'blue' }],
+      render: () => (
+        <AreaChart data={fileData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Area type="natural" dataKey="mean" stroke="#3498db" fillOpacity={0.3} strokeWidth={2} dot={false} name="File mean (ms)" />
+        </AreaChart>
+      ),
+    },
+    {
       id: 'jruby-pool',
-      title: 'Total Req Mean (ms) - server load proxy',
+      title: 'Total Req Mean (ms) - load proxy',
       stats: [{ label: 'Current', value: `${currentJRuby} ms`, color: 'violet' }],
       render: () => (
         <AreaChart data={jrubyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -299,15 +406,73 @@ export function MetricsPuppetServerHealthPage() {
         </AreaChart>
       ),
     },
+    {
+      id: 'gc-young',
+      title: 'GC Young Gen Time (ms)',
+      stats: [{ label: 'Last', value: (data.gc_young && data.gc_young.time_ms) ? `${data.gc_young.time_ms} ms` : '—' }],
+      render: () => (
+        <LineChart data={gcYoungData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="time_ms" stroke="#e74c3c" strokeWidth={2} dot={false} name="Young GC ms" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'gc-old',
+      title: 'GC Old Gen Time (ms)',
+      stats: [{ label: 'Last', value: (data.gc_old && data.gc_old.time_ms) ? `${data.gc_old.time_ms} ms` : '—' }],
+      render: () => (
+        <LineChart data={gcOldData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="time_ms" stroke="#c0392b" strokeWidth={2} dot={false} name="Old GC ms" />
+        </LineChart>
+      ),
+    },
+    {
+      id: 'cpu-load',
+      title: 'Process CPU Load (%)',
+      stats: [{ label: 'Current', value: data.os && data.os.process_cpu_load != null ? `${(data.os.process_cpu_load * 100).toFixed(1)}%` : '—' }],
+      render: () => (
+        <AreaChart data={cpuData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" %" />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Area type="natural" dataKey="load" stroke="#f39c12" fillOpacity={0.25} strokeWidth={2} dot={false} name="CPU %" />
+        </AreaChart>
+      ),
+    },
+    {
+      id: 'open-fds',
+      title: 'Open File Descriptors',
+      stats: [{ label: 'Current', value: data.os && data.os.open_file_descriptors != null ? data.os.open_file_descriptors : '—' }],
+      render: () => (
+        <LineChart data={fdsData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <ReTooltip {...TOOLTIP_STYLE} />
+          <Line type="natural" dataKey="fds" stroke="#16a085" strokeWidth={2} dot={false} name="Open FDs" />
+        </LineChart>
+      ),
+    },
   ];
 
   // Top level stats like Run Performance
   const topStats = [
     { label: 'Status', value: data.status || '—', color: statusColor },
     { label: 'Catalog mean (ms)', value: currentCompile, color: 'orange' },
+    { label: 'Report mean (ms)', value: currentReport, color: 'green' },
     { label: 'Total mean (ms)', value: currentJRuby, color: 'violet' },
     { label: 'Heap %', value: `${heapPct.toFixed(1)}%`, color: heapPct > 85 ? 'red' : 'blue' },
     { label: 'Heap Used', value: `${jvm.used_mb ?? '—'} / ${jvm.max_mb ?? '—'} MB` },
+    { label: 'CPU %', value: data.os && data.os.process_cpu_load != null ? (data.os.process_cpu_load * 100).toFixed(1) + '%' : '—' },
   ];
 
   return (
