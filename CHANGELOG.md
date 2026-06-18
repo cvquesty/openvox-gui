@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta14] - 2026-06-18 (pre-release)
+
+### Bug Fixes
+- **Metrics | Fleet Compliance**: "Nodes by Category" pane now properly scrollable using the standard `Box` (maxHeight: 500, minHeight: 0, overflow: hidden) + `ScrollArea h="100%"` pattern (like Nodes, NodeClassifier, etc.). Each category list now shows the full set of nodes with a scrollbar instead of truncating at ~11. All node lists are sorted alphabetically by certname.
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta13] - 2026-06-18 (pre-release)
 
 ### Improvements
