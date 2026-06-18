@@ -40,6 +40,7 @@ from .routers import logs as logs_router
 from .routers import metrics as metrics_router
 from .routers import infra as infra_router
 from .routers import maintenance as maintenance_router
+from .routers import metrics as metrics_router
 from .services.puppetdb import puppetdb_service
 
 # Configure logging
@@ -125,6 +126,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"Token denylist prune failed: {exc}")
 
+    # Start the background collector for OpenVox Server Health metrics.
+    # This makes the JVM / Catalog Route Mean / Total Req Mean charts have
+    # history populated *before* a user visits the page (persistent collection).
+    # Matches desired "no wait on entry" behavior like Run Performance.
+    try:
+        await metrics_router.start_ps_health_collector()
+    except Exception as exc:
+        logger.warning(f"Failed to start PS health background collector: {exc}")
+
     # --- Maintenance Mode Stale State Handling (post-3.7 maintenance feature) ---
     # The maintenance flag (maintenance.json + .flag) is intentionally persistent
     # so deploy scripts can keep the GUI "down" during updates. However, this
@@ -158,6 +168,10 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: Clean up resources
     await puppetdb_service.close()
+    try:
+        await metrics_router.stop_ps_health_collector()
+    except Exception:
+        pass
     logger.info("Application shutdown complete")
 
 

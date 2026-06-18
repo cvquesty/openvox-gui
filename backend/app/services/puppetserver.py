@@ -635,41 +635,108 @@ class PuppetServerService:
             def get_id(it):
                 if not isinstance(it, dict):
                     return ""
-                rid = it.get("route-id")
-                if rid:
-                    return str(rid).lower()
-                mid = it.get("metric-id")
-                if mid:
-                    if isinstance(mid, list):
-                        return ".".join(str(x).lower() for x in mid)
-                    return str(mid).lower()
+                # Try common id field names (route-id is Puppet's for experimental routes; metric-id for others)
+                for k in ("route-id", "route_id", "metric-id", "metric_id", "name", "id", "path", "route"):
+                    val = it.get(k)
+                    if val:
+                        if isinstance(val, list):
+                            return ".".join(str(x).lower() for x in val)
+                        s = str(val).lower()
+                        if s:
+                            return s
+                # Last resort: any field whose key hints at identity and whose value looks like an id
+                for k, v in it.items():
+                    if isinstance(k, str) and any(x in k.lower() for x in ("id", "route", "metric", "name")):
+                        if isinstance(v, list):
+                            return ".".join(str(x).lower() for x in v)
+                        if isinstance(v, str):
+                            return v.lower()
                 return ""
 
-            # Find catalog related (any route with "catalog" or "compile" in id or metric-id, and has mean)
-            cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in get_id(it) for x in ["catalog", "compile"]) and it.get("mean") is not None), {})
-            # Find total
-            tot_item = next((it for it in http_m if isinstance(it, dict) and "total" in get_id(it) and it.get("mean") is not None), {})
+            def _get_mean(it):
+                if not isinstance(it, dict):
+                    return None
+                m = it.get("mean")
+                if isinstance(m, (int, float)):
+                    return m
+                m = it.get("Mean")
+                if isinstance(m, (int, float)):
+                    return m
+                return None
 
-            # Super fallback: any item containing the keyword in its string rep and has mean
+            def _get_count(it):
+                if not isinstance(it, dict):
+                    return None
+                c = it.get("count")
+                if isinstance(c, (int, float)):
+                    return c
+                c = it.get("Count")
+                if isinstance(c, (int, float)):
+                    return c
+                return None
+
+            # Collect candidates that have a numeric mean (supports mean or Mean)
+            def _has_mean(it):
+                return _get_mean(it) is not None
+
+            # Find catalog/compile route(s)
+            cat_candidates = [it for it in http_m
+                              if isinstance(it, dict)
+                              and (any(x in get_id(it) for x in ["catalog", "compile", "cat"])
+                                   or any(x in str(it).lower() for x in ["catalog", "compile"]))
+                              and _has_mean(it)]
+            # Prefer the one with highest count (most traffic = most representative)
+            cat_item = {}
+            if cat_candidates:
+                cat_item = max(cat_candidates, key=lambda x: _get_count(x) or 0)
+
+            # Find total/overall
+            tot_candidates = [it for it in http_m
+                              if isinstance(it, dict)
+                              and ("total" in get_id(it) or "total" in str(it).lower() or "requests" in get_id(it))
+                              and _has_mean(it)]
+            tot_item = {}
+            if tot_candidates:
+                tot_item = max(tot_candidates, key=lambda x: _get_count(x) or 0)
+
+            # Ultra fallback: walk every item, score loosely on keywords in id or full str rep
             if not cat_item:
-                cat_item = next((it for it in http_m if isinstance(it, dict) and any(x in str(it).lower() for x in ["catalog", "compile"]) and it.get("mean") is not None), {})
+                for it in http_m:
+                    if _has_mean(it) and any(x in (get_id(it) + " " + str(it).lower()) for x in ["catalog", "compile"]):
+                        cat_item = it
+                        break
             if not tot_item:
-                tot_item = next((it for it in http_m if isinstance(it, dict) and "total" in str(it).lower() and it.get("mean") is not None), {})
+                for it in http_m:
+                    if _has_mean(it) and "total" in (get_id(it) + " " + str(it).lower()):
+                        tot_item = it
+                        break
 
             # Set proxies (these are what the UI uses for the "Catalog Route Mean" and "Total Req Mean" charts)
-            if cat_item and cat_item.get("mean") is not None:
-                result["compile_time_ms"] = cat_item.get("mean")
-            if tot_item and tot_item.get("mean") is not None:
-                result["jruby_active"] = tot_item.get("mean")
-            if cat_item and cat_item.get("count") is not None:
-                result["catalog_count"] = cat_item.get("count")
+            cm = _get_mean(cat_item)
+            if cm is not None:
+                result["compile_time_ms"] = cm
+            tm = _get_mean(tot_item)
+            if tm is not None:
+                result["jruby_active"] = tm
+            cc = _get_count(cat_item)
+            if cc is not None:
+                result["catalog_count"] = cc
 
-            # Also store sample in raw for debugging in the UI
-            result["raw"]["http_metrics_sample"] = http_m[:3] if http_m else []
+            # Always store a generous sample + ids in raw so the UI "raw" block shows exactly what
+            # the http-metrics list looks like (keys, route/metric ids, mean/Mean values). This is
+            # the primary diagnostic when graphs are empty but "raw shows values".
+            result["raw"]["http_metrics_sample"] = http_m[:8] if http_m else []
+            result["raw"]["http_metrics_ids_sample"] = [get_id(x) for x in http_m[:8]] if http_m else []
+            result["raw"]["http_metrics_count"] = len(http_m)
             if cat_item:
                 result["raw"]["catalog_route"] = cat_item
             if tot_item:
                 result["raw"]["total_route"] = tot_item
+            # Also keep chosen means visible at top of raw for quick confirmation
+            if cm is not None:
+                result["raw"]["extracted_catalog_mean"] = cm
+            if tm is not None:
+                result["raw"]["extracted_total_mean"] = tm
 
         # JVM heap via metrics/v2 (primary). Falls back gracefully if not enabled.
         jvm = await self.get_ps_metrics("java.lang:type=Memory")

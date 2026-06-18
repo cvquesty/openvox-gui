@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta8] - 2026-06-18 (pre-release)
+
+### Bug Fixes
+- OpenVox Server Health: raw block showed http-metrics list with real mean/Mean values, but Catalog Route Mean and Total Req Mean charts stayed empty.
+  - Parser now normalizes both "mean"/"Mean" and "count"/"Count" (JMX-style casing).
+  - Much more flexible get_id() across route-id / metric-id / name / id / path etc. (list or scalar).
+  - Candidate selection with scoring: prefers highest-count representative for catalog vs total among keyword matches.
+  - Ultra-fallback walks id+str rep for any item carrying a numeric mean.
+  - Always dumps http_metrics_sample (now up to 8), ids_sample, count, and the extracted means into raw for instant diagnostics.
+- Confirmed: when the "Additional Server Metrics (raw)" shows populated http-metrics entries, the charts now receive compile_time_ms / jruby_active.
+
+### Improvements
+- OpenVox Server Health graphs are now persistently collecting just like Run Performance:
+  - Added background asyncio collector task (started in lifespan) that appends a health snapshot ~every 10s for the lifetime of the backend process. History is ready before the page is ever visited.
+  - Client-side localStorage persistence (openvox_ps_health_history) so that revisiting the page or reloading shows the accumulated time-series immediately (no cold start empty charts). Load on mount, save on every append; clear button wipes both state and storage.
+  - Server ring buffer continues to be returned in /puppetserver-health responses (shared view for all users) and is also fed by the background loop.
+- Minor: use shared _append_ps_health_point helper to keep point shape in sync between endpoint and collector.
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta3] - 2026-06-17 (pre-release)
 
 ### Bug Fixes

@@ -11,6 +11,7 @@ Provides aggregated data for the Metrics section:
   7. Environment comparison
   8. Class coverage
 """
+import asyncio
 import logging
 import time as _time
 from collections import Counter, defaultdict
@@ -616,9 +617,72 @@ async def get_puppetdb_health(_user: str = Depends(_AUTH)):
 
 # ─── PuppetServer Health & Performance (Metrics | PuppetServer Health) ───
 
-# In-memory ring buffer for shared server-side history (Phase 3)
+# In-memory ring buffer for shared server-side history (Phase 3).
+# Populated both by page-driven calls AND a background collector task so that
+# history is already present (persistent collection) when a user first opens
+# the OpenVox Server Health page. Matches the "no waiting" UX of Run Performance.
 _ps_health_history: List[Dict[str, Any]] = []
 _PS_HISTORY_MAX = 360  # ~1h at 10s polls
+
+# Background collector control
+_ps_health_collector_task: Optional[asyncio.Task] = None
+_ps_health_stop = False
+
+
+async def _append_ps_health_point():
+    """Build one point from snapshot and append to the shared ring (with dedup safety)."""
+    global _ps_health_history
+    try:
+        snapshot = await puppetserver_service.get_ps_health_snapshot()
+        now = _time.time()
+        point = {
+            "ts": now,
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "heap_used_mb": (snapshot.get("jvm_heap") or {}).get("used_mb"),
+            "heap_pct": (snapshot.get("jvm_heap") or {}).get("pct"),
+            "compile_time_ms": snapshot.get("compile_time_ms"),
+            "jruby_active": snapshot.get("jruby_active"),
+        }
+        _ps_health_history.append(point)
+        if len(_ps_health_history) > _PS_HISTORY_MAX:
+            del _ps_health_history[0]
+    except Exception as e:
+        # Non-fatal; collector keeps running
+        logger.debug(f"PS health collector point failed: {e}")
+
+
+async def _ps_health_collector_loop():
+    """Background loop: collect every ~10s regardless of whether anyone is viewing the page."""
+    global _ps_health_stop
+    logger.info("PS health background collector starting (persistent history for OpenVox Server Health)")
+    # Prime once quickly
+    await _append_ps_health_point()
+    while not _ps_health_stop:
+        await asyncio.sleep(10)
+        await _append_ps_health_point()
+    logger.info("PS health background collector stopped")
+
+
+async def start_ps_health_collector():
+    """Idempotent starter for the background collection task. Safe to call from lifespan."""
+    global _ps_health_collector_task, _ps_health_stop
+    _ps_health_stop = False
+    if _ps_health_collector_task and not _ps_health_collector_task.done():
+        return
+    import asyncio
+    _ps_health_collector_task = asyncio.create_task(_ps_health_collector_loop())
+
+
+async def stop_ps_health_collector():
+    global _ps_health_stop, _ps_health_collector_task
+    _ps_health_stop = True
+    if _ps_health_collector_task:
+        _ps_health_collector_task.cancel()
+        try:
+            await _ps_health_collector_task
+        except Exception:
+            pass
+        _ps_health_collector_task = None
 
 
 @router.get("/puppetserver-health")
@@ -638,19 +702,8 @@ async def get_puppetserver_health(_user: str = Depends(_AUTH)):
     except Exception:
         pass
 
-    # Build point for history (for time series on frontend)
-    now = _time.time()
-    point = {
-        "ts": now,
-        "time": datetime.now().strftime("%H:%M:%S"),
-        "heap_used_mb": (snapshot.get("jvm_heap") or {}).get("used_mb"),
-        "heap_pct": (snapshot.get("jvm_heap") or {}).get("pct"),
-        "compile_time_ms": snapshot.get("compile_time_ms"),
-        "jruby_active": snapshot.get("jruby_active"),
-    }
-    _ps_health_history.append(point)
-    if len(_ps_health_history) > _PS_HISTORY_MAX:
-        del _ps_health_history[0]
+    # Append via shared helper (also used by background collector)
+    await _append_ps_health_point()
 
     snapshot["history"] = _ps_health_history[-_PS_HISTORY_MAX:]
     snapshot["server_time"] = datetime.now(timezone.utc).isoformat()

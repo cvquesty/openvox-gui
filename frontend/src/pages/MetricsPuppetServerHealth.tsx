@@ -44,6 +44,33 @@ const REFRESH_OPTIONS = [
   { value: '60', label: '1m' },
 ];
 
+// Client-side persistence for OpenVox Server Health history (matches Run Performance pattern).
+// Gives instant graphs with prior data on page entry without waiting for polls.
+const PS_HEALTH_HISTORY_KEY = 'openvox_ps_health_history';
+const PS_HEALTH_HISTORY_VERSION = 1;
+const MAX_PS_POINTS = 360;
+
+function loadPSHealthHistory(): HistoryPoint[] {
+  try {
+    const ver = localStorage.getItem(PS_HEALTH_HISTORY_KEY + '_v');
+    if (ver !== String(PS_HEALTH_HISTORY_VERSION)) {
+      localStorage.removeItem(PS_HEALTH_HISTORY_KEY);
+      localStorage.setItem(PS_HEALTH_HISTORY_KEY + '_v', String(PS_HEALTH_HISTORY_VERSION));
+      return [];
+    }
+    const raw = localStorage.getItem(PS_HEALTH_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePSHealthHistory(pts: HistoryPoint[]) {
+  try {
+    localStorage.setItem(PS_HEALTH_HISTORY_KEY, JSON.stringify(pts));
+  } catch {}
+}
+
 function StatCard({ label, value, color, description }: {
   label: string; value: string | number; color?: string; description?: string;
 }) {
@@ -99,7 +126,8 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
 
 export function MetricsPuppetServerHealthPage() {
   const [data, setData] = useState<any>(null);
-  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  // Seed from localStorage so graphs have prior data immediately on page load (persistent collection UX)
+  const [history, setHistory] = useState<HistoryPoint[]>(loadPSHealthHistory);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -113,16 +141,18 @@ export function MetricsPuppetServerHealthPage() {
       setData(result);
       setError(null);
 
-      // Prefer server-provided history (Phase 3). It will contain points even if some
-      // values were temporarily missing. Fall back to local accumulation.
+      // Prefer server-provided history (Phase 3 + background collector). It will contain points
+      // even if some values were temporarily missing. This gives cross-session shared history.
+      // Always persist whatever we end up with so revisits show data instantly.
+      let nextHistory: HistoryPoint[] | null = null;
       if (result.history && Array.isArray(result.history) && result.history.length > 0) {
-        setHistory(result.history.map((p: any) => ({
+        nextHistory = result.history.map((p: any) => ({
           time: p.time,
           heap_used_mb: p.heap_used_mb,
           heap_pct: p.heap_pct,
           compile_time_ms: p.compile_time_ms,
           jruby_active: p.jruby_active,
-        })));
+        }));
       } else {
         // Always try to record a point when we have a successful response.
         // This way compile time and JRuby trends accumulate even if heap metrics
@@ -140,9 +170,18 @@ export function MetricsPuppetServerHealthPage() {
         if (point.heap_used_mb != null || point.compile_time_ms != null || point.jruby_active != null) {
           setHistory(prev => {
             const updated = [...prev, point];
-            return updated.length > 360 ? updated.slice(-360) : updated;
+            const trimmed = updated.length > MAX_PS_POINTS ? updated.slice(-MAX_PS_POINTS) : updated;
+            savePSHealthHistory(trimmed);
+            return trimmed;
           });
+          // Early return for this branch (we saved inside setter)
+          nextHistory = null;
         }
+      }
+      if (nextHistory) {
+        const trimmed = nextHistory.length > MAX_PS_POINTS ? nextHistory.slice(-MAX_PS_POINTS) : nextHistory;
+        setHistory(trimmed);
+        savePSHealthHistory(trimmed);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to load PuppetServer health');
@@ -164,6 +203,9 @@ export function MetricsPuppetServerHealthPage() {
 
   const clearHistory = () => {
     setHistory([]);
+    savePSHealthHistory([]);
+    // keep version marker
+    try { localStorage.setItem(PS_HEALTH_HISTORY_KEY + '_v', String(PS_HEALTH_HISTORY_VERSION)); } catch {}
   };
 
   const toggleExpand = (id: string) => {
