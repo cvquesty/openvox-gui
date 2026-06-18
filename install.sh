@@ -696,6 +696,18 @@ if [ -d "${SCRIPT_DIR}/maintenance" ]; then
     log_ok "Copied maintenance pages (for automatic use during updates/installs)"
 fi
 
+# Copy the puppet_agent_disabled external fact script (for Metrics | Node Health)
+# Deploys as executable bash with exact name "puppet_agent_disabled"
+# User must still copy this into their Puppet module's facts.d/ for pluginsync to agents.
+mkdir -p "${INSTALL_DIR}/share/facts.d"
+if [ -f "${SCRIPT_DIR}/share/facts.d/puppet_agent_disabled" ]; then
+    cp "${SCRIPT_DIR}/share/facts.d/puppet_agent_disabled" "${INSTALL_DIR}/share/facts.d/"
+    chmod +x "${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
+    log_ok "Installed puppet_agent_disabled external fact (bash, named exactly)"
+else
+    log_warn "puppet_agent_disabled fact not found in source — Node Health feature will require manual setup (see docs)"
+fi
+
 # ─── Maintenance Mode (Holistic Program) ─────────────────────────
 # On install or re-install, automatically surface the branded maintenance page
 # via Apache (if configured) so users don't see errors/JSON while files are
@@ -1534,3 +1546,13 @@ if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
     fi
     echo
 fi
+
+echo -e "  ${BOLD}Node Health (puppet_agent_disabled fact):${NC}"
+echo -e "    Fact script (executable bash, exact name):"
+echo -e "      ${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
+echo -e "    To enable disabled-agent detection in Metrics | Node Health:"
+echo -e "      1. Copy the script into your Puppet module (e.g. site/profile/facts.d/puppet_agent_disabled)"
+echo -e "      2. Ensure +x in the module source (chmod +x) so pluginsync delivers it executable"
+echo -e "      3. Use a file{} resource or module autoload in your base profile for agents"
+echo -e "    See docs/puppet-agent-disabled-fact.md and the Node Health page for details."
+echo

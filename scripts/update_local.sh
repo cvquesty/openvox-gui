@@ -254,6 +254,17 @@ if [ -d "${REPO_DIR}/maintenance" ]; then
     log_ok "Deployed maintenance pages (formal + casual)"
 fi
 
+# Deploy/update the puppet_agent_disabled external fact (for Node Health)
+# Ensures it's present as executable bash with the exact name "puppet_agent_disabled"
+mkdir -p "${INSTALL_DIR}/share/facts.d"
+if [ -f "${REPO_DIR}/share/facts.d/puppet_agent_disabled" ]; then
+    cp "${REPO_DIR}/share/facts.d/puppet_agent_disabled" "${INSTALL_DIR}/share/facts.d/"
+    chmod +x "${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
+    log_ok "Deployed puppet_agent_disabled fact (executable bash, exact name)"
+else
+    log_warn "puppet_agent_disabled fact missing from repo — Node Health may need manual fact setup"
+fi
+
 # Record which branch was deployed (used for branch-switch detection)
 echo "${REPO_BRANCH}" > "${INSTALL_DIR}/.deployed-branch"
 

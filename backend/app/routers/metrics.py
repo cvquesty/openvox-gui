@@ -903,7 +903,8 @@ async def get_class_coverage(
 # - Provides live checks via Bolt (independent of agent being enabled/disabled)
 # - Combines with report/fact timestamp staleness signals.
 #
-# See docs/puppet-agent-disabled-fact.md for the required custom fact.
+# Installer provides share/facts.d/puppet_agent_disabled (executable bash, exact filename).
+# Deploy to agents via your Puppet module's facts.d/ (see docs/puppet-agent-disabled-fact.md).
 # The fact approach alone has limitations (disabled agents don't run and thus
 # don't send updated facts), which is why live Bolt checks are provided.
 

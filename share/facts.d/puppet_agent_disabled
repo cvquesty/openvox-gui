@@ -1,0 +1,27 @@
+#!/bin/bash
+# puppet_agent_disabled - External fact for detecting disabled Puppet/OpenVox agent
+#
+# This script must be deployed to /opt/puppetlabs/facter/facts.d/puppet_agent_disabled
+# (or equivalent facts.d dir) on ALL agents, made executable (chmod +x),
+# and pluginsynced via your Puppet module (e.g. in site/profile/facts.d/).
+#
+# It is provided by the openvox-gui installer at share/facts.d/puppet_agent_disabled
+#
+# Output format for external facts:
+#   puppet_agent_disabled=true|false
+#   puppet_agent_disable_message="reason (if --disable was given a message)"
+#
+# Used by: Metrics | Node Health page to show agent disabled status.
+
+LOCKFILE="/opt/puppetlabs/puppet/cache/state/agent_disabled.lock"
+
+if [ -f "$LOCKFILE" ]; then
+  echo "puppet_agent_disabled=true"
+  if [ -s "$LOCKFILE" ]; then
+    # Read first line (the disable message), escape quotes for fact output
+    msg=$(head -n 1 "$LOCKFILE" | tr -d '\r\n' | sed 's/"/\\"/g')
+    echo "puppet_agent_disable_message=\"$msg\""
+  fi
+else
+  echo "puppet_agent_disabled=false"
+fi

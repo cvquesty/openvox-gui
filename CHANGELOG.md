@@ -32,6 +32,7 @@ See the Node Health page and the fact doc for details and deployment instruction
 
 ### Improvements
 - **Metrics | Node Health**: the node list in the table is now sorted alphabetically by certname (both in the API response and frontend rendering).
+- Installer and updater now stage `puppet_agent_disabled` external fact at `share/facts.d/puppet_agent_disabled` (executable bash script with the exact required name). Post-install/update messages guide users on copying it into their Puppet module's facts.d/ so it gets pluginsynced to agents as executable.
 
 Assisted By: Grok AI
 
