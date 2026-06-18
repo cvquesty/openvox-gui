@@ -255,12 +255,26 @@ if [ -d "${REPO_DIR}/maintenance" ]; then
 fi
 
 # Deploy/update the puppet_agent_disabled external fact (for Node Health)
-# Ensures it's present as executable bash with the exact name "puppet_agent_disabled"
+# This is a convenience copy on the GUI server only.
+# The actual fact still needs to be placed in your Puppet module's facts.d/
+# (so it pluginsyncs to agents as an executable script named exactly "puppet_agent_disabled").
 mkdir -p "${INSTALL_DIR}/share/facts.d"
-if [ -f "${REPO_DIR}/share/facts.d/puppet_agent_disabled" ]; then
-    cp "${REPO_DIR}/share/facts.d/puppet_agent_disabled" "${INSTALL_DIR}/share/facts.d/"
-    chmod +x "${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
-    log_ok "Deployed puppet_agent_disabled fact (executable bash, exact name)"
+FACT_SRC="${REPO_DIR}/share/facts.d/puppet_agent_disabled"
+FACT_DST="${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
+WAS_PRESENT=false
+[ -f "$FACT_DST" ] && WAS_PRESENT=true
+
+if [ -f "$FACT_SRC" ]; then
+    cp "$FACT_SRC" "$FACT_DST"
+    chmod +x "$FACT_DST"
+    if [ "$WAS_PRESENT" = "false" ]; then
+        log_ok "Installed puppet_agent_disabled external fact for the first time (bash, exact name)"
+        log_info "  IMPORTANT: Copy ${FACT_DST} into your Puppet module (e.g. site/profile/facts.d/puppet_agent_disabled)"
+        log_info "  and ensure it is executable in your module so agents receive it via pluginsync."
+        log_info "  See docs/puppet-agent-disabled-fact.md and the Metrics | Node Health page."
+    else
+        log_ok "Updated puppet_agent_disabled fact (executable bash, exact name)"
+    fi
 else
     log_warn "puppet_agent_disabled fact missing from repo — Node Health may need manual fact setup"
 fi
@@ -851,4 +865,13 @@ echo ""
 echo -e "  ${BOLD}Service Commands:${NC}"
 echo -e "    sudo systemctl status ${SERVICE_NAME}"
 echo -e "    sudo journalctl -u ${SERVICE_NAME} -f"
+echo ""
+
+echo -e "  ${BOLD}Node Health fact reminder:${NC}"
+echo -e "    If you haven't deployed it yet to agents:"
+echo -e "      cp ${INSTALL_DIR}/share/facts.d/puppet_agent_disabled \\"
+echo -e "         /path/to/your/module/files/facts.d/puppet_agent_disabled"
+echo -e "      chmod +x that file in your module"
+echo -e "    Then use a file resource in your base profile so agents get it via pluginsync."
+echo -e "    Full instructions: docs/puppet-agent-disabled-fact.md"
 echo ""

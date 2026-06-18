@@ -4,12 +4,19 @@ To support detecting disabled Puppet agents via facts (for the Metrics | Node He
 
 ## Recommended: External Fact (bash)
 
-The openvox-gui installer and updater stage this script at:
+The openvox-gui installer and updater **always stage (and keep refreshed)** this script on the GUI server at:
   /opt/openvox-gui/share/facts.d/puppet_agent_disabled
 
-It is provided as a plain executable bash script (shebang #!/bin/bash, no .sh extension, filename exactly "puppet_agent_disabled").
+It is provided as a plain executable bash script (shebang `#!/bin/bash`, **filename must be exactly `puppet_agent_disabled`** — no `.sh`).
 
-Copy the staged file into your Puppet module's facts.d/ (e.g. site/profile/facts.d/puppet_agent_disabled) and ensure it remains executable in your source tree so that pluginsync delivers an executable copy to agents.
+**The GUI cannot push the fact to your agents.**  
+You still have to get the script into your Puppet code so agents receive it:
+
+- Copy `${INSTALL_DIR}/share/facts.d/puppet_agent_disabled` into your module (e.g. `site/profile/facts.d/puppet_agent_disabled`)
+- Make sure the file is executable (`chmod +x`) in your module source
+- Include it via a `file {}` resource (or rely on module `facts.d/` autoloading) in a base profile
+
+This way pluginsync delivers it to `/opt/puppetlabs/facter/facts.d/puppet_agent_disabled` on every agent as an executable script.
 
 ```bash
 #!/bin/bash

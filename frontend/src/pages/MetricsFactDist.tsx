@@ -12,8 +12,8 @@ import {
   TextInput, Button, Table, Tooltip,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Cell, Legend,
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip as ReTooltip, Cell,
 } from 'recharts';
 import {
   IconChartPie, IconArrowsMaximize, IconArrowsMinimize,
@@ -46,68 +46,96 @@ interface FactCard {
   scatter: Array<{ certname: string; value: number }>;
 }
 
-/* Scatter plot for numeric facts — each dot is a node */
-function NumericScatter({ data, height }: { data: Array<{ certname: string; value: number }>; height: number }) {
-  // Add index for X axis positioning
-  const plotData = data.map((d, i) => ({ ...d, idx: i }));
-
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-        <XAxis type="number" dataKey="idx" tick={false} label={{ value: `Nodes (${data.length})`, position: 'bottom', offset: -5, style: { fontSize: 10, fill: '#8899aa' } }} />
-        <YAxis type="number" dataKey="value" tick={{ fontSize: 10, fill: '#8899aa' }} />
-        <ReTooltip
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const d = payload[0]?.payload;
-            return d ? (
-              <div style={TOOLTIP_STYLE.contentStyle}>
-                <div style={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}>{d.certname}</div>
-                <div>{d.value}</div>
-              </div>
-            ) : null;
-          }}
-        />
-        <Scatter data={plotData} fill="#0D6EFD" fillOpacity={0.7}>
-          {plotData.map((_, i) => (
-            <Cell key={i} fill={COLORS[0]} fillOpacity={0.7} r={height > 200 ? 5 : 3} />
-          ))}
-        </Scatter>
-      </ScatterChart>
-    </ResponsiveContainer>
-  );
-}
-
-/* Stacked area for categorical facts — rare values in foreground */
-function CategoricalArea({ distribution, total, height }: {
-  distribution: Array<{ value: string; count: number }>; total: number; height: number;
-}) {
-  // Build data: one point per category, stacked to show proportion
-  // Sort so smallest (rarest) are last = rendered on top (foreground)
-  const sorted = [...distribution].sort((a, b) => b.count - a.count);
-  // Create cumulative data for area stacking
-  const areaData = sorted.map((d, i) => ({
-    name: d.value.length > 20 ? d.value.substring(0, 18) + '...' : d.value,
-    fullName: d.value,
-    count: d.count,
-    pct: Number(((d.count / total) * 100).toFixed(1)),
-    idx: i,
+/* Sorted distribution plot for numeric facts — clean curve showing spread.
+   X = rank (sorted low to high), Y = value. Looks professional like other graphs. */
+function NumericDistribution({ data, height }: { data: Array<{ certname: string; value: number }>; height: number }) {
+  const sorted = [...data].sort((a, b) => a.value - b.value);
+  const plotData = sorted.map((d, i) => ({
+    rank: i + 1,
+    value: d.value,
+    certname: d.certname,
   }));
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={areaData} margin={{ left: 10, right: 20, top: 5, bottom: 0 }}>
+      <AreaChart data={plotData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="gFactNum" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.35} />
+            <stop offset="95%" stopColor="#0D6EFD" stopOpacity={0.04} />
+          </linearGradient>
+        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
-        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8899aa' }} angle={-30} textAnchor="end" height={60} />
-        <YAxis tick={{ fontSize: 10, fill: '#8899aa' }} allowDecimals={false}
-          label={{ value: 'Nodes', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#8899aa' } }} />
+        <XAxis
+          dataKey="rank"
+          tick={{ fontSize: 9, fill: '#8899aa' }}
+          label={{ value: `Nodes (sorted low → high, n=${data.length})`, position: 'bottom', offset: -2, style: { fontSize: 9, fill: '#8899aa' } }}
+        />
+        <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
+        <ReTooltip
+          {...TOOLTIP_STYLE}
+          formatter={(v: number, _n: string, p: any) => [`${v}`, p.payload.certname]}
+        />
+        <Area
+          type="natural"
+          dataKey="value"
+          stroke="#0D6EFD"
+          fill="url(#gFactNum)"
+          strokeWidth={2}
+          dot={false}
+          activeDot={{ r: height > 180 ? 4 : 2 }}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* Bar chart for categorical facts. Vertical for thumbnails (compact), horizontal for expanded (readable labels). */
+function CategoricalBar({ distribution, total, height, horizontal = false }: {
+  distribution: Array<{ value: string; count: number }>;
+  total: number;
+  height: number;
+  horizontal?: boolean;
+}) {
+  const sorted = [...distribution].sort((a, b) => b.count - a.count);
+  const barData = sorted.map((d) => ({
+    name: d.value.length > 22 ? d.value.substring(0, 20) + '…' : d.value,
+    fullName: d.value,
+    count: d.count,
+    pct: Number(((d.count / total) * 100).toFixed(1)),
+  }));
+
+  if (horizontal) {
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={barData} layout="vertical" margin={{ left: 5, right: 20, top: 5, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+          <XAxis type="number" tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fill: '#8899aa' }} />
+          <ReTooltip {...TOOLTIP_STYLE}
+            formatter={(value: number, _n: string, props: any) => [
+              `${value} nodes (${props.payload.pct}%)`, props.payload.fullName
+            ]} />
+          <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
+            {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={barData} margin={{ left: 10, right: 15, top: 5, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
+        <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} angle={-25} textAnchor="end" height={55} />
+        <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
         <ReTooltip {...TOOLTIP_STYLE}
-          formatter={(value: number, name: string, props: any) => [
+          formatter={(value: number, _n: string, props: any) => [
             `${value} nodes (${props.payload.pct}%)`, props.payload.fullName
           ]} />
-        <Bar dataKey="count" name="Nodes" radius={[4, 4, 0, 0]}>
-          {areaData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+        <Bar dataKey="count" name="Nodes" radius={[3, 3, 0, 0]}>
+          {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -154,9 +182,9 @@ function FactThumbnail({ data, expanded, onClick }: {
             )}
           </Group>
           {data.is_numeric && data.scatter.length > 0 ? (
-            <NumericScatter data={data.scatter} height={100} />
+            <NumericDistribution data={data.scatter} height={120} />
           ) : (
-            <CategoricalArea distribution={data.chart_distribution} total={data.total_nodes} height={100} />
+            <CategoricalBar distribution={data.chart_distribution} total={data.total_nodes} height={120} />
           )}
         </>
       )}
@@ -174,9 +202,9 @@ function FactThumbnail({ data, expanded, onClick }: {
           </Group>
 
           {data.is_numeric && data.scatter.length > 0 ? (
-            <NumericScatter data={data.scatter} height={400} />
+            <NumericDistribution data={data.scatter} height={380} />
           ) : (
-            <CategoricalArea distribution={data.distribution} total={data.total_nodes} height={350} />
+            <CategoricalBar distribution={data.distribution} total={data.total_nodes} height={340} horizontal />
           )}
 
           {data.outliers.length > 0 && (
@@ -261,9 +289,9 @@ export function MetricsFactDistPage() {
       </Group>
 
       <Alert variant="light" color="blue" mb="xs">
-        Auto-detected facts with variety across your fleet. Numeric facts (uptime, memory, CPU)
-        show as scatter plots — each dot is a node, sorted by value so outliers stand out.
-        Categorical facts (OS, kernel, versions) show as bar charts ranked by count.
+        Auto-detected facts with meaningful variation. Numeric facts render as sorted distribution curves
+        (rank vs value) so spread and outliers are immediately visible. Categorical facts use clean bar charts
+        ranked by frequency. Expand any card for details and outliers.
       </Alert>
 
       {expanded ? (
@@ -299,10 +327,10 @@ export function MetricsFactDistPage() {
               <Badge variant="light" color="blue">{customData.total_nodes} nodes</Badge>
               <Badge variant="light" color="cyan">{customData.unique_values} unique values</Badge>
             </Group>
-            <CategoricalArea
+            <CategoricalBar
               distribution={customData.chart_distribution || customData.distribution || []}
               total={customData.total_nodes || 1}
-              height={300}
+              height={320}
             />
           </Stack>
         )}

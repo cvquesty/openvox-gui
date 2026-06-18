@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.4-beta13] - 2026-06-18 (pre-release)
+
+### Improvements
+- **Metrics | Fact Distribution**: significantly upgraded graphing from basic/juvenile charts to professional Recharts visualizations matching the rest of the app.
+  - Numeric facts: clean sorted `AreaChart` distribution curves (rank vs. value) with gradients instead of toy scatter plots.
+  - Categorical facts: proper `BarChart` with horizontal layout on expand for long labels.
+  - Consistent tooltips, axes, colors, and styling with Run Performance and health pages.
+- Clarified `puppet_agent_disabled` fact deployment docs and installer messaging for exact executable bash filename.
+
+See the Fleet Fact Overview page for the updated experience.
+
+Assisted By: Grok AI
+
 ## [3.9.4-beta10] - 2026-06-18 (pre-release)
 
 ### New Feature
