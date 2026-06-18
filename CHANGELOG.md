@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified `puppet_agent_disabled` fact deployment docs and installer messaging for exact executable bash filename.
 
 ### Bug Fixes
-- **Metrics | Fleet Compliance**: "Nodes by Category" pane now properly scrollable using the standard `Box` (maxHeight: 500, minHeight: 0, overflow: hidden) + `ScrollArea h="100%"` pattern (like Nodes, NodeClassifier, etc.). Each category list now shows the full set of nodes with a scrollbar instead of truncating at ~11. All node lists are sorted alphabetically by certname.
+- **Metrics | Fleet Compliance**: "Nodes by Category" pane now properly scrollable using the Dashboard | Overview Nodes pane mechanism: Paper with `style={{ overflow: 'hidden' }}` + `<ScrollArea h={480} mt="xs" type="auto" ...>` inside Collapse (matching Nodes groups and Dashboard lists). The lists under "Compliant" (and other categories) are now fully scrollable with the full set of nodes. All node lists are sorted alphabetically by certname using `localeCompare`.
 
 See the Fleet Fact Overview and Node Health pages for details.
 
