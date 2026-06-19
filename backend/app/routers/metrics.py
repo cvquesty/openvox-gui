@@ -1022,22 +1022,19 @@ async def check_agent_disabled_live(
 
         resolved = await resolve_targets(req.targets, db)
 
-        # Safe one-liner. We use a simple output so we can parse per target.
-        # Bolt with --format json gives structured per-target stdout.
-        check_cmd = (
+        # Use sudo + /bin/sh -c for the compound shell statement (if/fi).
+        # Prefixing "sudo if ..." would make sudo try to exec a command named "if"
+        # (shell builtins are not external commands). The sh -c form ensures the
+        # entire conditional runs under root (to read the root-owned lockfile).
+        inner = (
             'if [ -f /opt/puppetlabs/puppet/cache/state/agent_disabled.lock ]; then '
-            '  msg=$(cat /opt/puppetlabs/puppet/cache/state/agent_disabled.lock 2>/dev/null | head -c 200 | tr -d "\n\r" | sed "s/\"/\\\\\"/g"); '
+            '  msg=$(cat /opt/puppetlabs/puppet/cache/state/agent_disabled.lock 2>/dev/null | head -n 1 | tr -d "\n\r" | sed \'s/"/\\\\"/g\'); '
             '  echo "DISABLED:$msg"; '
             'else '
             '  echo "ENABLED"; '
             'fi'
         )
-
-        # We force privileged because the state dir is typically root-owned.
-        # The run_command will handle sudo via the GUI's standard escalation.
-        normalized = check_cmd
-        escalate = True  # force for the lock file
-        command = "sudo " + normalized if escalate else normalized
+        command = f"sudo /bin/sh -c '{inner}'"
 
         args = ["command", "run", command, "--targets", resolved, "--format", "json"]
 
@@ -1056,20 +1053,45 @@ async def check_agent_disabled_live(
                 if not target:
                     continue
                 out = ""
+                item_stderr = ""
+                item_exit = None
                 if "stdout" in item:
                     out = item["stdout"] or ""
                 elif "result" in item and isinstance(item["result"], dict):
-                    out = item["result"].get("stdout", "") or ""
+                    r = item["result"]
+                    out = r.get("stdout", "") or ""
+                    item_stderr = r.get("stderr", "") or ""
+                    item_exit = r.get("exit_code")
+                if not item_stderr and "stderr" in item:
+                    item_stderr = item.get("stderr") or ""
                 out = out.strip()
                 if out.startswith("DISABLED"):
                     parts = out.split(":", 1)
                     msg = parts[1] if len(parts) > 1 else ""
-                    parsed[target] = {"disabled": True, "message": msg, "checked_at": datetime.now(timezone.utc).isoformat()}
+                    parsed[target] = {
+                        "disabled": True,
+                        "message": msg,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "stderr": item_stderr or None,
+                        "exit_code": item_exit,
+                    }
                 elif out.startswith("ENABLED"):
-                    parsed[target] = {"disabled": False, "message": None, "checked_at": datetime.now(timezone.utc).isoformat()}
+                    parsed[target] = {
+                        "disabled": False,
+                        "message": None,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "stderr": item_stderr or None,
+                        "exit_code": item_exit,
+                    }
                 else:
-                    # fallback
-                    parsed[target] = {"disabled": None, "raw": out, "checked_at": datetime.now(timezone.utc).isoformat()}
+                    # fallback - include diagnostics so UI can show why it didn't parse
+                    parsed[target] = {
+                        "disabled": None,
+                        "raw": out or None,
+                        "stderr": (item_stderr or stderr)[:500] or None,
+                        "exit_code": item_exit,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                    }
         except Exception as parse_err:
             logger.debug(f"node-health check parse warning: {parse_err}")
             # Fallback: return raw so UI can show it

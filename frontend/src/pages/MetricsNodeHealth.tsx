@@ -37,7 +37,9 @@ interface LiveResult {
   disabled: boolean | null;
   message?: string;
   checked_at?: string;
-  raw?: string;
+  raw?: string | null;
+  stderr?: string | null;
+  exit_code?: number | null;
 }
 
 export function MetricsNodeHealthPage() {
@@ -79,6 +81,8 @@ export function MetricsNodeHealthPage() {
           message: r.message,
           checked_at: r.checked_at,
           raw: r.raw,
+          stderr: r.stderr,
+          exit_code: r.exit_code,
         };
       });
       setLiveResults(newResults);
@@ -154,7 +158,7 @@ export function MetricsNodeHealthPage() {
 
       <Text size="sm" c="dimmed">
         Agent disabled status is primarily detected via the custom fact <code>puppet_agent_disabled</code>.
-        Disabled agents do not run, so facts become stale. Use the live Bolt check (above) for current reality — it works over SSH even when the Puppet agent is disabled.
+        Disabled agents do not run, so facts become stale (the "last known" column reflects the state from the most recent successful Puppet run). Use the live Bolt check (above) for current reality — it works over SSH even when the Puppet agent is disabled.
       </Text>
 
       {/* Summary */}
@@ -210,7 +214,21 @@ export function MetricsNodeHealthPage() {
                 </Table.Tr>
               )}
               {filtered.map((n) => {
-                const live = liveResults[n.certname];
+                // Robust live result lookup: exact, then case-insensitive, then base name match
+                let live = liveResults[n.certname];
+                if (!live) {
+                  const lower = n.certname.toLowerCase();
+                  live = Object.keys(liveResults).find(k => k.toLowerCase() === lower) 
+                    ? liveResults[Object.keys(liveResults).find(k => k.toLowerCase() === lower)!]
+                    : undefined;
+                }
+                if (!live) {
+                  // try matching without domain (e.g. "agent2" vs "agent2.questy.org")
+                  const base = n.certname.split('.')[0].toLowerCase();
+                  const matchKey = Object.keys(liveResults).find(k => k.toLowerCase().startsWith(base + '.') || k.toLowerCase() === base);
+                  if (matchKey) live = liveResults[matchKey];
+                }
+
                 let statusBadge;
                 if (n.agent_disabled === true) {
                   statusBadge = <Badge color="red">Disabled</Badge>;
@@ -220,14 +238,25 @@ export function MetricsNodeHealthPage() {
                   statusBadge = <Badge color="gray">Unknown (no fact)</Badge>;
                 }
 
-                let liveBadge = <Text size="xs" c="dimmed">—</Text>;
+                let liveBadge: React.ReactNode = <Text size="xs" c="dimmed">—</Text>;
                 if (live) {
                   if (live.disabled === true) {
                     liveBadge = <Badge color="red" variant="light">Disabled (live)</Badge>;
                   } else if (live.disabled === false) {
                     liveBadge = <Badge color="green" variant="light">Enabled (live)</Badge>;
                   } else {
-                    liveBadge = <Text size="xs" c="dimmed">{live.raw || 'unknown'}</Text>;
+                    // Show diagnostics when we couldn't get a clean DISABLED/ENABLED
+                    const detail = (live.raw || live.stderr || 'no output').toString().slice(0, 80);
+                    const title = [
+                      live.raw ? `raw: ${live.raw}` : '',
+                      live.stderr ? `stderr: ${live.stderr}` : '',
+                      live.exit_code != null ? `exit=${live.exit_code}` : '',
+                    ].filter(Boolean).join('\n') || undefined;
+                    liveBadge = (
+                      <Text size="xs" c="orange" style={{ cursor: title ? 'help' : 'default' }} title={title}>
+                        {detail || 'check failed'}
+                      </Text>
+                    );
                   }
                 }
 
@@ -241,6 +270,10 @@ export function MetricsNodeHealthPage() {
                       {n.disable_message ? (
                         <Text size="xs" c="dimmed" style={{ maxWidth: 200, whiteSpace: 'pre-wrap' }}>
                           {n.disable_message}
+                        </Text>
+                      ) : (live && live.message) ? (
+                        <Text size="xs" c="dimmed" style={{ maxWidth: 200, whiteSpace: 'pre-wrap' }} title="from live check">
+                          {live.message}
                         </Text>
                       ) : '—'}
                     </Table.Td>

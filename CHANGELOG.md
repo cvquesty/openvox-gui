@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 - **Metrics | Fleet Compliance**: "Nodes by Category" pane now properly scrollable using the robust mechanism from Dashboard | Overview and other pages: `<Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}><ScrollArea h="100%" ...></ScrollArea></Box>` inside Collapse (with Paper overflow handling). The lists under "Compliant" (and other categories) are now fully scrollable with the full set of nodes. All node lists are sorted alphabetically by certname using `localeCompare`.
+- **Metrics | Node Health live check**: Fixed "Check Current Status (live via Bolt)" so it correctly detects administratively disabled agents. The inline shell `if` test was being passed as `sudo if [...]` (which fails because `if` is a shell builtin, not an executable). Now uses the correct `sudo /bin/sh -c 'if ...'` form. Live results now also surface stderr/exit_code for easier diagnosis when a target cannot be checked. Improved name matching (case-insensitive + short name fallback) between Bolt results and certnames. Fact-based "last known" status remains intentionally limited for disabled nodes (they do not submit new facts/reports).
 
 See the Fleet Fact Overview and Node Health pages for details.
 
