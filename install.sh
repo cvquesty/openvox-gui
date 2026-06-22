@@ -42,7 +42,7 @@ NC='\033[0m'
 # ─── Default Configuration ──────────────────────────────────
 INSTALL_DIR="/opt/openvox-gui"
 APP_PORT="4567"
-APP_HOST="0.0.0.0"
+APP_HOST="::"
 UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
@@ -84,14 +84,19 @@ ENABLE_REPO_SYNC_TIMER="true"
 RUN_INITIAL_SYNC="false"
 
 # Proxy settings (auto-detected from environment if not set in config)
-PROXY_HOST=""
-PROXY_PORT=""
-PROXY_USER=""
-PROXY_PASSWORD=""
-HTTP_PROXY=""
-HTTPS_PROXY=""
-NO_PROXY=""
-PROXY_DISABLED="false"
+# NOTE: We use ${VAR:-} form (not bare = "") so that uppercase proxy vars
+# (HTTP_PROXY etc) inherited from the caller's environment are preserved.
+# This makes the installer work for users who set proxies in /etc/environment,
+# profiles, Docker, CI, etc. and for `sudo -E` usage. Lowercase fallbacks are
+# also supported for maximum compatibility. Default operation = no proxy.
+PROXY_HOST="${PROXY_HOST:-}"
+PROXY_PORT="${PROXY_PORT:-}"
+PROXY_USER="${PROXY_USER:-}"
+PROXY_PASSWORD="${PROXY_PASSWORD:-}"
+HTTP_PROXY="${HTTP_PROXY:-}"
+HTTPS_PROXY="${HTTPS_PROXY:-}"
+NO_PROXY="${NO_PROXY:-}"
+PROXY_DISABLED="${PROXY_DISABLED:-false}"
 
 SILENT="false"
 CONF_FILE=""
@@ -204,6 +209,36 @@ prompt_yesno() {
     esac
 }
 
+detect_app_host() {
+    # Respect an explicit "0.0.0.0" from install.conf (user is forcing IPv4-only).
+    if [ "${APP_HOST:-}" = "0.0.0.0" ]; then
+        return
+    fi
+    # If a concrete non-auto value was provided, keep it.
+    if [ -n "${APP_HOST:-}" ] && [ "$APP_HOST" != "::" ]; then
+        return
+    fi
+
+    # Test whether the system can create an IPv6 TCP socket and bind to ::1.
+    # This reliably detects IPv6 stack availability regardless of configured addresses
+    # or which address family "feels primary".
+    if python3 -c '
+import socket
+try:
+    s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("::1", 0))
+    s.close()
+    print("ipv6")
+except Exception:
+    print("ipv4")
+' 2>/dev/null | grep -q ipv6; then
+        APP_HOST="::"
+    else
+        APP_HOST="0.0.0.0"
+    fi
+}
+
 # ─── Proxy Functions ────────────────────────────────────────
 
 urlencode() {
@@ -306,15 +341,17 @@ detect_proxy() {
         [ -z "$HTTPS_PROXY" ] && HTTPS_PROXY="$built_https_proxy"
     fi
 
-    # Fall back to environment variables if still not set
+    # Fall back to environment variables if still not set.
+    # Check both uppercase (common in many environments) and lowercase.
+    # This must be generic — do not assume the caller's shell or sudo behavior.
     if [ -z "$HTTP_PROXY" ]; then
-        HTTP_PROXY="${http_proxy:-}"
+        HTTP_PROXY="${HTTP_PROXY:-${http_proxy:-}}"
     fi
     if [ -z "$HTTPS_PROXY" ]; then
-        HTTPS_PROXY="${https_proxy:-}"
+        HTTPS_PROXY="${HTTPS_PROXY:-${https_proxy:-}}"
     fi
     if [ -z "$NO_PROXY" ]; then
-        NO_PROXY="${no_proxy:-localhost,127.0.0.1}"
+        NO_PROXY="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}"
     fi
 }
 
@@ -340,7 +377,7 @@ configure_npm_proxy() {
     NPM_PROXY_ARGS=""
     
     if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
-        log_info "No proxy configured for npm"
+        # No proxy is the normal/default case for most users. Stay silent.
         return 0
     fi
 
@@ -377,7 +414,7 @@ configure_pip_proxy() {
     PIP_PROXY_ARG=""
     
     if [ -z "$HTTP_PROXY" ] && [ -z "$HTTPS_PROXY" ]; then
-        log_info "No proxy configured for pip"
+        # No proxy is the normal/default case for most users. Stay silent.
         return 0
     fi
     
@@ -412,8 +449,12 @@ log_proxy_status() {
         [ -n "$HTTPS_PROXY" ] && log_info "  HTTPS_PROXY: $(mask_proxy_url "$HTTPS_PROXY")"
         [ -n "$NO_PROXY" ] && log_info "  NO_PROXY: $NO_PROXY"
     else
-        log_info "Proxy: none detected"
-        [ -n "$PROXY_HOST" ] && log_warn "  PROXY_HOST is set but HTTP_PROXY is empty - check build_proxy_url"
+        # Normal case for the majority of users: direct connections, no proxy.
+        # Do not print anything here so that clean installs are quiet by default.
+        # Only emit the warning if the user explicitly tried to configure via PROXY_HOST.
+        if [ -n "$PROXY_HOST" ]; then
+            log_warn "PROXY_HOST was set but no effective proxy URL was built (check PROXY_PORT etc.)"
+        fi
     fi
 }
 
@@ -515,11 +556,20 @@ if [ -n "$CONF_FILE" ]; then
     SILENT="true"
 fi
 
-# ─── Proxy Detection ────────────────────────────────────────
-# Auto-detect and configure proxy settings (unless explicitly disabled)
+# ─── Proxy Detection (initial, from env + install.conf) ─────
+# Full interactive proxy questions (if any) come later. We run an
+# initial pass so that pip can use proxy settings for early venv steps
+# if the user pre-set values via config file or environment.
 detect_proxy
 configure_proxy_env
-log_proxy_status
+# Logging of proxy status is deferred until after interactive prompts
+# so we don't announce "none detected" and then have the user configure one.
+
+# ─── App Host Detection (IPv4 / IPv6 / dual-stack) ────────────
+# Chooses a sensible default for uvicorn --host based on actual stack availability.
+# Respects values already set in install.conf or environment.
+detect_app_host
+log_info "Application bind address: ${APP_HOST} (use APP_HOST=... in install.conf to override)"
 
 # ─── Banner ──────────────────────────────────────────────────
 
@@ -536,6 +586,7 @@ if [ "$SILENT" != "true" ]; then
     echo -e "${BOLD}General Settings${NC}"
     prompt INSTALL_DIR "Install directory" "$INSTALL_DIR"
     prompt APP_PORT "Application port" "$APP_PORT"
+    prompt APP_HOST "Application host (0.0.0.0=IPv4, ::=IPv6/dual)" "$APP_HOST"
     prompt UVICORN_WORKERS "Number of workers" "$UVICORN_WORKERS"
     echo
     
@@ -570,6 +621,21 @@ if [ "$SILENT" != "true" ]; then
     prompt_yesno CONFIGURE_BOLT "Install/configure Puppet Bolt for orchestration?" "$CONFIGURE_BOLT"
     echo
 
+    echo -e "${BOLD}Network / Proxy (optional)${NC}"
+    echo "  Most users can leave this blank (direct connections = default)."
+    echo "  Only fill in if this server must reach the internet through a proxy."
+    prompt PROXY_HOST "Proxy hostname (blank for no proxy)" "$PROXY_HOST"
+    if [ -n "$PROXY_HOST" ]; then
+        prompt PROXY_PORT "Proxy port" "${PROXY_PORT:-8080}"
+        prompt PROXY_USER "Proxy username (leave blank if not required)" "$PROXY_USER"
+        if [ -n "$PROXY_USER" ]; then
+            echo "  Note: for a password, set PROXY_PASSWORD in install.conf or the environment"
+            echo "        and re-run with -c install.conf (passwords are not prompted here)."
+        fi
+        prompt NO_PROXY "Bypass hosts (comma-separated, no proxy for these)" "${NO_PROXY:-localhost,127.0.0.1,10.*,172.16.*}"
+    fi
+    echo
+
     echo -e "${BOLD}Agent Package Mirror (3.3.5-1+)${NC}"
     echo "  Sets up a local OpenVox package mirror under ${PKG_REPO_DIR} so"
     echo "  agents can be installed via 'curl ... | sudo bash' without internet"
@@ -589,6 +655,13 @@ if [ "$SILENT" != "true" ]; then
     fi
     echo
 fi
+
+# Re-process proxy settings after interactive prompts (if the user entered
+# PROXY_HOST etc. above). detect_proxy will build URLs from PROXY_* and
+# fall back to env. This keeps "no proxy" as the silent default.
+detect_proxy
+configure_proxy_env
+log_proxy_status
 
 # ─── Step 1: Service User ────────────────────────────────────
 
@@ -970,9 +1043,10 @@ ENVEOF
 log_ok "Generated ${INSTALL_DIR}/config/.env"
 
 # Update ENC script API base URL
+# Use localhost so it works whether the backend bound to IPv4, IPv6, or dual-stack.
 if [ -f "${INSTALL_DIR}/scripts/enc.py" ]; then
-    sed -i "s|API_BASE = .*|API_BASE = \"https://127.0.0.1:${APP_PORT}\"|" "${INSTALL_DIR}/scripts/enc.py"
-    log_ok "Updated ENC script API base URL to https://127.0.0.1:${APP_PORT}"
+    sed -i "s|API_BASE = .*|API_BASE = \"https://localhost:${APP_PORT}\"|" "${INSTALL_DIR}/scripts/enc.py"
+    log_ok "Updated ENC script API base URL to https://localhost:${APP_PORT}"
 fi
 
 # ─── Step 7: Systemd Service ─────────────────────────────────
@@ -999,6 +1073,10 @@ User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
 WorkingDirectory=${INSTALL_DIR}/backend
 EnvironmentFile=${INSTALL_DIR}/config/.env
+
+# The bind address (--host) below is controlled by OPENVOX_GUI_APP_HOST.
+# "::" (default) gives you IPv6 + dual-stack on modern kernels.
+# "0.0.0.0" forces IPv4 only.
 ExecStart=${UVICORN_CMD}
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
@@ -1401,7 +1479,7 @@ if [ "$AUTH_BACKEND" = "local" ]; then
     # Wait for service to be ready
     log_info "Waiting for service to start..."
     for i in $(seq 1 30); do
-        if curl -sf http://127.0.0.1:${APP_PORT}/health >/dev/null 2>&1; then
+        if curl -sf http://localhost:${APP_PORT}/health >/dev/null 2>&1; then
             break
         fi
         sleep 1
@@ -1447,7 +1525,7 @@ log_info "Verifying service health..."
 sleep 2
 HEALTH_OK="false"
 for i in $(seq 1 15); do
-    if curl -sf http://127.0.0.1:${APP_PORT}/health >/dev/null 2>&1; then
+    if curl -sf http://localhost:${APP_PORT}/health >/dev/null 2>&1; then
         HEALTH_OK="true"
         break
     fi
@@ -1455,7 +1533,7 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" = "true" ]; then
-    HEALTH_RESPONSE=$(curl -sf http://127.0.0.1:${APP_PORT}/health 2>/dev/null)
+    HEALTH_RESPONSE=$(curl -sf http://localhost:${APP_PORT}/health 2>/dev/null)
     log_ok "Service is running — ${HEALTH_RESPONSE}"
 else
     log_err "Service did not start. Check: journalctl -u openvox-gui -n 50"

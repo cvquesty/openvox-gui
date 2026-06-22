@@ -431,9 +431,9 @@ if systemctl is-active --quiet openvox-gui; then
         [ "$DEPLOY_SSL_LINE" = "OPENVOX_GUI_SSL_ENABLED=true" ] && DEPLOY_SSL="true"
     fi
     if [ "$DEPLOY_SSL" = "true" ]; then
-        HEALTH=$(curl -ksf "https://127.0.0.1:4567/health" 2>/dev/null || echo "unreachable")
+        HEALTH=$(curl -ksf "https://localhost:4567/health" 2>/dev/null || echo "unreachable")
     else
-        HEALTH=$(curl -sf "http://127.0.0.1:4567/health" 2>/dev/null || echo "unreachable")
+        HEALTH=$(curl -sf "http://localhost:4567/health" 2>/dev/null || echo "unreachable")
     fi
     echo ""
     echo "=== Deploy Complete ==="

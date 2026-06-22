@@ -14,7 +14,7 @@ Usage in puppet.conf:
 The script expects the certname as the first argument.
 
 Environment variables:
-    OPENVOX_GUI_API_BASE - API base URL (default: https://127.0.0.1:4567)
+    OPENVOX_GUI_API_BASE - API base URL (default: https://localhost:4567)
 """
 import os
 import sys
@@ -23,7 +23,7 @@ import urllib.error
 import ssl
 import yaml
 
-API_BASE = os.environ.get("OPENVOX_GUI_API_BASE", "https://127.0.0.1:4567")
+API_BASE = os.environ.get("OPENVOX_GUI_API_BASE", "https://localhost:4567")
 
 # SSL context for self-signed certs (service uses Puppet certs)
 SSL_CONTEXT = ssl.create_default_context()

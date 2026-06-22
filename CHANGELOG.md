@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.6-dev.1] - 2026-06-22
+
+### Bug Fixes
+- **Installer proxy support**: Made fully generic so it does not assume the developer's environment.
+  - Default operation is now cleanly "no proxy" (direct connections) with no alarming messages.
+  - Fixed env var handling so `HTTP_PROXY` / `http_proxy` (and HTTPS/NO_PROXY variants) from the caller's environment are no longer clobbered by the script.
+  - Detection now checks both uppercase and lowercase forms for compatibility with `sudo -E`, Docker, CI, `/etc/environment`, etc.
+  - Removed "Proxy: none detected" and "No proxy configured for npm/pip" info spam that appeared on every normal install.
+  - Added interactive "Network / Proxy (optional)" prompts during non-silent installs.
+  - Cleaned environment-specific Twitter/X domains (`*.twitter.com`, `*.corp`) out of the `no_proxy` default in `backend/app/config.py`.
+  - Updated `install.conf.example` and `INSTALL.md` to clearly document that no proxy is the default and exactly how to opt in when needed.
+- Resolves reports of the installer saying "proxy none detected even though I don't use one".
+
+Assisted By: Grok AI
+
 ## [3.9.5] - 2026-06-18
 
 ### New Features

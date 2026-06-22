@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.9.5**
+**OpenVox GUI Version 3.9.6-dev.1**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -72,7 +72,13 @@ The installer needs to download packages from the internet. If your server is be
 
 #### Proxy Configuration
 
-If your server uses an HTTP proxy, configure it **before** running the installer:
+**Most users do not use an HTTP proxy** and can skip this section entirely.
+The installer defaults to direct connections (no proxy).
+
+Only follow these steps if your server is behind a corporate proxy that
+intercepts or requires outbound HTTP/HTTPS traffic.
+
+If you do need a proxy, configure it **before** running the installer:
 
 ```bash
 # Set proxy environment variables (adjust URL to your proxy)
@@ -314,7 +320,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.9.5"}` if everything is working.
+You should see `{"status":"ok","version":"3.9.6-dev.1"}` if everything is working.
 
 ---
 
@@ -477,6 +483,15 @@ export https_proxy="$HTTPS_PROXY"
 sudo -E ./install.sh   # -E preserves environment variables
 ```
 
+**Note on "Proxy: none detected"**
+
+During installation you may see messages like "No proxy configured" or
+nothing at all about proxies. This is **normal** when you are not behind
+a proxy. The installer deliberately stays quiet in the no-proxy case.
+"Proxy: none detected" is an old message that has been removed in favor
+of silence for direct-connection installs.
+```
+
 See [Network Requirements](#network-requirements-firewalls-and-proxies) for full proxy configuration details.
 
 #### Problem: Web interface shows "This site can't be reached"
@@ -547,23 +562,29 @@ If you want to run OpenVox GUI behind nginx or Apache:
 
 If you want to run OpenVox GUI behind nginx or Apache:
 
-1. Configure OpenVox GUI to listen only on localhost:
+1. Configure OpenVox GUI to listen only on localhost (example for IPv4):
    ```bash
-   APP_HOST="127.0.0.1"    # Only accessible locally
+   APP_HOST="127.0.0.1"    # Only accessible locally (use ::1 for IPv6 localhost)
    APP_PORT="4567"
    ```
 
-2. Configure nginx to proxy requests:
+   For dual-stack on the backend (recommended in most cases):
+   ```bash
+   APP_HOST="::"
+   ```
+
+2. Configure nginx to proxy requests (dual-stack listener example):
    ```nginx
    server {
        listen 443 ssl;
+       listen [::]:443 ssl;
        server_name openvox.yourcompany.com;
        
        ssl_certificate /path/to/cert.pem;
        ssl_certificate_key /path/to/key.pem;
        
        location / {
-           proxy_pass http://127.0.0.1:4567;
+           proxy_pass http://localhost:4567;
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

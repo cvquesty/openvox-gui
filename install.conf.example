@@ -7,7 +7,11 @@
 # ─── General Settings ─────────────────────────────────────────
 INSTALL_DIR="/opt/openvox-gui"
 APP_PORT="4567"
-APP_HOST="0.0.0.0"
+# APP_HOST controls the network address uvicorn binds to.
+#   "0.0.0.0"  = IPv4 only (all interfaces)
+#   "::"       = IPv6 + dual-stack (recommended; works on IPv4-only systems too on most kernels)
+#   "127.0.0.1" or "::1" for localhost-only
+APP_HOST="::"
 UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
@@ -63,28 +67,38 @@ BUILD_FRONTEND="true"
 INSTALL_NODEJS="true"
 
 # ─── Proxy Settings ────────────────────────────────────────────
-# The installer automatically detects proxy settings from the environment
-# (HTTP_PROXY, HTTPS_PROXY, NO_PROXY). These settings override auto-detection.
-# Proxy settings are applied to npm, pip, and the application runtime.
+# DEFAULT: No proxy (direct connections). This is the normal case for
+# the vast majority of users. You do NOT need to set anything here
+# unless your server is behind a corporate HTTP/HTTPS proxy.
 #
-# Proxy host/port (without credentials):
+# The installer detects proxy settings from the environment
+# (HTTP_PROXY / http_proxy, HTTPS_PROXY / https_proxy, NO_PROXY / no_proxy).
+# Values from this file take precedence over the environment.
+#
+# For a proxy WITHOUT authentication:
 #PROXY_HOST="proxy.example.com"
 #PROXY_PORT="8080"
 #
-# For authenticated proxies, provide username and password:
+# For an AUTHENTICATED proxy, also provide:
 #PROXY_USER="proxyuser"
 #PROXY_PASSWORD="proxypass"
 #
-# Or specify full URLs directly (overrides PROXY_HOST/PORT/USER/PASSWORD):
-# For authenticated proxy: http://user:pass@proxy.example.com:8080
-#HTTP_PROXY=""
-#HTTPS_PROXY=""
+# Or provide full URLs (these take highest precedence):
+#HTTP_PROXY="http://proxy.example.com:8080"
+#HTTPS_PROXY="http://proxy.example.com:8080"
 #
-# Hosts to bypass proxy (comma-separated):
-#NO_PROXY="localhost,127.0.0.1"
+# Comma-separated hosts/IPs/CIDRs to reach directly (bypass proxy):
+#NO_PROXY="localhost,127.0.0.1,10.*,172.16.*,*.local,internal.example.com"
 #
-# Set to "true" to disable proxy auto-detection entirely:
-#PROXY_DISABLED="false"
+# To completely disable any proxy logic and auto-detection:
+#PROXY_DISABLED="true"
+#
+# Tips:
+# - Always include the scheme: http://... (not just host:port)
+# - Use install.conf (-c) or set the variables + sudo -E ./install.sh
+# - Both upper and lower case env vars are supported.
+# - After install, you can also configure runtime proxy via the GUI
+#   (Config → Application) or by editing /opt/openvox-gui/config/.env .
 
 # ─── Agent Package Mirror (3.3.5-1+) ─────────────────────────────
 # Configures a local OpenVox package mirror under PKG_REPO_DIR. The

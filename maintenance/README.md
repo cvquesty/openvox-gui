@@ -59,8 +59,9 @@ In your OpenVox GUI virtual host (usually in `/etc/httpd/conf.d/openvox-gui.conf
 
     # Normal proxy to the GUI (only active when flag is absent)
     ProxyPreserveHost On
-    ProxyPass / http://127.0.0.1:4567/
-    ProxyPassReverse / http://127.0.0.1:4567/
+    # localhost works for both IPv4 and IPv6 dual-stack backends
+    ProxyPass / http://localhost:4567/
+    ProxyPassReverse / http://localhost:4567/
 </VirtualHost>
 ```
 

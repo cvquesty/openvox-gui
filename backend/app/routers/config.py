@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import socket
 """
 Configuration API - Manage PuppetServer, PuppetDB, Hiera, and application settings.
 """
@@ -798,9 +799,19 @@ async def get_ssl_config():
     """Get SSL configuration for the GUI (incoming HTTPS)."""
     ssl_dir = Path("/etc/puppetlabs/puppet/ssl")
     
-    # Build cert paths from settings (or defaults)
-    cert_path = settings.ssl_cert_path or str(ssl_dir / "certs" / f"{settings.app_host}.pem")
-    key_path = settings.ssl_key_path or str(ssl_dir / "private_keys" / f"{settings.app_host}.pem")
+    # Build cert paths from settings (or defaults).
+    # Never use a wildcard bind address (0.0.0.0 / ::) as part of a filename.
+    def _host_for_cert(h: str) -> str:
+        if not h or h in ("0.0.0.0", "::", "::1", "127.0.0.1", "localhost"):
+            try:
+                return socket.getfqdn()
+            except Exception:
+                return socket.gethostname()
+        return h
+
+    _cert_host = _host_for_cert(settings.app_host)
+    cert_path = settings.ssl_cert_path or str(ssl_dir / "certs" / f"{_cert_host}.pem")
+    key_path = settings.ssl_key_path or str(ssl_dir / "private_keys" / f"{_cert_host}.pem")
     
     # List certificate files on disk (if directory exists)
     certs_on_disk: List[Dict[str, Any]] = []

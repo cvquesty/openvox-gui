@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.9.5**
+**OpenVox GUI Version 3.9.6-dev.1**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -87,11 +87,20 @@ If these don't fix your problem, continue to the specific sections below.
    # Should show "active (running)"
    ```
 
-2. **Check if the port is open:**
+2. **Check if the port is open (and whether IPv4, IPv6, or dual):**
 
    ```bash
-   # See if something is listening on port 4567
-   sudo ss -tlnp | grep 4567
+   # See what address family the GUI is actually listening on
+   sudo ss -tlnp | grep -E '4567|uvicorn'
+   #   0.0.0.0:4567   → IPv4 only
+   #   :::4567 or [::]:4567 → IPv6 (often dual-stack)
+   ```
+
+   Test reachability from the box:
+   ```bash
+   curl -v http://localhost:4567/health          # works for most bindings
+   curl -v -g http://[::1]:4567/health           # explicit IPv6 loopback
+   curl -v http://127.0.0.1:4567/health          # explicit IPv4 loopback
    ```
 
 3. **Check firewall settings:**
@@ -118,7 +127,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.9.5"}
+   # Should return: {"status":"ok","version":"3.9.6-dev.1"}
    ```
 
 ### Problem: Forgot Admin Password

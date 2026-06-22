@@ -56,6 +56,16 @@ if [ -f "${INSTALL_DIR}/config/.env" ]; then
     fi
 fi
 
+# Detect current APP_HOST (bind address) so we preserve IPv4/IPv6/dual choice across updates.
+# Default :: enables dual-stack on systems that support it.
+APP_HOST="::"
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    HOST_LINE=$(grep "^OPENVOX_GUI_APP_HOST=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    if [ -n "$HOST_LINE" ]; then
+        APP_HOST="${HOST_LINE#*=}"
+    fi
+fi
+
 # ─── Colors ────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -367,6 +377,9 @@ sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
     | sed "s|User=puppet|User=${SERVICE_USER}|" \
     | sed "s|Group=puppet|Group=${SERVICE_GROUP}|" \
     > /etc/systemd/system/openvox-gui.service
+
+# Inject/override the bind host (preserves user's IPv4/IPv6/dual choice from previous install)
+sed -i "s/--host [^ ]*/--host ${APP_HOST}/g" /etc/systemd/system/openvox-gui.service
 
 # If SSL is enabled in .env, add SSL flags to ExecStart
 if [ -f "${INSTALL_DIR}/config/.env" ]; then
@@ -820,11 +833,13 @@ log_info "Service restarting..."
 sleep 2
 
 # Use HTTPS when SSL is enabled (uvicorn won't respond to plain HTTP)
+# Use "localhost" (not a literal IP) so the check works whether the service
+# is bound to 0.0.0.0, :: (dual-stack), or localhost-only.
 if [ "$SSL_ENABLED" = "true" ]; then
-    HEALTH_URL="https://127.0.0.1:${APP_PORT}/health"
+    HEALTH_URL="https://localhost:${APP_PORT}/health"
     CURL_OPTS="-ksf"
 else
-    HEALTH_URL="http://127.0.0.1:${APP_PORT}/health"
+    HEALTH_URL="http://localhost:${APP_PORT}/health"
     CURL_OPTS="-sf"
 fi
 
