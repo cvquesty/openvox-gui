@@ -9,7 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.9.6-dev.1] - 2026-06-22
+## [3.9.6-dev.2] - 2026-06-22
+
+### Security and Pydantic Operational Updates
+- **pydantic-settings dependency**: Updated from 2.14.1 to 2.14.2 in `backend/requirements.txt` (corresponding to Dependabot PR #37). This is a security patch release addressing GHSA-4xgf-cpjx-pc3j.
+  - **Vulnerability details** (from pydantic-settings v2.14.2 release notes): `NestedSecretsSettingsSource` (used when `secrets_nested_subdir=True` or equivalent nested secrets configuration) could follow symbolic links inside `secrets_dir` that pointed outside the directory. This allowed reading arbitrary out-of-tree files into settings values and could bypass the `secrets_dir_max_size` cap. Affected versions: >= 2.12.0, < 2.14.2. Fixed in https://github.com/pydantic/pydantic-settings/pull/889 and prepared in #890.
+  - **Relevance to OpenVox GUI**: The primary `Settings` class lives in `backend/app/config.py` and subclasses `pydantic_settings.BaseSettings`. It relies on `env_file = "/opt/openvox-gui/config/.env"` (with `env_prefix = "OPENVOX_GUI_"`) for configuration, plus environment variable overrides. The project does not currently enable or document `secrets_dir` / `NestedSecretsSettingsSource` usage (secrets are handled via standard env, .env files, and explicit fields like `deploy_webhook_secret`). However:
+    - Future features, operator customizations, or internal use of secrets sources could activate the vulnerable code path.
+    - Pydantic (core + settings) is foundational: used for all model validation (`BaseModel` in schemas, routers, execution history, certificates, Bolt, infra, metrics, maintenance, auth, SSL wizard, PQL, deploy, installer, enc), settings management, and the ovox CLI config (`ovox/ovox/config.py`).
+    - Keeping the ecosystem updated is operational best practice for compatibility with FastAPI 0.136+, httpx, etc., and prevents supply-chain drift.
+  - **Why apply the PR manually + document**: The upstream Dependabot PR provided the bump. We applied it (plus related docs) to ensure the change is accompanied by full explanatory context in the commit and release notes, per project requirements. No code changes beyond the pin were needed because the vulnerable feature was not exercised; the update is purely defensive.
+- **Added SECURITY.md** (root of repository): New comprehensive security policy file.
+  - Documents supported versions (current 3.9+ series).
+  - Preferred reporting: GitHub private Security Advisories (https://github.com/cvquesty/openvox-gui/security/advisories/new) for coordinated disclosure.
+  - Alternative contact, expected timelines, credit policy.
+  - Details the dependency update process with the exact pydantic-settings example above.
+  - Best practices for deployments (TLS, strong secrets, role auth, regular updates).
+  - Scope (GUI backend/CLI/frontend/installer vs. underlying Puppet components).
+  - References historical internal security audit (`docs/audits/3.3.5-21/SECURITY-AUDIT.md`) and prior hardening (e.g. explicit `require_role` checks).
+  - This directly addresses the GitHub repository Security overview message: "No security policy detected. This project has not set up a SECURITY.md file yet."
+  - Cross-references CHANGELOG and this entry for traceability.
+- As part of the broader "Pydantic ecosystem operational refresh":
+  - Modernized the legacy `SafeString` custom type in `backend/app/utils/validation.py` from the Pydantic v1 `__get_validators__` + old `validator` pattern to the v2 `__get_pydantic_core_schema__` + `no_info_after_validator_function` / `CoreSchema` approach. This eliminates deprecation warnings on newer Pydantic releases, improves type safety, and aligns with current best practices. The sanitization behavior (html.escape + null-byte strip) is unchanged. Added detailed migration note in the class docstring.
+  - Tightened the Pydantic lower bound in `ovox/pyproject.toml` from `>=2.0.0` to `>=2.13.4` for consistency with the backend pin and to avoid pulling in older vulnerable releases when using the ovox CLI standalone.
+  - Added explanatory comments in `backend/requirements.txt`, `backend/app/config.py`, `ovox/ovox/config.py`, `backend/app/models/__init__.py`, `backend/app/utils/validation.py`, README.md, and this changelog.
+  - Updated SECURITY.md and README.md with full details.
+
+Assisted By: Grok AI
+
+## [3.9.6-dev.1] - 2026-06-22 (prior work in train)
 
 ### Bug Fixes
 - **Installer proxy support**: Made fully generic so it does not assume the developer's environment.

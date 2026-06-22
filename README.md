@@ -384,6 +384,8 @@ editing paths — the wizard walks you through the entire process:
 - **Documentation refresh** — comprehensive updates across README, INSTALL, UPDATE, TROUBLESHOOTING, maintenance/README, ARCHITECTURE, SUDOERS, and all feature lists for RC2.
 
 ### Maintenance & Security (Historical)
+
+See the dedicated `SECURITY.md` (at repository root) for the current security policy, how to report vulnerabilities (preferred via GitHub private advisories), supported versions, disclosure process, and detailed explanations of security updates such as the pydantic-settings patch. This file was added to address GitHub's security overview notice and to provide operator guidance.
 - **Dependency updates** — 9 Python packages bumped including `cryptography` 48.0.0, `fastapi` 0.136.1, `uvicorn` 0.47.0. Added `certifi` CA bundle pin. Zero known CVEs.
 - **sqlite3 crash fix** — Resolved `sqlite3_deserialize` import error caused by mismatched RHEL 9 package versions after a partial OS update.
 - **Sudoers hardening** — Removed duplicate `puppetserver ca *` wildcard rule and legacy `openssl x509 *` wildcard from the live server, replaced with explicit per-subcommand rules.

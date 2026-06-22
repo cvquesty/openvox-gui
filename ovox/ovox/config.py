@@ -20,6 +20,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 from pydantic import BaseModel, Field
+# Pydantic (core) is pinned >=2.13.4 in ovox/pyproject.toml for security/operational
+# reasons (see root SECURITY.md and backend/requirements.txt for related pydantic-settings 2.14.2 patch).
 
 
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / "ovox"

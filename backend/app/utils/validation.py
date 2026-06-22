@@ -4,26 +4,48 @@ Input validation and sanitization utilities.
 import re
 import html
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import CoreSchema
 import yaml
 import json
 
 
 class SafeString(str):
-    """A string that has been sanitized for safe display."""
-    
+    """A string that has been sanitized for safe display.
+
+    This is a Pydantic v2 custom type (using __get_pydantic_core_schema__).
+    It HTML-escapes content and strips null bytes to mitigate XSS and
+    certain injection risks when user-controlled strings (e.g. from Bolt
+    output, node names in logs, or form input) are later rendered in the UI
+    or logs.
+
+    Migration note (pydantic update): Previously used the v1 __get_validators__
+    + @validator pattern. Updated as part of the pydantic / pydantic-settings
+    security and operational refresh (PR #37 + related work) to use the v2
+    CoreSchema mechanism. See SECURITY.md and CHANGELOG for context on the
+    pydantic-settings 2.14.2 patch (GHSA-4xgf-cpjx-pc3j) and broader ecosystem
+    maintenance. No behavior change for callers.
+    """
+
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-    
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        from pydantic_core import core_schema
+
+        return core_schema.no_info_after_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+        )
+
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v: str) -> "SafeString":
         if not isinstance(v, str):
-            raise TypeError('string required')
-        # Remove any HTML/script tags
+            raise TypeError("string required")
+        # Remove any HTML/script tags (defense against XSS when rendered)
         v = html.escape(v)
-        # Remove any null bytes
-        v = v.replace('\x00', '')
+        # Remove any null bytes (defense against certain null-byte injection)
+        v = v.replace("\x00", "")
         return cls(v)
 
 

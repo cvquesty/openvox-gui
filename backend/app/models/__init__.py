@@ -15,7 +15,7 @@ validation and serialization.
 
 **Design Notes:**
 - Models use SQLAlchemy 2.0 async style with Mapped[] annotations
-- Schemas use Pydantic v2 with Field validators
+- Schemas use Pydantic v2 with Field validators (see utils/validation.py for custom SafeString v2 migration as part of pydantic 2.13+/settings 2.14.2 security+ops update)
 - All models have created_at/updated_at timestamps where appropriate
 - Passwords are never stored in plain text (bcrypt hashing)
 """

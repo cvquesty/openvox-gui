@@ -18,6 +18,9 @@ Security-critical settings:
 """
 import logging
 from pydantic_settings import BaseSettings
+# Note: pydantic + pydantic-settings are kept at specific versions for security
+# (see backend/requirements.txt and SECURITY.md for the 2.14.2 patch addressing
+# GHSA-4xgf-cpjx-pc3j symlink issue in nested secrets handling).
 from pathlib import Path
 from typing import Optional
 
