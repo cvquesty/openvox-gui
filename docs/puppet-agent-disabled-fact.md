@@ -10,11 +10,12 @@ The openvox-gui installer and updater **always stage (and keep refreshed)** this
 It is provided as a plain executable bash script (shebang `#!/bin/bash`, **filename must be exactly `puppet_agent_disabled`** — no `.sh`).
 
 **The GUI cannot push the fact to your agents.**  
-You still have to get the script into your Puppet code so agents receive it:
+You must get the script into your Puppet code (typically your control repo) so agents receive it via pluginsync:
 
-- Copy `${INSTALL_DIR}/share/facts.d/puppet_agent_disabled` into your module (e.g. `site/profile/facts.d/puppet_agent_disabled`)
+- Copy `${INSTALL_DIR}/share/facts.d/puppet_agent_disabled` into your module (e.g. `site/profiles/facts.d/puppet_agent_disabled` or `site/profile/facts.d/puppet_agent_disabled`)
 - Make sure the file is executable (`chmod +x`) in your module source
-- Include it via a `file {}` resource (or rely on module `facts.d/` autoloading) in a base profile
+- The installer and `update_local.sh` will automatically detect the fact in common control-repo locations (site/profiles/facts.d/, site/profile/facts.d/, etc.) and suppress copy reminders if it is already present and executable. This supports setups that rely on module `facts.d/` autoloading for automatic pluginsync.
+- If not auto-detected, include it via a `file {}` resource (or rely on module `facts.d/` autoloading) in a base profile
 
 This way pluginsync delivers it to `/opt/puppetlabs/facter/facts.d/puppet_agent_disabled` on every agent as an executable script.
 
@@ -44,7 +45,7 @@ fi
 
 Ensure the file is executable (the installer does `chmod +x` when staging it; do the same in your module source).
 
-Use a `file` resource (or module facts.d autoload) in your base profile to ensure agents receive an executable copy:
+Use a `file` resource (or rely on module `facts.d/` autoloading) in your base profile to ensure agents receive an executable copy:
 
 ```puppet
 file { '/opt/puppetlabs/facter/facts.d/puppet_agent_disabled':
@@ -54,7 +55,9 @@ file { '/opt/puppetlabs/facter/facts.d/puppet_agent_disabled':
 }
 ```
 
-(Adjust the source path to match your module layout.)
+(Adjust the source path to match your module layout, e.g. `site/profiles/facts.d/` or `site/profile/facts.d/`.)
+
+The openvox-gui install and update scripts detect the fact in common control-repo paths and will not nag you about manual deployment if it is already present.
 
 External facts in modules are pluginsynced automatically when the module is in the environment.
 

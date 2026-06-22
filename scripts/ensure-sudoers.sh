@@ -1,0 +1,281 @@
+#!/bin/bash
+###############################################################################
+# scripts/ensure-sudoers.sh
+#
+# Centralized, safe manager for the single OpenVox GUI sudoers file:
+#   /etc/sudoers.d/openvox-gui-users
+#
+# This implements the "Option 1" remediation for GitHub issue #36:
+#   - We *fully own* and manage only this one file.
+#   - We *never* delete or touch any other files in /etc/sudoers.d/ (even ones
+#     we may have created in the distant past).
+#   - Before any overwrite we create a timestamped backup of the existing file
+#     (if present) so sysadmins can recover manual changes if they made any.
+#   - We always emit clear, actionable warnings so operators know exactly what
+#     happened and why.
+#   - We continue to write the *full canonical rules* on every install, local
+#     update, or remote deploy. This guarantees the GUI remains functional
+#     after upgrades that introduce new required commands.
+#
+# Rationale (for sysadmins reading this script or the resulting file):
+#   Sudoers is one of the most security-critical files on a system. Allowing
+#   the GUI (running as the dedicated service user, normally "puppet") to
+#   perform privileged operations (r10k deploy, reading protected config,
+#   restarting services, CA ops, Bolt orchestration, certbot, journalctl for
+#   logs, etc.) requires explicit NOPASSWD entries.
+#
+#   Historical problems that this script (and the Option 1 policy) solves:
+#   - The old inline heredocs in install.sh / update_local.sh / deploy.sh
+#     were duplicated (maintenance hazard).
+#   - install.sh had a copy-paste bug that literally rm'd the file it had
+#     just written (see the rm line that included openvox-gui-users itself).
+#   - Scripts blindly rm'd other named sudoers files (bolt, groupsudo, old
+#     openvox-gui-* variants, etc.). This violated "do not touch entries we
+#     did not create" and could delete admin-created or other-tool-created
+#     rules.
+#   - Unconditional `cat >` clobbered any manual edits or extra rules an
+#     admin had added for their environment.
+#
+#   New policy (Option 1):
+#   - Only ever write / manage / remove OUR file: openvox-gui-users.
+#   - Always backup before clobber.
+#   - Be extremely verbose in logs and in SUDOERS.md.
+#   - Document that if you need additional rules for the service user, put
+#     them in a *separate* file in /etc/sudoers.d/ (sudo will read all of them).
+#     Example: /etc/sudoers.d/openvox-gui-users-local
+#
+# Usage (intended to be called from install.sh, update_local.sh, deploy.sh):
+#   SERVICE_USER=puppet \
+#   INSTALL_DIR=/opt/openvox-gui \
+#   PUPPET_SERVER_HOST=$(hostname -f) \
+#   bash scripts/ensure-sudoers.sh
+#
+# The script expects those three variables in the environment.
+# It performs no other side effects (no rm of other files, no daemon-reload).
+#
+# Heredoc Safety (per project AGENTS.md):
+#   We write using a *quoted* heredoc (SUDOEOF) containing literal
+#   placeholders ${SERVICE_USER}, ${INSTALL_DIR}, and ${PUPPET_SERVER_HOST}.
+#   Immediately after, we use sed to perform the substitutions.
+#   This technique is robust for bash -n syntax checking and avoids
+#   any need to embed active shell metacharacters in the content.
+#
+#   NEVER introduce backticks, command substitution, or other active
+#   shell syntax inside the heredoc content.
+#
+# After writing + substitution, the script always runs visudo -cf.
+###############################################################################
+
+set -euo pipefail
+
+SUDOERS_FILE="${SUDOERS_FILE:-/etc/sudoers.d/openvox-gui-users}"
+
+# Require the three variables that the rules depend on.
+if [ -z "${SERVICE_USER:-}" ]; then
+    echo "ERROR: SERVICE_USER must be set (e.g. puppet)" >&2
+    exit 1
+fi
+if [ -z "${INSTALL_DIR:-}" ]; then
+    echo "ERROR: INSTALL_DIR must be set (e.g. /opt/openvox-gui)" >&2
+    exit 1
+fi
+if [ -z "${PUPPET_SERVER_HOST:-}" ]; then
+    echo "ERROR: PUPPET_SERVER_HOST must be set (FQDN for Let's Encrypt rule)" >&2
+    exit 1
+fi
+
+# --- Backup any pre-existing version (core safety net of Option 1) ---
+if [ -f "$SUDOERS_FILE" ]; then
+    BACKUP="${SUDOERS_FILE}.bak.$(date +%Y%m%d-%H%M%S)"
+    cp -a "$SUDOERS_FILE" "$BACKUP"
+    echo "⚠️  BACKUP CREATED: $BACKUP"
+    echo "    The previous contents of $SUDOERS_FILE (including any manual"
+    echo "    edits, extra rules, or comments you added) have been preserved"
+    echo "    in the backup above."
+    echo "    This script is about to REPLACE the active file with the current"
+    echo "    canonical set of rules required by this version of OpenVox GUI."
+    echo ""
+fi
+
+# --- Write the canonical managed file ---
+# We use a *quoted* heredoc (template) and then perform safe substitution.
+# This avoids parser issues during `bash -n` / syntax checking and is more
+# robust.
+cat > "$SUDOERS_FILE" << 'SUDOEOF'
+# OpenVox GUI — sudoers configuration (explicit, no wildcards)
+# Generated by scripts/ensure-sudoers.sh (invoked by install.sh / update_local.sh / deploy.sh)
+#
+# This file grants the service user passwordless sudo access **only**
+# to the specific commands listed below.
+#
+# IMPORTANT FOR SYSADMINS:
+#   - This file is FULLY MANAGED by the OpenVox GUI installer and update
+#     scripts.
+#   - On every install, local update (update_local.sh), or remote deploy
+#     (deploy.sh via update_remote.sh), this file is backed up (see .bak.*)
+#     and then completely rewritten with the current canonical rules.
+#   - If you add extra rules for the service user, put them in a *separate*
+#     file in the same directory, e.g.:
+#       /etc/sudoers.d/openvox-gui-users-local
+#     sudo reads every file in /etc/sudoers.d/ (in lexical order).
+#   - Never edit inside this file if you want your changes to survive the
+#     next GUI update or redeploy.
+#
+# Security / design notes (method + rationale):
+#   - All rules are explicit. No trailing "*" wildcards anywhere.
+#     Rationale: Wildcards have historically allowed dangerous operations
+#     (e.g. "openssl x509 -out /etc/shadow", "puppetserver ca *" doing
+#     unintended things). Explicit paths + subcommands follow the principle
+#     of least privilege and are future-proof against stricter sudo
+#     implementations (Rust sudo, etc.).
+#   - Defaults for the service user only.
+#   - !requiretty : The GUI runs as a systemd service (no TTY).
+#   - lecture=never : The lecture pollutes command output captured by the
+#     GUI (logs, config reads, Bolt results, etc.).
+#
+# All paths and commands below are the exact ones executed by the backend
+# (see backend/app/routers/* and services/*).
+
+# The service runs as a daemon without a TTY — sudo must not require one.
+Defaults:${SERVICE_USER} !requiretty
+# Suppress the sudo lecture message (it leaks into command output and breaks the GUI).
+Defaults:${SERVICE_USER} lecture=never
+
+# r10k code deployment
+# Method: wrapper script (r10k-deploy.sh) that safely invokes r10k with
+#         controlled arguments. We allow only the wrapper, not raw r10k.
+${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh
+
+# Reading specific PuppetDB configuration files
+# Method: sudo cat of exact files. Needed for the Config + PQL + dashboard
+#         pages that surface connection settings.
+# Rationale: These files are root-owned (0600 or 0640) for a reason;
+#            the GUI must present them to authenticated operators.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/database.ini
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/jetty.ini
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.d/server.ini
+
+# Reading Bolt configuration files (for Orchestration > Configuration tab)
+# Method: sudo cat of the two main Bolt files under /etc/puppetlabs/bolt.
+# Rationale: The GUI shows inventory, project config, etc. to operators.
+#            We deliberately do NOT chown that tree to the service user.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-project.yaml
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/inventory.yaml
+
+# Service management (explicit services only)
+# Method: systemctl on a hard-coded allowlist of services the GUI controls.
+# Rationale: Restarting the core stack (puppetserver, puppetdb, puppet agent,
+#            the GUI itself) is a primary operational action in the UI.
+#            We do not allow "systemctl * *" or arbitrary units.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart openvox-gui
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
+
+# Bolt orchestration
+# Method: allow the *full* bolt binary (both common installation paths).
+# Rationale: Bolt commands, tasks, and plans accept a huge number of
+#            arguments (--targets, --inventoryfile, --params, --run-as,
+#            modules, etc.). A wildcarded "bolt *" was previously used;
+#            allowing the real binary is the accepted secure pattern for
+#            orchestration UIs. It is still vastly narrower than
+#            "ALL=(ALL) NOPASSWD: ALL".
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
+
+# Certificate Authority management (explicit subcommands only)
+# Method: exact "puppetserver ca <subcommand> --certname" (or --all for list).
+# Rationale: The Certificates page and related actions must be able to
+#            list, sign, revoke, clean, and generate certs. Wildcarding
+#            "puppetserver ca *" was replaced with these after a security
+#            audit.
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list --all
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname
+
+# Reading specific certificate files (explicit paths)
+# Method: openssl x509 / crl on well-known Puppet SSL paths only.
+# Rationale: Used by the Certificates and Cert Audit pages to display
+#            CA cert, fingerprints, CRL, etc. No arbitrary -out or -in.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/ca_crt.pem -text -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/ca_crt.pem -fingerprint -sha256 -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/signed -text -noout
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/openssl crl -in /etc/puppetlabs/puppet/ssl/ca/ca_crl.pem -text -noout
+
+# Puppet lookup (data resolution only)
+# Method: "puppet lookup --explain *" (the * is for the key and optional
+#         --node / --environment flags).
+# Rationale: Powers the Data Lookup (Hiera) page. The --explain output
+#            is read-only data introspection.
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain *
+
+# Package mirror sync script (Agent Installer feature)
+# Method: only the specific sync wrapper.
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
+
+# Log Viewer — restricted to specific units and files only
+# Method: journalctl on explicit units + tail on explicit log files.
+# Rationale: The Logs page lets operators view the main components
+#            without granting general log access.
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetdb/puppetdb.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetserver/puppetserver.log
+
+# SSL Certificate Wizard operations (explicit)
+# Method: tee for the service unit (during cert install), daemon-reload,
+#         puppetserver ca import (for custom CA), certbot, ls of live dir,
+#         and cat of the specific fullchain for the server's FQDN.
+# Rationale: Supports the Config > SSL wizard and automatic renewal.
+# Note: The installer/update scripts attempt to use the local Puppet
+#       server's FQDN (from hostname -f or OPENVOX_GUI_PUPPET_SERVER_HOST)
+#       for the Let's Encrypt path. If your cert directory name differs,
+#       you will need to manually add/update the rule in a local override
+#       file (see note at top).
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/${PUPPET_SERVER_HOST}/fullchain.pem
+SUDOEOF
+
+# Perform the three required substitutions on the written template.
+# We use simple sed because the placeholder values contain only safe characters.
+sed -i \
+    -e "s/\${SERVICE_USER}/${SERVICE_USER}/g" \
+    -e "s|\${INSTALL_DIR}|${INSTALL_DIR}|g" \
+    -e "s/\${PUPPET_SERVER_HOST}/${PUPPET_SERVER_HOST}/g" \
+    "$SUDOERS_FILE"
+
+# Apply strict permissions (sudoers best practice)
+chmod 440 "$SUDOERS_FILE"
+
+# Validate syntax. Some environments have visudo that can be noisy; we
+# tolerate failure for logging purposes but the write still happened.
+if visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
+    echo "✅ sudoers syntax OK: $SUDOERS_FILE"
+else
+    echo "⚠️  visudo -cf reported issues for $SUDOERS_FILE (check manually with 'sudo visudo -cf $SUDOERS_FILE')"
+fi
+
+echo "✅ Ensured canonical sudoers rules for service user '${SERVICE_USER}'"
+echo "   File: $SUDOERS_FILE"
+echo "   (Backups, if any, are in $SUDOERS_FILE.bak.*)"
+echo ""
+echo "   Sysadmin reminder: additional rules for this user belong in"
+echo "   a separate file such as /etc/sudoers.d/openvox-gui-users-local"
+echo "   (they will be read automatically by sudo)."

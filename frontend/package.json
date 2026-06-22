@@ -45,6 +45,6 @@
     "cross-spawn": "^7.0.5",
     "dompurify": "^3.2.2",
     "esbuild": "^0.25.0",
-    "@babel/core": "^7.28.0"
+    "@babel/core": "^7.29.6"
   }
 }

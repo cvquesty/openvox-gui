@@ -303,11 +303,12 @@ export function MetricsNodeHealthPage() {
       <Card withBorder padding="md">
         <Title order={5} mb="xs">Deploying the supporting fact</Title>
         <Text size="sm" c="dimmed">
-          The openvox-gui installer stages the fact at <code>/opt/openvox-gui/share/facts.d/puppet_agent_disabled</code>
+          The openvox-gui installer and update scripts stage the fact at <code>/opt/openvox-gui/share/facts.d/puppet_agent_disabled</code>
           (executable bash, filename exactly <code>puppet_agent_disabled</code>).
-          Copy it to your Puppet module's <code>facts.d/</code> (e.g. <code>site/profile/facts.d/puppet_agent_disabled</code>),
-          ensure mode 0755 in source, and use a <code>file {}</code> resource (or module autoload) in your base profile
-          so it pluginsyncs to agents as executable.
+          Copy it to your Puppet module's <code>facts.d/</code> (e.g. <code>site/profiles/facts.d/puppet_agent_disabled</code> or <code>site/profile/facts.d/</code>).
+          The scripts detect the fact in common control-repo locations and suppress copy reminders when it is already present
+          (for autoloading + pluginsync).
+          Ensure mode 0755 in source and include via module autoload or a <code>file {}</code> resource in your base profile.
           See <code>docs/puppet-agent-disabled-fact.md</code> for full details. The fact (and at least one agent run) is required
           for the "last known" disabled status to appear.
         </Text>

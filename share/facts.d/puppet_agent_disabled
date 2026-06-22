@@ -3,7 +3,10 @@
 #
 # This script must be deployed to /opt/puppetlabs/facter/facts.d/puppet_agent_disabled
 # (or equivalent facts.d dir) on ALL agents, made executable (chmod +x),
-# and pluginsynced via your Puppet module (e.g. in site/profile/facts.d/).
+# and pluginsynced via your Puppet module (e.g. in site/profiles/facts.d/ or site/profile/facts.d/).
+#
+# The openvox-gui install/update scripts will detect the fact in common control-repo
+# locations and avoid unnecessary reminders if it is already present for autopluginsync.
 #
 # It is provided by the openvox-gui installer at share/facts.d/puppet_agent_disabled
 #

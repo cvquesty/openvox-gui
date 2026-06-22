@@ -1,16 +1,74 @@
 # Sudoers Configuration for OpenVox GUI
 
-OpenVox GUI runs as the `puppet` system user and needs `sudo` access to
-perform specific privileged operations. The principle of least privilege
-applies: **only the exact commands listed below should be allowed**.
+OpenVox GUI runs as a dedicated system user (normally `puppet`) and needs
+carefully-scoped `sudo` access to perform privileged operations on behalf
+of authenticated operators. The principle of least privilege is strictly
+enforced: **only the exact commands listed in the managed file are allowed**.
+
+## Management Policy (GitHub #36 + Option 1)
+
+**Important change in behavior (fixed in this release):**
+
+Previously the installer (`install.sh`), updater (`update_local.sh`), and
+deploy script (`deploy.sh`) used duplicated heredocs to write
+`/etc/sudoers.d/openvox-gui-users` and then blindly removed other files
+in `/etc/sudoers.d/` (including the file they had just created in the
+case of install.sh — see the bug reported in issue #36).
+
+This was dangerous for several reasons:
+- We were deleting sudoers entries we did not (or no longer) create.
+- Even for our own file we were doing a complete delete + recreate on
+  every operation, destroying any manual customizations or extra rules
+  a sysadmin had added.
+- The logic was duplicated across three scripts, making future changes
+  error-prone.
+
+**Current policy (Option 1 — "we own this one file, we manage it safely"):**
+
+1. We only ever create, write, backup, or (on uninstall) remove the single
+   file `/etc/sudoers.d/openvox-gui-users`.
+2. We *never* `rm -f` any other file in `/etc/sudoers.d/`, even legacy
+   files that this project used to create.
+3. Before every write we create a timestamped backup:
+   `/etc/sudoers.d/openvox-gui-users.bak.YYYYMMDD-HHMMSS`
+4. The canonical rules are always written in full. This guarantees the
+   GUI continues to work after a version bump that adds new required
+   commands (new sync script, new log units, new certificate paths, etc.).
+5. Because we do clobber our own file, we always make the backup first
+   and we emit very clear warnings.
+6. If you need additional rules for the service user, place them in a
+   *separate* file in the same directory, for example:
+   `/etc/sudoers.d/openvox-gui-users-local`
+   (sudo automatically reads every `*.` file in `/etc/sudoers.d/`).
+
+The single source of truth for the rules is now
+`scripts/ensure-sudoers.sh`. All three entry points (install, update,
+deploy) call it after ensuring the required variables are set.
+
+**Rationale for this policy:**
+- Sudoers controls root access. It must be reliable for the GUI to
+  function, but it must also be respectful of the rest of the system.
+- Automatic full replacement + backup gives the best combination of
+  "it just works after an upgrade" and "you can still recover your work".
+- Not touching other files respects the principle that only the owner
+  of a sudoers snippet should manage (or delete) it.
+
+See the "How rules are applied at runtime" and "Adding your own rules"
+sections below for practical instructions.
 
 ## Required Sudo Rules
 
-All OpenVox GUI related sudoers entries are consolidated into a single file `/etc/sudoers.d/openvox-gui-users` (the template is taken from the existing settings on the system).
+All required entries for the GUI service user live in the single managed
+file:
 
-The install, update, and deploy scripts automatically create/update this file (and clean up any legacy files like openvox-gui, bolt, groupsudo, etc.).
+    /etc/sudoers.d/openvox-gui-users
 
-Create or ensure the file at `/etc/sudoers.d/openvox-gui-users` with content like the following (exact content on your system is the authoritative template):
+The install, update, and deploy scripts call `scripts/ensure-sudoers.sh`
+to (re)generate it. The exact content written to your system is always
+authoritative — the example below is illustrative.
+
+Typical content (generated file will contain your actual `SERVICE_USER`
+and `INSTALL_DIR`):
 
 ```sudoers
 # OpenVox GUI — sudoers configuration (explicit, no wildcards)
@@ -98,6 +156,147 @@ puppet ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
 # (usually the output of `hostname -f` on the Puppet server where the GUI is installed).
 puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/openvox.example.com/fullchain.pem
 ```
+
+## Detailed Management Behavior and Rationale (Post #36 Fix)
+
+See the section "Management Policy (GitHub #36 + Option 1)" near the top
+for the high-level rules. This section gives sysadmins the "why" and
+"how to live with it" for everyday operations.
+
+### When and why the file is replaced
+The file is replaced on every:
+- `sudo ./install.sh`
+- `sudo ./scripts/update_local.sh`
+- `sudo ./scripts/deploy.sh` (manual or via remote deploy)
+
+Reason: The set of commands the GUI needs can grow when we add features
+(new agent mirror sync script, new maintenance endpoints, additional
+log units, new SSL wizard steps, etc.). A "best effort" patch or append
+is fragile for a file that controls root access. Full replacement from
+a single source (`scripts/ensure-sudoers.sh`) is the safest way to keep
+the product working.
+
+Trade-off: your direct edits inside the file are lost. That is why we
+always create a `.bak` file first and why we strongly recommend using
+a separate local file for anything extra.
+
+### Backup behavior
+Whenever the managed file already exists, you will see output like:
+
+    ⚠️  BACKUP CREATED: /etc/sudoers.d/openvox-gui-users.bak.20260622-142301
+        The previous contents ... have been preserved in the backup above.
+        This script is about to REPLACE the active file ...
+
+The backup is a straight `cp -a`, so ownership, permissions, and
+timestamps are preserved. You can diff it against the new version if
+you want to see exactly what changed in the canonical rules.
+
+### How to add site-specific rules safely
+Create `/etc/sudoers.d/openvox-gui-users-local` (or any name that sorts
+after or before as you prefer) containing only your additions:
+
+    # Site-specific additions for the GUI service user
+    # These survive GUI updates because they live in a different file.
+    Defaults:puppet env_keep += "FOO_BAR"
+    puppet ALL=(root) NOPASSWD: /opt/mysite/bin/special-tool
+
+Then validate:
+
+    sudo visudo -cf /etc/sudoers.d/openvox-gui-users-local
+
+You can put as many such files as you like. This is the standard,
+supported pattern when a tool manages one drop-in and you need more.
+
+### Rationale for the major categories of rules (method + security reasoning)
+
+**requiretty / lecture=never**
+
+These are the only two `Defaults` lines. They are narrow (only for the
+service user) and are required for the GUI to be able to run at all
+under systemd and to produce clean output for operators. Without them
+you would see either "sudo: sorry, you must have a tty to run sudo" or
+pages and pages of lecture text mixed into every log and result.
+
+**Explicit cat of config files**
+
+PuppetDB conf.d/*.ini and Bolt's yaml files are deliberately not
+world-readable. The GUI's Config pages, Fact Explorer, PQL console,
+and Orchestration config viewer all need to display their contents to
+logged-in users. We grant the minimal possible access: `cat` of four
+specific files.
+
+**Systemctl allow-list**
+
+Only the restart/stop/start/status of the four core services the GUI
+actually manages. This is the minimum needed for the "Restart Puppet"
+buttons, service status on the dashboard, and the SSL wizard's
+daemon-reload after rewriting the unit file.
+
+**Full bolt binary (two paths)**
+
+This is the one place we are intentionally broad, but only because
+Bolt's argument surface is enormous. Every argument the Orchestration
+page sends (including arbitrary commands typed by operators) must be
+passed through. Allowing the real binary + the existing `bolt` user's
+sudoers on *targets* is the accepted secure architecture for this kind
+of tool. It is still far safer than giving the GUI service user
+unrestricted root.
+
+**puppetserver ca subcommands**
+
+Replaced the old `puppetserver ca *` wildcard (which was flagged in
+security reviews) with the five operations the Certificates page
+actually performs. Each one is pinned to `--certname` (or `--all` for
+listing).
+
+**openssl x509 / crl on pinned paths**
+
+Only the operations needed to render the CA certificate, fingerprints,
+signed certs, and CRL in the UI. No ability to write files, no
+arbitrary input paths.
+
+**puppet lookup --explain ***
+
+Read-only Hiera data exploration used by the Data Lookup page. The
+wildcard only covers the key name and the normal lookup flags.
+
+**Log viewer rules**
+
+Only the four main units + the two main log files. This powers the
+Logs page without giving the service user the ability to read
+everything on the box.
+
+**SSL wizard / certbot lines**
+
+Exactly the commands used when an operator installs or renews a
+certificate through the UI (tee the unit file, daemon-reload, certbot
+renew, ls the live directory, cat the specific fullchain for the
+server's FQDN).
+
+All of these choices were made after real security audits and after
+removing several overly broad wildcards that had existed in earlier
+versions.
+
+### Validation, permissions, and troubleshooting
+
+After any change (manual or automatic) always run:
+
+    sudo visudo -cf /etc/sudoers.d/openvox-gui-users
+
+If it says "parse error", fix the file before the next sudo command
+or you may lock yourself out of administrative actions.
+
+The file must be mode 440 (or at most 640) and owned by root.
+
+If the GUI suddenly cannot restart services, read configs, or run Bolt
+after an update, check:
+
+1. `sudo cat /etc/sudoers.d/openvox-gui-users` (look for your backup
+   and compare).
+2. `sudo visudo -cf /etc/sudoers.d/openvox-gui-users`
+3. That the service user is still the one the rules are written for
+   (`Defaults:puppet` vs `Defaults:openvox` etc.).
+4. Journalctl for "sudo" or "PAM" errors.
 
 ### Bolt Project Directory Ownership (`/etc/puppetlabs/bolt`)
 

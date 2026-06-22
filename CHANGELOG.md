@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.9.6-dev.2] - 2026-06-22
 
+### Improvements
+- **Installer / update scripts**: No longer always nag about manually copying the `puppet_agent_disabled` fact.
+  - The scripts now actively probe common control-repo locations (e.g. `site/profiles/facts.d/`, `site/profile/facts.d/`, `modules/profile/facts.d/`) under `$PUPPET_CODEDIR/environments/production/`.
+  - If the fact is already present and executable there (as in your `control_repo/site/profiles/facts.d/`), they log that it was detected and assume pluginsync will deliver it to classified nodes automatically. The "copy it and use a file{} resource" reminder is suppressed.
+  - This matches real-world control repo layouts where the fact is placed for autoloading/pluginsync rather than requiring an explicit `file` resource in every base profile.
+  - The convenience copy is still staged at `${INSTALL_DIR}/share/facts.d/puppet_agent_disabled` for reference.
+
 ### Security and Pydantic Operational Updates
 - **pydantic-settings dependency**: Updated from 2.14.1 to 2.14.2 in `backend/requirements.txt` (corresponding to Dependabot PR #37). This is a security patch release addressing GHSA-4xgf-cpjx-pc3j.
   - **Vulnerability details** (from pydantic-settings v2.14.2 release notes): `NestedSecretsSettingsSource` (used when `secrets_nested_subdir=True` or equivalent nested secrets configuration) could follow symbolic links inside `secrets_dir` that pointed outside the directory. This allowed reading arbitrary out-of-tree files into settings values and could bypass the `secrets_dir_max_size` cap. Affected versions: >= 2.12.0, < 2.14.2. Fixed in https://github.com/pydantic/pydantic-settings/pull/889 and prepared in #890.
@@ -19,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Pydantic (core + settings) is foundational: used for all model validation (`BaseModel` in schemas, routers, execution history, certificates, Bolt, infra, metrics, maintenance, auth, SSL wizard, PQL, deploy, installer, enc), settings management, and the ovox CLI config (`ovox/ovox/config.py`).
     - Keeping the ecosystem updated is operational best practice for compatibility with FastAPI 0.136+, httpx, etc., and prevents supply-chain drift.
   - **Why apply the PR manually + document**: The upstream Dependabot PR provided the bump. We applied it (plus related docs) to ensure the change is accompanied by full explanatory context in the commit and release notes, per project requirements. No code changes beyond the pin were needed because the vulnerable feature was not exercised; the update is purely defensive.
+- **@babel/core** (frontend): Updated `overrides` in `frontend/package.json` from `^7.28.0` to `^7.29.6` (resolves to 7.29.7) to address Dependabot alert #32 / GHSA-4x5r-pxfx-6jf8 / CVE-2026-49356.
+  - Vulnerability: Arbitrary file read via `sourceMappingURL` comment. An attacker who controls input source code being compiled by Babel, can read the output, and knows a target source map path on the system can exfiltrate arbitrary files (low severity: local attack vector, high complexity, limited confidentiality impact). Affects `@babel/core` <= 7.29.0.
+  - Fixed in 7.29.6 (and 8.0.0-rc.6). See https://github.com/babel/babel/security/advisories/GHSA-4x5r-pxfx-6jf8.
+  - Also upgrades the entire `@babel/*` family in lockfile to 7.29.7 for consistency.
+  - `npm install --package-lock-only` (with Node 20) updated `frontend/package-lock.json`. `npm audit` reports 0 vulnerabilities afterward.
+  - This is the same class of issue previously mitigated with the 7.28.0 override (which was sufficient for the prior advisory but not this new one filed Jun 2026).
+- **Sudoers Management Safety & Bug Fix (GitHub #36)**: Completely reworked management of `/etc/sudoers.d/openvox-gui-users` (see `docs/SUDOERS.md` for the full verbose explanation).
+  - Fixed the self-delete bug in install.sh (rm line that listed the just-written file).
+  - Eliminated all `rm -f` of other files in `/etc/sudoers.d/`.
+  - Added automatic timestamped backups + prominent warnings before every overwrite.
+  - Centralized the rules, backup logic, validation, and explanatory comments in the new `scripts/ensure-sudoers.sh`.
+  - Updated callers in install/update/deploy and the script copy lists.
+  - Massively expanded `docs/SUDOERS.md` with policy, rationale for every rule (method + security reason), backup/recovery instructions, and how to add your own rules safely in a separate file.
+  - Full replacement of *our own* file is retained (for upgrade reliability) but is now bounded and safe.
 - **Added SECURITY.md** (root of repository): New comprehensive security policy file.
   - Documents supported versions (current 3.9+ series).
   - Preferred reporting: GitHub private Security Advisories (https://github.com/cvquesty/openvox-gui/security/advisories/new) for coordinated disclosure.
