@@ -435,10 +435,10 @@ log_ok "Updated systemd service file"
 #   - Full canonical rules are written so the GUI stays working.
 #
 # The early PUPPET_SERVER_HOST detection (above) is still required.
+ENSURE_SCRIPT="${INSTALL_DIR}/scripts/ensure-sudoers.sh"
 SERVICE_USER="${SERVICE_USER}" \
-INSTALL_DIR="${INSTALL_DIR}" \
 PUPPET_SERVER_HOST="${PUPPET_SERVER_HOST}" \
-bash "${INSTALL_DIR}/scripts/ensure-sudoers.sh"
+bash "${ENSURE_SCRIPT}"
 
 log_ok "Updated sudoers rules (via ensure-sudoers.sh)"
 
