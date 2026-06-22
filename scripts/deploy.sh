@@ -297,6 +297,19 @@ for unit in openvox-repo-sync.service openvox-repo-sync.timer; do
         cp "${REPO_DIR}/config/${unit}" "/etc/systemd/system/${unit}"
     fi
 done
+
+# 5d2. Install (or refresh) the systemd timer + service for weekly Fleet Health Report.
+# Substitute INSTALL_DIR and SERVICE_USER (support non-default installs).
+SERVICE_GROUP="${SERVICE_GROUP:-puppet}"
+for unit in openvox-gui-fleet-health.service openvox-gui-fleet-health.timer; do
+    if [ -f "${REPO_DIR}/config/${unit}" ]; then
+        sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/${unit}" \
+            | sed "s|SERVICE_USER|${SERVICE_USER}|g" \
+            | sed "s|SERVICE_GROUP|${SERVICE_GROUP}|g" \
+            > "/etc/systemd/system/${unit}"
+    fi
+done
+
 systemctl daemon-reload 2>/dev/null || true
 
 # 5e. Drop the puppetserver static-content mount config so that

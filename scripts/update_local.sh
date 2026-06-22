@@ -437,6 +437,7 @@ log_ok "Updated systemd service file"
 # The early PUPPET_SERVER_HOST detection (above) is still required.
 ENSURE_SCRIPT="${INSTALL_DIR}/scripts/ensure-sudoers.sh"
 SERVICE_USER="${SERVICE_USER}" \
+INSTALL_DIR="${INSTALL_DIR}" \
 PUPPET_SERVER_HOST="${PUPPET_SERVER_HOST}" \
 bash "${ENSURE_SCRIPT}"
 
@@ -673,6 +674,29 @@ if [ "$INSTALLED_TIMER" = "true" ]; then
     if ! systemctl is-enabled --quiet openvox-repo-sync.timer 2>/dev/null; then
         systemctl enable --now openvox-repo-sync.timer >/dev/null 2>&1 || true
         log_ok "Enabled nightly repo sync (02:30 + random delay)"
+    fi
+fi
+
+# 6d2. Install / refresh the systemd timer + service for weekly Fleet Health Report.
+# Substitute INSTALL_DIR and SERVICE_USER/GROUP (support non-default installs).
+FLEET_INSTALLED="false"
+SERVICE_GROUP="${SERVICE_GROUP:-puppet}"
+for unit in openvox-gui-fleet-health.service openvox-gui-fleet-health.timer; do
+    if [ -f "${REPO_DIR}/config/${unit}" ]; then
+        sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/${unit}" \
+            | sed "s|SERVICE_USER|${SERVICE_USER}|g" \
+            | sed "s|SERVICE_GROUP|${SERVICE_GROUP}|g" \
+            > "/etc/systemd/system/${unit}"
+        FLEET_INSTALLED="true"
+    fi
+done
+if [ "$FLEET_INSTALLED" = "true" ]; then
+    systemctl daemon-reload 2>/dev/null || true
+    log_ok "Installed openvox-gui-fleet-health.{service,timer}"
+    # Enable on first update only (like the sync timer) so operators can disable later.
+    if ! systemctl is-enabled --quiet openvox-gui-fleet-health.timer 2>/dev/null; then
+        systemctl enable --now openvox-gui-fleet-health.timer >/dev/null 2>&1 || true
+        log_ok "Enabled weekly Fleet Health Report timer (Mondays 08:00 America/New_York)"
     fi
 fi
 

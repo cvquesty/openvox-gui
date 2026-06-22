@@ -1,0 +1,22 @@
+[Unit]
+Description=Weekly OpenVox Fleet Health Report (every Monday at 08:00 US Eastern Time)
+Documentation=file://INSTALL_DIR/docs/INSTALLER.md
+Requires=openvox-gui-fleet-health.service
+
+[Timer]
+# Runs every Monday at 8:00 AM in America/New_York timezone.
+# If your systemd version does not support the timezone suffix, the time will be
+# interpreted in the server's local timezone. In that case, set the server TZ
+# to America/New_York or adjust the OnCalendar time accordingly.
+OnCalendar=Mon 08:00:00 America/New_York
+
+# Small random delay to avoid load spikes if multiple servers run at exactly the same second.
+RandomizedDelaySec=300
+
+# If the server was down on Monday, run the report as soon as it comes back up.
+Persistent=true
+
+Unit=openvox-gui-fleet-health.service
+
+[Install]
+WantedBy=timers.target

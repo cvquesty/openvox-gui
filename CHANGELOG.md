@@ -931,10 +931,23 @@ See the detailed sections below for the full history of changes that led to this
 
 ## [Unreleased]
 
+### New Features
+- Weekly Fleet Health Report (Monday 08:00 America/New_York).
+  - New systemd timer+service: `openvox-gui-fleet-health.timer` / `.service`
+  - Generator script now respects `FLEET_HEALTH_REPORT_ENABLED`, `FLEET_HEALTH_REPORT_EMAILS` (multi-recipient), and `FLEET_HEALTH_REPORT_OUTPUT_DIR`.
+  - Consolidated snapshot endpoint `/api/reports/fleet-health-snapshot` with localhost bypass for on-server execution.
+  - Runs as `puppet` user, emails configurable PDF directly from the node (test or `openvox.pdxc-it.twitter.biz`).
+  - Install/update/deploy scripts automatically deploy the units and enable the timer.
+
 ### Features
 - **Orchestration (Run Command, Run Task, File Upload/Download, Run Script)**: Target selectors now use MultiSelect, allowing users to choose multiple nodes and/or multiple ENC groups at once. Selections are unioned (deduplicated) and sent as a comma-separated list. The backend `resolve_targets` now properly handles comma-separated input containing a mix of groups, individual nodes, and 'all'. This enables running against ad-hoc sets like "3 specific nodes" or "groupA + groupB + nodeX" without workarounds.
 
 ### Fixes
+- **Scheduled reports / env / install paths (INSTALL_DIR error)**: Fixed "ERROR: INSTALL_DIR must be set (e.g. /opt/openvox-gui)" surfaced by recent Fleet Health Report timer work during updates/deploys.
+  - `scripts/update_local.sh` was missing `INSTALL_DIR="${INSTALL_DIR}" \` when invoking centralized `ensure-sudoers.sh` (only the update path was affected; install.sh/deploy.sh were correct).
+  - Fleet health units now use `INSTALL_DIR` / `SERVICE_USER` / `SERVICE_GROUP` placeholders in `config/*.service` + `*.timer` and are substituted during copy in all three scripts (portable non-/opt installs and custom service users).
+  - Generator now resolves `OPENVOX_GUI_FLEET_HEALTH_REPORT_*` vars (the names written to .env and expected by backend Settings `env_prefix`) with bare-name fallbacks. `--live` auto-detects `OPENVOX_GUI_APP_PORT` (falls back to 4567) so the weekly run gets real data instead of samples. Better runtime default for output dir.
+  - Updated comments, service files, and logs for naming consistency.
 - **Data | Hiera Data Files**: The listing now properly recurses into subdirectories (`data/nodes/`, `data/locations/`, `data/roles/`, etc.) under both `data/` and `hieradata/` using `rglob`. Previously it only showed a hardcoded flat list of `common.yaml` + direct children of `data/nodes/`. Subdirectory files (with full relative paths in the name) are now discoverable and viewable. Also scans `*.yml` in addition to `*.yaml`. (The per-environment Hiera data editor already used recursive listing; this makes the read-only "Hiera Data Files" page consistent.)
 
 ### Fixed — Signed Certificates table in CA pane did not scroll

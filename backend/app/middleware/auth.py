@@ -210,6 +210,22 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _SKIP_AUTH_PATHS):
             return await call_next(request)
 
+        # Special-case: fleet health snapshot allows unauthenticated access from
+        # localhost only. This lets the on-server PDF generator (run as 'puppet')
+        # hit http://127.0.0.1:8000/... without a token or JWT. Remote callers
+        # still require a valid service token (OPENVOX_REPORT_TOKEN) or session.
+        # The handler performs the final IP + user check.
+        if path == "/api/reports/fleet-health-snapshot":
+            client_host = ""
+            if request.client:
+                client_host = request.client.host or ""
+            if client_host in ("127.0.0.1", "::1", "localhost") or client_host.startswith("127."):
+                # Grant a minimal internal viewer identity. Handler will still
+                # validate but we avoid 401 here so local generator works.
+                request.state.user = {"user_id": "internal-report-generator", "role": "viewer", "name": "Report Generator (local)"}
+                return await call_next(request)
+            # else fall through to normal auth (Bearer token will be tried next)
+
         # Try long-lived service/API tokens first (used by the local
         # 'bolt' user and other automation). These are looked up by
         # hash in the api_tokens table and can be very long-lived or

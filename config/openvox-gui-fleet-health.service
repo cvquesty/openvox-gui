@@ -1,0 +1,37 @@
+[Unit]
+Description=Generate and distribute OpenVox Fleet Health Report (weekly Monday 8AM ET)
+Documentation=file:///opt/openvox-gui/docs/INSTALLER.md
+After=network-online.target openvox-gui.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=SERVICE_USER
+Group=SERVICE_GROUP
+
+# The generator needs the GUI config for any future settings and proxy env.
+# It will use OPENVOX_GUI_FLEET_HEALTH_REPORT_* (or bare FLEET_*) vars for destinations.
+EnvironmentFile=-/etc/sysconfig/openvox-gui-fleet-health
+EnvironmentFile=-/etc/default/openvox-gui-fleet-health
+EnvironmentFile=-INSTALL_DIR/config/.env
+
+# Ensure reports directory exists (owned by the service user)
+ExecStartPre=/bin/mkdir -p INSTALL_DIR/data/reports
+ExecStartPre=/bin/chown SERVICE_USER:SERVICE_USER INSTALL_DIR/data/reports
+
+# Run the report generator with live data (uses internal API on localhost).
+# The script itself decides output location and emails based on env vars.
+#   OPENVOX_GUI_FLEET_HEALTH_REPORT_ENABLED=true
+#   OPENVOX_GUI_FLEET_HEALTH_REPORT_EMAILS="manager@example.com,team@example.com"
+#   OPENVOX_GUI_FLEET_HEALTH_REPORT_OUTPUT_DIR=INSTALL_DIR/data/reports
+ExecStart=INSTALL_DIR/venv/bin/python3 INSTALL_DIR/scripts/generate_fleet_health_report.py --live
+
+# Log to journal (view with: journalctl -u openvox-gui-fleet-health.service)
+StandardOutput=journal
+StandardError=journal
+
+# Don't restart on failure -- the timer will fire again next week.
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
