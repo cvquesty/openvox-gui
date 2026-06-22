@@ -938,6 +938,14 @@ See the detailed sections below for the full history of changes that led to this
   - Consolidated snapshot endpoint `/api/reports/fleet-health-snapshot` with localhost bypass for on-server execution.
   - Runs as `puppet` user, emails configurable PDF directly from the node (test or `openvox.pdxc-it.twitter.biz`).
   - Install/update/deploy scripts automatically deploy the units and enable the timer.
+- Executive Summary Report recipients are now fully configurable inside the GUI.
+  - New "Executive Summary Report" pane at the bottom of the Reports page.
+  - Add/remove email recipients (persisted in DB table `executive_report_recipients`).
+  - Per-recipient and "Send to all" ad-hoc delivery buttons (triggers the generator with live data + `--email`).
+  - New backend endpoints under `/api/reports/executive-summary/recipients` (CRUD + send).
+  - Generator script now falls back to the GUI-managed recipient list (via API) when no emails are provided in args/env (so scheduled runs also honor GUI config).
+  - Localhost bypass in auth middleware for the new endpoint (consistent with fleet-health-snapshot).
+  - This moves configuration out of `.env` into the application for the report recipients.
 
 ### Features
 - **Orchestration (Run Command, Run Task, File Upload/Download, Run Script)**: Target selectors now use MultiSelect, allowing users to choose multiple nodes and/or multiple ENC groups at once. Selections are unioned (deduplicated) and sent as a comma-separated list. The backend `resolve_targets` now properly handles comma-separated input containing a mix of groups, individual nodes, and 'all'. This enables running against ad-hoc sets like "3 specific nodes" or "groupA + groupB + nodeX" without workarounds.

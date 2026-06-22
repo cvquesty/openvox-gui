@@ -121,6 +121,23 @@ export const reports = {
   get: (hash: string) => fetchJSON<any>(`/reports/${hash}`),
   // Live Inventory report (Logs | Reports | Inventory)
   inventory: () => fetchJSON<any[]>('/reports/inventory'),
+
+  // Executive Summary (Fleet Health) Report recipients
+  listExecutiveRecipients: () => fetchJSON<any[]>('/reports/executive-summary/recipients'),
+  addExecutiveRecipient: (email: string) =>
+    fetchJSON<any>('/reports/executive-summary/recipients', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  deleteExecutiveRecipient: (id: number) =>
+    fetchJSON<any>(`/reports/executive-summary/recipients/${id}`, {
+      method: 'DELETE',
+    }),
+  sendExecutiveReport: (emails?: string[]) =>
+    fetchJSON<any>('/reports/executive-summary/send', {
+      method: 'POST',
+      body: JSON.stringify({ emails: emails || undefined }),
+    }),
 };
 
 // ─── Deployment ─────────────────────────────────────────────

@@ -226,6 +226,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return await call_next(request)
             # else fall through to normal auth (Bearer token will be tried next)
 
+        # Also allow the recipients list endpoint from localhost (so the generator
+        # running via the systemd timer or ad-hoc can read the GUI-managed list
+        # without requiring a token when executed on the OpenVox server itself).
+        if path == "/api/reports/executive-summary/recipients":
+            client_host = ""
+            if request.client:
+                client_host = request.client.host or ""
+            if client_host in ("127.0.0.1", "::1", "localhost") or client_host.startswith("127."):
+                request.state.user = {"user_id": "internal-report-generator", "role": "viewer", "name": "Report Generator (local)"}
+                return await call_next(request)
+
         # Try long-lived service/API tokens first (used by the local
         # 'bolt' user and other automation). These are looked up by
         # hash in the api_tokens table and can be very long-lived or

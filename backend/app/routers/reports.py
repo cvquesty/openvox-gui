@@ -24,13 +24,21 @@ breaks out of the PQL string literal and injects additional clauses.
 import re
 import time
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, BackgroundTasks
 from typing import Optional, List, Any, Dict
 import logging
+import subprocess
+import sys
+import os
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.puppetdb import puppetdb_service
 from ..services.puppetserver import puppetserver_service
-from ..models.schemas import ReportSummary, ReportDetail
+from ..models.schemas import ReportSummary, ReportDetail, ExecutiveReportRecipient as ExecutiveRecipientSchema, AddExecutiveRecipient, SendExecutiveReportRequest
+from ..models.executive_report import ExecutiveReportRecipient
 from ..dependencies import require_role
+from ..database import get_db
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -428,4 +436,158 @@ async def _get_fleet_health_snapshot_data(hours: int = 24) -> Dict[str, Any]:
         "server_health": srv,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "_source": "direct-service",
+    }
+
+
+# ─── Executive Summary Report Recipients Management ───────────────────────────
+# Stored in DB so the GUI is the source of truth for who receives the
+# weekly Executive Summary (Fleet Health) PDF report.
+#
+# Ad-hoc sends from the GUI call the generator script with --live + --email.
+# The scheduled timer can also fall back to fetching the list from the API.
+
+_EXECUTIVE_AUTH = require_role("admin", "operator")
+
+
+@router.get("/executive-summary/recipients", response_model=List[ExecutiveRecipientSchema])
+async def list_executive_recipients(
+    db: AsyncSession = Depends(get_db),
+    request: Request = None,
+    _user=Depends(_AUTH),  # viewer+ can see the list (with localhost bypass)
+):
+    """List all configured recipients for the Executive Summary Report."""
+    # Allow localhost (for the generator script when running scheduled/ad-hoc on the server)
+    client_host = ""
+    if request and request.client:
+        client_host = request.client.host or ""
+    is_local = client_host in ("127.0.0.1", "::1", "localhost", "") or client_host.startswith("127.")
+    if not _user and not is_local:
+        # This shouldn't normally happen because _AUTH would have raised, but keep defensive
+        pass
+
+    result = await db.execute(
+        select(ExecutiveReportRecipient).order_by(ExecutiveReportRecipient.added_at.desc())
+    )
+    recipients = result.scalars().all()
+    return recipients
+
+
+@router.post("/executive-summary/recipients", response_model=ExecutiveRecipientSchema, status_code=201)
+async def add_executive_recipient(
+    payload: AddExecutiveRecipient,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(_EXECUTIVE_AUTH),
+):
+    """Add a new email recipient for the Executive Summary Report."""
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address")
+
+    # Check for duplicate
+    existing = await db.execute(
+        select(ExecutiveReportRecipient).where(ExecutiveReportRecipient.email == email)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Recipient already exists")
+
+    rec = ExecutiveReportRecipient(email=email)
+    db.add(rec)
+    await db.commit()
+    await db.refresh(rec)
+    return rec
+
+
+@router.delete("/executive-summary/recipients/{recipient_id}", status_code=204)
+async def delete_executive_recipient(
+    recipient_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(_EXECUTIVE_AUTH),
+):
+    """Remove a recipient."""
+    rec = await db.get(ExecutiveReportRecipient, recipient_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    await db.delete(rec)
+    await db.commit()
+
+
+@router.post("/executive-summary/send")
+async def send_executive_report(
+    payload: SendExecutiveReportRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(_EXECUTIVE_AUTH),
+):
+    """
+    Trigger an ad-hoc Executive Summary Report generation and email delivery.
+    Uses live data (--live).
+    If no emails provided, sends to all configured recipients.
+    """
+    if payload.emails and len(payload.emails) > 0:
+        emails = [e.strip().lower() for e in payload.emails if e.strip()]
+    else:
+        # Send to all
+        result = await db.execute(select(ExecutiveReportRecipient.email))
+        emails = [row[0] for row in result.all()]
+
+    if not emails:
+        raise HTTPException(status_code=400, detail="No recipients configured or provided")
+
+    def _run_generator(emails_list: List[str]):
+        """Run in background so the HTTP request returns quickly."""
+        try:
+            # Locate the generator
+            install_dir = os.environ.get("INSTALL_DIR") or getattr(settings, "install_dir", None) or "/opt/openvox-gui"
+            script_path = os.path.join(install_dir, "scripts", "generate_fleet_health_report.py")
+
+            if not os.path.isfile(script_path):
+                # Try relative to the backend package (dev / non-standard installs)
+                here = os.path.dirname(os.path.abspath(__file__))
+                script_path = os.path.abspath(
+                    os.path.join(here, "..", "..", "..", "scripts", "generate_fleet_health_report.py")
+                )
+
+            if not os.path.isfile(script_path):
+                logger.error(f"Could not find generate_fleet_health_report.py at {script_path}")
+                return
+
+            python_bin = sys.executable
+            cmd = [
+                python_bin,
+                script_path,
+                "--live",
+                "--email", ",".join(emails_list),
+            ]
+            # Run detached-ish; capture for logs
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            logger.info(f"Ad-hoc executive report sent to {emails_list}. rc={result.returncode}")
+            if result.stdout:
+                logger.info(result.stdout[-500:])
+            if result.stderr:
+                logger.warning(result.stderr[-500:])
+        except Exception as exc:
+            logger.exception(f"Failed to send ad-hoc executive report: {exc}")
+
+    background_tasks.add_task(_run_generator, emails)
+
+    # Update last_sent_at for the affected recipients (best effort)
+    now = datetime.now(timezone.utc)
+    for email in emails:
+        rec_result = await db.execute(
+            select(ExecutiveReportRecipient).where(ExecutiveReportRecipient.email == email)
+        )
+        rec = rec_result.scalar_one_or_none()
+        if rec:
+            rec.last_sent_at = now
+    await db.commit()
+
+    return {
+        "status": "queued",
+        "emails": emails,
+        "message": "Report generation and delivery started in background.",
     }

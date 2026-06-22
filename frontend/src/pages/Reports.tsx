@@ -3,13 +3,13 @@
  * 
  * Component documentation to be expanded.
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider,
 } from '@mantine/core';
-import { IconSearch, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { reports, enc, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -293,6 +293,13 @@ export function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
+  // Executive Summary Report (Fleet Health) recipients
+  const [execRecipients, setExecRecipients] = useState<any[]>([]);
+  const [newRecipientEmail, setNewRecipientEmail] = useState('');
+  const [execLoading, setExecLoading] = useState(false);
+  const [execError, setExecError] = useState<string | null>(null);
+  const [execSuccess, setExecSuccess] = useState<string | null>(null);
+
   // Fetch hierarchy (groups and nodes)
   const { data: hierarchy, loading: hierarchyLoading } = useApi(
     () => enc.getHierarchy(),
@@ -436,6 +443,69 @@ export function ReportsPage() {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
 
+  // Executive Summary recipients management
+  const loadExecutiveRecipients = async () => {
+    setExecLoading(true);
+    setExecError(null);
+    try {
+      const data = await reports.listExecutiveRecipients();
+      setExecRecipients(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setExecError(e?.message || 'Failed to load recipients');
+      setExecRecipients([]);
+    } finally {
+      setExecLoading(false);
+    }
+  };
+
+  const addExecutiveRecipient = async () => {
+    const email = newRecipientEmail.trim();
+    if (!email || !email.includes('@')) {
+      setExecError('Please enter a valid email address');
+      return;
+    }
+    setExecError(null);
+    setExecSuccess(null);
+    try {
+      await reports.addExecutiveRecipient(email);
+      setNewRecipientEmail('');
+      await loadExecutiveRecipients();
+      setExecSuccess(`Added ${email}`);
+      setTimeout(() => setExecSuccess(null), 2500);
+    } catch (e: any) {
+      setExecError(e?.message || 'Failed to add recipient');
+    }
+  };
+
+  const removeExecutiveRecipient = async (id: number) => {
+    setExecError(null);
+    setExecSuccess(null);
+    try {
+      await reports.deleteExecutiveRecipient(id);
+      await loadExecutiveRecipients();
+    } catch (e: any) {
+      setExecError(e?.message || 'Failed to remove recipient');
+    }
+  };
+
+  const sendAdHocReport = async (emails?: string[]) => {
+    setExecError(null);
+    setExecSuccess(null);
+    try {
+      await reports.sendExecutiveReport(emails);
+      const target = emails && emails.length ? emails.join(', ') : 'all recipients';
+      setExecSuccess(`Ad-hoc report queued for ${target}. Check server logs / mail for delivery.`);
+      setTimeout(() => setExecSuccess(null), 4000);
+      await loadExecutiveRecipients();
+    } catch (e: any) {
+      setExecError(e?.message || 'Failed to send report');
+    }
+  };
+
+  useEffect(() => {
+    loadExecutiveRecipients();
+  }, []);
+
   if (loading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
@@ -570,6 +640,122 @@ export function ReportsPage() {
           })}
         </Stack>
       )}
+
+      {/* Executive Summary Report configuration pane (at bottom of Reports page) */}
+      <Divider my="xl" />
+      <Stack>
+        <Group justify="space-between" align="center">
+          <div>
+            <Title order={3}>Executive Summary Report</Title>
+            <Text size="sm" c="dimmed">
+              Recipients for the weekly one-page Fleet Health PDF. Ad-hoc delivery uses live data from the server.
+            </Text>
+          </div>
+          <Button
+            leftSection={<IconSend size={16} />}
+            onClick={() => sendAdHocReport()}
+            disabled={execRecipients.length === 0}
+            variant="light"
+          >
+            Send to all now
+          </Button>
+        </Group>
+
+        {execError && (
+          <Alert color="red" title="Error" onClose={() => setExecError(null)} withCloseButton>
+            {execError}
+          </Alert>
+        )}
+        {execSuccess && (
+          <Alert color="green" title="Success" onClose={() => setExecSuccess(null)} withCloseButton>
+            {execSuccess}
+          </Alert>
+        )}
+
+        {/* Add new recipient */}
+        <Group>
+          <TextInput
+            placeholder="Add email recipient (e.g. manager@company.com)"
+            value={newRecipientEmail}
+            onChange={(e) => setNewRecipientEmail(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addExecutiveRecipient();
+            }}
+            style={{ flex: 1, maxWidth: 420 }}
+          />
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={addExecutiveRecipient}
+            disabled={!newRecipientEmail.trim()}
+          >
+            Add Recipient
+          </Button>
+        </Group>
+
+        {/* Recipients list */}
+        <Card withBorder shadow="sm" p="sm">
+          {execLoading ? (
+            <Center py="md"><Loader size="sm" /></Center>
+          ) : execRecipients.length === 0 ? (
+            <Text c="dimmed" ta="center" py="sm">No recipients configured yet. Add emails above.</Text>
+          ) : (
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Email</Table.Th>
+                  <Table.Th>Added</Table.Th>
+                  <Table.Th>Last Sent</Table.Th>
+                  <Table.Th style={{ width: 160 }}>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {execRecipients.map((rec: any) => (
+                  <Table.Tr key={rec.id}>
+                    <Table.Td>
+                      <Text fw={500}>{rec.email}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {rec.added_at ? new Date(rec.added_at).toLocaleString() : '—'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">
+                        {rec.last_sent_at ? new Date(rec.last_sent_at).toLocaleString() : 'Never'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap="xs">
+                        <Button
+                          size="xs"
+                          variant="light"
+                          leftSection={<IconSend size={14} />}
+                          onClick={() => sendAdHocReport([rec.email])}
+                        >
+                          Send now
+                        </Button>
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          onClick={() => removeExecutiveRecipient(rec.id)}
+                          title="Remove recipient"
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </Card>
+
+        <Text size="xs" c="dimmed">
+          The scheduled Monday 8AM report will also pick up this list (via the GUI API when no value is set in .env).
+          Make sure <code>mail</code> or <code>mailx</code> works on the server for email delivery.
+        </Text>
+      </Stack>
     </Stack>
   );
 }

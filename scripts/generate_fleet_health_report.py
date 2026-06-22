@@ -678,6 +678,25 @@ def main():
                   _get_env("FLEET_HEALTH_EMAIL")).strip()
     emails = [e.strip() for e in re.split(r'[,;\s]+', emails_str) if e.strip()]
 
+    # If still no recipients and we are using --live (typically on-server scheduled or ad-hoc),
+    # try to fetch the current list from the GUI itself (via the new recipients API).
+    # This makes the GUI the source of truth even when .env is empty.
+    if not emails and args.live:
+        try:
+            import httpx
+            port = _get_env("APP_PORT") or "4567"
+            base = f"http://127.0.0.1:{port}"
+            with httpx.Client(base_url=base, timeout=5.0) as client:
+                r = client.get("/api/reports/executive-summary/recipients")
+                if r.status_code == 200:
+                    recs = r.json()
+                    emails = [rec["email"] for rec in recs if rec.get("email")]
+                    if emails:
+                        print(f"[info] Loaded {len(emails)} recipient(s) from GUI executive summary config.")
+        except Exception as fetch_exc:
+            # Silent fallback — generator will just not email if still empty
+            print(f"[warn] Could not fetch recipients from GUI API: {fetch_exc}", file=sys.stderr)
+
     output_dir = _get_env("FLEET_HEALTH_REPORT_OUTPUT_DIR")
     if not output_dir:
         # Fallback relative to the script (works in dev tree and after deploys where data/ lives beside scripts/parent)

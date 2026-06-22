@@ -187,6 +187,29 @@ class ClassificationRuleResponse(BaseModel):
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 
+
+# ─── Executive Summary Report Recipients ────────────────────
+
+class ExecutiveReportRecipient(BaseModel):
+    id: int
+    email: str
+    added_at: datetime
+    last_sent_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AddExecutiveRecipient(BaseModel):
+    email: str = Field(..., description="Email address to receive the Executive Summary PDF report")
+
+
+class SendExecutiveReportRequest(BaseModel):
+    emails: Optional[List[str]] = Field(
+        default=None,
+        description="Specific emails to send to. If omitted or empty, sends to all configured recipients."
+    )
+
     class Config:
         from_attributes = True
 
