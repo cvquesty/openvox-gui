@@ -174,6 +174,8 @@ You can always restore from the backup directory if something goes wrong.
 
 The same tuning data and capabilities are available in the web interface under the **Metrics** and **Configuration** sections. The CLI is simply the terminal-friendly surface for the same backend logic.
 
+> Note: For the Metrics pages to show rich server and database data, you must complete the server-side setup described in [docs/METRICS.md](METRICS.md).
+
 ## Limitations & Future Work
 
 Current version focuses on the highest-impact settings:

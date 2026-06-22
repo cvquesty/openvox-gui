@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.6-dev.5] - 2026-06-22
+
+### Documentation & Setup Improvements
+- Added complete **Metrics setup guide** (`docs/METRICS.md`).
+  - Documents the exact configuration required for full server-side metrics (Run Performance, PuppetDB Health, OpenVox Server Health).
+  - Covers `puppetserver.conf` (`http-client { metrics-enabled: true }`), `metrics.conf` (correct nested JMX `registries.puppetserver.reporters.jmx.enabled` structure for Puppet Server 8+), and authorization rules.
+  - Provides both modern HOCON `match-request` rules (recommended) and legacy Ruby-style `auth.conf` entries for `/metrics` and `/status`.
+  - Includes verification commands using the actual Puppet agent certs the GUI uses for mTLS, troubleshooting table, and instructions for editing via the built-in Configuration editor.
+  - Addresses the gap where users following INSTALL.md / README / installer output (instead of changelog) would have missing `auth.conf` / `metrics.conf` entries and non-functional metrics pages.
+- Updated post-install output in `install.sh` with a prominent "Server Metrics" section that warns about limited charts and points to the new guide.
+- Added dedicated step 6 under "Important First Steps" in `INSTALL.md` for enabling full Metrics data.
+- Updated README.md (top nav links, Documentation list, and Metrics feature description) and `docs/TUNING.md` to reference `docs/METRICS.md`.
+- Cleaned inline help text in `MetricsPuppetServerHealth.tsx` to point at the canonical doc.
+
+Assisted By: Grok AI
+
 ## [3.9.6-dev.2] - 2026-06-22
 
 ### Improvements

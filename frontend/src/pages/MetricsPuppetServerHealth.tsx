@@ -544,8 +544,8 @@ export function MetricsPuppetServerHealthPage() {
       )}
 
       <Text size="xs" c="dimmed">
-        Polls Puppet Server status + metrics/v2 (Jolokia). Server history (shared) + client accumulation. 
-        <strong>Configuration required on OpenVox Server (Puppet 8+):</strong> See the metrics.conf example below (no top-level "enabled"). Use the auth.conf rules with match-request that you provided. Restart puppetserver after changes. Check the "raw" section in this page for what is actually returned.
+        Polls Puppet Server status + metrics/v2 (Jolokia). Server history (shared) + client accumulation.
+        <strong>Full data requires configuration</strong> — see docs/METRICS.md (puppetserver.conf + metrics.conf + auth rules for /metrics and /status). After editing, restart puppetserver. Use the raw section below to see exactly what is being returned.
       </Text>
     </Stack>
   );

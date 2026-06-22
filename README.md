@@ -16,7 +16,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/cvquesty/openvox-gui?style=flat-square)](https://github.com/cvquesty/openvox-gui/commits/main)
 
-[Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Architecture](docs/ARCHITECTURE.md) · [ovox CLI](ovox/README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+[Installation](INSTALL.md) · [Update Guide](UPDATE.md) · [Architecture](docs/ARCHITECTURE.md) · [Metrics Setup](docs/METRICS.md) · [ovox CLI](ovox/README.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 > **⚠️ For internal (Twitter) developers**: Never let internal Artifactory URLs, corporate hostnames (e.g. `*.pdxc-it.twitter.biz`), or other private infrastructure details leak into committed files (especially `package-lock.json`). Use the public npm registry when updating frontend deps. The `frontend/.npmrc` helps enforce this. See v3.8.6 release notes for the previous incident.
 
@@ -81,6 +81,7 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - **[Sudoers Configuration](docs/SUDOERS.md)** — Required sudo rules for the GUI service
 - **[Architecture Guide](docs/ARCHITECTURE.md)** — System design, component relationships, and why `ovox` is treated as a first-class interface alongside the web GUI
 - **[Tuning Guide](docs/TUNING.md)** — Health checks, recommendations, and safe tuning with `ovox infra` (including JVM control)
+- **[Metrics Setup](docs/METRICS.md)** — Required Puppet Server + PuppetDB configuration for full Run Performance, Server Health, and PuppetDB Health data (auth.conf, metrics.conf, puppetserver.conf)
 - **[ovox CLI Documentation](ovox/README.md)** — Full command reference for the first-class `ovox` CLI (tokens, infra tuning, nodes, certs, PQL, etc.)
 - **[Troubleshooting](TROUBLESHOOTING.md)** — Solutions to common problems (including ovox-specific issues)
 - **[Changelog](CHANGELOG.md)** — Complete version history with every change documented
@@ -277,7 +278,13 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py l
 ### Metrics Section (the headline feature)
 
 A new top-level **Metrics** section with 10 visualization pages providing
-fleet-wide analytics and server-side instrumentation:
+fleet-wide analytics and server-side instrumentation.
+
+> **Important**: Full server-side metrics (Run Performance, Puppet Server Health,
+> PuppetDB Health) require additional configuration on your OpenVox Server
+> (`auth.conf` / authorization rules + `metrics.conf` + http-client settings).
+> See **[docs/METRICS.md](docs/METRICS.md)**. Without it many charts will be
+> empty or show minimal data.
 
 - **Run Performance** — 10-chart dashboard with click-to-expand thumbnails.
   Agent-side: run duration trends, timing phase breakdown, top 10 slowest

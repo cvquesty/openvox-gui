@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.9.6-dev.4**
+**OpenVox GUI Version 3.9.6-dev.5**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -320,7 +320,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.9.6-dev.4"}` if everything is working.
+You should see `{"status":"ok","version":"3.9.6-dev.5"}` if everything is working.
 
 ---
 
@@ -394,6 +394,18 @@ Full documentation: [ovox/README.md](ovox/README.md)
    - The page shows real-time certificate health (expiry, key type, chain status)
    - For enterprise environments, use **Configure Puppet CA** to set up an
      intermediate CA that chains to your corporate PKI.
+
+6. **Enable full Metrics data (highly recommended)**:
+   - By default many Metrics pages (Run Performance, PuppetDB Health,
+     OpenVox Server Health) will be empty or very limited.
+   - You must configure Puppet Server authorization and metrics reporting.
+   - **See the dedicated guide**: [docs/METRICS.md](docs/METRICS.md)
+   - This involves three files:
+     - `puppetserver.conf` (http-client metrics)
+     - `metrics.conf` (JMX)
+     - `auth.conf` (allow the GUI's mTLS client to reach `/metrics` and `/status`)
+   - After changes: `sudo systemctl restart puppetserver puppetdb openvox-gui`
+   - You can edit these files from **Settings → Application Configuration** in the GUI.
 
 ### Starting and Stopping the Service
 

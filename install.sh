@@ -1656,3 +1656,20 @@ else
     echo -e "    See docs/puppet-agent-disabled-fact.md and the Node Health page for details."
 fi
 echo
+
+echo -e "  ${BOLD}Server Metrics (Puppet Server + PuppetDB Health / Performance):${NC}"
+echo -e "    Full Metrics pages require extra configuration on the OpenVox Server."
+echo -e "    Without it you will get limited or empty server-side charts."
+echo -e ""
+echo -e "    Required changes:"
+echo -e "      - puppetserver.conf: enable http-client metrics"
+echo -e "      - metrics.conf: enable JMX reporters (correct Puppet 8 structure)"
+echo -e "      - auth.conf (or conf.d/auth.conf): allow access to /metrics and /status"
+echo -e ""
+echo -e "    ${YELLOW}See the complete reference:${NC}"
+echo -e "      ${INSTALL_DIR}/docs/METRICS.md"
+echo -e "      or https://github.com/cvquesty/openvox-gui/blob/main/docs/METRICS.md"
+echo -e ""
+echo -e "    After editing, restart:"
+echo -e "      sudo systemctl restart puppetserver puppetdb openvox-gui"
+echo
