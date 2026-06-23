@@ -47,9 +47,12 @@ See the dedicated **[ovox documentation](ovox/README.md)** for the complete comm
 
 ## 📸 Screenshots
 
-| Dashboard | Node Details | Orchestration |
-|-----------|--------------|---------------|
+| Dashboard           | Node Details         | Orchestration          |
+|---------------------|----------------------|------------------------|
 | ![Dashboard](docs/images/dashboard.png) | ![Node Details](docs/images/node-details.png) | ![Orchestration](docs/images/orchestration.png) |
+| Performance Metrics | Server Health        | DB Health              |
+|---------------------|----------------------|------------------------|
+| ![Performance Metrics](docs/images/performance.png) | ![OpenVox Server Health](docs/images/server.png) | ![OpenVox DB Health](docs/images/db.png) |
 
 ## 🚀 Quick Start
 

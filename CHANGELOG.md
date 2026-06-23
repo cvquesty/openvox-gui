@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.6-dev.6] - 2026-06-23
+
+### Documentation
+- Added screenshots for the new metrics views to the 📸 Screenshots section in README.md.
+  - Performance Metrics (`performance.png`)
+  - OpenVox Server Health (`server.png`)
+  - OpenVox DB Health (`db.png`)
+- Formatted the new screenshots and aligned them in the table with the existing Dashboard, Node Details, and Orchestration entries.
+
+Assisted By: Grok AI
+
 ## [3.9.6-dev.5] - 2026-06-22
 
 ### Documentation & Setup Improvements
