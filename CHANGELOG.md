@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a21] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Concurrency limit tuning (Orchestration)
+- Raised heavy concurrency semaphore from 2 to 3 to match the UI behavior in Infrastructure > Orchestration, which intentionally does Promise.all of 3 parallel /bolt/run/command calls (human + json + rainbow formats) for one user action.
+- Increased acquire wait timeout from 0.1s to 5s so legitimate parallel format fetches don't immediately 429.
+- Fixes spurious "Too many concurrent heavy operations from this client" when running commands (e.g. whoami on all targets).
+
+### Versioning
+- Incremented pre-release to 3.10.0a21.
+
+Assisted By: Grok AI
+
 ## [3.10.0a20] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Bugfix (Orchestration)

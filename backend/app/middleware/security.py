@@ -165,10 +165,12 @@ def rate_limit_heavy():
 
 
 # ── Concurrency limiting for heavy endpoints (P1 from systems architect report) ──
-# Per-IP (keyed same as rate limiter) limit of 2 concurrent heavy operations.
+# Per-IP (keyed same as rate limiter) limit of 3 concurrent heavy operations.
+# The Orchestration "run command" UI intentionally fires 3 parallel requests
+# (human + json + rainbow formats) for a single user action.
 # Prevents a single client from starving uvicorn workers during long Bolt/r10k runs.
 # Complements rate_limit_heavy().
-_heavy_concurrency = defaultdict(lambda: asyncio.Semaphore(2))
+_heavy_concurrency = defaultdict(lambda: asyncio.Semaphore(3))
 
 
 async def concurrency_heavy(request: Request):
@@ -181,7 +183,10 @@ async def concurrency_heavy(request: Request):
     key = get_remote_address(request)
     sem = _heavy_concurrency[key]
     try:
-        await asyncio.wait_for(sem.acquire(), timeout=0.1)
+        # Wait a bit for a slot instead of failing instantly. 5s gives the other
+        # parallel format requests (human/json/rainbow) time to complete without
+        # the user seeing spurious 429s for a normal single action.
+        await asyncio.wait_for(sem.acquire(), timeout=5.0)
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=429,
