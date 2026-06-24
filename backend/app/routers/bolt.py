@@ -501,15 +501,35 @@ async def run_command(
     if req.run_as and req.run_as != "root":
         args.extend(["--run-as", req.run_as])
 
+    # Build the full sudo + bolt invocation list.
+    # Previously the central CommandExecutionService was being passed only the
+    # Bolt subcommand args (["command", "run", ...]), causing it to exec the
+    # program literally named "command" (hence /usr/bin/command: run: not found).
+    # Now pass the full list that run_sudo expects, matching the pre-refactor
+    # logic in run_bolt_command.
+    bolt = find_bolt()
+    if not bolt:
+        return {"returncode": -1, "stdout": "", "stderr": "Puppet Bolt is not installed"}
+
+    inventory_flag = ["-i", "/etc/puppetlabs/bolt/inventory.yaml"]
+    project_flag = ["--project", "/etc/puppetlabs/bolt"]
+
+    is_rainbow = (fmt == "rainbow")
+    sub_args = list(args)  # copy the subcommand list
+    if is_rainbow and "--color" not in sub_args:
+        sub_args = sub_args + ["--color"]
+
+    full_args = ["sudo", bolt] + sub_args + inventory_flag + project_flag
+
     # Use central service (initial integration for report P0 centralization).
     from ..services.command_execution import default_service
     result = await default_service.execute(
         execution_type="command",
-        args=args,
+        args=full_args,
         targets=resolved_targets,
         executed_by=current_user,
         timeout=300,
-        rainbow=(fmt == "rainbow"),
+        rainbow=is_rainbow,
         db=db,
     )
     duration_ms = result.get("duration_ms", int((time.time() - start_time) * 1000))

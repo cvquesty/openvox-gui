@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a20] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Bugfix (Orchestration)
+- Fixed "bolt command run" execution path (Infrastructure > Orchestration): the central CommandExecutionService was being passed only Bolt subcommand args (["command", "run", ...]) instead of the full sudo+bolt invocation list. This caused the controller to exec /usr/bin/command with "run" as the command name, producing "run: command not found" and EXIT 27.
+- Now correctly builds and passes the full `["sudo", bolt, "command", "run", user_cmd, ...]` list to the service (matching pre-refactor behavior in run_bolt_command).
+- Fixes running arbitrary commands (e.g. "whoami") against targets.
+
+### Versioning
+- Incremented pre-release to 3.10.0a20 (every commit is a version increment per project rule).
+
+Assisted By: Grok AI
+
 ## [3.10.0a19] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### P0 subprocess audit and list-form
