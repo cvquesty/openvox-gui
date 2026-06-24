@@ -31,14 +31,6 @@ api_token       = params['api_token']
 token_file      = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
 user            = params['user'] || 'bolt'  # SSH user for targets; defaults to 'bolt' to match inventory config and GUI expectations (whoami returns 'bolt' by default)
 
-# Detect the local controller's certname so we can force local transport + run-as
-# for it. This ensures default commands from the GUI Orchestration page run as
-# the 'bolt' user even on the server itself (via local run-as).
-local_certname = `puppet config print certname 2>/dev/null`.strip
-if local_certname.empty?
-  local_certname = `hostname -f 2>/dev/null`.strip
-end
-
 # Run-as settings.
 # - For remote targets: default none (run as the SSH 'user' from inventory, i.e. 'bolt').
 #   Escalation only when GUI sends run_as or prefixes "sudo " in command.
@@ -116,55 +108,32 @@ groups.each do |grp|
     next if seen[certname]       # Deduplicate across groups
 
     seen[certname] = true
+    target = {
+      'uri'  => certname,
+      'name' => certname,
+      'config' => {
+        'transport' => transport,
+        transport   => { 'host-key-check' => false },
+      },
+      'vars' => {
+        'enc_groups' => [],
+      },
+    }
 
-    if certname == local_certname
-      # Special case for the controller: use local transport so we don't SSH to self.
-      # Default run-as: the 'bolt' user so that GUI commands default to 'bolt'
-      # (matching remote SSH targets). "Run privileged" will still escalate.
-      target = {
-        'uri'  => certname,
-        'name' => certname,
-        'config' => {
-          'transport' => 'local',
-          'local' => {
-            'run-as' => user
-          },
-        },
-        'vars' => {
-          'enc_groups' => [],
-        },
-      }
-    else
-      target = {
-        'uri'  => certname,
-        'name' => certname,
-        'config' => {
-          'transport' => transport,
-          transport   => {
-            'host-key-check' => false,
-            'user'           => user,
-          },
-        },
-        'vars' => {
-          'enc_groups' => [],
-        },
-      }
+    # Only inject run-as settings if the inventory _plugin stanza explicitly
+    # supplied them. By default we do *not* force escalation — the SSH user
+    # (bolt) runs commands as itself unless the operator or GUI requests sudo.
+    # This keeps direct CLI `bolt command run` / `bolt task run` (as the bolt
+    # shell user) and GUI Orchestration defaults producing identical results
+    # (e.g. whoami returns "bolt" from both when no escalation is requested).
+    if run_as && !run_as.to_s.empty?
+      target['config'][transport] ||= {}
+      target['config'][transport]['run-as'] = run_as
+    end
 
-      # Only inject run-as settings if the inventory _plugin stanza explicitly
-      # supplied them. By default we do *not* force escalation — the SSH user
-      # (bolt) runs commands as itself unless the operator or GUI requests sudo.
-      # This keeps direct CLI `bolt command run` / `bolt task run` (as the bolt
-      # shell user) and GUI Orchestration defaults producing identical results
-      # (e.g. whoami returns "bolt" from both when no escalation is requested).
-      if run_as && !run_as.to_s.empty?
-        target['config'][transport] ||= {}
-        target['config'][transport]['run-as'] = run_as
-      end
-
-      if run_as_command && run_as_command.is_a?(Array) && !run_as_command.empty?
-        target['config'][transport] ||= {}
-        target['config'][transport]['run-as-command'] = run_as_command
-      end
+    if run_as_command && run_as_command.is_a?(Array) && !run_as_command.empty?
+      target['config'][transport] ||= {}
+      target['config'][transport]['run-as-command'] = run_as_command
     end
 
     # Collect all groups this node belongs to

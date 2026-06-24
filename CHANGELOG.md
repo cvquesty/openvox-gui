@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a25] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Restore Orchestration command execution to match main branch behavior
+- Reverted run_command in bolt.py to use the exact logic from main (referenced via git show main:backend/app/routers/bolt.py):
+  - Direct call to run_bolt_command (no CommandExecutionService wrapper for this path).
+  - escalate = bool(req.run_as) or _command_needs_root(normalized)  [no is_approved]
+  - Prefix "sudo " only when run_as or needs root heuristic.
+  - History creation and update as on main.
+- This makes default commands run as the inventory 'bolt' user on agents, and (per main's design with local transport) the server behaves consistently with how main did.
+- Reverted the openvox_enc plugin and inventory.yaml.example to exactly match main's (no forced local+run-as special case in plugin; local group is just "transport: local" as on main).
+- Reverted sudoers and other alpha-only changes for this feature.
+- The CommandExecutionService and other P0 refactors remain for other paths, but Orchestration "Run Command" now matches main's proven implementation.
+- Logic explicitly referenced from main branch to ensure identical behavior for this feature without any changes to main.
+
+### Versioning
+- Incremented pre-release to 3.10.0a25.
+
+Assisted By: Grok AI
+
 ## [3.10.0a24] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Fix: server node now defaults to 'bolt' user (Orchestration "all targets")

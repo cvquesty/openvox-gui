@@ -499,31 +499,6 @@ async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
         "groups": bolt_groups,
     }
 
-    # Permanent special handling for the controller node (the one running this GUI).
-    # Use transport: local + run-as: bolt so that ad-hoc commands from the
-    # Orchestration page default to the 'bolt' user on the server itself
-    # (matching SSH targets and the documented default: whoami returns "bolt"
-    # unless "Run privileged" is checked). This prevents the "root on server,
-    # bolt on agents" inconsistency.
-    local_server = getattr(settings, "puppet_server_host", None)
-    if local_server:
-        for bg in bolt_groups:
-            ts = bg.get("targets", [])
-            if local_server in ts:
-                new_ts = []
-                for t in ts:
-                    if t == local_server:
-                        new_ts.append({
-                            "uri": local_server,
-                            "config": {
-                                "transport": "local",
-                                "local": {"run-as": "bolt"},
-                            },
-                        })
-                    else:
-                        new_ts.append(t)
-                bg["targets"] = new_ts
-
     return inventory
 
 

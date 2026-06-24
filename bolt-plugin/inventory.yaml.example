@@ -49,18 +49,12 @@ config:
     # correctly under sudo.
 
 groups:
-  # Static group for the OpenVox server itself (local transport).
-  # We explicitly set run-as: bolt so that ad-hoc commands default to the
-  # 'bolt' user (whoami returns bolt). This matches the behavior for SSH
-  # targets and the documented GUI default. Privilege escalation ("Run
-  # privileged") is done by prefixing sudo in the command or --run-as.
+  # Static group for the OpenVox server itself (local transport)
   - name: puppetserver
     targets:
       - uri: puppet.example.com
         config:
           transport: local
-          local:
-            run-as: bolt
 
   # Dynamic groups from the ENC database — resolved live on every
   # Bolt invocation. Groups and nodes are managed in the GUI's

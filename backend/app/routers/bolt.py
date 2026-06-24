@@ -491,12 +491,10 @@ async def run_command(
     #
     # P0 hardening: explicit APPROVED_SAFE_PREFIXES for the common "puppet agent -t"
     # case (vs. arbitrary free-form). Approved prefixes are treated as safe+privileged.
-    is_approved = _is_approved_safe_command(normalized)
-    escalate = bool(req.run_as) or _command_needs_root(normalized) or is_approved
+    # Logic referenced exactly from main branch (to restore proven Orchestration behavior
+    # for default 'bolt' user vs privileged root on targets). Do not alter without matching main.
+    escalate = bool(req.run_as) or _command_needs_root(normalized)
     command = ("sudo " + normalized) if escalate else normalized
-
-    if is_approved:
-        command = "sudo " + prepare_puppet_agent_command(normalized)
 
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
 
@@ -506,43 +504,20 @@ async def run_command(
     if req.run_as and req.run_as != "root":
         args.extend(["--run-as", req.run_as])
 
-    # Build the full sudo + bolt invocation list.
-    # Previously the central CommandExecutionService was being passed only the
-    # Bolt subcommand args (["command", "run", ...]), causing it to exec the
-    # program literally named "command" (hence /usr/bin/command: run: not found).
-    # Now pass the full list that run_sudo expects, matching the pre-refactor
-    # logic in run_bolt_command.
-    bolt = find_bolt()
-    if not bolt:
-        return {"returncode": -1, "stdout": "", "stderr": "Puppet Bolt is not installed"}
-
-    inventory_flag = ["-i", "/etc/puppetlabs/bolt/inventory.yaml"]
-    project_flag = ["--project", "/etc/puppetlabs/bolt"]
-
-    is_rainbow = (fmt == "rainbow")
-    sub_args = list(args)  # copy the subcommand list
-    if is_rainbow and "--color" not in sub_args:
-        sub_args = sub_args + ["--color"]
-
-    # Invoke as root (see comment in run_bolt_command).
-    full_args = ["sudo", bolt] + sub_args + inventory_flag + project_flag
-
-    # Use central service (initial integration for report P0 centralization).
-    from ..services.command_execution import default_service
-    result = await default_service.execute(
-        execution_type="command",
-        args=full_args,
-        targets=resolved_targets,
-        executed_by=current_user,
-        timeout=300,
-        rainbow=is_rainbow,
-        db=db,
-    )
-    duration_ms = result.get("duration_ms", int((time.time() - start_time) * 1000))
-
+    result = await run_bolt_command(args, timeout=300)
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    # Update history entry with results
+    history_entry.status = "success" if result["returncode"] == 0 else "failure"
+    history_entry.duration_ms = duration_ms
+    if result["returncode"] != 0:
+        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
+    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
+    await db.commit()
+    
     stdout = strip_ansi(result.get("stdout", ""))
     stderr = strip_ansi(result.get("stderr", ""))
-    return {"returncode": result.get("returncode"), "output": stdout, "error": stderr}
+    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 
 @router.post("/run/task")
