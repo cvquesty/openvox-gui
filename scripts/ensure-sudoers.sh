@@ -264,12 +264,29 @@ sed -i \
 # Apply strict permissions (sudoers best practice)
 chmod 440 "$SUDOERS_FILE"
 
-# Validate syntax. Some environments have visudo that can be noisy; we
-# tolerate failure for logging purposes but the write still happened.
+# Emit diff vs the backup we just created (P1 hardening per systems architect report).
+# This gives operators immediate visibility into exactly what changed in the
+# managed sudoers file on every deploy/install.
+if [ -n "${BACKUP:-}" ] && [ -f "$BACKUP" ]; then
+    echo ""
+    echo "📄 Diff of sudoers changes vs backup:"
+    diff -u "$BACKUP" "$SUDOERS_FILE" || true
+    echo ""
+fi
+
+# Validate syntax with visudo -cf.
+# Per P1 recommendation: FAIL the whole script (and thus the deploy) if invalid.
+# This leaves maintenance mode up so operators can investigate before the
+# service is restarted with a broken sudoers file.
 if visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
     echo "✅ sudoers syntax OK: $SUDOERS_FILE"
 else
-    echo "⚠️  visudo -cf reported issues for $SUDOERS_FILE (check manually with 'sudo visudo -cf $SUDOERS_FILE')"
+    echo "❌ visudo -cf FAILED for $SUDOERS_FILE"
+    echo "   Refusing to continue. The deploy/install will exit non-zero so that"
+    echo "   maintenance mode (if active) is left on for safety."
+    echo "   Inspect with: sudo visudo -cf $SUDOERS_FILE"
+    echo "   Or review the diff above and the backup: $BACKUP"
+    exit 1
 fi
 
 echo "✅ Ensured canonical sudoers rules for service user '${SERVICE_USER}'"

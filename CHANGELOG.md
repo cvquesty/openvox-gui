@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a7] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - follow-up
+- Sudoers script (P1): emit unified diff vs .bak on every rewrite; run `visudo -cf` after substitution and FAIL the script (exit 1) on syntax errors so the calling deploy leaves maintenance mode active for operator intervention.
+- This strengthens the "full rewrite on deploy" model with automatic validation + visibility, per the systems architect recommendation.
+- No change to the actual rules; only the management script's safety behavior.
+- Script continues to use quoted heredoc per project AGENTS.md rules.
+
+### Versioning
+- Incremented pre-release to 3.10.0a7 on the alpha branch for this discrete improvement batch.
+
+Assisted By: Grok AI
+
 ## [3.10.0a6] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture / Security Hardening (srsysarch1 report)
