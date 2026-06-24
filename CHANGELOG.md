@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a4] - 2026-06-24 (on 3.10.a_r_alpha.1)
+
+### Versioning
+- Incremented pre-release to 3.10.0a4 for verification push and additional P1 items from enterprise report.
+
+### Enterprise Recommendations Follow-up
+- Added basic /api/execution-history/audit/export endpoint (P1.7) returning structured JSON for history (actor, timestamps, etc.). Can be extended.
+- Updated installer.sh with supply-chain note for --require-hashes (P1.9).
+- Updated AGENTS.md with SBOM/provenance step in release process (P1.9).
+- Verified all P0 items implemented in deployed code and lab infrastructure (history hardening, cookie auth, token roles, no-none guard, RBAC consistency, bolt user setup, sudoers, inventory).
+- Inventory and targets configured for default 'bolt' user (no global run-as), with users/keys/sudoers provisioned for functionality testing.
+- Plugin updated to enforce user: bolt for dynamic targets.
+
 ## [3.10.0a3] - 2026-06-24 (on 3.10.a_r_alpha.1)
 
 ### Versioning

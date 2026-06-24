@@ -269,3 +269,46 @@ async def cleanup_old_history(
     return {
         "message": f"Deleted {count} execution history entries older than {days} days"
     }
+
+
+@router.get("/audit/export")
+async def export_audit_history(
+    days: int = Query(30, ge=1, le=365, description="Export entries from last N days"),
+    db: AsyncSession = Depends(get_db),
+    current_user: str = Depends(require_role("admin"))
+):
+    """Basic audit export endpoint for execution history (per enterprise architect P1.7).
+    Returns structured JSON with actor, timestamps, etc. for Bolt, etc.
+    Can be extended for deploys, certs, ENC, config, logins.
+    """
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await db.execute(
+        select(ExecutionHistory).where(
+            ExecutionHistory.executed_at >= cutoff_date
+        ).order_by(desc(ExecutionHistory.executed_at))
+    )
+    entries = result.scalars().all()
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": current_user,
+        "period_days": days,
+        "count": len(entries),
+        "entries": [
+            {
+                "id": e.id,
+                "execution_type": e.execution_type,
+                "node_name": e.node_name,
+                "command_name": e.command_name,
+                "task_name": e.task_name,
+                "plan_name": e.plan_name,
+                "environment": e.environment,
+                "status": e.status,
+                "executed_at": e.executed_at.isoformat(),
+                "executed_by": e.executed_by,
+                "duration_ms": e.duration_ms,
+                "error_message": e.error_message,
+                "result_preview": e.result_preview,
+            }
+            for e in entries
+        ],
+    }

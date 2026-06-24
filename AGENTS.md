@@ -44,6 +44,7 @@ This rule was added after backticks in an unquoted sudoers heredoc caused instal
   - Pre-commit checklist from global AGENTS.md applies in addition (docs, bump script for GUI if root VERSION moves, etc.).
   - The project-scoped `/commit` skill (in `.grok/skills/commit/SKILL.md`) automates dev pre-release versioning, CHANGELOG, conventional commit, annotated tag, branch+tag push, active heredoc safety, and the final deploy step.
   - Use the separate project-scoped `/release` skill (in `.grok/skills/release/SKILL.md`) to promote a completed pre-release train to a clean stable SemVer version (e.g. `3.9.0`), update CHANGELOG if needed, create the final annotated tag, push the tag, and prepare for manual GitHub Release.
+- As part of release process (per enterprise architect P1.9): generate and publish SBOM (e.g. using `syft` or `cyclonedx`), include provenance. Update installer to support --require-hashes where possible.
 
 ## Using the Release Skill
 - Run `/release` when a dev train (series of `-dev.N` / `-beta.N` etc. commits) is ready for users.

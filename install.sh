@@ -883,6 +883,9 @@ configure_pip_proxy
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip $PIP_PROXY_ARG
 # shellcheck disable=SC2086
 "${INSTALL_DIR}/venv/bin/pip" install --quiet -r "${INSTALL_DIR}/backend/requirements.txt" $PIP_PROXY_ARG
+# NOTE (enterprise P1.9): For production supply-chain hardening, use pinned hashes:
+#   "${INSTALL_DIR}/venv/bin/pip" install --require-hashes -r "${INSTALL_DIR}/backend/requirements.txt" ...
+# Generate hashes with pip-tools or similar. SBOM should be generated at release time.
 log_ok "Installed Python dependencies (core)"
 
 # Install (or upgrade) the ovox CLI package from the copied source.
