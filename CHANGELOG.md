@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a12] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - bootstrap token for installer (P0)
+- Actionable #3: optional bootstrap token protection for unauthenticated /api/installer/script/install.bash and .ps1 endpoints.
+  - If OPENVOX_GUI_BOOTSTRAP_TOKEN is set in env, the endpoints now require header X-OpenVox-Bootstrap-Token or ?bootstrap_token= (exact match for simplicity).
+  - If not set, fully backward compatible (no token required) for 30+ day transition.
+  - Strengthens package mirror / bootstrap script surface (agents still get packages via 8140 preferred).
+- Added _require_bootstrap_token helper. Recommended to set at install time for new deployments.
+
+### Versioning
+- Incremented pre-release to 3.10.0a12.
+
+Assisted By: Grok AI
+
 ## [3.10.0a11] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture Hardening (srsysarch1 report) - bolt execution surface (P0)

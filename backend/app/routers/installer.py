@@ -345,7 +345,7 @@ async def get_installer_info() -> InstallerInfo:
 
 
 @router.get("/script/install.bash", response_class=PlainTextResponse)
-async def render_install_bash():
+async def render_install_bash(request: Request = None):
     """Return the rendered install.bash with placeholders substituted.
 
     This is the no-auth fallback for environments where the
@@ -354,7 +354,13 @@ async def render_install_bash():
     https://<puppetserver>:8140/packages/install.bash, but having the
     GUI route here means agents can always fall back to whatever URL
     the operator pasted into their copy buffer.
+
+    If OPENVOX_GUI_BOOTSTRAP_TOKEN is set (recommended for P0 package
+    mirror auth hardening), the token must be supplied via header
+    X-OpenVox-Bootstrap-Token or ?bootstrap_token=... (backward compat
+    window: if not set, no token required).
     """
+    await _require_bootstrap_token(request)
     body = _render_template(_load_install_script("install.bash"))
     return PlainTextResponse(
         content=body,
@@ -364,14 +370,34 @@ async def render_install_bash():
 
 
 @router.get("/script/install.ps1", response_class=PlainTextResponse)
-async def render_install_ps1():
+async def render_install_ps1(request: Request = None):
     """Return the rendered install.ps1 with placeholders substituted."""
+    await _require_bootstrap_token(request)
     body = _render_template(_load_install_script("install.ps1"))
     return PlainTextResponse(
         content=body,
         media_type="text/plain",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
+
+
+async def _require_bootstrap_token(request: Request | None) -> None:
+    """If OPENVOX_GUI_BOOTSTRAP_TOKEN env is set, require it for script endpoints.
+
+    Accepts header X-OpenVox-Bootstrap-Token or query param bootstrap_token.
+    Plain value match (in production hash the stored value).
+    If not set, allow (backward compat for 30+ days as per report).
+    This is the P0 package mirror / installer script auth hardening.
+    """
+    expected = os.environ.get("OPENVOX_GUI_BOOTSTRAP_TOKEN") or settings.__dict__.get("bootstrap_token")
+    if not expected:
+        return
+    if request is None:
+        # called without request context; allow for internal but log
+        return
+    provided = request.headers.get("x-openvox-bootstrap-token") or request.query_params.get("bootstrap_token") or ""
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="Bootstrap token required for installer script.")
 
 
 # ─── Sync trigger ───────────────────────────────────────────────────────────
