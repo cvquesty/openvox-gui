@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a10] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - fsync / atomic writes (P0)
+- Added explicit atomic write + fsync for critical live state files:
+  - deploy_history.json (in _save_history): temp + fsync + os.replace.
+  - maintenance.json (in enable_maintenance): same atomic+fsync pattern.
+- Addresses P0 recommendation for durability of maintenance state and deployment audit history (prevents partial writes on crash/power loss).
+- Hiera/config writes already had backup-before-write; these two are the primary "state" files called out.
+- Complements the SQLite WAL/FULL/checkpoint work (a6).
+
+### Versioning
+- Incremented pre-release to 3.10.0a10 per established alpha train rule.
+
+Assisted By: Grok AI
+
 ## [3.10.0a9] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture Hardening (srsysarch1 report) - concurrency limits

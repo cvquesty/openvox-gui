@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -97,10 +98,27 @@ def enable_maintenance(
     }
 
     try:
-        MAINTENANCE_STATE_PATH.write_text(
-            json.dumps(state, indent=2) + "\n", encoding="utf-8"
+        MAINTENANCE_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        data = json.dumps(state, indent=2) + "\n"
+        # Atomic + fsync write for critical maintenance state (P0 durability).
+        # Prevents partial JSON on crash/power loss (affects 503 behavior).
+        fd, tmp_path = tempfile.mkstemp(
+            dir=MAINTENANCE_STATE_PATH.parent, prefix="maintenance.", suffix=".tmp"
         )
-        # Also touch the simple flag for Apache RewriteCond (very fast to test)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, MAINTENANCE_STATE_PATH)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+            raise
+
+        # Flag for Apache (best effort, simple touch is acceptable for this sentinel).
         MAINTENANCE_FLAG_PATH.touch(exist_ok=True)
         logger.info(f"Maintenance mode ENABLED: {state}")
         return state

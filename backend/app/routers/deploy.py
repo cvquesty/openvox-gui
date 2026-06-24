@@ -4,6 +4,10 @@ Code Deployment API - Interface with r10k for Puppet code deployment.
 import subprocess
 import asyncio
 import logging
+import json
+import os
+import tempfile
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
@@ -372,10 +376,25 @@ def _load_history() -> list:
 def _save_history(history: list):
     """Write the deployment history list to disk as pretty-printed JSON.
 
-    The default=str serialiser handles datetime objects that may appear
-    in the entry dictionaries.
+    Uses atomic write (temp + replace) + fsync for durability (P0 from
+    systems architect report for critical state like deploy_history).
     """
-    HISTORY_FILE.write_text(json.dumps(history, indent=2, default=str))
+    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    data = json.dumps(history, indent=2, default=str) + "\n"
+    # Atomic write + fsync to protect against partial writes on crash/power loss.
+    fd, tmp_path = tempfile.mkstemp(dir=HISTORY_FILE.parent, prefix="deploy_history.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, HISTORY_FILE)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
 
 
 def _add_history_entry(entry: dict):
