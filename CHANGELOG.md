@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a26] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix 500 error in Orchestration run_command
+- Restored missing history_entry creation in run_command (was removed during alpha refactors but update code remained, causing NameError -> 500 Internal Server Error when running commands from UI).
+- Now matches main branch exactly: create history before execute, update after.
+- Frontend calls 3 formats in parallel, so multiple 500s observed.
+- Orchestration command execution behavior now matches main as requested.
+
+### Versioning
+- Incremented pre-release to 3.10.0a26.
+
+Assisted By: Grok AI
+
 ## [3.10.0a25] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Restore Orchestration command execution to match main branch behavior
