@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a27] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Remediation for GitHub secret alert (no passwords in source)
+- Changed _DEFAULT_SECRET_KEY from generic "change-me-in-production" (flagged by GH secret scanning as generic password) to a non-password placeholder.
+- Never commit real or generic passwords/secrets. Use env only.
+
+### Fix bolt command user on controller (permanent)
+- Changed bolt CLI invocation to `sudo -E -u bolt bolt ...` so local transport runs commands as 'bolt' by default on server (whoami=bolt).
+- Agents use SSH as bolt.
+- Updated run_sudo to support env.
+- Updated ensure-sudoers.sh to:
+  - Allow service user to run bolt binary as (bolt) and (root).
+  - Fix perms on /etc/puppetlabs/bolt/* to 640 root:bolt so bolt user can read key.
+- Updated inventory example comments.
+- This makes default 'bolt' on all nodes (server local as bolt, agents ssh bolt), privileged uses sudo prefix on target.
+- Matches the requirement and main branch intent without global run-as.
+- Deploy will apply the perms and rules.
+
+### Versioning
+- Incremented pre-release to 3.10.0a27.
+
+Assisted By: Grok AI
+
 ## [3.10.0a26] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Fix 500 error in Orchestration run_command

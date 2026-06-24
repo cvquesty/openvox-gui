@@ -20,6 +20,7 @@ Security considerations:
 """
 import asyncio
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -284,12 +285,13 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
     if is_rainbow and "--color" not in args:
         args = args + ["--color"]
 
-    # Invoke bolt CLI as root (via sudo). This ensures the CLI can read
-    # root-owned keys/configs in /etc/puppetlabs/bolt/. For targets using
-    # local transport (the controller itself), we rely on per-target
-    # 'run-as: bolt' in inventory so that commands default to the bolt user.
-    # See inventory.yaml.example and docs.
-    bolt_args = ["sudo", bolt] + args + inventory_flag + project_flag
+    # Invoke the bolt CLI as the 'bolt' user (not root). This makes local
+    # transport on the controller execute commands as 'bolt' by default.
+    # Remote targets use SSH as 'bolt' (from inventory). The key must be
+    # readable by bolt user (see ensure-sudoers.sh for perms fix).
+    # For privileged, the "sudo " prefix inside the command string will
+    # cause escalation on the target via bolt user's sudoers.
+    bolt_args = ["sudo", "-E", "-u", "bolt", bolt] + args + inventory_flag + project_flag
 
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
@@ -316,7 +318,7 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
         except Exception as e:
             return {"returncode": -1, "stdout": "", "stderr": str(e)}
     else:
-        return await run_sudo(bolt_args, timeout=timeout)
+        return await run_sudo(bolt_args, timeout=timeout, env=env)
 
 
 # ─── Status ────────────────────────────────────────────────
@@ -330,7 +332,7 @@ async def bolt_status():
     if not bolt:
         return {"installed": False, "path": None, "version": None}
     try:
-        result = await run_sudo(["sudo", bolt, "--version"], timeout=10)
+        result = await run_sudo(["sudo", "-E", "-u", "bolt", bolt, "--version"], timeout=10, env=os.environ.copy())
         version = result["stdout"].strip() if result["returncode"] == 0 else None
     except Exception:
         version = None

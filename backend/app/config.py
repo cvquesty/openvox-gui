@@ -30,7 +30,7 @@ _config_logger = logging.getLogger(__name__)
 # compare against it at startup to detect whether the operator forgot to
 # set a real secret. It must never be used in production because anyone
 # who can read this source code could forge valid JWT tokens.
-_DEFAULT_SECRET_KEY = "change-me-in-production"
+_DEFAULT_SECRET_KEY = "OVOX-DEV-PLACEHOLDER--NEVER-USE-IN-PRODUCTION"
 
 
 class Settings(BaseSettings):

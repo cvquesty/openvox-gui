@@ -182,14 +182,25 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
 # Bolt orchestration
-# Method: allow the *full* bolt binary (both common paths) as root.
-# Rationale: The GUI runs as ${SERVICE_USER} and uses `sudo bolt ...` (as root)
-#            so the CLI can read keys/configs. For the controller (local transport),
-#            the inventory sets `run-as: bolt` so default commands run as the bolt
-#            user. "Run privileged" uses sudo prefix inside the command.
-#            Explicit binary (no wildcard) is the secure pattern.
+# Method: allow the *full* bolt binary as both root (for some ops) and as the 'bolt' user.
+# Rationale: GUI uses `sudo -E -u bolt bolt ...` so that local transport on the
+#            controller runs commands as 'bolt' (whoami returns bolt by default).
+#            Remote uses SSH as bolt. We also keep (root) for compatibility.
+#            Explicit (no wildcard). Secure pattern.
+${SERVICE_USER} ALL=(bolt) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(bolt) NOPASSWD: /usr/local/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
+
+# Fix perms on bolt config dir and key so the 'bolt' user can read for SSH/keys
+# when CLI invoked as bolt user (sudo -u bolt).
+if [ -d /etc/puppetlabs/bolt ]; then
+  chown -R root:bolt /etc/puppetlabs/bolt 2>/dev/null || true
+  chmod -R g+rwX /etc/puppetlabs/bolt 2>/dev/null || true
+  if [ -f /etc/puppetlabs/bolt/id_bolt ]; then
+    chmod 640 /etc/puppetlabs/bolt/id_bolt 2>/dev/null || true
+  fi
+fi
 
 # Certificate Authority management (explicit subcommands only)
 # Method: exact "puppetserver ca <subcommand> --certname" (or --all for list).

@@ -15,7 +15,7 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 
-async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
+async def run_sudo(cmd: List[str], timeout: int = 30, env: dict = None) -> Dict[str, object]:
     """Run a command (typically prefixed with 'sudo') with a pseudo-TTY.
 
     Allocates a PTY and runs the subprocess in a new session so the PTY
@@ -26,6 +26,8 @@ async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
     matching the interface used by subprocess helpers throughout the
     application.
     """
+    if env is None:
+        env = os.environ.copy()
     master_fd, slave_fd = pty.openpty()
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -34,6 +36,7 @@ async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
             stderr=asyncio.subprocess.PIPE,
             stdin=slave_fd,
             start_new_session=True,
+            env=env,
         )
         os.close(slave_fd)
         slave_fd = -1
