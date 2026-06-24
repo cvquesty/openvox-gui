@@ -29,6 +29,7 @@ transport       = params['transport'] || 'ssh'
 ssl_verify      = params.fetch('ssl_verify', false)
 api_token       = params['api_token']
 token_file      = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
+user            = params['user'] || 'bolt'  # SSH user for targets; defaults to 'bolt' to match inventory config and GUI expectations (whoami returns 'bolt' by default)
 
 # Run-as settings (default: none — commands/tasks run as the SSH user
 # configured in the inventory transport (typically the 'bolt' service account).
@@ -114,7 +115,10 @@ groups.each do |grp|
       'name' => certname,
       'config' => {
         'transport' => transport,
-        transport   => { 'host-key-check' => false },
+        transport   => {
+          'host-key-check' => false,
+          'user'           => user,
+        },
       },
       'vars' => {
         'enc_groups' => [],
