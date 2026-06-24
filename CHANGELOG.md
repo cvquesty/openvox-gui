@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a17] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### P0 fsync/atomic for Hiera
+- Converted write_hiera_config and write_hiera_data_file to use atomic tempfile + fsync + os.replace (matching pattern for maintenance/deploy_history).
+- Completes the "Explicit fsync / atomic writes for critical state (maintenance.json, deploy_history, Hiera writes)" P0 item from srsysarch1 report.
+
+### Versioning
+- Incremented pre-release to 3.10.0a17 (atomic version increment per rule for this change set).
+
+Assisted By: Grok AI
+
 ## [3.10.0a16] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Observability (metrics)

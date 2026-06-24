@@ -8,6 +8,7 @@ import configparser
 import json
 import os
 import glob
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import httpx
@@ -312,12 +313,23 @@ class PuppetServerService:
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML: {e}")
         try:
-            # Backup existing
-            backup_path = str(hiera_path) + ".bak"
+            # Atomic + fsync for P0 durability (critical Hiera config)
             if hiera_path.exists():
                 import shutil
-                shutil.copy2(str(hiera_path), backup_path)
-            hiera_path.write_text(content)
+                shutil.copy2(str(hiera_path), str(hiera_path) + ".bak")
+            fd, tmp_path = tempfile.mkstemp(dir=hiera_path.parent, prefix="hiera.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, hiera_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                raise
             return True
         except PermissionError:
             logger.error(f"Permission denied writing to {hiera_path}")
@@ -392,11 +404,23 @@ class PuppetServerService:
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML: {e}")
         try:
-            # Backup
+            # Atomic + fsync for P0 durability (critical Hiera data)
             if resolved.exists():
                 import shutil
                 shutil.copy2(str(resolved), str(resolved) + ".bak")
-            resolved.write_text(content)
+            fd, tmp_path = tempfile.mkstemp(dir=resolved.parent, prefix="hiera-data.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, resolved)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                raise
             return True
         except PermissionError:
             logger.error(f"Permission denied writing to {file_path}")
