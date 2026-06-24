@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.8] - 2026-06-24
+
+### Executive Summary Report: From address + scheduling (minimal port)
+- Added "From" email text box in Logs | Reports | Executive Summary Report pane (for custom From: format).
+- Added schedule options: enable/disable, day of week, time (for regular cadence).
+- Ad-hoc send always available; scheduled honored by generator script (fetches config, checks day/time).
+- Backend: ExecutiveReportConfig model, /config endpoints, send supports from_email.
+- Script: --from-email support, schedule enforcement (minimal).
+- UI: from input + schedule controls + save (references alpha feature but only this part).
+- Logic referenced from main-compatible patterns, only this feature added.
+
+### Versioning
+- Incremented to 3.9.8.
+
+Assisted By: Grok AI
+
 ## [3.9.7] - 2026-06-24
 
 ### Release

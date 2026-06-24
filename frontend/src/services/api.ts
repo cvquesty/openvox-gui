@@ -133,10 +133,16 @@ export const reports = {
     fetchJSON<any>(`/reports/executive-summary/recipients/${id}`, {
       method: 'DELETE',
     }),
-  sendExecutiveReport: (emails?: string[]) =>
+  getExecutiveConfig: () => fetchJSON<any>('/reports/executive-summary/config'),
+  updateExecutiveConfig: (data: any) =>
+    fetchJSON<any>('/reports/executive-summary/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  sendExecutiveReport: (emails?: string[], fromEmail?: string) =>
     fetchJSON<any>('/reports/executive-summary/send', {
       method: 'POST',
-      body: JSON.stringify({ emails: emails || undefined }),
+      body: JSON.stringify({ emails: emails || undefined, from_email: fromEmail || undefined }),
     }),
 };
 

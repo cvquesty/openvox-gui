@@ -6,7 +6,7 @@ scripts/generate_fleet_health_report.py (via the systemd timer or ad-hoc
 from the GUI).
 """
 
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from datetime import datetime, timezone
 from ..database import Base
 
@@ -24,3 +24,16 @@ class ExecutiveReportRecipient(Base):
 
     # Last time an ad-hoc or scheduled report was successfully emailed to this address
     last_sent_at = Column(DateTime, nullable=True)
+
+
+class ExecutiveReportConfig(Base):
+    """Minimal config for Executive Summary Report: from email and basic schedule."""
+    __tablename__ = "executive_report_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    from_email = Column(String(255), nullable=True)
+    schedule_enabled = Column(Boolean, default=True)
+    schedule_day = Column(Integer, default=0)  # 0=Mon ... 6=Sun
+    schedule_hour = Column(Integer, default=8)
+    schedule_minute = Column(Integer, default=0)
+    last_scheduled_sent_at = Column(DateTime, nullable=True)

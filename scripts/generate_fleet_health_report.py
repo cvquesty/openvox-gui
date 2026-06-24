@@ -661,6 +661,8 @@ def main():
                         help="Override source label (e.g. 'openvox.pdxc-it.twitter.biz (production)')")
     parser.add_argument("--email", default=None,
                         help="Comma/space-separated email address(es) to send the PDF to. Falls back to FLEET_HEALTH_REPORT_EMAILS env.")
+    parser.add_argument("--from-email", default=None,
+                        help="From: address (for environments requiring specific format).")
     args = parser.parse_args()
 
     # === Config from environment (set in .env or systemd EnvironmentFile) ===
@@ -678,6 +680,8 @@ def main():
                   _get_env("FLEET_HEALTH_EMAIL")).strip()
     emails = [e.strip() for e in re.split(r'[,;\s]+', emails_str) if e.strip()]
 
+    from_email = (args.from_email or _get_env("FLEET_HEALTH_REPORT_FROM_EMAIL") or "").strip() or None
+
     # If still no recipients and we are using --live (typically on-server scheduled or ad-hoc),
     # try to fetch the current list from the GUI itself (via the new recipients API).
     # This makes the GUI the source of truth even when .env is empty.
@@ -693,9 +697,41 @@ def main():
                     emails = [rec["email"] for rec in recs if rec.get("email")]
                     if emails:
                         print(f"[info] Loaded {len(emails)} recipient(s) from GUI executive summary config.")
+
+                if not from_email:
+                    cr = client.get("/api/reports/executive-summary/config")
+                    if cr.status_code == 200:
+                        cfg = cr.json()
+                        if cfg.get("from_email"):
+                            from_email = cfg["from_email"].strip()
+                            print(f"[info] Loaded from_email from GUI: {from_email}")
         except Exception as fetch_exc:
             # Silent fallback — generator will just not email if still empty
             print(f"[warn] Could not fetch recipients from GUI API: {fetch_exc}", file=sys.stderr)
+
+    # Basic schedule check for cadence (referenced from alpha feature, minimal for main)
+    if not args.email and args.live:
+        try:
+            import httpx
+            port = _get_env("APP_PORT") or "4567"
+            base = f"http://127.0.0.1:{port}"
+            with httpx.Client(base_url=base, timeout=5.0) as client:
+                cr = client.get("/api/reports/executive-summary/config")
+                if cr.status_code == 200:
+                    cfg = cr.json()
+                    if cfg.get("schedule_enabled"):
+                        from datetime import datetime as dtt
+                        now = dtt.now()
+                        if now.weekday() != int(cfg.get("schedule_day", 0)):
+                            print("[info] Not scheduled day, skipping email.")
+                            sys.exit(0)
+                        h = int(cfg.get("schedule_hour", 8))
+                        m = int(cfg.get("schedule_minute", 0))
+                        if abs(now.hour - h) > 1 or abs(now.minute - m) > 45:
+                            print("[info] Outside scheduled time, skipping.")
+                            sys.exit(0)
+        except Exception:
+            pass
 
     output_dir = _get_env("FLEET_HEALTH_REPORT_OUTPUT_DIR")
     if not output_dir:
@@ -734,10 +770,16 @@ def main():
         body = f"See attached one-page Fleet Health PDF.\n\nGenerated directly on the OpenVox server.\nSource: {src}\n\n(This report was generated automatically every Monday at 08:00 America/New_York.)"
         try:
             import subprocess
-            cmd = ["mail", "-s", subject, "-a", out] + emails
+            if from_email:
+                cmd = ["mail", "-r", from_email, "-s", subject, "-a", out] + emails
+            else:
+                cmd = ["mail", "-s", subject, "-a", out] + emails
             res = subprocess.run(cmd, input=body.encode(), capture_output=True, timeout=20)
             if res.returncode != 0:
-                cmd2 = ["mailx", "-s", subject, "-a", out] + emails
+                if from_email:
+                    cmd2 = ["mailx", "-r", from_email, "-s", subject, "-a", out] + emails
+                else:
+                    cmd2 = ["mailx", "-s", subject, "-a", out] + emails
                 res = subprocess.run(cmd2, input=body.encode(), capture_output=True, timeout=20)
             print(f"[ok] Report emailed to {', '.join(emails)}" if res.returncode == 0 else f"[warn] mail/mailx rc={res.returncode}. PDF ready: {out}")
         except Exception as ee:

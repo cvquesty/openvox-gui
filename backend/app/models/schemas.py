@@ -209,9 +209,34 @@ class SendExecutiveReportRequest(BaseModel):
         default=None,
         description="Specific emails to send to. If omitted or empty, sends to all configured recipients."
     )
+    from_email: Optional[str] = Field(
+        default=None,
+        description="Optional custom From: address for this send."
+    )
 
     class Config:
         from_attributes = True
+
+
+class ExecutiveReportConfigSchema(BaseModel):
+    id: int
+    from_email: Optional[str] = None
+    schedule_enabled: bool = True
+    schedule_day: int = 0
+    schedule_hour: int = 8
+    schedule_minute: int = 0
+    last_scheduled_sent_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UpdateExecutiveReportConfig(BaseModel):
+    from_email: Optional[str] = None
+    schedule_enabled: Optional[bool] = None
+    schedule_day: Optional[int] = None
+    schedule_hour: Optional[int] = None
+    schedule_minute: Optional[int] = None
 
 
 # ─── Configuration ─────────────────────────────────────────

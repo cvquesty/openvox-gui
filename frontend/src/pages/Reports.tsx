@@ -7,7 +7,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch,
 } from '@mantine/core';
 import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -300,6 +300,12 @@ export function ReportsPage() {
   const [execError, setExecError] = useState<string | null>(null);
   const [execSuccess, setExecSuccess] = useState<string | null>(null);
 
+  // From address and schedule (minimal feature port from referenced work)
+  const [fromEmail, setFromEmail] = useState('');
+  const [schedEnabled, setSchedEnabled] = useState(true);
+  const [schedDay, setSchedDay] = useState(0);
+  const [schedTime, setSchedTime] = useState('08:00');
+
   // Fetch hierarchy (groups and nodes)
   const { data: hierarchy, loading: hierarchyLoading } = useApi(
     () => enc.getHierarchy(),
@@ -450,6 +456,21 @@ export function ReportsPage() {
     try {
       const data = await reports.listExecutiveRecipients();
       setExecRecipients(Array.isArray(data) ? data : []);
+
+      // Load from + schedule config
+      try {
+        const cfg = await reports.getExecutiveConfig();
+        if (cfg) {
+          if (cfg.from_email) setFromEmail(cfg.from_email);
+          if (typeof cfg.schedule_enabled === 'boolean') setSchedEnabled(cfg.schedule_enabled);
+          if (typeof cfg.schedule_day === 'number') setSchedDay(cfg.schedule_day);
+          if (typeof cfg.schedule_hour === 'number' && typeof cfg.schedule_minute === 'number') {
+            const h = String(cfg.schedule_hour).padStart(2, '0');
+            const m = String(cfg.schedule_minute).padStart(2, '0');
+            setSchedTime(`${h}:${m}`);
+          }
+        }
+      } catch {}
     } catch (e: any) {
       setExecError(e?.message || 'Failed to load recipients');
       setExecRecipients([]);
@@ -488,11 +509,31 @@ export function ReportsPage() {
     }
   };
 
+  const saveExecutiveConfig = async () => {
+    setExecError(null);
+    setExecSuccess(null);
+    try {
+      const [h, m] = schedTime.split(':').map((x: string) => parseInt(x, 10) || 0);
+      await reports.updateExecutiveConfig({
+        from_email: fromEmail.trim() || null,
+        schedule_enabled: schedEnabled,
+        schedule_day: schedDay,
+        schedule_hour: h,
+        schedule_minute: m,
+      });
+      await loadExecutiveRecipients();
+      setExecSuccess('Configuration saved');
+      setTimeout(() => setExecSuccess(null), 2500);
+    } catch (e: any) {
+      setExecError(e?.message || 'Failed to save config');
+    }
+  };
+
   const sendAdHocReport = async (emails?: string[]) => {
     setExecError(null);
     setExecSuccess(null);
     try {
-      await reports.sendExecutiveReport(emails);
+      await reports.sendExecutiveReport(emails, fromEmail || undefined);
       const target = emails && emails.length ? emails.join(', ') : 'all recipients';
       setExecSuccess(`Ad-hoc report queued for ${target}. Check server logs / mail for delivery.`);
       setTimeout(() => setExecSuccess(null), 4000);
@@ -750,6 +791,47 @@ export function ReportsPage() {
             </Table>
           )}
         </Card>
+
+        {/* From email and schedule (referenced minimal feature) */}
+        <Divider my="sm" />
+        <Text size="sm" fw={500}>From address</Text>
+        <Group>
+          <TextInput
+            placeholder="reports@yourcompany.com (optional custom From:)"
+            value={fromEmail}
+            onChange={(e) => setFromEmail(e.currentTarget.value)}
+            style={{ flex: 1, maxWidth: 420 }}
+          />
+          <Button size="sm" onClick={saveExecutiveConfig}>Save</Button>
+        </Group>
+
+        <Text size="sm" fw={500} mt="sm">Schedule</Text>
+        <Group>
+          <Switch
+            label="Enable scheduled"
+            checked={schedEnabled}
+            onChange={(e) => setSchedEnabled(e.currentTarget.checked)}
+          />
+          <Select
+            label="Day"
+            data={[{value:'0',label:'Mon'},{value:'1',label:'Tue'},{value:'2',label:'Wed'},{value:'3',label:'Thu'},{value:'4',label:'Fri'},{value:'5',label:'Sat'},{value:'6',label:'Sun'}]}
+            value={String(schedDay)}
+            onChange={(v) => setSchedDay(parseInt(v||'0',10))}
+            style={{width:100}}
+          />
+          <TextInput
+            label="Time"
+            type="time"
+            value={schedTime}
+            onChange={(e) => setSchedTime(e.currentTarget.value)}
+            style={{width:120}}
+          />
+          <Button size="sm" onClick={saveExecutiveConfig}>Save Schedule</Button>
+        </Group>
+
+        <Text size="xs" c="dimmed">
+          Scheduled runs use the server timer + script (honors day/time). Ad-hoc always available. From address used for email.
+        </Text>
 
         <Text size="xs" c="dimmed">
           The scheduled Monday 8AM report will also pick up this list (via the GUI API when no value is set in .env).
