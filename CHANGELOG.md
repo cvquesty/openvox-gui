@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.10.0a13] - 2026-06-24 (on 3.10.a_r_alpha.5)
+## [3.10.0a13] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Systems Architecture Hardening (srsysarch1 report) - remaining P0/P1/actionable batches
 - CommandExecutionService + LocalSudoTransport skeleton introduced (services/command_execution.py). Bolt /run/command refactored to use it as proof-of-concept for central list-form + history + pluggable transport (addresses scattered execution P0 + actionable #2 + #7).
@@ -24,8 +24,11 @@ Large refactors (full migration of all callers to CommandExecutionService, full 
 
 ### Versioning
 - Incremented pre-release to 3.10.0a13.
+- Branch number incremented to 3.10.a_r_alpha.6 (per "increment the branch's number on every commit" rule for milestone batches on the alpha train).
 
 Assisted By: Grok AI
+
+**Branch increment note**: Earlier batches in this effort were committed while checked out on 3.10.a_r_alpha.5. The alpha branch N has now been properly incremented for the completed work per project strategy. All future commits on this refactor will use the next .N branch.
 
 ## [3.10.0a12] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
