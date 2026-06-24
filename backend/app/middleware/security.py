@@ -26,13 +26,15 @@ Content Security Policy notes:
     requires eval, it should be loaded via a web worker or a separate
     domain instead of weakening the CSP.
 """
-from fastapi import Request, Response
+from fastapi import Request, Response, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from typing import Callable
 import hashlib
 import secrets
+import asyncio
+from collections import defaultdict
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -160,3 +162,33 @@ def rate_limit_heavy():
     the server side and should not be called in tight loops.
     """
     return limiter.limit("10/minute")
+
+
+# ── Concurrency limiting for heavy endpoints (P1 from systems architect report) ──
+# Per-IP (keyed same as rate limiter) limit of 2 concurrent heavy operations.
+# Prevents a single client from starving uvicorn workers during long Bolt/r10k runs.
+# Complements rate_limit_heavy().
+_heavy_concurrency = defaultdict(lambda: asyncio.Semaphore(2))
+
+
+async def concurrency_heavy(request: Request):
+    """Async dependency providing per-client concurrency limit (2 concurrent max).
+
+    Used on dangerous endpoints like bolt run, deploy, etc.
+    Returns control after acquiring; releases on request completion.
+    Raises 429 if limit reached (with Retry-After).
+    """
+    key = get_remote_address(request)
+    sem = _heavy_concurrency[key]
+    try:
+        await asyncio.wait_for(sem.acquire(), timeout=0.1)
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many concurrent heavy operations from this client. Try again shortly.",
+            headers={"Retry-After": "5"},
+        )
+    try:
+        yield
+    finally:
+        sem.release()

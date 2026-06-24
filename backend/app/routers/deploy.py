@@ -4,11 +4,11 @@ Code Deployment API - Interface with r10k for Puppet code deployment.
 import subprocess
 import asyncio
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 
-from ..middleware.security import rate_limit_heavy
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
 
 router = APIRouter(prefix="/api/deploy", tags=["deploy"])
 logger = logging.getLogger(__name__)
@@ -275,7 +275,7 @@ async def webhook_deploy(request: Request):
 
 @router.post("/run")
 @rate_limit_heavy()
-async def run_deployment(deploy: DeployRequest, request: Request):
+async def run_deployment(deploy: DeployRequest, request: Request, _ = Depends(concurrency_heavy)):
     """
     Trigger an r10k deployment.
     Requires admin or operator role.

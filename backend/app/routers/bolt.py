@@ -37,7 +37,7 @@ from ..dependencies import get_current_user, require_role
 from ..utils.validation import validate_command, strip_ansi
 from ..services.enc import enc_service
 from ..services.puppetdb import puppetdb_service
-from ..middleware.security import rate_limit_heavy
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
@@ -413,7 +413,8 @@ async def run_command(
     request: Request,
     req: RunCommandRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(require_role("admin", "operator"))
+    current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Run an ad-hoc command on targets.
 
@@ -503,7 +504,8 @@ async def run_task(
     request: Request,
     req: RunTaskRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(require_role("admin", "operator"))
+    current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Run a Bolt task on targets."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
@@ -566,7 +568,8 @@ async def run_plan(
     request: Request,
     req: RunPlanRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(require_role("admin", "operator"))
+    current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Run a Bolt plan."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
@@ -787,6 +790,7 @@ async def run_script_on_targets(
     file: UploadFile = FastAPIFile(..., description="The script file to execute on remote targets"),
     targets: str = Form(..., description="Comma-separated certnames, 'all', or ENC group name"),
     arguments: str = Form("", description="Arguments to pass to the script (space-separated)"),
+    _ = Depends(concurrency_heavy),
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(require_role("admin", "operator")),
 ):

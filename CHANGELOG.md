@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a9] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - concurrency limits
+- Completed actionable #4: added per-client concurrency limit (2 concurrent) alongside rate limiting for heavy endpoints.
+  - New `concurrency_heavy` async dependency in middleware/security.py using asyncio.Semaphore per IP key.
+  - Applied to all Bolt run/* and Deploy /run (in addition to existing @rate_limit_heavy()).
+  - Returns 429 with Retry-After when limit hit. Complements the rate limit (10/min).
+- This prevents abuse or accidental starvation of the server during long-running privileged ops (Bolt, r10k).
+- Rate was previously applied in a8; this batch finishes the "rate + concurrency" P1 item.
+
+### Versioning
+- Incremented pre-release to 3.10.0a9 per rule (every meaningful push increments alpha counter on the train).
+
+Assisted By: Grok AI
+
 ## [3.10.0a8] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture Hardening (srsysarch1 report) - rate limiting
