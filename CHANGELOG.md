@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.9.7] - 2026-06-24
+
+### Release
+- Promoted the 3.9.6 development train (dev.1 through dev.6) to stable **3.9.7** as-is.
+- No new code changes in this release; this formalizes the current state of the 3.9.6-dev series into a clean stable version for users.
+
+### Highlights from the 3.9.6 train
+- Full **Metrics setup documentation** (`docs/METRICS.md`) and related installer/post-install guidance.
+- Security/operational updates: pydantic-settings security patch (2.14.2), Babel override updates, comprehensive sudoers management safety overhaul (scripts/ensure-sudoers.sh, backups, explicit rules).
+- Added root `SECURITY.md` with policy, vulnerability reporting process, and best practices.
+- Documentation polish: screenshots for metrics views, README/INSTALL/UPDATE/TROUBLESHOOTING updates, proxy and fact improvements.
+- See the detailed 3.9.6-dev.* entries below for the complete change history.
+
 ## [3.9.6-dev.6] - 2026-06-23
 
 ### Documentation
