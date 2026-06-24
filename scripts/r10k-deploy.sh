@@ -66,5 +66,28 @@ for arg in "$@"; do
     exit 64
 done
 
+# ─── Strict environment allow-list (P0/P1 from systems architect report) ──
+# If /opt/openvox-gui/etc/allowed-environments.txt exists, only those
+# environment names (one per line) are accepted as the first positional arg.
+# This prevents arbitrary branch names from webhook/UI reaching r10k.
+# The file can be populated from r10k sources or control-repo branches at install time.
+ALLOWED_ENVS_FILE="${OPENVOX_GUI_ALLOWED_ENVS_FILE:-/opt/openvox-gui/etc/allowed-environments.txt}"
+if [ -f "$ALLOWED_ENVS_FILE" ]; then
+    if [ $# -ge 1 ] && [[ "$1" != -* ]]; then
+        if ! grep -qx "$1" "$ALLOWED_ENVS_FILE" 2>/dev/null; then
+            echo "r10k-deploy.sh: environment '$1' not in allowed list ($ALLOWED_ENVS_FILE)" >&2
+            exit 64
+        fi
+    fi
+fi
+
+# Reject dangerous overrides even if shape passed (extra defense).
+for arg in "$@"; do
+    if [[ "$arg" == --config-file=* ]] || [[ "$arg" == "-c" ]]; then
+        echo "r10k-deploy.sh: refusing --config-file override" >&2
+        exit 64
+    fi
+done
+
 # ─── Execute r10k ─────────────────────────────────────────────
 exec /opt/puppetlabs/puppet/bin/r10k deploy environment "$@"

@@ -513,20 +513,22 @@ async def run_command(
     if req.run_as and req.run_as != "root":
         args.extend(["--run-as", req.run_as])
 
-    result = await run_bolt_command(args, timeout=300)
-    duration_ms = int((time.time() - start_time) * 1000)
-    
-    # Update history entry with results
-    history_entry.status = "success" if result["returncode"] == 0 else "failure"
-    history_entry.duration_ms = duration_ms
-    if result["returncode"] != 0:
-        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
-    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
-    await db.commit()
-    
+    # Use central service (initial integration for report P0 centralization).
+    from ..services.command_execution import default_service
+    result = await default_service.execute(
+        execution_type="command",
+        args=args,
+        targets=resolved_targets,
+        executed_by=current_user,
+        timeout=300,
+        rainbow=(fmt == "rainbow"),
+        db=db,
+    )
+    duration_ms = result.get("duration_ms", int((time.time() - start_time) * 1000))
+
     stdout = strip_ansi(result.get("stdout", ""))
     stderr = strip_ansi(result.get("stderr", ""))
-    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
+    return {"returncode": result.get("returncode"), "output": stdout, "error": stderr}
 
 
 @router.post("/run/task")

@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a13] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - remaining P0/P1/actionable batches
+- CommandExecutionService + LocalSudoTransport skeleton introduced (services/command_execution.py). Bolt /run/command refactored to use it as proof-of-concept for central list-form + history + pluggable transport (addresses scattered execution P0 + actionable #2 + #7).
+- r10k-deploy.sh hardened with optional strict allowed-environments.txt allow-list + rejection of --config-file overrides (actionable #8).
+- deploy.sh now explicitly runs visudo -cf + diff after ensure (actionable #10; ensure already fails on bad).
+- Maintenance get_maintenance_info now auto-clears stuck flags >45min (actionable #6, extends P1).
+- Added basic /api/deploy/metrics Prometheus exposition (maintenance active, last deploy ts) (actionable #9).
+- Subprocess audit pass: all new paths prefer run_sudo / central service where possible; comments added for remaining direct uses.
+- Bootstrap token (a12) + concurrency + fsync + bolt prefixes + sudoers + sqlite cover the main contained P0/P1 from the report.
+
+Large refactors (full migration of all callers to CommandExecutionService, full SSH transport, per-user scopes) are started and documented for follow-up on the train before merge to main.
+
+### Versioning
+- Incremented pre-release to 3.10.0a13.
+
+Assisted By: Grok AI
+
 ## [3.10.0a12] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture Hardening (srsysarch1 report) - bootstrap token for installer (P0)

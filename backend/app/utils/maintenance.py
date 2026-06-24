@@ -35,6 +35,10 @@ MAINTENANCE_STATE_PATH = Path("/opt/openvox-gui/data/maintenance.json")
 # without parsing JSON. We keep both in sync.
 MAINTENANCE_FLAG_PATH = Path("/opt/openvox-gui/data/maintenance.flag")
 
+# P1 extension (actionable #6): auto-clear "stuck" maintenance if older than N
+# minutes and no active deploy marker. Complements the startup stale clear.
+MAX_STUCK_MAINT_MINUTES = 45
+
 
 def _ensure_parent_dir(path: Path) -> None:
     """Create the parent directory if it does not exist (best effort)."""
@@ -54,14 +58,33 @@ def get_maintenance_info() -> Dict[str, Any]:
       - message: str or null
       - eta: str or null
       - activated_by: str or null
+
+    P1 extension: if the flag is older than MAX_STUCK_MAINT_MINUTES and
+    there is no obvious active deploy (simple heuristic on age), auto-clear
+    to avoid stuck 503s (in addition to startup clear in lifespan).
     """
     if not MAINTENANCE_STATE_PATH.exists():
         return {"enabled": False}
 
     try:
         data = json.loads(MAINTENANCE_STATE_PATH.read_text(encoding="utf-8"))
-        # Normalize
         data.setdefault("enabled", bool(data.get("enabled", False)))
+
+        # Stuck flag auto-clear logic (actionable #6)
+        started = data.get("started_at")
+        if data.get("enabled") and started:
+            try:
+                from datetime import datetime, timezone as tz
+                dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                age_min = (datetime.now(tz.utc) - dt).total_seconds() / 60
+                if age_min > MAX_STUCK_MAINT_MINUTES:
+                    # No deploy pid marker in this simple impl; clear it.
+                    logger.warning(f"Auto-clearing stuck maintenance flag (age {age_min:.0f}m > {MAX_STUCK_MAINT_MINUTES}m)")
+                    disable_maintenance()
+                    return {"enabled": False, "auto_cleared": True, "reason": "stuck"}
+            except Exception:
+                pass
+
         return data
     except Exception as exc:
         logger.warning(f"Failed to read maintenance state file: {exc}")

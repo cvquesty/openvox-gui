@@ -9,6 +9,7 @@ import os
 import tempfile
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -415,3 +416,32 @@ def _add_history_entry(entry: dict):
 async def get_deploy_history():
     """Get deployment history."""
     return {"history": _load_history()}
+
+
+# Basic Prometheus-style /metrics (actionable #9, P2 from srsysarch1).
+# Exposes a few key operational values in exposition format.
+# Extend with real counters as needed.
+@router.get("/metrics", response_class=PlainTextResponse)
+async def ops_metrics():
+    from ..utils.maintenance import get_maintenance_info
+    maint = get_maintenance_info()
+    maint_enabled = "1" if maint.get("enabled") else "0"
+    lines = [
+        "# HELP openvox_gui_maintenance_active 1 if maintenance mode is active",
+        "# TYPE openvox_gui_maintenance_active gauge",
+        f"openvox_gui_maintenance_active {maint_enabled}",
+        "# HELP openvox_gui_last_deploy_timestamp Unix time of last known deploy (best effort from history)",
+        "# TYPE openvox_gui_last_deploy_timestamp gauge",
+    ]
+    try:
+        hist = _load_history()
+        if hist:
+            ts = hist[0].get("timestamp")
+            if ts:
+                from datetime import datetime
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                lines.append(f"openvox_gui_last_deploy_timestamp {dt.timestamp()}")
+    except Exception:
+        pass
+    # Add more (ps health, mirror age, sqlite rows) in follow-up.
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain")

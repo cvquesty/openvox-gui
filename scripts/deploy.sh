@@ -338,7 +338,26 @@ fi
 SERVICE_USER="${SERVICE_USER}" \
 INSTALL_DIR="${INSTALL_DIR}" \
 PUPPET_SERVER_HOST="${PUPPET_SERVER_HOST}" \
-bash "${SCRIPT_DIR}/ensure-sudoers.sh"
+bash "${SCRIPT_DIR}/ensure-sudoers.sh" || {
+    echo "FATAL: ensure-sudoers.sh failed (visudo validation or other error). Leaving maintenance active."
+    exit 1
+}
+
+# Post-ensure visudo + diff (actionable #10 / P1 from systems architect).
+# ensure-sudoers now does this internally and exits 1 on fail, but we double-check
+# here and emit the diff for operator review in deploy logs.
+SUDOERS_FILE="/etc/sudoers.d/openvox-gui-users"
+if [ -f "$SUDOERS_FILE" ]; then
+    LATEST_BAK=$(ls -t "$SUDOERS_FILE".bak.* 2>/dev/null | head -1 || true)
+    if [ -n "$LATEST_BAK" ]; then
+        echo "  sudoers diff vs backup:"
+        diff -u "$LATEST_BAK" "$SUDOERS_FILE" || true
+    fi
+    if ! sudo visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
+        echo "FATAL: visudo -cf failed after ensure-sudoers. Aborting deploy (maintenance left up)."
+        exit 1
+    fi
+fi
 
 echo "  ensured /etc/sudoers.d/openvox-gui-users via ensure-sudoers.sh (backups created if needed)"
 
