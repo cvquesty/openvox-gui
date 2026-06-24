@@ -35,39 +35,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount, check if we have a stored token and validate it
+  // On mount, rely on httpOnly cookie for auth (backend sets it on login).
+  // No longer persist raw JWT to localStorage (XSS mitigation + prefer cookie).
   useEffect(() => {
-    const stored = localStorage.getItem('openvox_token');
-    if (stored) {
-      // Validate the token by calling /api/auth/me
-      fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${stored}` },
+    // Validate current session via cookie (no explicit token header)
+    fetch('/api/auth/me')
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error('No valid session');
       })
-        .then((res) => {
-          if (res.ok) return res.json();
-          throw new Error('Invalid token');
-        })
-        .then((data) => {
-          setUser({ username: data.user_id || data.username, role: data.role });
-          setToken(stored);
-        })
-        .catch(() => {
-          localStorage.removeItem('openvox_token');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      // Also check if auth is even required
-      fetch('/api/auth/status')
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.auth_required) {
-            // No auth needed, set anonymous user
-            setUser({ username: 'anonymous', role: 'admin' });
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    }
+      .then((data) => {
+        setUser({ username: data.user_id || data.username, role: data.role });
+        // Do not set token state from client storage
+      })
+      .catch(() => {
+        // Check if auth is even required
+        fetch('/api/auth/status')
+          .then((res) => res.json())
+          .then((data) => {
+            if (!data.auth_required) {
+              setUser({ username: 'anonymous', role: 'admin' });
+            }
+          })
+          .catch(() => {});
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -81,10 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.detail || 'Login failed');
     }
     const data = await res.json();
-    const newToken = data.token;
-    setToken(newToken);
+    // Server sets httpOnly cookie; do not store raw token in localStorage (security)
+    // Token is no longer needed client-side for auth header.
     setUser(data.user);
-    localStorage.setItem('openvox_token', newToken);
+    // Clear any legacy token
+    localStorage.removeItem('openvox_token');
   };
 
   const logout = () => {

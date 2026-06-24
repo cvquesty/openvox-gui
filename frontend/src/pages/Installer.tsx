@@ -147,11 +147,8 @@ function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('openvox_token');
-    // EventSource doesn't support custom headers, so we pass the
-    // token as a query param. The backend auth middleware accepts
-    // both Authorization header and ?token= for SSE streams.
-    const url = `/api/installer/log/stream?lines=80${token ? '&token=' + encodeURIComponent(token) : ''}`;
+    // Rely on httpOnly cookie for auth on same-origin SSE (cookies sent automatically).
+    const url = `/api/installer/log/stream?lines=80`;
     const es = new EventSource(url);
 
     es.onopen = () => setConnected(true);

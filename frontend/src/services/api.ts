@@ -26,12 +26,10 @@ const API_BASE = '/api';
  * the Bearer token read from localStorage.
  */
 function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = localStorage.getItem('openvox_token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
+  // Prefer httpOnly cookie set by backend on login (XSS protection).
+  // No longer read raw token from localStorage for Authorization header.
+  // Cookie is sent automatically for same-origin requests.
+  return { 'Content-Type': 'application/json' };
 }
 
 /**
@@ -50,8 +48,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (response.status === 401) {
-    // Token has expired or been revoked. Clear local state and reload
-    // the page so the user is presented with the login form.
+    // Session invalid (cookie or token). Clear any legacy local state and reload.
     localStorage.removeItem('openvox_token');
     window.location.reload();
     throw new Error('Session expired. Please log in again.');
@@ -240,8 +237,7 @@ export const bolt = {
     formData.append('targets', targets);
     formData.append('destination', destination);
     const headers: Record<string, string> = {};
-    const token = localStorage.getItem('openvox_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Cookie-based auth preferred; no localStorage token sent here.
     // Do NOT set Content-Type — browser sets it with boundary for multipart
     return fetch(`${API_BASE}/bolt/file/upload`, {
       method: 'POST', headers, body: formData,
@@ -258,8 +254,7 @@ export const bolt = {
     formData.append('targets', targets);
     formData.append('arguments', args);
     const headers: Record<string, string> = {};
-    const token = localStorage.getItem('openvox_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Cookie-based auth preferred; no localStorage token sent here.
     return fetch(`${API_BASE}/bolt/run/script`, {
       method: 'POST', headers, body: formData,
     }).then(async (r) => {
@@ -429,9 +424,7 @@ function sslUpload(url: string, files: Record<string, File | null>, fields?: Rec
       formData.append(key, val);
     }
   }
-  const headers: Record<string, string> = {};
-  const token = localStorage.getItem('openvox_token');
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Rely on httpOnly cookie for auth; no localStorage token.
   return fetch(`${API_BASE}${url}`, {
     method: 'POST', headers, body: formData,
   }).then(async (r) => {

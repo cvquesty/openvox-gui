@@ -97,13 +97,13 @@ async def lifespan(app: FastAPI):
     if settings.auth_backend == "none":
         logger.warning(
             "⚠️  Authentication backend is 'none'. This disables all auth and grants full admin to EVERY request. "
-            "This is ONLY for initial setup or local development. It is a critical misconfiguration risk in production."
+            "This is ONLY for initial setup or local development on localhost. It is a critical misconfiguration risk in production."
         )
-        if not settings.debug:
+        if not settings.debug or settings.app_host in ("0.0.0.0", "::", "", "0.0.0.0:4567"):
             logger.critical(
-                "SECURITY: Refusing to start with auth_backend='none' when debug=False. "
+                "SECURITY: Refusing to start with auth_backend='none' unless debug=True AND bound only to localhost. "
                 "Set OPENVOX_GUI_AUTH_BACKEND=local (or ldap) for production. "
-                "Use debug=true ONLY for local development on localhost."
+                "Use debug=true ONLY for local development on 127.0.0.1 or ::1."
             )
             import sys
             sys.exit(1)

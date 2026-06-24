@@ -32,6 +32,9 @@ class ApiToken(Base):
     # Human-readable name for the token (e.g. "bolt-service-token")
     name = Column(String(255), nullable=False)
 
+    # Role for this token (e.g. "operator", "bolt", "service"). Default "operator" for backward compat.
+    role = Column(String(50), default="operator", nullable=False)
+
     # SHA-256 hash of the raw token (hex)
     token_hash = Column(String(64), nullable=False, unique=True, index=True)
 

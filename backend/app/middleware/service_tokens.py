@@ -68,7 +68,7 @@ async def verify_service_token(token: str) -> Optional[Dict[str, Any]]:
             return {
                 "user_id": api_token.username,
                 "username": api_token.username,
-                "role": "operator",  # Service tokens get operator by default for now
+                "role": api_token.role or "operator",
                 "token_type": "service",
                 "token_id": api_token.id,
                 "token_name": api_token.name,
@@ -86,10 +86,12 @@ async def create_service_token(
     name: str,
     created_by: str,
     expires_at: Optional[datetime] = None,
+    role: str = "operator",
 ) -> str:
     """
     Create a new long-lived service token for a user.
 
+    role: e.g. "operator", "bolt", "service" - allows scoping for automation tokens.
     Returns the raw token (only returned once).
     The caller is responsible for storing it securely.
     """
@@ -102,6 +104,7 @@ async def create_service_token(
         api_token = ApiToken(
             username=username,
             name=name,
+            role=role,
             token_hash=token_hash,
             created_by=created_by,
             expires_at=expires_at,

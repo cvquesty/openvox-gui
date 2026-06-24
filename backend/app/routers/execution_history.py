@@ -11,7 +11,10 @@ import time
 
 from ..database import get_db
 from ..models import ExecutionHistory
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, require_role
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/execution-history", tags=["Execution History"])
 
@@ -218,7 +221,7 @@ async def get_execution_stats(
 async def delete_execution_history(
     history_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_role("admin"))
 ):
     """Delete a specific execution history entry."""
     result = await db.execute(
@@ -229,6 +232,7 @@ async def delete_execution_history(
     if not entry:
         raise HTTPException(status_code=404, detail="Execution history entry not found")
     
+    logger.info(f"Execution history entry {history_id} deleted by admin {current_user}")
     await db.delete(entry)
     await db.commit()
     
@@ -239,7 +243,7 @@ async def delete_execution_history(
 async def cleanup_old_history(
     days: int = Query(90, ge=30, le=365, description="Delete entries older than N days"),
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_role("admin"))
 ):
     """Delete execution history entries older than N days."""
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
@@ -251,6 +255,8 @@ async def cleanup_old_history(
         )
     )
     count = len(count_result.scalars().all())
+    
+    logger.info(f"Admin {current_user} cleaning up {count} execution history entries older than {days} days")
     
     # Delete old entries
     await db.execute(

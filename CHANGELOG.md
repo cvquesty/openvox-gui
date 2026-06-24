@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All work on this branch will follow the full pre-commit checklist, conventional commits, and the `/commit` skill process.
 - Alpha number will be incremented (e.g. `3.10.a_r_alpha.2`) to mark meaningful progress batches.
 
+### Enterprise Architecture Recommendations (from subagent report) - Implemented in 3.10.a_r_alpha.1
+- P0: Hardened execution history deletes with require_role("admin") + logging.
+- P0: Removed raw JWT persistence from localStorage (prefer httpOnly cookie).
+- P0: Added role scoping for service tokens (configurable, default still operator for compat; new "bolt" etc.).
+- P0: Strengthened "none" auth guard to fail on non-localhost/debug binds.
+- P0: Converted inline admin checks in auth.py user mgmt to use require_role dependency.
+- P1: Added role to ApiToken model + migration; updated create/verify/CLI/API.
+- P1: Basic supply-chain comment + hash note in requirements.
+- Updated AGENTS.md, CHANGELOG, models, routers, frontend, ovox for scoping and hardening.
+- All changes on alpha branch only; lab testing with maintenance.
+
 ## [3.9.7] - 2026-06-24
 
 ### Release
