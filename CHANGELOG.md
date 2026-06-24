@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a24] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix: server node now defaults to 'bolt' user (Orchestration "all targets")
+- The openvox_enc plugin now correctly special-cases the controller node:
+  - Detects local certname using `puppet config print certname` (fallback hostname -f).
+  - Emits `transport: local` + `run-as: <user>` (bolt) for the server.
+  - All other nodes get normal ssh + user: bolt.
+- This ensures that when the GUI expands "all" (via PDB) and Bolt resolves via the _plugin (for enc or puppetdb-all groups), the server target gets the local+run-as config.
+- Combined with `sudo bolt` (root) invocation for the CLI (to read keys), default commands now run as 'bolt' on server and agents.
+- "Run privileged" continues to escalate on target.
+- Updated plugin comments.
+- The earlier post-processing in enc.py and static example are now secondary; the plugin is the authoritative path for dynamic "all".
+
+### Versioning
+- Incremented pre-release to 3.10.0a24.
+
+Assisted By: Grok AI
+
 ## [3.10.0a23] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Permanent fix for command user on controller vs agents (Orchestration)
