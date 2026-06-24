@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a14] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Refactor hygiene (CommandExecutionService centralization)
+- Removed duplicate manual ExecutionHistory creation in `/api/bolt/run/command`.
+- The central `CommandExecutionService.execute()` is now solely responsible for recording (as intended by the P0 "scattered command execution" item from srsysarch1 report).
+- This is the first strictly atomic version-incremented commit under the new rule that every commit must correspond to one explicit change set + version bump + tag (for precise rollback).
+
+### Versioning
+- Incremented pre-release to 3.10.0a14.
+- Every commit from this point is a version increment with an annotated tag pointer (v3.10.0aNN) so any stage of the alpha train can be checked out exactly.
+
+Assisted By: Grok AI
+
 ## [3.10.0a13] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Systems Architecture Hardening (srsysarch1 report) - remaining P0/P1/actionable batches

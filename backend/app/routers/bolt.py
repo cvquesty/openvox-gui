@@ -460,21 +460,9 @@ async def run_command(
     # comma-separated list of certnames that Bolt expects.
     resolved_targets = await resolve_targets(req.targets, db)
 
-    # Create execution history entry
-    history_entry = ExecutionHistory(
-        execution_type="command",
-        node_name=req.targets,
-        command_name=req.command,
-        result_format=fmt,
-        status="running",
-        executed_by=current_user,
-        parameters={"run_as": req.run_as} if req.run_as else None
-    )
-    db.add(history_entry)
-    await db.commit()
-    await db.refresh(history_entry)
-    
     # Execute command
+    # Note: History recording is now delegated to CommandExecutionService (centralized P0 refactor).
+    # This removes the previous duplicate manual history creation.
     start_time = time.time()
     normalized = _normalize_command_for_gui(req.command)
 
