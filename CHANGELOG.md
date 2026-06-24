@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a16] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Observability (metrics)
+- Enhanced /api/deploy/metrics to include current maintenance message when active (small incremental improvement to the basic Prometheus exposition added earlier for the report).
+
+### Versioning
+- Incremented pre-release to 3.10.0a16 as its own atomic change set.
+
+Assisted By: Grok AI
+
 ## [3.10.0a15] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Observability improvement (CommandExecutionService)

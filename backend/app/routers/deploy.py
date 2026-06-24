@@ -433,6 +433,9 @@ async def ops_metrics():
         "# HELP openvox_gui_last_deploy_timestamp Unix time of last known deploy (best effort from history)",
         "# TYPE openvox_gui_last_deploy_timestamp gauge",
     ]
+    if maint.get("message"):
+        # Simple text metric for current maintenance reason (can be extended to labels).
+        lines.append(f'# Maintenance message: {maint["message"]}')
     try:
         hist = _load_history()
         if hist:
