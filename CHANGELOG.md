@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a11] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - bolt execution surface (P0)
+- Added explicit APPROVED_SAFE_PREFIXES list for the common safe "puppet agent -t" / "--test" cases (and --noop variants).
+  - _is_approved_safe_command() helper + usage in /run/command handler.
+  - Approved prefixes force system paths (via prepare_puppet_agent_command) + sudo escalation on target.
+  - This makes the "common case" first-class and explicit rather than purely heuristic-based (addresses top P0 recommendation to harden free-form vs. known-good puppet agent runs).
+- Free-form commands continue to flow through full validate_command + heuristic for other privileged ops.
+
+### Versioning
+- Incremented pre-release to 3.10.0a11.
+
+Assisted By: Grok AI
+
 ## [3.10.0a10] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture Hardening (srsysarch1 report) - fsync / atomic writes (P0)

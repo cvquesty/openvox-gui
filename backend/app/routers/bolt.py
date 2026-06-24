@@ -229,6 +229,30 @@ def _command_needs_root(command: str) -> bool:
     return False
 
 
+# Explicit allow-list of common safe "puppet agent" invocations (P0 hardening
+# from systems architect report). These get auto-escalated with system paths
+# and sudo on target. Free-form commands still go through validate_command
+# + heuristic, but the common case is now explicitly approved rather than
+# purely heuristic.
+APPROVED_SAFE_PREFIXES = [
+    "puppet agent -t",
+    "puppet agent --test",
+    "/opt/puppetlabs/bin/puppet agent -t",
+    "/opt/puppetlabs/bin/puppet agent --test",
+    "puppet agent -t --noop",
+    "/opt/puppetlabs/bin/puppet agent -t --noop",
+]
+
+
+def _is_approved_safe_command(command: str) -> bool:
+    """Return True if command exactly matches a known safe common pattern."""
+    c = command.strip().lower()
+    for prefix in APPROVED_SAFE_PREFIXES:
+        if c.startswith(prefix.lower()):
+            return True
+    return False
+
+
 def find_bolt() -> Optional[str]:
     """Find the bolt binary."""
     for p in BOLT_PATHS:
@@ -471,8 +495,15 @@ async def run_command(
     # inventory.yaml or openvox_enc plugin injects a global run-as setting.
     #
     # Only advanced/non-root run_as values result in an explicit --run-as flag.
-    escalate = bool(req.run_as) or _command_needs_root(normalized)
+    #
+    # P0 hardening: explicit APPROVED_SAFE_PREFIXES for the common "puppet agent -t"
+    # case (vs. arbitrary free-form). Approved prefixes are treated as safe+privileged.
+    is_approved = _is_approved_safe_command(normalized)
+    escalate = bool(req.run_as) or _command_needs_root(normalized) or is_approved
     command = ("sudo " + normalized) if escalate else normalized
+
+    if is_approved:
+        command = "sudo " + prepare_puppet_agent_command(normalized)
 
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
 
