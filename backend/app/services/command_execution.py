@@ -96,7 +96,14 @@ class CommandExecutionService:
             await db.commit()
             await db.refresh(history)
 
-        result = await self.transport.run(args, timeout=timeout, rainbow=rainbow)
+        # P0: enforce timeout to prevent long ops from starving server
+        try:
+            result = await asyncio.wait_for(
+                self.transport.run(args, timeout=timeout, rainbow=rainbow),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            result = {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
         duration = int((time.time() - start) * 1000)
 
         if history is not None:

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a18] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### P0 timeout for long ops
+- Added asyncio.wait_for around transport.run in CommandExecutionService.execute to enforce timeout and prevent long Bolt/r10k ops from starving the uvicorn event loop/server.
+- Addresses "Timeout + resource limits on long ops" P0 from srsysarch1 report (central path now protected; per-call timeouts already existed in bolt/deploy).
+
+### Versioning
+- Incremented pre-release to 3.10.0a18.
+
+Assisted By: Grok AI
+
 ## [3.10.0a17] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### P0 fsync/atomic for Hiera
