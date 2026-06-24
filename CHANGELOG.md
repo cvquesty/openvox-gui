@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a28] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix sudoers and key perms for bolt user (to support sudo -u bolt)
+- Moved the bolt config/key perms fix in ensure-sudoers.sh to after the sudoers file is written (was inside heredoc in previous edit, causing visudo fail).
+- Now on every deploy, sets chown root:bolt and 640/g+rwX so bolt user can read the SSH key when CLI is invoked as bolt.
+- Also added the (bolt) sudo rules.
+
+### Versioning
+- Incremented pre-release to 3.10.0a28.
+
+Assisted By: Grok AI
+
 ## [3.10.0a27] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Remediation for GitHub secret alert (no passwords in source)

@@ -192,16 +192,6 @@ ${SERVICE_USER} ALL=(bolt) NOPASSWD: /usr/local/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
 
-# Fix perms on bolt config dir and key so the 'bolt' user can read for SSH/keys
-# when CLI invoked as bolt user (sudo -u bolt).
-if [ -d /etc/puppetlabs/bolt ]; then
-  chown -R root:bolt /etc/puppetlabs/bolt 2>/dev/null || true
-  chmod -R g+rwX /etc/puppetlabs/bolt 2>/dev/null || true
-  if [ -f /etc/puppetlabs/bolt/id_bolt ]; then
-    chmod 640 /etc/puppetlabs/bolt/id_bolt 2>/dev/null || true
-  fi
-fi
-
 # Certificate Authority management (explicit subcommands only)
 # Method: exact "puppetserver ca <subcommand> --certname" (or --all for list).
 # Rationale: The Certificates page and related actions must be able to
@@ -297,6 +287,15 @@ else
     echo "   Inspect with: sudo visudo -cf $SUDOERS_FILE"
     echo "   Or review the diff above and the backup: $BACKUP"
     exit 1
+fi
+
+# Fix perms on bolt config so 'bolt' user can read key for SSH (when CLI run as bolt via sudo -u).
+if [ -d /etc/puppetlabs/bolt ]; then
+  chown -R root:bolt /etc/puppetlabs/bolt 2>/dev/null || true
+  chmod -R g+rwX /etc/puppetlabs/bolt 2>/dev/null || true
+  if [ -f /etc/puppetlabs/bolt/id_bolt ]; then
+    chmod 640 /etc/puppetlabs/bolt/id_bolt 2>/dev/null || true
+  fi
 fi
 
 echo "✅ Ensured canonical sudoers rules for service user '${SERVICE_USER}'"
