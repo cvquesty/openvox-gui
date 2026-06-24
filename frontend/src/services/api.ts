@@ -119,7 +119,7 @@ export const reports = {
   // Live Inventory report (Logs | Reports | Inventory)
   inventory: () => fetchJSON<any[]>('/reports/inventory'),
 
-  // Executive Summary (Fleet Health) Report recipients
+  // Executive Summary (Fleet Health) Report recipients + config
   listExecutiveRecipients: () => fetchJSON<any[]>('/reports/executive-summary/recipients'),
   addExecutiveRecipient: (email: string) =>
     fetchJSON<any>('/reports/executive-summary/recipients', {
@@ -130,10 +130,16 @@ export const reports = {
     fetchJSON<any>(`/reports/executive-summary/recipients/${id}`, {
       method: 'DELETE',
     }),
-  sendExecutiveReport: (emails?: string[]) =>
+  getExecutiveConfig: () => fetchJSON<any>('/reports/executive-summary/config'),
+  updateExecutiveConfig: (data: any) =>
+    fetchJSON<any>('/reports/executive-summary/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  sendExecutiveReport: (emails?: string[], fromEmail?: string) =>
     fetchJSON<any>('/reports/executive-summary/send', {
       method: 'POST',
-      body: JSON.stringify({ emails: emails || undefined }),
+      body: JSON.stringify({ emails: emails || undefined, from_email: fromEmail || undefined }),
     }),
 };
 

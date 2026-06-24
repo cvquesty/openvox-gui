@@ -34,8 +34,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.puppetdb import puppetdb_service
 from ..services.puppetserver import puppetserver_service
-from ..models.schemas import ReportSummary, ReportDetail, ExecutiveReportRecipient as ExecutiveRecipientSchema, AddExecutiveRecipient, SendExecutiveReportRequest
-from ..models.executive_report import ExecutiveReportRecipient
+from ..models.schemas import ReportSummary, ReportDetail, ExecutiveReportRecipient as ExecutiveRecipientSchema, AddExecutiveRecipient, SendExecutiveReportRequest, ExecutiveReportConfigSchema, UpdateExecutiveReportConfig
+from ..models.executive_report import ExecutiveReportRecipient, ExecutiveReportConfig
 from ..dependencies import require_role
 from ..database import get_db
 from ..config import settings
@@ -522,6 +522,7 @@ async def send_executive_report(
     Trigger an ad-hoc Executive Summary Report generation and email delivery.
     Uses live data (--live).
     If no emails provided, sends to all configured recipients.
+    Optional from_email overrides the stored config for this send.
     """
     if payload.emails and len(payload.emails) > 0:
         emails = [e.strip().lower() for e in payload.emails if e.strip()]
@@ -533,7 +534,14 @@ async def send_executive_report(
     if not emails:
         raise HTTPException(status_code=400, detail="No recipients configured or provided")
 
-    def _run_generator(emails_list: List[str]):
+    # Determine from_email: payload override > stored config > None (let script default)
+    effective_from = payload.from_email.strip() if payload.from_email else None
+    if not effective_from:
+        cfg = await _get_or_create_executive_config(db)
+        if cfg.from_email:
+            effective_from = cfg.from_email
+
+    def _run_generator(emails_list: List[str], from_email: Optional[str]):
         """Run in background so the HTTP request returns quickly."""
         try:
             # Locate the generator
@@ -558,6 +566,8 @@ async def send_executive_report(
                 "--live",
                 "--email", ",".join(emails_list),
             ]
+            if from_email:
+                cmd.extend(["--from-email", from_email])
             # Run detached-ish; capture for logs
             result = subprocess.run(
                 cmd,
@@ -573,7 +583,7 @@ async def send_executive_report(
         except Exception as exc:
             logger.exception(f"Failed to send ad-hoc executive report: {exc}")
 
-    background_tasks.add_task(_run_generator, emails)
+    background_tasks.add_task(_run_generator, emails, effective_from)
 
     # Update last_sent_at for the affected recipients (best effort)
     now = datetime.now(timezone.utc)
@@ -591,3 +601,49 @@ async def send_executive_report(
         "emails": emails,
         "message": "Report generation and delivery started in background.",
     }
+
+
+async def _get_or_create_executive_config(db: AsyncSession):
+    """Ensure a single config row exists and return it."""
+    result = await db.execute(select(ExecutiveReportConfig).limit(1))
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        cfg = ExecutiveReportConfig()
+        db.add(cfg)
+        await db.commit()
+        await db.refresh(cfg)
+    return cfg
+
+
+@router.get("/executive-summary/config", response_model=ExecutiveReportConfigSchema)
+async def get_executive_config(
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(_AUTH),
+):
+    """Get current Executive Summary Report configuration (from_email + schedule)."""
+    cfg = await _get_or_create_executive_config(db)
+    return cfg
+
+
+@router.put("/executive-summary/config", response_model=ExecutiveReportConfigSchema)
+async def update_executive_config(
+    payload: UpdateExecutiveReportConfig,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(_EXECUTIVE_AUTH),
+):
+    """Update from_email and/or schedule for the Executive Summary Report."""
+    cfg = await _get_or_create_executive_config(db)
+    if payload.from_email is not None:
+        val = payload.from_email.strip()
+        cfg.from_email = val if val else None
+    if payload.schedule_enabled is not None:
+        cfg.schedule_enabled = bool(payload.schedule_enabled)
+    if payload.schedule_day is not None:
+        cfg.schedule_day = max(0, min(6, int(payload.schedule_day)))
+    if payload.schedule_hour is not None:
+        cfg.schedule_hour = max(0, min(23, int(payload.schedule_hour)))
+    if payload.schedule_minute is not None:
+        cfg.schedule_minute = max(0, min(59, int(payload.schedule_minute)))
+    await db.commit()
+    await db.refresh(cfg)
+    return cfg

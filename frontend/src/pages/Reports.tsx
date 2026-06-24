@@ -7,7 +7,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch,
 } from '@mantine/core';
 import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
@@ -293,12 +293,19 @@ export function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-  // Executive Summary Report (Fleet Health) recipients
+  // Executive Summary Report (Fleet Health) recipients + config
   const [execRecipients, setExecRecipients] = useState<any[]>([]);
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
   const [execLoading, setExecLoading] = useState(false);
   const [execError, setExecError] = useState<string | null>(null);
   const [execSuccess, setExecSuccess] = useState<string | null>(null);
+
+  // Executive config (from email + schedule)
+  const [execConfig, setExecConfig] = useState<any>({});
+  const [fromEmail, setFromEmail] = useState('');
+  const [schedEnabled, setSchedEnabled] = useState(true);
+  const [schedDay, setSchedDay] = useState(0); // 0=Mon ... 6=Sun
+  const [schedTime, setSchedTime] = useState('08:00');
 
   // Fetch hierarchy (groups and nodes)
   const { data: hierarchy, loading: hierarchyLoading } = useApi(
@@ -450,6 +457,20 @@ export function ReportsPage() {
     try {
       const data = await reports.listExecutiveRecipients();
       setExecRecipients(Array.isArray(data) ? data : []);
+
+      // Load config for from + schedule
+      try {
+        const cfg = await reports.getExecutiveConfig();
+        setExecConfig(cfg || {});
+        if (cfg?.from_email) setFromEmail(cfg.from_email);
+        if (typeof cfg?.schedule_enabled === 'boolean') setSchedEnabled(cfg.schedule_enabled);
+        if (typeof cfg?.schedule_day === 'number') setSchedDay(cfg.schedule_day);
+        if (typeof cfg?.schedule_hour === 'number' && typeof cfg?.schedule_minute === 'number') {
+          setSchedTime(`${String(cfg.schedule_hour).padStart(2,'0')}:${String(cfg.schedule_minute).padStart(2,'0')}`);
+        }
+      } catch (e) {
+        // config optional
+      }
     } catch (e: any) {
       setExecError(e?.message || 'Failed to load recipients');
       setExecRecipients([]);
@@ -488,11 +509,31 @@ export function ReportsPage() {
     }
   };
 
+  const saveExecutiveConfig = async () => {
+    setExecError(null);
+    setExecSuccess(null);
+    try {
+      const [hh, mm] = schedTime.split(':').map((x: string) => parseInt(x, 10));
+      await reports.updateExecutiveConfig({
+        from_email: fromEmail.trim() || null,
+        schedule_enabled: schedEnabled,
+        schedule_day: schedDay,
+        schedule_hour: hh || 8,
+        schedule_minute: mm || 0,
+      });
+      await loadExecutiveRecipients();
+      setExecSuccess('Configuration saved');
+      setTimeout(() => setExecSuccess(null), 2500);
+    } catch (e: any) {
+      setExecError(e?.message || 'Failed to save configuration');
+    }
+  };
+
   const sendAdHocReport = async (emails?: string[]) => {
     setExecError(null);
     setExecSuccess(null);
     try {
-      await reports.sendExecutiveReport(emails);
+      await reports.sendExecutiveReport(emails, fromEmail || undefined);
       const target = emails && emails.length ? emails.join(', ') : 'all recipients';
       setExecSuccess(`Ad-hoc report queued for ${target}. Check server logs / mail for delivery.`);
       setTimeout(() => setExecSuccess(null), 4000);
@@ -751,8 +792,61 @@ export function ReportsPage() {
           )}
         </Card>
 
+        {/* From email + Schedule configuration */}
+        <Divider my="md" />
+        <Title order={5}>From address & Scheduling</Title>
+        <Text size="xs" c="dimmed" mb="xs">
+          From email is used when the mail subsystem on the server requires a specific sender format.
+          Schedule controls when the background timer will deliver the report (ad-hoc always available).
+        </Text>
+
+        <Group grow>
+          <TextInput
+            label="From email (optional)"
+            placeholder="reports@yourcompany.com"
+            value={fromEmail}
+            onChange={(e) => setFromEmail(e.currentTarget.value)}
+          />
+          <Button onClick={saveExecutiveConfig} variant="light" mt={22}>Save Config</Button>
+        </Group>
+
+        <Group mt="sm">
+          <Switch
+            label="Enable scheduled delivery"
+            checked={schedEnabled}
+            onChange={(e) => setSchedEnabled(e.currentTarget.checked)}
+          />
+          <Select
+            label="Day of week"
+            data={[
+              { value: '0', label: 'Monday' },
+              { value: '1', label: 'Tuesday' },
+              { value: '2', label: 'Wednesday' },
+              { value: '3', label: 'Thursday' },
+              { value: '4', label: 'Friday' },
+              { value: '5', label: 'Saturday' },
+              { value: '6', label: 'Sunday' },
+            ]}
+            value={String(schedDay)}
+            onChange={(v) => setSchedDay(parseInt(v || '0', 10))}
+            style={{ maxWidth: 160 }}
+          />
+          <TextInput
+            label="Time (HH:MM)"
+            type="time"
+            value={schedTime}
+            onChange={(e) => setSchedTime(e.currentTarget.value)}
+            style={{ maxWidth: 140 }}
+          />
+        </Group>
+
         <Text size="xs" c="dimmed">
-          The scheduled Monday 8AM report will also pick up this list (via the GUI API when no value is set in .env).
+          The server timer fires on its configured cadence; the generator script will only deliver when the day/time matches (or for ad-hoc).
+          Original default was Monday ~08:00.
+        </Text>
+
+        <Text size="xs" c="dimmed">
+          The scheduled report will also pick up this list (via the GUI API when no value is set in .env).
           Make sure <code>mail</code> or <code>mailx</code> works on the server for email delivery.
         </Text>
       </Stack>

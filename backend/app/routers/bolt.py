@@ -286,11 +286,10 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
         args = args + ["--color"]
 
     # Invoke the bolt CLI as the 'bolt' user (not root). This makes local
-    # transport on the controller execute commands as 'bolt' by default.
-    # Remote targets use SSH as 'bolt' (from inventory). The key must be
-    # readable by bolt user (see ensure-sudoers.sh for perms fix).
-    # For privileged, the "sudo " prefix inside the command string will
-    # cause escalation on the target via bolt user's sudoers.
+    # transport on the controller execute commands as 'bolt' by default
+    # (whoami=bolt on server too). Remote use SSH as 'bolt'.
+    # Key readability ensured by ensure-sudoers.sh (640 root:bolt).
+    # Privileged still prefixes "sudo " inside for target escalation.
     bolt_args = ["sudo", "-E", "-u", "bolt", bolt] + args + inventory_flag + project_flag
 
     env = os.environ.copy()

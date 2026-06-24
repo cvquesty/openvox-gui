@@ -26,4 +26,4 @@ from .enc import NodeGroup, NodeClassification, ClassificationRule
 from .execution_history import ExecutionHistory
 from .token_denylist import TokenDenylist
 from .api_token import ApiToken
-from .executive_report import ExecutiveReportRecipient
+from .executive_report import ExecutiveReportRecipient, ExecutiveReportConfig

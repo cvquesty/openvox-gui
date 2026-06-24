@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a29] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Executive Summary Report enhancements (Logs | Reports)
+- Added "From email" text box (global for the report) so users in strict environments can set a custom sender address. Passed to the generator script via --from-email and used with mail -r.
+- Added schedule configuration: enable/disable, day-of-week (Mon-Sun), time (HH:MM).
+- Ad-hoc sending remains (Send now / Send to all now), now also passes the from_email if set.
+- Scheduled delivery: the generator script now fetches config and only delivers when schedule matches (supports specific day/time + regular weekly cadence). Ad-hoc bypasses schedule check.
+- Backend: new /reports/executive-summary/config GET/PUT, updated send to support from_email, new model + schema.
+- Generator script updated to accept --from-email, fetch config on --live, and enforce schedule.
+- UI updated in Executive Summary pane.
+
+### Versioning
+- Incremented pre-release to 3.10.0a29.
+
+Assisted By: Grok AI
+
 ## [3.10.0a28] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Fix sudoers and key perms for bolt user (to support sudo -u bolt)

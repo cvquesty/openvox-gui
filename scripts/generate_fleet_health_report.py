@@ -661,6 +661,8 @@ def main():
                         help="Override source label (e.g. 'openvox.pdxc-it.twitter.biz (production)')")
     parser.add_argument("--email", default=None,
                         help="Comma/space-separated email address(es) to send the PDF to. Falls back to FLEET_HEALTH_REPORT_EMAILS env.")
+    parser.add_argument("--from-email", default=None,
+                        help="From: address to use (e.g. reports@company.com). Useful when mail requires specific sender format.")
     args = parser.parse_args()
 
     # === Config from environment (set in .env or systemd EnvironmentFile) ===
@@ -678,6 +680,8 @@ def main():
                   _get_env("FLEET_HEALTH_EMAIL")).strip()
     emails = [e.strip() for e in re.split(r'[,;\s]+', emails_str) if e.strip()]
 
+    from_email = (args.from_email or _get_env("FLEET_HEALTH_REPORT_FROM_EMAIL") or "").strip() or None
+
     # If still no recipients and we are using --live (typically on-server scheduled or ad-hoc),
     # try to fetch the current list from the GUI itself (via the new recipients API).
     # This makes the GUI the source of truth even when .env is empty.
@@ -693,9 +697,48 @@ def main():
                     emails = [rec["email"] for rec in recs if rec.get("email")]
                     if emails:
                         print(f"[info] Loaded {len(emails)} recipient(s) from GUI executive summary config.")
+
+                # Also fetch from_email if not explicitly provided
+                if not from_email:
+                    cr = client.get("/api/reports/executive-summary/config")
+                    if cr.status_code == 200:
+                        cfg = cr.json()
+                        if cfg.get("from_email"):
+                            from_email = cfg["from_email"].strip()
+                            print(f"[info] Using from_email from GUI config: {from_email}")
         except Exception as fetch_exc:
             # Silent fallback — generator will just not email if still empty
-            print(f"[warn] Could not fetch recipients from GUI API: {fetch_exc}", file=sys.stderr)
+            print(f"[warn] Could not fetch recipients/config from GUI API: {fetch_exc}", file=sys.stderr)
+
+    # Schedule check: if this is a scheduled invocation (no explicit --email) and schedule is configured,
+    # only proceed if current day/time roughly matches. This allows UI-configured cadence while
+    # the systemd timer may be fixed or run frequently.
+    if not args.email and args.live:
+        try:
+            import httpx
+            port = _get_env("APP_PORT") or "4567"
+            base = f"http://127.0.0.1:{port}"
+            with httpx.Client(base_url=base, timeout=5.0) as client:
+                cr = client.get("/api/reports/executive-summary/config")
+                if cr.status_code == 200:
+                    cfg = cr.json()
+                    if cfg.get("schedule_enabled"):
+                        now = datetime.now()
+                        sched_day = int(cfg.get("schedule_day", 0))
+                        sched_h = int(cfg.get("schedule_hour", 8))
+                        sched_m = int(cfg.get("schedule_minute", 0))
+                        if now.weekday() != sched_day:
+                            print(f"[info] Schedule skip: today={now.weekday()} (Mon=0) != configured day {sched_day}")
+                            sys.exit(0)
+                        # allow +/- 45 min window for timer jitter
+                        target = now.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
+                        delta = abs((now - target).total_seconds())
+                        if delta > 45 * 60:
+                            print(f"[info] Schedule skip: outside time window for {sched_h:02d}:{sched_m:02d}")
+                            sys.exit(0)
+                        print(f"[info] Schedule match: day={sched_day} time~{sched_h:02d}:{sched_m:02d}")
+        except Exception as sched_exc:
+            print(f"[warn] Schedule enforcement skipped: {sched_exc}", file=sys.stderr)
 
     output_dir = _get_env("FLEET_HEALTH_REPORT_OUTPUT_DIR")
     if not output_dir:
@@ -734,10 +777,17 @@ def main():
         body = f"See attached one-page Fleet Health PDF.\n\nGenerated directly on the OpenVox server.\nSource: {src}\n\n(This report was generated automatically every Monday at 08:00 America/New_York.)"
         try:
             import subprocess
-            cmd = ["mail", "-s", subject, "-a", out] + emails
+            # Use -r for From: if provided (supported by many mail/mailx impls)
+            if from_email:
+                cmd = ["mail", "-r", from_email, "-s", subject, "-a", out] + emails
+            else:
+                cmd = ["mail", "-s", subject, "-a", out] + emails
             res = subprocess.run(cmd, input=body.encode(), capture_output=True, timeout=20)
             if res.returncode != 0:
-                cmd2 = ["mailx", "-s", subject, "-a", out] + emails
+                if from_email:
+                    cmd2 = ["mailx", "-r", from_email, "-s", subject, "-a", out] + emails
+                else:
+                    cmd2 = ["mailx", "-s", subject, "-a", out] + emails
                 res = subprocess.run(cmd2, input=body.encode(), capture_output=True, timeout=20)
             print(f"[ok] Report emailed to {', '.join(emails)}" if res.returncode == 0 else f"[warn] mail/mailx rc={res.returncode}. PDF ready: {out}")
         except Exception as ee:
