@@ -182,13 +182,17 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
 # Bolt orchestration
-# Method: allow the *full* bolt binary (both common installation paths).
-# Rationale: Bolt commands, tasks, and plans accept a huge number of
-#            arguments (--targets, --inventoryfile, --params, --run-as,
-#            modules, etc.). A wildcarded "bolt *" was previously used;
-#            allowing the real binary is the accepted secure pattern for
-#            orchestration UIs. It is still vastly narrower than
-#            "ALL=(ALL) NOPASSWD: ALL".
+# Method: allow the *full* bolt binary as both root and the 'bolt' service account.
+# Rationale: The GUI (running as ${SERVICE_USER}) invokes `sudo -u bolt bolt ...`
+#            so that local transport targets (e.g. the Puppet server itself)
+#            execute commands as the 'bolt' user by default — matching the
+#            documented expectation that `whoami` returns "bolt" unless the
+#            "Run privileged" checkbox (or heuristic) is used.
+#            We also keep the (root) entries for any direct or legacy invocations.
+#            A wildcarded "bolt *" was previously used; allowing the real binary
+#            is the accepted secure pattern. Still vastly narrower than ALL.
+${SERVICE_USER} ALL=(bolt) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(bolt) NOPASSWD: /usr/local/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
 

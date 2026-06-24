@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a22] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix (Orchestration default user)
+- Commands run from Infrastructure | Orchestration now correctly execute as the 'bolt' SSH user on *all* targets (including the controller node itself) unless "Run privileged" is checked.
+- Root cause: the server node uses `transport: local` in inventory (see bolt-plugin/inventory.yaml.example). The GUI was invoking the bolt CLI via `sudo bolt` (as root), so local transport executed commands as root.
+- Fix: invoke bolt CLI as the 'bolt' user via `sudo -u bolt bolt ...` (in run_bolt_command and the command handler). Local commands now run in 'bolt' context by default. "sudo <cmd>" prefix (from privileged checkbox or heuristic) still escalates on target via the bolt user's sudoers.
+- Updated ensure-sudoers.sh to allow the service user to run the bolt binary as (bolt) in addition to (root).
+- This makes GUI behavior match documented expectations and direct CLI usage as the bolt user (`whoami` returns "bolt" by default on every node).
+
+### Versioning
+- Incremented pre-release to 3.10.0a22.
+
+Assisted By: Grok AI
+
 ## [3.10.0a21] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Concurrency limit tuning (Orchestration)
