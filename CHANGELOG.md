@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a2] - 2026-06-24 (on 3.10.a_r_alpha.1)
+
+### Versioning
+- Incremented pre-release version to 3.10.0a2 for next push of dev work on the alpha branch.
+- Follows project rule: every meaningful push increments the pre-release counter.
+
 ## [3.10.a_r_alpha.1] - Unreleased (Alpha Refactor Development Branch)
 
 ### Process & Strategy Declaration
