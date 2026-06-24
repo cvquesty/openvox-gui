@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a15] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Observability improvement (CommandExecutionService)
+- Service now returns `executed_args` in result for better debugging and error surfacing (directly addresses P1 "Better error surfacing for external commands" from srsysarch1 report).
+- This is a separate atomic change set with its own version increment.
+
+### Versioning
+- Incremented pre-release to 3.10.0a15.
+- Strict rule now in force: every commit I make is a version increment (bump-version.sh + annotated tag) providing an explicit pointer for rollback to any individual change set.
+
+Assisted By: Grok AI
+
 ## [3.10.0a14] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Refactor hygiene (CommandExecutionService centralization)

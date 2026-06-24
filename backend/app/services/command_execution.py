@@ -106,7 +106,8 @@ class CommandExecutionService:
             history.error_message = (result.get("stderr") or "")[:500]
             await db.commit()
 
-        return {**result, "duration_ms": duration}
+        # Include original args for better debugging / error surfacing (P1 item).
+        return {**result, "duration_ms": duration, "executed_args": args}
 
 
 # Convenience singleton style for current callers during transition.
