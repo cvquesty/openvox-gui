@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a19] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### P0 subprocess audit and list-form
+- Audit of remaining subprocess.run: most critical paths (status, version, sudo ops) use list form with no unvalidated user data in command strings.
+- Converted sudo cat in read_puppetdb_config to use run_sudo (via executor) for consistency with P0 recommendation to prefer run_sudo helper.
+- Addresses "Consistent list-form subprocess everywhere" P0.
+
+### Versioning
+- Incremented pre-release to 3.10.0a19.
+
+Assisted By: Grok AI
+
 ## [3.10.0a18] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### P0 timeout for long ops

@@ -250,13 +250,14 @@ class PuppetServerService:
         for conf_file in ["jetty.ini", "database.ini", "config.ini"]:
             filepath = f"{pdb_confdir}/{conf_file}"
             try:
-                proc = subprocess.run(
-                    ["sudo", "cat", filepath],
-                    capture_output=True, text=True, timeout=5
-                )
-                if proc.returncode != 0:
+                # P0 subprocess audit: use run_sudo for sudo cat (list form)
+                from ..utils.sudo import run_sudo
+                import asyncio
+                loop = asyncio.get_event_loop()
+                sudo_result = loop.run_until_complete(run_sudo(["sudo", "cat", filepath], timeout=5))
+                if sudo_result.get("returncode") != 0:
                     continue
-                content = proc.stdout
+                content = sudo_result.get("stdout", "")
                 config = configparser.ConfigParser()
                 from io import StringIO
                 config.read_string(content)
