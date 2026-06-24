@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a23] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Permanent fix for command user on controller vs agents (Orchestration)
+- "whoami" (and other commands) against "all" now correctly run as the 'bolt' user on *every* node (server + agents) by default.
+- When "Run privileged" is checked, runs as root on the target.
+- Root cause of repeated breakage: controller uses `transport: local` (inventory.yaml.example), and GUI was flipping between `sudo bolt` (root context for local) and `sudo -u bolt bolt` (broke remote key access for some users).
+- Permanent repair:
+  - Always invoke bolt CLI via `sudo bolt ...` (as root, so keys in /etc/puppetlabs/bolt/ are readable).
+  - For the controller node, set `transport: local` + `run-as: bolt` (both in the static example and dynamically in /api/enc/inventory/bolt).
+  - Default commands run as 'bolt' via run-as on local (or ssh user on remote).
+  - Privileged still uses "sudo <cmd>" prefix or --run-as (escalates on target via bolt user's sudoers).
+  - Updated plugin comments, example, sudoers, and ENC generation.
+- This should not regress again. The design now matches the documented behavior and pre-alpha state.
+
+### Versioning
+- Incremented pre-release to 3.10.0a23.
+
+Assisted By: Grok AI
+
 ## [3.10.0a22] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Fix (Orchestration default user)

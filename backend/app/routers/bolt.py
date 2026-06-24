@@ -284,13 +284,12 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
     if is_rainbow and "--color" not in args:
         args = args + ["--color"]
 
-    # Invoke bolt CLI as the 'bolt' user (not root). This ensures that when
-    # Bolt uses local transport for the controller itself (see inventory.yaml.example
-    # puppetserver group), commands execute as 'bolt' by default — exactly as
-    # documented and as direct `bolt ...` from a shell as the bolt user would.
-    # The "Run privileged" checkbox (or heuristic) still causes "sudo <cmd>" to
-    # be passed to Bolt for target-side escalation via the bolt user's sudoers.
-    bolt_args = ["sudo", "-u", "bolt", bolt] + args + inventory_flag + project_flag
+    # Invoke bolt CLI as root (via sudo). This ensures the CLI can read
+    # root-owned keys/configs in /etc/puppetlabs/bolt/. For targets using
+    # local transport (the controller itself), we rely on per-target
+    # 'run-as: bolt' in inventory so that commands default to the bolt user.
+    # See inventory.yaml.example and docs.
+    bolt_args = ["sudo", bolt] + args + inventory_flag + project_flag
 
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
@@ -331,7 +330,7 @@ async def bolt_status():
     if not bolt:
         return {"installed": False, "path": None, "version": None}
     try:
-        result = await run_sudo(["sudo", "-u", "bolt", bolt, "--version"], timeout=10)
+        result = await run_sudo(["sudo", bolt, "--version"], timeout=10)
         version = result["stdout"].strip() if result["returncode"] == 0 else None
     except Exception:
         version = None
@@ -525,8 +524,8 @@ async def run_command(
     if is_rainbow and "--color" not in sub_args:
         sub_args = sub_args + ["--color"]
 
-    # Invoke as the 'bolt' user (see comment in run_bolt_command for rationale).
-    full_args = ["sudo", "-u", "bolt", bolt] + sub_args + inventory_flag + project_flag
+    # Invoke as root (see comment in run_bolt_command).
+    full_args = ["sudo", bolt] + sub_args + inventory_flag + project_flag
 
     # Use central service (initial integration for report P0 centralization).
     from ..services.command_execution import default_service
