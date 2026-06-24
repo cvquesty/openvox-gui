@@ -6,7 +6,7 @@ Supports split authentication:
 - LDAP auth: username/password validated against LDAP/AD, roles managed locally
 """
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
