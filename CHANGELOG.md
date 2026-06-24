@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a8] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - rate limiting
+- Applied `rate_limit_heavy()` (10/min per IP) to all dangerous orchestration and deployment endpoints:
+  - Bolt: /api/bolt/run/command, /run/task, /run/plan, /run/script
+  - Deploy: /api/deploy/run
+- These were previously covered only by the generic api rate limit. Now explicitly classified as "heavy" alongside PQL.
+- Lays groundwork for additional per-user concurrency limits (semaphores) in a follow-up if needed.
+- Matches P1 recommendation for rate limiting + concurrency on high-impact endpoints.
+
+### Versioning
+- Incremented pre-release to 3.10.0a8 on the alpha branch.
+
+Assisted By: Grok AI
+
 ## [3.10.0a7] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Systems Architecture Hardening (srsysarch1 report) - follow-up

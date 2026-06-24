@@ -8,6 +8,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional, List
 
+from ..middleware.security import rate_limit_heavy
+
 router = APIRouter(prefix="/api/deploy", tags=["deploy"])
 logger = logging.getLogger(__name__)
 
@@ -272,6 +274,7 @@ async def webhook_deploy(request: Request):
 
 
 @router.post("/run")
+@rate_limit_heavy()
 async def run_deployment(deploy: DeployRequest, request: Request):
     """
     Trigger an r10k deployment.

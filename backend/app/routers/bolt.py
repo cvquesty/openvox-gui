@@ -25,7 +25,7 @@ import subprocess
 import time
 from pathlib import Path
 from shlex import quote as shlex_quote
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -37,6 +37,7 @@ from ..dependencies import get_current_user, require_role
 from ..utils.validation import validate_command, strip_ansi
 from ..services.enc import enc_service
 from ..services.puppetdb import puppetdb_service
+from ..middleware.security import rate_limit_heavy
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
@@ -407,7 +408,9 @@ UPLOAD_STAGING_DIR = Path("/opt/openvox-gui/data/bolt-uploads")
 
 
 @router.post("/run/command")
+@rate_limit_heavy()
 async def run_command(
+    request: Request,
     req: RunCommandRequest,
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(require_role("admin", "operator"))
@@ -495,7 +498,9 @@ async def run_command(
 
 
 @router.post("/run/task")
+@rate_limit_heavy()
 async def run_task(
+    request: Request,
     req: RunTaskRequest,
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(require_role("admin", "operator"))
@@ -556,7 +561,9 @@ async def run_task(
 
 
 @router.post("/run/plan")
+@rate_limit_heavy()
 async def run_plan(
+    request: Request,
     req: RunPlanRequest,
     db: AsyncSession = Depends(get_db),
     current_user: str = Depends(require_role("admin", "operator"))
@@ -774,7 +781,9 @@ async def download_file_from_targets(
 # ─── Script Execution ─────────────────────────────────────
 
 @router.post("/run/script")
+@rate_limit_heavy()
 async def run_script_on_targets(
+    request: Request,
     file: UploadFile = FastAPIFile(..., description="The script file to execute on remote targets"),
     targets: str = Form(..., description="Comma-separated certnames, 'all', or ENC group name"),
     arguments: str = Form("", description="Arguments to pass to the script (space-separated)"),
