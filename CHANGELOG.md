@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a6] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture / Security Hardening (srsysarch1 report)
+- SQLite P0 hardening (durability + concurrency for critical state):
+  - WAL mode was already present from prior work. Completed the recommendation by adding:
+    - `PRAGMA synchronous = FULL`
+    - `PRAGMA busy_timeout = 10000`
+    - `PRAGMA wal_autocheckpoint = 2000`
+  - Added `checkpoint_database()` (FULL checkpoint) and invoke it during lifespan shutdown.
+  - Protects SQLite contents used for users, ENC (common/env/group/node), execution_history, token denylist, executive reports, and sessions.
+  - Directly implements actionable item from the Systems / Runtime / Deployment Architecture Assessment (srsysarch1-openvox-gui-domain-security-issues-systems-architect.md).
+
+### Versioning
+- Incremented pre-release to 3.10.0a6 per project rule (every meaningful push on the alpha train increments the counter).
+- All changes pushed to the 3.10.a_r_alpha.5 branch only. Branch alpha number will increment on subsequent milestone batches. Main branch is untouched.
+
+Assisted By: Grok AI
+
 ## [3.10.0a5] - 2026-06-24 (on 3.10.a_r_alpha.5)
 
 ### Versioning

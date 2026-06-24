@@ -172,6 +172,16 @@ async def lifespan(app: FastAPI):
         await metrics_router.stop_ps_health_collector()
     except Exception:
         pass
+
+    # Database durability: force WAL checkpoint on shutdown (P0 hardening).
+    # Ensures all committed ENC/auth/history writes are in the main .db file
+    # rather than only in the -wal sidecar. Complements the PRAGMAs set in init_db.
+    try:
+        from .database import checkpoint_database
+        await checkpoint_database()
+    except Exception:
+        pass
+
     logger.info("Application shutdown complete")
 
 
