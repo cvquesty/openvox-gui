@@ -4,6 +4,24 @@
 - **Default branch is `main`** — staging branch has been removed
 - All development and releases go through `main`
 
+### 3.10 Alpha Refactor Effort (2026-06 onward)
+For the current major development effort implementing recommendations from the subagent evaluation reports (stored in `~/Desktop/OpenVox/`):
+
+- Create and work on dedicated alpha branches named **`3.10.a_r_alpha.N`** (where N starts at 1 and increments for each significant milestone or batch of changes).
+- **Branch purpose**: Isolate all refactor, hardening, architecture, and UI/UX work based on the 2026-06 evaluation reports (Senior Developer, Software Architect, Systems Architect, Enterprise Architect, and UI/UX designers).
+- **Testing & Validation Policy (STRICT)**:
+  - All testing and validation deploys are **only** performed against the lab/test server: `openvox.questy.org` (IP `10.0.100.225`).
+  - Use the standard command:  
+    `OPENVOX_DEPLOY_HOST=10.0.100.225 OPENVOX_DEPLOY_USER=jsheets scripts/update_remote.sh --yes`
+  - **Always** wrap lab deploys with the maintenance program first:
+    - `ovox maintenance enable --message "Alpha refactor validation" --eta "XXm" --yes` (or equivalent)
+    - Perform the update_remote.sh
+    - Verify thoroughly
+    - `ovox maintenance disable --yes`
+  - **Never** push or deploy these alpha branches (or changes from them) to production infrastructure (e.g., xAI fleet servers).
+- Changes are merged back toward `main` only after validation, review, and when a stable increment is ready.
+- This strategy ensures zero impact on end-users during the dev effort. All work follows the full pre-commit checklist, `/commit` skill process, and meticulous verification.
+
 ## Heredoc Safety (Important)
 
 When writing files with heredocs in shell scripts (`install.sh`, `update_local.sh`, `deploy.sh`, etc.):

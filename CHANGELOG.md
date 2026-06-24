@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.a_r_alpha.1] - Unreleased (Alpha Refactor Development Branch)
+
+### Process & Strategy Declaration
+- Created dedicated development branch `3.10.a_r_alpha.1` (incrementing alpha counter for milestones) to implement recommendations from the June 2026 subagent evaluation reports (security, architecture, systems, enterprise, and UI/UX).
+- **Strict testing policy declared**: All validation and testing deploys are performed **exclusively** against the lab server `openvox.questy.org` (10.0.100.225). Production infrastructure is never targeted from this branch or its changes.
+- Deploys for validation **always** use maintenance mode (`ovox maintenance enable` ... `update_remote.sh --yes` ... `ovox maintenance disable`).
+- Updated project instructions (AGENTS.md) with the full branching and testing strategy for this effort to ensure zero impact on end users.
+- All work on this branch will follow the full pre-commit checklist, conventional commits, and the `/commit` skill process.
+- Alpha number will be incremented (e.g. `3.10.a_r_alpha.2`) to mark meaningful progress batches.
+
 ## [3.9.7] - 2026-06-24
 
 ### Release
