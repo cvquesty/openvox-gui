@@ -25,7 +25,6 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from shlex import quote as shlex_quote
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
@@ -229,30 +228,15 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
 
     env = os.environ.copy()
     env["TERM"] = "xterm-256color"
-
-    if is_rainbow:
-        # Use script(1) to allocate a PTY so bolt emits full ANSI colors
-        bolt_cmd_str = " ".join(shlex_quote(a) for a in bolt_args)
-        cmd = ["script", "-qc", bolt_cmd_str, "/dev/null"]
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            out = stdout.decode("utf-8", errors="replace")
-            err = stderr.decode("utf-8", errors="replace")
-            out = out.replace("\r\n", "\n").replace("\r", "")
-            return {"returncode": proc.returncode, "stdout": out, "stderr": err}
-        except asyncio.TimeoutError:
-            proc.kill()
-            return {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
-        except Exception as e:
-            return {"returncode": -1, "stdout": "", "stderr": str(e)}
-    else:
-        return await run_sudo(bolt_args, timeout=timeout, env=env)
+    # Rainbow needs a PTY for ANSI colors — run_sudo already allocates a PTY
+    # (argv-only; no script(1) / shell string). srdev1 S2.
+    result = await run_sudo(bolt_args, timeout=timeout, env=env)
+    if is_rainbow and isinstance(result.get("stdout"), str):
+        result = {
+            **result,
+            "stdout": result["stdout"].replace("\r\n", "\n").replace("\r", ""),
+        }
+    return result
 
 
 # ─── Status ────────────────────────────────────────────────
@@ -295,6 +279,8 @@ async def bolt_status():
             except Exception:
                 pass
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("bolt_status version probe failed: %s", exc, exc_info=True)
         err = str(exc)
     return {"installed": True, "path": bolt, "version": version, "error": err}
 

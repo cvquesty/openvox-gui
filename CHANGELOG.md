@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.01.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev1 security train marker)
+
+Marks the start of implementing **srdev1-openvox-gui-domain-security-issues-senior-developer.md** (security-focused). **Alpha only** — not merged to `main`; lab deploy target remains **openvox.questy.org** (`10.0.100.225`) only.
+
+### Security (srdev1 S2 / S3 / S5 / S1 partial / S10 start)
+- **S2:** Bolt rainbow path no longer uses `script -qc` shell strings; always **argv + PTY** via `run_sudo` (TERM + `--color` for rainbow).
+- **S3:** Metrics live agent-disabled check avoids controller `sudo /bin/sh -c`; uses argv-oriented remote command (sudo test/head/tr/sed/awk || echo ENABLED).
+- **S5:** Expanded `validate_command` denylist (substitution, eval, interpreter `-c`/`-e`, curl|sh, wipefs, critical paths, control chars, length 2000).
+- **S1 (targeted):** `run_sudo` and deploy `_run_command` / cert ENC cleanup / bolt_status log with `exc_info=True`; privileged runner returns generic internal error on unexpected exceptions (no silent swallow).
+- **S10 start:** `backend/tests/test_validation.py` for command validation + strip_ansi + node name checks.
+
+### Versioning
+- **3.10.01.a1** on **3.10.a_r_alpha.6** (review-doc train marker; do not promote to `main` until full merge scan).
+
 ## [3.10.0a38] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Fix openvox_enc inventory HTTP 401 on Orchestration Run Command

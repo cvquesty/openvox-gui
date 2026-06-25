@@ -43,6 +43,8 @@ def _run_command(cmd: List[str], timeout: int = 300) -> dict:
             "success": False,
         }
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("deploy _run_command failed: %s", e, exc_info=True)
         return {
             "exit_code": -1,
             "stdout": "",

@@ -49,10 +49,16 @@ async def run_sudo(cmd: List[str], timeout: int = 30, env: dict = None) -> Dict[
             "stderr": stderr.decode("utf-8", errors="replace"),
         }
     except asyncio.TimeoutError:
+        logger.error("Command timed out after %ss: %s", timeout, cmd[:6])
         return {"returncode": -1, "stdout": "", "stderr": "Command timed out"}
-    except Exception as e:
-        logger.error(f"Error running {cmd[0:3]}: {e}")
+    except (OSError, ValueError) as e:
+        logger.error("Error running %s: %s", cmd[0:3], e, exc_info=True)
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
+    except Exception as e:
+        # Last-resort: privileged runner must never raise into FastAPI uncaught,
+        # but always log full traceback (srdev1 S1).
+        logger.error("Unexpected error running %s: %s", cmd[0:3], e, exc_info=True)
+        return {"returncode": -1, "stdout": "", "stderr": "Internal error running privileged command"}
     finally:
         if slave_fd >= 0:
             os.close(slave_fd)

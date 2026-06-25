@@ -211,7 +211,7 @@ async def clean_certificate(
             if enc_removed:
                 await db.commit()
     except Exception as e:
-        logger.warning(f"Could not remove '{body.certname}' from ENC: {e}")
+        logger.warning("Could not remove %r from ENC: %s", body.certname, e, exc_info=True)
 
     parts = [f"Certificate cleaned for {body.certname}"]
     if pdb_deactivated:

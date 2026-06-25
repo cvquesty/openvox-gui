@@ -217,36 +217,80 @@ _validate_pql_value = validate_pql_value
 
 def validate_command(command: str, allowed_commands: Optional[List[str]] = None) -> str:
     """
-    Validate a shell command for Bolt execution.
+    Validate a shell command for Bolt execution (denylist + optional allowlist).
+
+    This is a defense-in-depth choke point (srdev1 S5), not a full shell parser.
+    Operators still run arbitrary commands on targets by design; we block the
+    most destructive / obviously hostile patterns and length abuse.
     """
-    # If allowed commands list is provided, check against it
+    if command is None or not isinstance(command, str):
+        raise ValueError("Command must be a non-empty string")
+    command = command.strip()
+    if not command:
+        raise ValueError("Command must be a non-empty string")
+
+    # Limit command length (slightly higher than legacy 1000 for real ops cmds)
+    if len(command) > 2000:
+        raise ValueError("Command too long")
+
+    # Null bytes / control chars (except tab/newline which we reject entirely)
+    if "\x00" in command or any(ord(c) < 32 and c not in "\t" for c in command):
+        raise ValueError("Command contains invalid control characters")
+
+    # If allowed commands list is provided, check first token (best-effort)
     if allowed_commands:
-        cmd_parts = command.split()
+        try:
+            import shlex
+            cmd_parts = shlex.split(command, posix=True)
+        except ValueError:
+            cmd_parts = command.split()
         if cmd_parts and cmd_parts[0] not in allowed_commands:
             raise ValueError(f"Command not allowed: {cmd_parts[0]}")
-    
-    # Check for dangerous shell patterns
+
+    # Dangerous shell patterns (case-insensitive where useful)
     dangerous_patterns = [
-        r';\s*rm\s+-rf',  # Dangerous rm commands
-        r'>\s*/dev/s',  # Writing to devices
-        r'mkfs',  # Filesystem formatting
-        r'dd\s+if=',  # Dangerous dd usage
-        r':()\s*{',  # Fork bomb
-        r'\$\(',  # Command substitution
+        # Destructive rm (with or without leading separators)
+        r'(^|[;&|]\s*)rm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|--force\b)',
+        r'(^|[;&|]\s*)rm\s+-rf\b',
+        r'(^|[;&|]\s*)rm\s+-fr\b',
+        r'\bsudo\s+rm\s+-r?f\b',
+        r'>\s*/dev/sd',  # Writing to block devices
+        r'>\s*/dev/nvme',
+        r'\bmkfs(\.|$)',  # Filesystem formatting
+        r'\bdd\s+if=',  # Dangerous dd usage
+        r':\s*\(\s*\)\s*\{',  # Fork bomb
+        r'\$\(',  # Command substitution $(...)
+        r'\$\{',  # Parameter expansion often used in evasion
         r'`',  # Backticks
-        r'&&\s*curl',  # Chained curl commands
-        r'&&\s*wget',  # Chained wget commands
-        r'\|.*nc\s',  # Netcat pipes
+        r'\beval\b',
+        r'\bbase64\b.*\|\s*(ba)?sh\b',
+        r'\bpython[23]?\s+-c\b',
+        r'\bperl\s+-e\b',
+        r'\bruby\s+-e\b',
+        r'&&\s*curl\b',
+        r'&&\s*wget\b',
+        r'(^|[;&|]\s*)(curl|wget)\b.*\|\s*(ba)?sh\b',
+        r'\|\s*(ba)?sh\b',
+        r'\|.*\bnc\s',  # Netcat pipes
+        r'\|.*\bncat\b',
+        r'\bchmod\s+(-R\s+)?777\b',
+        r'\bchown\s+(-R\s+)?root\b.*/',
+        r'\bshutdown\b',
+        r'\breboot\b',
+        r'\binit\s+0\b',
+        r'\bmkfs\.',
+        r'\bwipefs\b',
+        r'\buserdel\b',
+        r'(^|[;&|]\s*)passwd\b',
+        r'>\s*/etc/(passwd|shadow|sudoers)',
+        r'\biptables\s+-F\b',
+        r'\bnft\s+flush\b',
     ]
-    
+
     for pattern in dangerous_patterns:
         if re.search(pattern, command, re.IGNORECASE):
             raise ValueError("Command contains potentially dangerous patterns")
-    
-    # Limit command length
-    if len(command) > 1000:
-        raise ValueError("Command too long")
-    
+
     return command
 
 
