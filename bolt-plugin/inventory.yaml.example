@@ -20,33 +20,16 @@ config:
     user: bolt
     private-key: /etc/puppetlabs/bolt/id_bolt
 
-    # IMPORTANT: We deliberately do NOT set a global run-as / run-as-command here.
+    # IMPORTANT: No global run-as here.
+    # The GUI invokes the bolt CLI as the 'bolt' user (`sudo -E -u bolt bolt ...`)
+    # so that local transport (controller) and SSH targets both default to running
+    # commands as the 'bolt' user.
+    # Privilege escalation only via "Run privileged" (prefixes "sudo " in command
+    # string or --run-as) or heuristics.
+    # This makes GUI and direct CLI as bolt user produce same results (whoami=bolt).
     #
-    # Default behavior: every bolt invocation (whether from the GUI Orchestration
-    # page or from a shell as the 'bolt' user on the controller) runs commands and
-    # tasks as the SSH transport user ('bolt') on the target.
-    #
-    # Privilege escalation is opt-in per invocation:
-    #   - GUI Run Command tab: the "Run privileged" checkbox (or the built-in
-    #     heuristic for puppet agent / systemctl / package commands) causes the
-    #     backend to prefix "sudo " to the command string. Bolt then executes
-    #     `sudo <original>` on the target *as the bolt SSH user*, which exercises
-    #     the bolt user's sudoers entry on the target.
-    #   - Direct CLI: the operator types `sudo ...` themselves when needed
-    #     (`bolt command run "sudo puppet agent -t" -t ovagent1`).
-    #   - GUI Run Task / scripts / file ops: when escalation is needed the
-    #     frontend sends run_as and the backend passes `--run-as root` to Bolt.
-    #
-    # This design makes CLI and GUI produce identical results for the same
-    # command (e.g. `whoami` returns "bolt" from both surfaces by default).
-    #
-    # On the *targets*, the bolt user must have a sudoers entry that allows
-    # the commands it will be asked to run as root (initially a broad
-    # `bolt ALL=(ALL) NOPASSWD: ALL` is the practical choice because the
-    # Orchestration ad-hoc command box accepts arbitrary operator input;
-    # it can be tightened later). See docs/SUDOERS.md for the recommended
-    # target sudoers + env_keep / !env_reset pattern so Puppet paths work
-    # correctly under sudo.
+    # The key must be readable by bolt user (deploy sets 640 root:bolt).
+    # On targets, bolt user needs sudoers for privileged ops (see SUDOERS.md).
 
 groups:
   # Static group for the OpenVox server itself (local transport)

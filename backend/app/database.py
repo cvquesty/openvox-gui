@@ -23,8 +23,13 @@ Key components:
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from pathlib import Path
+import logging
+
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 # Ensure the data directory exists before the engine tries to open the
 # SQLite database file. Without this, the very first startup on a fresh
@@ -78,31 +83,54 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Create all database tables that do not already exist and configure
-    SQLite for optimal concurrent access.
+    SQLite for optimal concurrent access and durability.
 
     This is called once during application startup (in the lifespan
-    context manager in main.py). It performs two operations:
+    context manager in main.py). It performs these operations:
 
-    1. Enable WAL (Write-Ahead Logging) journal mode. In the default
-       "delete" journal mode, SQLite locks the entire database for the
-       duration of every write, which causes "database is locked" errors
-       under concurrent load (e.g., session tracking writes happening
-       simultaneously with ENC updates). WAL mode allows readers to
-       proceed concurrently with a single writer, dramatically reducing
-       lock contention. This PRAGMA only needs to be set once — it
-       persists across connections and restarts.
+    1. Enable WAL (Write-Ahead Logging) journal mode + synchronous=FULL +
+       busy_timeout + autocheckpoint tuning. These settings (per systems
+       architect P0 hardening recommendations) improve:
+         - Concurrency (readers + writer without full DB locks)
+         - Durability (fsync on commit for authz/ENC/audit data)
+         - Responsiveness (busy_timeout avoids immediate 'database is locked')
+       WAL + FULL is the strongest practical setting for a control-plane
+       SQLite instance. The settings are persistent where appropriate.
 
-    2. Create any database tables that do not already exist. Uses
-       SQLAlchemy's create_all(), which is safe to call repeatedly — it
-       only creates tables that are not yet present in the database and
-       leaves existing tables untouched.
+    2. Create any database tables that do not already exist.
+
+    3. Perform an initial PASSIVE checkpoint to keep the -wal sidecar
+       from growing unbounded from the start.
     """
     async with engine.begin() as conn:
-        # Enable WAL mode for better concurrent read/write performance.
-        # This is a persistent setting — once set, it survives database
-        # restarts. WAL mode is safe for single-server deployments and
-        # is the recommended mode for web applications using SQLite.
-        await conn.execute(
-            __import__("sqlalchemy").text("PRAGMA journal_mode=WAL")
-        )
+        # WAL + strong durability + concurrency settings (P0 from
+        # srsysarch1 report). journal_mode=WAL persists; others are
+        # connection scoped but we set them early and on the startup conn.
+        await conn.execute(text("PRAGMA journal_mode=WAL"))
+        await conn.execute(text("PRAGMA synchronous = FULL"))
+        await conn.execute(text("PRAGMA busy_timeout = 10000"))
+        await conn.execute(text("PRAGMA wal_autocheckpoint = 2000"))
+
         await conn.run_sync(Base.metadata.create_all)
+
+        # Initial checkpoint so the WAL file doesn't start large.
+        await conn.execute(text("PRAGMA wal_checkpoint(PASSIVE)"))
+
+
+async def checkpoint_database() -> None:
+    """Force a FULL WAL checkpoint.
+
+    Flushes all WAL data into the main DB file and truncates the -wal
+    sidecar where possible. Called at shutdown for clean durability
+    and can be invoked manually or by background tasks.
+
+    This directly addresses the systems architect recommendation for
+    explicit checkpointing of critical GUI state (users, ENC, execution
+    history, tokens).
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("PRAGMA wal_checkpoint(FULL)"))
+        logger.info("Database WAL checkpoint (FULL) completed successfully")
+    except Exception as exc:
+        logger.warning(f"WAL checkpoint failed (non-fatal): {exc}")

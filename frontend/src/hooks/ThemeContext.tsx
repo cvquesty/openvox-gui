@@ -40,13 +40,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = (t: AppTheme) => {
     setThemeState(t);
     localStorage.setItem('openvox_theme', t);
-    // persist to backend (fire-and-forget)
-    const token = localStorage.getItem('openvox_token');
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // persist to backend (fire-and-forget) - relies on httpOnly cookie for auth
     fetch('/api/config/preferences', {
       method: 'PUT',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ theme: t }),
     }).catch(() => {});
   };

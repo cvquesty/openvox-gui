@@ -27,13 +27,27 @@ class ExecutiveReportRecipient(Base):
 
 
 class ExecutiveReportConfig(Base):
-    """Minimal config for Executive Summary Report: from email and basic schedule."""
+    """Single-row configuration for the Executive Summary Report.
+
+    Includes from_email for custom From: header, and schedule settings
+    for cadence (day of week, time). The generator script honors these.
+    """
     __tablename__ = "executive_report_config"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Custom From address (e.g. reports@company.com). If set, passed to mail command.
     from_email = Column(String(255), nullable=True)
+
+    # Scheduled delivery enabled
     schedule_enabled = Column(Boolean, default=True)
-    schedule_day = Column(Integer, default=0)  # 0=Mon ... 6=Sun
+
+    # Day of week: 0=Mon ... 6=Sun (matches Python weekday, systemd Mon=1 but we normalize)
+    schedule_day = Column(Integer, default=0)  # Monday default to match old timer
+
+    # Hour 0-23, minute 0-59
     schedule_hour = Column(Integer, default=8)
     schedule_minute = Column(Integer, default=0)
+
+    # Last time a scheduled report was sent
     last_scheduled_sent_at = Column(DateTime, nullable=True)

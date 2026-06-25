@@ -1,9 +1,37 @@
 /**
- * OpenVox GUI - index.ts
- * 
- * Component documentation to be expanded.
+ * OpenVox GUI shared API / domain types (srdev2 A3 — contract strengthening).
+ * Start with critical orchestration + ENC shapes; expand as routers harden response_model.
  */
 // ─── Dashboard ──────────────────────────────────────────────
+
+/** Bolt / orchestration run result (POST /api/bolt/run/*) */
+export interface BoltRunResult {
+  returncode: number;
+  output: string;
+  error: string;
+}
+
+export interface BoltStatus {
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+  error?: string | null;
+}
+
+export interface DeployRunResult {
+  success: boolean;
+  exit_code: number;
+  environment: string;
+  triggered_by: string;
+  output?: string[];
+}
+
+/** Minimal ENC classify response (Puppet ENC compatible) */
+export interface EncClassifyResponse {
+  environment?: string;
+  classes?: Record<string, unknown> | string[];
+  parameters?: Record<string, unknown>;
+}
 
 export interface NodeStatusCount {
   changed: number;

@@ -48,6 +48,21 @@ MAINT_JSON="${MAINT_DATA_DIR}/maintenance.json"
 MAINT_DIR="${INSTALL_DIR}/maintenance"
 MAINT_HTML="${MAINT_DIR}/maintenance.html"
 MAINT_DEFAULT_HTML="${MAINT_DIR}/maintenance-formal.html"
+# Marker so GUI stuck-maintenance auto-clear does not fire mid-deploy (srsysarch1 #6)
+DEPLOY_PID_FILE="${MAINT_DATA_DIR}/deploy.pid"
+
+_write_deploy_pid() {
+    mkdir -p "${MAINT_DATA_DIR}"
+    printf '%s\n%s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${DEPLOY_PID_FILE}"
+    chmod 644 "${DEPLOY_PID_FILE}" 2>/dev/null || true
+}
+
+_clear_deploy_pid() {
+    rm -f "${DEPLOY_PID_FILE}" 2>/dev/null || true
+}
+
+_write_deploy_pid
+echo "Deploy marker written: ${DEPLOY_PID_FILE} (pid $$)"
 
 enable_maintenance_page() {
     local msg="${1:-Applying OpenVox GUI updates}"
@@ -108,7 +123,8 @@ disable_maintenance_page() {
 }
 
 # Guarantee that maintenance is turned off when the script exits (success or failure)
-trap 'disable_maintenance_page' EXIT ERR INT TERM
+# Combined cleanup: deploy.pid marker + maintenance flag (srsysarch1 #6 + existing maint program)
+trap '_clear_deploy_pid; disable_maintenance_page' EXIT ERR INT TERM
 
 echo "=== OpenVox GUI Deploy ==="
 echo "  Source: ${REPO_DIR}"
@@ -131,6 +147,22 @@ for script in enc.py manage_users.py deploy.sh update_local.sh sync-openvox-repo
         chmod +x "${INSTALL_DIR}/scripts/${script}"
     fi
 done
+
+# Optional r10k environment allow-list example (srsysarch1 #8); operators copy to
+# allowed-environments.txt to enforce. Do not overwrite an existing installed list.
+mkdir -p "${INSTALL_DIR}/etc"
+if [ -f "${REPO_DIR}/etc/allowed-environments.txt.example" ]; then
+    cp -f "${REPO_DIR}/etc/allowed-environments.txt.example" \
+        "${INSTALL_DIR}/etc/allowed-environments.txt.example"
+fi
+# Installer script IP allowlist example (operator copies to installer-ip-allowlist.txt)
+if [ -f "${REPO_DIR}/etc/installer-ip-allowlist.txt.example" ]; then
+    cp -f "${REPO_DIR}/etc/installer-ip-allowlist.txt.example" \
+        "${INSTALL_DIR}/etc/installer-ip-allowlist.txt.example"
+fi
+if [ -f "${REPO_DIR}/etc/README.md" ]; then
+    cp -f "${REPO_DIR}/etc/README.md" "${INSTALL_DIR}/etc/README.md"
+fi
 
 # Write a precise build version (base + git sha + timestamp) so every deploy
 # produces a unique, traceable version without requiring a manual bump.
@@ -338,7 +370,26 @@ fi
 SERVICE_USER="${SERVICE_USER}" \
 INSTALL_DIR="${INSTALL_DIR}" \
 PUPPET_SERVER_HOST="${PUPPET_SERVER_HOST}" \
-bash "${SCRIPT_DIR}/ensure-sudoers.sh"
+bash "${SCRIPT_DIR}/ensure-sudoers.sh" || {
+    echo "FATAL: ensure-sudoers.sh failed (visudo validation or other error). Leaving maintenance active."
+    exit 1
+}
+
+# Post-ensure visudo + diff (actionable #10 / P1 from systems architect).
+# ensure-sudoers now does this internally and exits 1 on fail, but we double-check
+# here and emit the diff for operator review in deploy logs.
+SUDOERS_FILE="/etc/sudoers.d/openvox-gui-users"
+if [ -f "$SUDOERS_FILE" ]; then
+    LATEST_BAK=$(ls -t "$SUDOERS_FILE".bak.* 2>/dev/null | head -1 || true)
+    if [ -n "$LATEST_BAK" ]; then
+        echo "  sudoers diff vs backup:"
+        diff -u "$LATEST_BAK" "$SUDOERS_FILE" || true
+    fi
+    if ! sudo visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
+        echo "FATAL: visudo -cf failed after ensure-sudoers. Aborting deploy (maintenance left up)."
+        exit 1
+    fi
+fi
 
 echo "  ensured /etc/sudoers.d/openvox-gui-users via ensure-sudoers.sh (backups created if needed)"
 

@@ -345,7 +345,7 @@ async def get_installer_info() -> InstallerInfo:
 
 
 @router.get("/script/install.bash", response_class=PlainTextResponse)
-async def render_install_bash():
+async def render_install_bash(request: Request = None):
     """Return the rendered install.bash with placeholders substituted.
 
     This is the no-auth fallback for environments where the
@@ -354,7 +354,14 @@ async def render_install_bash():
     https://<puppetserver>:8140/packages/install.bash, but having the
     GUI route here means agents can always fall back to whatever URL
     the operator pasted into their copy buffer.
+
+    If OPENVOX_GUI_BOOTSTRAP_TOKEN is set (recommended for P0 package
+    mirror auth hardening), the token must be supplied via header
+    X-OpenVox-Bootstrap-Token or ?bootstrap_token=... (backward compat
+    window: if not set, no token required).
     """
+    await _require_installer_ip_allowlist(request)
+    await _require_bootstrap_token(request)
     body = _render_template(_load_install_script("install.bash"))
     return PlainTextResponse(
         content=body,
@@ -364,14 +371,110 @@ async def render_install_bash():
 
 
 @router.get("/script/install.ps1", response_class=PlainTextResponse)
-async def render_install_ps1():
+async def render_install_ps1(request: Request = None):
     """Return the rendered install.ps1 with placeholders substituted."""
+    await _require_installer_ip_allowlist(request)
+    await _require_bootstrap_token(request)
     body = _render_template(_load_install_script("install.ps1"))
     return PlainTextResponse(
         content=body,
         media_type="text/plain",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
+
+
+async def _require_bootstrap_token(request: Request | None) -> None:
+    """If OPENVOX_GUI_BOOTSTRAP_TOKEN env is set, require it for script endpoints.
+
+    Accepts header X-OpenVox-Bootstrap-Token or query param bootstrap_token.
+    Plain value match (in production hash the stored value).
+    If not set, allow (backward compat for 30+ days as per report).
+    This is the P0 package mirror / installer script auth hardening.
+    """
+    expected = os.environ.get("OPENVOX_GUI_BOOTSTRAP_TOKEN") or settings.__dict__.get("bootstrap_token")
+    if not expected:
+        return
+    if request is None:
+        # called without request context; allow for internal but log
+        return
+    provided = request.headers.get("x-openvox-bootstrap-token") or request.query_params.get("bootstrap_token") or ""
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="Bootstrap token required for installer script.")
+
+
+def _client_ip(request: Request | None) -> str:
+    if request is None:
+        return ""
+    # Prefer first X-Forwarded-For hop when behind Apache/proxy
+    xff = request.headers.get("x-forwarded-for") or ""
+    if xff:
+        return xff.split(",")[0].strip()
+    if request.client:
+        return request.client.host or ""
+    return ""
+
+
+def _ip_allowed(client_ip: str, allow_cidrs: list[str]) -> bool:
+    """Return True if client_ip is in any CIDR or exact IP in allow_cidrs."""
+    import ipaddress
+    if not client_ip or not allow_cidrs:
+        return True
+    try:
+        addr = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+    for entry in allow_cidrs:
+        entry = (entry or "").strip()
+        if not entry or entry.startswith("#"):
+            continue
+        try:
+            if "/" in entry:
+                if addr in ipaddress.ip_network(entry, strict=False):
+                    return True
+            else:
+                if addr == ipaddress.ip_address(entry):
+                    return True
+        except ValueError:
+            continue
+    return False
+
+
+async def _require_installer_ip_allowlist(request: Request | None) -> None:
+    """Optional IP/CIDR allowlist for unauthenticated installer script endpoints.
+
+    Sources (first non-empty wins):
+      OPENVOX_GUI_INSTALLER_IP_ALLOWLIST  (comma-separated IPs/CIDRs)
+      /opt/openvox-gui/etc/installer-ip-allowlist.txt  (one IP/CIDR per line)
+
+    If neither is configured, all clients are allowed (backward compatible).
+    """
+    if request is None:
+        return
+    entries: list[str] = []
+    env_val = os.environ.get("OPENVOX_GUI_INSTALLER_IP_ALLOWLIST") or getattr(
+        settings, "installer_ip_allowlist", None
+    ) or ""
+    if env_val:
+        entries = [p.strip() for p in str(env_val).split(",") if p.strip()]
+    else:
+        allow_file = Path("/opt/openvox-gui/etc/installer-ip-allowlist.txt")
+        if allow_file.is_file():
+            try:
+                entries = [
+                    ln.strip()
+                    for ln in allow_file.read_text().splitlines()
+                    if ln.strip() and not ln.strip().startswith("#")
+                ]
+            except OSError:
+                entries = []
+    if not entries:
+        return
+    client = _client_ip(request)
+    if not _ip_allowed(client, entries):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Installer script access denied for client {client or 'unknown'} (IP allowlist).",
+        )
 
 
 # ─── Sync trigger ───────────────────────────────────────────────────────────

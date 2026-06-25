@@ -19,7 +19,10 @@ import {
   Tooltip,
   HoverCard,
   Stack,
+  Kbd,
 } from '@mantine/core';
+import { useHotkeys } from '@mantine/hooks';
+import { CommandPalette } from './CommandPalette';
 import {
   IconDashboard,
   IconServer,
@@ -51,11 +54,14 @@ import {
   IconStack2,
   IconListDetails,
   IconHeartbeat,
+  IconKeyboard,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
-import { dashboard, config } from '../services/api';
+import { useActivity } from '../hooks/ActivityContext';
+import { dashboard, config, nodes as nodesApi } from '../services/api';
 import { APP_VERSION } from '../version';
+import type { PaletteAction } from './CommandPalette';
 
 // Navigation item type (supports nested sub-items)
 interface NavItem {
@@ -65,23 +71,22 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const dashboardNav: NavItem[] = [
-  { label: 'Overview', icon: IconDashboard, path: '/' },
+// sruiux2 P0-1 — operator mental model: Overview → Infra → Class/Code → Data → Explore → Insights → Settings
+const overviewNav: NavItem[] = [
+  { label: 'Dashboard', icon: IconDashboard, path: '/' },
   { label: 'Nodes', icon: IconServer, path: '/nodes' },
 ];
 
-// Infrastructure was promoted from a sub-group of Monitoring to a
-// top-level nav group of its own, parallel to Monitoring / Code /
-// Data / Information / Settings (3.3.5-8+).
 const infrastructureNav: NavItem[] = [
   { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
   { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
   { label: 'Agent Install', icon: IconDownload, path: '/installer' },
+  { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
 ];
 
-const codeNav: NavItem[] = [
-  { label: 'Classification', icon: IconHierarchy2, path: '/enc' },
-  { label: 'Deployment', icon: IconRocket, path: '/deployment' },
+const classificationCodeNav: NavItem[] = [
+  { label: 'Classification (ENC)', icon: IconHierarchy2, path: '/enc' },
+  { label: 'Code Deployment', icon: IconRocket, path: '/deployment' },
 ];
 
 const dataNav: NavItem[] = [
@@ -89,33 +94,24 @@ const dataNav: NavItem[] = [
   { label: 'Hiera Lookup', icon: IconSearch, path: '/data/lookup' },
 ];
 
-const explorerNav: NavItem[] = [
+/** Power explorers — promoted from "Tools" (sruiux2) */
+const exploreNav: NavItem[] = [
   { label: 'PQL Console', icon: IconTerminal, path: '/pql' },
   { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
   { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
-  { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
 ];
 
-const metricsNav: NavItem[] = [
-  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/insights/compliance' },
-  { label: 'Run Performance', icon: IconActivity, path: '/insights/performance' },
-  { label: 'Change Timeline', icon: IconTimeline, path: '/insights/timeline' },
-  { label: 'Fact Distribution', icon: IconChartPie, path: '/insights/facts' },
-  { label: 'Classification Tree', icon: IconBinaryTree, path: '/insights/classification' },
-  { label: 'Catalog Graph', icon: IconTopologyRing, path: '/insights/catalog' },
-  { label: 'OpenVox Server Health', icon: IconServer, path: '/insights/openvox-server-health' },
-  { label: 'OpenVoxDB Health', icon: IconHeartRateMonitor, path: '/insights/openvoxdb-health' },
-  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
-  { label: 'Node Heatmap', icon: IconGridDots, path: '/insights/heatmap' },
-  { label: 'Environments', icon: IconWorldNav, path: '/insights/environments' },
-  { label: 'Class Coverage', icon: IconStack2, path: '/insights/classes' },
-];
-
-const logsNav: NavItem[] = [
-  { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
+/** Analytics + history — Monitoring is the NOC single-pane; catalog lists full pages */
+const insightsNav: NavItem[] = [
+  { label: 'Monitoring', icon: IconChartBar, path: '/insights' },
+  { label: 'Insights catalog', icon: IconChartBar, path: '/insights/all' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
   { label: 'Inventory', icon: IconListDetails, path: '/inventory' },
+  { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
+  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/insights/compliance' },
+  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
+  { label: 'Change Timeline', icon: IconTimeline, path: '/insights/timeline' },
 ];
 
 const configNav: NavItem[] = [
@@ -125,14 +121,22 @@ const configNav: NavItem[] = [
 
 export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
   const { isDark } = useAppTheme();
   const [activeSessions, setActiveSessions] = useState<any>(null);
   const [appName, setAppName] = useState('OpenVox GUI');
+  const [nodeNames, setNodeNames] = useState<string[]>([]);
   // Track which nav groups are expanded (keyed by label)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const { items: activityItems } = useActivity();
+  const runningCount = activityItems.filter((i) => i.status === 'running').length;
+
+  useHotkeys([
+    ['mod+K', () => setPaletteOpen((v) => !v)],
+  ]);
 
   useEffect(() => {
     config.getAppName().then((data: any) => {
@@ -150,6 +154,22 @@ export function AppShellLayout() {
     const interval = setInterval(fetchSessions, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    nodesApi.list()
+      .then((ns: any[]) => setNodeNames(ns.map((n) => n.certname).filter(Boolean).slice(0, 40)))
+      .catch(() => {});
+  }, []);
+
+  const paletteExtra: PaletteAction[] = [
+    { id: 'insights-hub', label: 'Insights hub (all metrics)', path: '/insights', keywords: 'metrics catalog launcher' },
+    ...nodeNames.map((cn) => ({
+      id: `node-${cn}`,
+      label: `Node: ${cn}`,
+      path: `/nodes/${cn}`,
+      keywords: `certname fleet ${cn}`,
+    })),
+  ];
 
   const activeCount = activeSessions?.active_count || 0;
   const activeUsersList = activeSessions?.users || [];
@@ -279,6 +299,61 @@ export function AppShellLayout() {
           </Group>
           {user && (
             <Group gap="sm">
+              <HoverCard width={280} shadow="md" position="bottom" withArrow openDelay={150}>
+                <HoverCard.Target>
+                  <Badge
+                    variant={runningCount > 0 ? 'filled' : 'outline'}
+                    color={runningCount > 0 ? 'orange' : 'gray'}
+                    size="sm"
+                    style={{ cursor: 'default' }}
+                  >
+                    <Group gap={4}>
+                      <IconActivity size={12} />
+                      {runningCount > 0 ? `${runningCount} running` : 'Activity'}
+                    </Group>
+                  </Badge>
+                </HoverCard.Target>
+                <HoverCard.Dropdown>
+                  <Text fw={600} size="xs" mb={6}>Recent activity</Text>
+                  {activityItems.length === 0 ? (
+                    <Text size="xs" c="dimmed">No runs this session yet</Text>
+                  ) : (
+                    <Stack gap={4}>
+                      {activityItems.slice(0, 8).map((a) => (
+                        <Text
+                          key={a.id}
+                          size="xs"
+                          c={a.status === 'error' ? 'red' : a.status === 'running' ? 'orange' : undefined}
+                          style={a.href ? { cursor: 'pointer', textDecoration: 'underline' } : undefined}
+                          onClick={() => a.href && navigate(a.href)}
+                        >
+                          {a.status === 'running' ? '… ' : a.status === 'error' ? '✗ ' : '✓ '}
+                          {a.label}
+                          {a.detail ? ` — ${a.detail}` : ''}
+                        </Text>
+                      ))}
+                    </Stack>
+                  )}
+                </HoverCard.Dropdown>
+              </HoverCard>
+              <Tooltip
+                label={
+                  <Group gap={4}>
+                    <Text size="xs">Command palette</Text>
+                    <Kbd size="xs">⌘</Kbd>
+                    <Kbd size="xs">K</Kbd>
+                  </Group>
+                }
+              >
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setPaletteOpen(true)}
+                  aria-label="Open command palette"
+                >
+                  <IconKeyboard size={18} />
+                </ActionIcon>
+              </Tooltip>
               <Badge variant="outline" color="gray" size="sm">
                 <Group gap={4}>
                   <IconUser size={12} />
@@ -297,13 +372,12 @@ export function AppShellLayout() {
 
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
-          {renderNavGroup('Dashboard', IconDashboard, dashboardNav, '#3498db')}
+          {renderNavGroup('Overview', IconDashboard, overviewNav, '#3498db')}
           {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav, '#e67e22')}
-          {renderNavGroup('Code', IconRocket, codeNav, '#2ecc71')}
+          {renderNavGroup('Classification & Code', IconRocket, classificationCodeNav, '#2ecc71')}
           {renderNavGroup('Data', IconPackage, dataNav, '#9b59b6')}
-          {renderNavGroup('Metrics', IconChartBar, metricsNav, '#1abc9c')}
-          {renderNavGroup('Tools', IconTool, explorerNav, '#f39c12')}
-          {renderNavGroup('Logs', IconFileText, logsNav, '#e74c3c')}
+          {renderNavGroup('Explore', IconTool, exploreNav, '#f39c12')}
+          {renderNavGroup('Insights', IconChartBar, insightsNav, '#1abc9c')}
           {renderNavGroup('Settings', IconSettings, configNav, '#95a5a6')}
         </MantineAppShell.Section>
 
@@ -337,6 +411,12 @@ export function AppShellLayout() {
       <MantineAppShell.Main>
         <Outlet />
       </MantineAppShell.Main>
+
+      <CommandPalette
+        opened={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        extraActions={paletteExtra}
+      />
     </MantineAppShell>
   );
 }

@@ -19,14 +19,15 @@
 
 import { useMemo } from 'react';
 import {
-  Title, Table, Card, Loader, Center, Alert, Stack, Group, Text, Button,
-  ScrollArea, Badge, ActionIcon, Tooltip,
+  Title, Card, Loader, Center, Alert, Stack, Group, Text, Button,
+  Badge, ActionIcon, Tooltip,
 } from '@mantine/core';
 import { IconListDetails, IconRefresh, IconDownload } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { reports } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { ExportActions } from '../components/ExportActions';
+import { OpsTable, OpsColumn } from '../components/OpsTable';
 
 /* ── INVENTORY-O-MATIC 3000 (casual/robots theme only) ───── */
 function InventoryOMatic() {
@@ -215,66 +216,101 @@ export function InventoryPage() {
           <Text c="dimmed" ta="center">No inventory data returned. (Nodes may not have reported facts yet.)</Text>
         </Card>
       ) : (
-        <Card withBorder shadow="sm" p="xs">
+        <Card withBorder shadow="sm" p="xs" style={{ overflow: 'hidden' }}>
           <Group justify="space-between" mb="xs" px="xs">
             <Text size="xs" c="dimmed">Last client refresh: {lastUpdated} — click Refresh for newest facts</Text>
             <Text size="xs" c="dimmed">{count} rows</Text>
           </Group>
+          {count > 200 && (
+            <Alert color="yellow" variant="light" mb="xs">
+              Large inventory ({count} rows). Use OpsTable page size and column sort; server-side inventory paging is a later slice.
+            </Alert>
+          )}
 
-          <ScrollArea h="calc(100vh - 420px)" mih={320} type="auto" offsetScrollbars scrollbarSize={8}>
-            <Table striped highlightOnHover withTableBorder withColumnBorders>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>Certname</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>OS Name</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>OS Full Release Version</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>Number of physical Processors</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>System Location</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>System Memory</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>List of Hard Disks and their size</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>Virtual or Physical</Table.Th>
-                  <Table.Th style={{ whiteSpace: 'nowrap' }}>Total System Uptime</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((row: any, idx: number) => (
-                  <Table.Tr key={row.certname || idx}>
-                    <Table.Td><Text fw={600} size="sm">{row.certname}</Text></Table.Td>
-                    <Table.Td>{row.os_name || '—'}</Table.Td>
-                    <Table.Td>{row.os_full_release || '—'}</Table.Td>
-                    <Table.Td>{row.physical_processors || '—'}</Table.Td>
-                    <Table.Td>{row.location || '—'}</Table.Td>
-                    <Table.Td>{row.memory || '—'}</Table.Td>
-                    <Table.Td>
-                      {row.disks ? (
-                        <Text
-                          component="div"
-                          size="xs"
-                          style={{
-                            whiteSpace: 'pre-line',
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          {row.disks}
-                        </Text>
-                      ) : (
-                        '—'
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      {row.virtual_physical?.toLowerCase?.().startsWith('virtual') ? (
-                        <Badge color="violet" variant="light" size="sm">{row.virtual_physical}</Badge>
-                      ) : (
-                        <Badge color="teal" variant="light" size="sm">{row.virtual_physical || '—'}</Badge>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{row.uptime || '—'}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
+          <OpsTable<any>
+            data={rows}
+            rowKey={(row) => row.certname || String(Math.random())}
+            defaultPageSize={100}
+            maxHeight="calc(100vh - 360px)"
+            emptyTitle="No inventory rows"
+            columns={[
+              {
+                key: 'certname',
+                header: 'Certname',
+                sortValue: (row) => row.certname || '',
+                render: (row) => <Text fw={600} size="sm">{row.certname}</Text>,
+              },
+              {
+                key: 'os_name',
+                header: 'OS Name',
+                sortValue: (row) => row.os_name || '',
+                render: (row) => row.os_name || '—',
+              },
+              {
+                key: 'os_full_release',
+                header: 'OS Full Release Version',
+                sortValue: (row) => row.os_full_release || '',
+                render: (row) => row.os_full_release || '—',
+              },
+              {
+                key: 'physical_processors',
+                header: 'Physical Processors',
+                sortType: 'number',
+                sortValue: (row) => Number(row.physical_processors) || 0,
+                render: (row) => row.physical_processors || '—',
+              },
+              {
+                key: 'location',
+                header: 'System Location',
+                sortValue: (row) => row.location || '',
+                render: (row) => row.location || '—',
+              },
+              {
+                key: 'memory',
+                header: 'System Memory',
+                sortValue: (row) => row.memory || '',
+                render: (row) => row.memory || '—',
+              },
+              {
+                key: 'disks',
+                header: 'Disks',
+                sortable: false,
+                render: (row) =>
+                  row.disks ? (
+                    <Text
+                      component="div"
+                      size="xs"
+                      style={{
+                        whiteSpace: 'pre-line',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {row.disks}
+                    </Text>
+                  ) : (
+                    '—'
+                  ),
+              },
+              {
+                key: 'virtual_physical',
+                header: 'Virtual or Physical',
+                sortValue: (row) => row.virtual_physical || '',
+                render: (row) =>
+                  row.virtual_physical?.toLowerCase?.().startsWith('virtual') ? (
+                    <Badge color="violet" variant="light" size="sm">{row.virtual_physical}</Badge>
+                  ) : (
+                    <Badge color="teal" variant="light" size="sm">{row.virtual_physical || '—'}</Badge>
+                  ),
+              },
+              {
+                key: 'uptime',
+                header: 'Total System Uptime',
+                sortValue: (row) => row.uptime || '',
+                render: (row) => row.uptime || '—',
+              },
+            ] as OpsColumn<any>[]}
+          />
         </Card>
       )}
     </Stack>

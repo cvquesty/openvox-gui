@@ -32,6 +32,10 @@ def generate_token(
         None, "--expires", "-e",
         help="Days until expiry. Omit or use 0 for a permanent token."
     ),
+    role: Optional[str] = typer.Option(
+        None, "--role", "-r",
+        help="Role for the token (e.g. bolt, service, operator). Defaults to operator."
+    ),
     output_file: Optional[str] = typer.Option(
         None, "--output", "-o",
         help="File to write the raw token to. Defaults to /etc/puppetlabs/bolt/.bolt_token when --user=bolt"
@@ -62,6 +66,8 @@ def generate_token(
     }
     if expires_in_days and expires_in_days > 0:
         payload["expires_in_days"] = expires_in_days
+    if role:
+        payload["role"] = role
 
     try:
         result = client.post(f"/api/auth/users/{username}/tokens", json=payload)
@@ -78,6 +84,8 @@ def generate_token(
     console.print(f"[green]✓[/green] Token created for user '{username}'")
     console.print(f"  Name: {result.get('name')}")
     console.print(f"  ID:   {result.get('id')}")
+    if result.get("role"):
+        console.print(f"  Role: {result['role']}")
     if result.get("expires_at"):
         console.print(f"  Expires: {result['expires_at']}")
     else:

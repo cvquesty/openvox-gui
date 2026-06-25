@@ -40,8 +40,8 @@ from .routers import logs as logs_router
 from .routers import metrics as metrics_router
 from .routers import infra as infra_router
 from .routers import maintenance as maintenance_router
-from .routers import metrics as metrics_router
 from .services.puppetdb import puppetdb_service
+from .utils.exceptions import OpenVoxError
 
 # Configure logging
 logging.basicConfig(
@@ -97,13 +97,13 @@ async def lifespan(app: FastAPI):
     if settings.auth_backend == "none":
         logger.warning(
             "⚠️  Authentication backend is 'none'. This disables all auth and grants full admin to EVERY request. "
-            "This is ONLY for initial setup or local development. It is a critical misconfiguration risk in production."
+            "This is ONLY for initial setup or local development on localhost. It is a critical misconfiguration risk in production."
         )
-        if not settings.debug:
+        if not settings.debug or settings.app_host in ("0.0.0.0", "::", "", "0.0.0.0:4567"):
             logger.critical(
-                "SECURITY: Refusing to start with auth_backend='none' when debug=False. "
+                "SECURITY: Refusing to start with auth_backend='none' unless debug=True AND bound only to localhost. "
                 "Set OPENVOX_GUI_AUTH_BACKEND=local (or ldap) for production. "
-                "Use debug=true ONLY for local development on localhost."
+                "Use debug=true ONLY for local development on 127.0.0.1 or ::1."
             )
             import sys
             sys.exit(1)
@@ -172,6 +172,16 @@ async def lifespan(app: FastAPI):
         await metrics_router.stop_ps_health_collector()
     except Exception:
         pass
+
+    # Database durability: force WAL checkpoint on shutdown (P0 hardening).
+    # Ensures all committed ENC/auth/history writes are in the main .db file
+    # rather than only in the -wal sidecar. Complements the PRAGMAs set in init_db.
+    try:
+        from .database import checkpoint_database
+        await checkpoint_database()
+    except Exception:
+        pass
+
     logger.info("Application shutdown complete")
 
 
@@ -188,6 +198,17 @@ app = FastAPI(
 # Add rate limiter state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(OpenVoxError)
+async def openvox_domain_error_handler(request: Request, exc: OpenVoxError):
+    """Map domain exceptions (srdev2 A2) to HTTP without leaking stack traces."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        status_code=getattr(exc, "http_status", 500),
+        content={"detail": exc.to_detail(), "code": getattr(exc, "code", "error")},
+    )
 
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
@@ -283,6 +304,98 @@ async def health_check():
 async def get_version():
     """Public endpoint returning the application version. No auth required."""
     return {"version": __version__}
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """
+    Prometheus-style ops metrics (srsysarch1 actionable #9).
+
+    Unauthenticated by design for scraper access (same class as /health).
+    Allowed through maintenance middleware allowlist. Exposes control-plane
+    signals: maintenance state, deploy-in-progress, SQLite row counts (best
+    effort), package mirror last-sync age, app version info.
+    """
+    from fastapi.responses import PlainTextResponse
+    from .utils.maintenance import get_maintenance_info, is_deploy_in_progress
+    from .database import async_session
+    from sqlalchemy import text
+
+    lines: list[str] = []
+    lines.append("# HELP openvox_gui_info Static labels for this GUI instance")
+    lines.append("# TYPE openvox_gui_info gauge")
+    ver = __version__.replace('"', "")
+    lines.append(f'openvox_gui_info{{version="{ver}"}} 1')
+
+    try:
+        info = get_maintenance_info()
+        maint = 1 if info.get("enabled") else 0
+    except Exception:
+        maint = 0
+    lines.append("# HELP openvox_gui_maintenance_enabled 1 if maintenance mode is active")
+    lines.append("# TYPE openvox_gui_maintenance_enabled gauge")
+    lines.append(f"openvox_gui_maintenance_enabled {maint}")
+
+    try:
+        deploy_ip = 1 if is_deploy_in_progress() else 0
+    except Exception:
+        deploy_ip = 0
+    lines.append("# HELP openvox_gui_deploy_in_progress 1 if deploy.pid is live")
+    lines.append("# TYPE openvox_gui_deploy_in_progress gauge")
+    lines.append(f"openvox_gui_deploy_in_progress {deploy_ip}")
+
+    # Package mirror last-sync age (seconds); -1 if unknown
+    sync_age = -1
+    for candidate in (
+        Path("/opt/openvox-gui/data/.last-sync"),
+        Path("/opt/openvox-pkgs/.last-sync"),
+        Path("/opt/openvox-gui/data/last-sync"),
+    ):
+        try:
+            if candidate.exists():
+                import time as _time
+                sync_age = int(_time.time() - candidate.stat().st_mtime)
+                break
+        except Exception:
+            pass
+    lines.append("# HELP openvox_gui_package_mirror_sync_age_seconds Seconds since last package mirror sync marker")
+    lines.append("# TYPE openvox_gui_package_mirror_sync_age_seconds gauge")
+    lines.append(f"openvox_gui_package_mirror_sync_age_seconds {sync_age}")
+
+    # SQLite table row counts (best effort; may be 0 on failure)
+    for table in ("users", "execution_history", "enc_nodes", "enc_groups", "api_tokens"):
+        count = -1
+        try:
+            async with async_session() as session:
+                result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                count = int(result.scalar() or 0)
+        except Exception:
+            count = -1
+        lines.append(f"# HELP openvox_gui_sqlite_rows_{table} Row count for {table}")
+        lines.append(f"# TYPE openvox_gui_sqlite_rows_{table} gauge")
+        lines.append(f"openvox_gui_sqlite_rows_{table} {count}")
+
+    # PS health ring size if collector is running
+    try:
+        ring_len = len(getattr(metrics_router, "_ps_health_ring", []) or [])
+    except Exception:
+        ring_len = 0
+    lines.append("# HELP openvox_gui_ps_health_ring_samples In-memory Puppet Server health ring buffer length")
+    lines.append("# TYPE openvox_gui_ps_health_ring_samples gauge")
+    lines.append(f"openvox_gui_ps_health_ring_samples {ring_len}")
+
+    # Best-effort active CommandExecutionService jobs (process-local; not multi-worker)
+    try:
+        from .services.command_execution import get_active_job_count
+        active_jobs = get_active_job_count()
+    except Exception:
+        active_jobs = 0
+    lines.append("# HELP openvox_gui_active_heavy_jobs In-process CommandExecutionService jobs currently running")
+    lines.append("# TYPE openvox_gui_active_heavy_jobs gauge")
+    lines.append(f"openvox_gui_active_heavy_jobs {active_jobs}")
+
+    body = "\n".join(lines) + "\n"
+    return PlainTextResponse(content=body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 @app.api_route("/{full_path:path}", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"])

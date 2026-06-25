@@ -7,14 +7,24 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch, Tooltip, Box,
 } from '@mantine/core';
-import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus } from '@tabler/icons-react';
+import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus, IconLink } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useApi } from '../hooks/useApi';
 import { reports, enc, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { ExportActions } from '../components/ExportActions';
+import { LoadingState, ErrorState } from '../components/StateComponents';
+import { useUrlFilters } from '../hooks/useUrlFilters';
+import { OpsTable, OpsColumn } from '../components/OpsTable';
+import { FilterBar } from '../components/FilterBar';
+
+type ReportNodeRow = {
+  certname: string;
+  report?: any;
+};
 
 
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
@@ -289,22 +299,28 @@ function getStatusBadgeProps(status: 'unchanged' | 'changed' | 'failed') {
 export function ReportsPage() {
   const { isRobots } = useAppTheme();
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const { values, setFilter, copyLink } = useUrlFilters(['q', 'status']);
+  const search = values.q;
+  const setSearch = (v: string) => setFilter('q', v);
+  const statusFilter = values.status || null;
+  const setStatusFilter = (v: string | null) => setFilter('status', v || '');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-  // Executive Summary Report (Fleet Health) recipients
+  // Executive Summary Report (Fleet Health) recipients + config
   const [execRecipients, setExecRecipients] = useState<any[]>([]);
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
   const [execLoading, setExecLoading] = useState(false);
   const [execError, setExecError] = useState<string | null>(null);
   const [execSuccess, setExecSuccess] = useState<string | null>(null);
 
-  // From address and schedule (minimal feature port from referenced work)
+  // Executive config (from email + schedule)
+  const [execConfig, setExecConfig] = useState<any>({});
   const [fromEmail, setFromEmail] = useState('');
   const [schedEnabled, setSchedEnabled] = useState(true);
-  const [schedDay, setSchedDay] = useState(0);
+  const [schedDay, setSchedDay] = useState(0); // 0=Mon ... 6=Sun
   const [schedTime, setSchedTime] = useState('08:00');
+  // sruiux2 P0-3 — visible server limit for reports list
+  const [reportLimit, setReportLimit] = useState(200);
 
   // Fetch hierarchy (groups and nodes)
   const { data: hierarchy, loading: hierarchyLoading } = useApi(
@@ -314,8 +330,8 @@ export function ReportsPage() {
 
   // Fetch reports
   const { data: reportList, loading: reportsLoading, error } = useApi(
-    () => reports.list({ status: statusFilter || undefined, limit: 200 }),
-    [statusFilter]
+    () => reports.list({ status: statusFilter || undefined, limit: reportLimit }),
+    [statusFilter, reportLimit]
   );
 
   const loading = hierarchyLoading || reportsLoading;
@@ -457,20 +473,19 @@ export function ReportsPage() {
       const data = await reports.listExecutiveRecipients();
       setExecRecipients(Array.isArray(data) ? data : []);
 
-      // Load from + schedule config
+      // Load config for from + schedule
       try {
         const cfg = await reports.getExecutiveConfig();
-        if (cfg) {
-          if (cfg.from_email) setFromEmail(cfg.from_email);
-          if (typeof cfg.schedule_enabled === 'boolean') setSchedEnabled(cfg.schedule_enabled);
-          if (typeof cfg.schedule_day === 'number') setSchedDay(cfg.schedule_day);
-          if (typeof cfg.schedule_hour === 'number' && typeof cfg.schedule_minute === 'number') {
-            const h = String(cfg.schedule_hour).padStart(2, '0');
-            const m = String(cfg.schedule_minute).padStart(2, '0');
-            setSchedTime(`${h}:${m}`);
-          }
+        setExecConfig(cfg || {});
+        if (cfg?.from_email) setFromEmail(cfg.from_email);
+        if (typeof cfg?.schedule_enabled === 'boolean') setSchedEnabled(cfg.schedule_enabled);
+        if (typeof cfg?.schedule_day === 'number') setSchedDay(cfg.schedule_day);
+        if (typeof cfg?.schedule_hour === 'number' && typeof cfg?.schedule_minute === 'number') {
+          setSchedTime(`${String(cfg.schedule_hour).padStart(2,'0')}:${String(cfg.schedule_minute).padStart(2,'0')}`);
         }
-      } catch {}
+      } catch (e) {
+        // config optional
+      }
     } catch (e: any) {
       setExecError(e?.message || 'Failed to load recipients');
       setExecRecipients([]);
@@ -513,19 +528,19 @@ export function ReportsPage() {
     setExecError(null);
     setExecSuccess(null);
     try {
-      const [h, m] = schedTime.split(':').map((x: string) => parseInt(x, 10) || 0);
+      const [hh, mm] = schedTime.split(':').map((x: string) => parseInt(x, 10));
       await reports.updateExecutiveConfig({
         from_email: fromEmail.trim() || null,
         schedule_enabled: schedEnabled,
         schedule_day: schedDay,
-        schedule_hour: h,
-        schedule_minute: m,
+        schedule_hour: hh || 8,
+        schedule_minute: mm || 0,
       });
       await loadExecutiveRecipients();
       setExecSuccess('Configuration saved');
       setTimeout(() => setExecSuccess(null), 2500);
     } catch (e: any) {
-      setExecError(e?.message || 'Failed to save config');
+      setExecError(e?.message || 'Failed to save configuration');
     }
   };
 
@@ -547,8 +562,8 @@ export function ReportsPage() {
     loadExecutiveRecipients();
   }, []);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (loading) return <LoadingState label="Loading reports…" />;
+  if (error) return <ErrorState title="Failed to load reports" message={error} />;
 
   // Sort group names alphabetically for consistent ordering (like other lists in the app).
   // Note: filteredGroups may have fewer groups due to search, so we sort what's visible.
@@ -557,36 +572,54 @@ export function ReportsPage() {
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <Title order={2}>Reports ({totalReports})</Title>
-        <Group>
-          <Select
-            placeholder="Filter by status"
-            data={[
-              { value: '', label: 'All' },
-              { value: 'changed', label: 'Changed' },
-              { value: 'unchanged', label: 'Unchanged' },
-              { value: 'failed', label: 'Failed' },
-            ]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            clearable
-            style={{ width: 160 }}
-          />
-          <TextInput
-            placeholder="Search by certname..."
-            leftSection={<IconSearch size={16} />}
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            style={{ width: 250 }}
-          />
-          <ExportActions
-            results={Object.values(filteredGroups).flatMap(g => g.reports || [])}
-            filenameBase="reports-export"
-            variant="compact"
-          />
-        </Group>
-      </Group>
+      <Title order={2}>Reports ({totalReports})</Title>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by certname…"
+        status={statusFilter}
+        onStatusChange={setStatusFilter}
+        hint="Status chips also drive the API fetch (server-side). URL is shareable (?q=&status=)."
+        rightSection={
+          <>
+            <Select
+              label="Fetch limit"
+              size="xs"
+              w={110}
+              data={['50', '100', '200', '500', '1000']}
+              value={String(reportLimit)}
+              onChange={(v) => setReportLimit(parseInt(v || '200', 10))}
+              allowDeselect={false}
+            />
+            <Tooltip label="Copy link to this filtered view">
+              <ActionIcon
+                variant="light"
+                onClick={async () => {
+                  try {
+                    await copyLink();
+                    notifications.show({ message: 'Link copied', color: 'green' });
+                  } catch {
+                    notifications.show({ message: 'Copy failed', color: 'red' });
+                  }
+                }}
+              >
+                <IconLink size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <ExportActions
+              results={Object.values(filteredGroups).flatMap(g => g.reports || [])}
+              filenameBase="reports-export"
+              variant="compact"
+            />
+          </>
+        }
+      />
+
+      {reportList && reportList.length >= reportLimit && (
+        <Alert color="yellow" variant="light">
+          Showing up to {reportLimit} latest reports from the API (limit control above). Increase limit or filter by status for large fleets.
+        </Alert>
+      )}
 
       {/* Report-O-Scope illustration (casual only) */}
       {isRobots && (
@@ -595,7 +628,7 @@ export function ReportsPage() {
         </Card>
       )}
 
-      {/* Grouped reports */}
+      {/* Grouped reports — OpsTable inside each group (sruiux2 P0-2) */}
       {groupNames.length === 0 ? (
         <Card withBorder shadow="sm">
           <Text c="dimmed" ta="center">No reports found</Text>
@@ -607,9 +640,13 @@ export function ReportsPage() {
             const { status, reports: groupReports, nodes, latestReportByNode = {} } = groupData;
             const badgeProps = getStatusBadgeProps(status);
             const isExpanded = expandedGroups[groupName] ?? false;
+            const nodeRows: ReportNodeRow[] = nodes.map((certname: string) => ({
+              certname,
+              report: latestReportByNode[certname],
+            }));
 
             return (
-              <Card key={groupName} withBorder shadow="sm">
+              <Card key={groupName} withBorder shadow="sm" style={{ overflow: 'hidden' }}>
                 <Group justify="space-between" style={{ cursor: 'pointer' }} onClick={() => toggleGroup(groupName)}>
                   <Group>
                     <ActionIcon variant="subtle" size="sm">
@@ -623,58 +660,73 @@ export function ReportsPage() {
                   </Badge>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <ScrollArea mah={480} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
-                    <Table striped highlightOnHover withTableBorder>
-                          <Table.Thead>
-                            <Table.Tr>
-                              <Table.Th>Certname</Table.Th>
-                              <Table.Th>Status</Table.Th>
-                              <Table.Th>Type</Table.Th>
-                              <Table.Th>Environment</Table.Th>
-                              <Table.Th>Start Time</Table.Th>
-                              <Table.Th>OpenVox Version</Table.Th>
-                            </Table.Tr>
-                          </Table.Thead>
-                          <Table.Tbody>
-                            {nodes.length === 0 ? (
-                              <Table.Tr>
-                                <Table.Td colSpan={6}><Text c="dimmed" ta="center">No nodes for this group</Text></Table.Td>
-                              </Table.Tr>
+                  <Box mt="sm">
+                    <OpsTable<ReportNodeRow>
+                      data={nodeRows}
+                      rowKey={(r) => r.certname}
+                      defaultPageSize={50}
+                      maxHeight={420}
+                      emptyTitle="No nodes for this group"
+                      onRowClick={(r) => {
+                        if (r.report) navigate(`/reports/${r.report.hash}`);
+                        else navigate(`/nodes/${r.certname}`);
+                      }}
+                      columns={[
+                        {
+                          key: 'certname',
+                          header: 'Certname',
+                          sortValue: (r) => r.certname,
+                          render: (r) => <Text fw={500}>{r.certname}</Text>,
+                        },
+                        {
+                          key: 'status',
+                          header: 'Status',
+                          sortValue: (r) => r.report?.status || '',
+                          render: (r) =>
+                            r.report ? <StatusBadge status={r.report.status} /> : <Text c="dimmed">—</Text>,
+                        },
+                        {
+                          key: 'type',
+                          header: 'Type',
+                          sortable: false,
+                          render: (r) =>
+                            r.report ? (
+                              r.report.corrective_change ? (
+                                <Badge color="orange" variant="light" size="sm">Corrective</Badge>
+                              ) : r.report.noop ? (
+                                <Badge color="blue" variant="light" size="sm">Noop</Badge>
+                              ) : (
+                                <Badge color="gray" variant="light" size="sm">Intentional</Badge>
+                              )
                             ) : (
-                              nodes.map((certname: string) => {
-                                const report = latestReportByNode[certname];
-                                return (
-                                  <Table.Tr
-                                    key={certname}
-                                    style={{ cursor: report ? 'pointer' : 'default' }}
-                                    onClick={() => {
-                                      if (report) navigate(`/reports/${report.hash}`);
-                                      else navigate(`/nodes/${certname}`);
-                                    }}
-                                  >
-                                    <Table.Td><Text fw={500}>{certname}</Text></Table.Td>
-                                    <Table.Td>{report ? <StatusBadge status={report.status} /> : <Text c="dimmed">—</Text>}</Table.Td>
-                                    <Table.Td>
-                                      {report ? (
-                                        report.corrective_change ? (
-                                          <Badge color="orange" variant="light" size="sm">Corrective</Badge>
-                                        ) : report.noop ? (
-                                          <Badge color="blue" variant="light" size="sm">Noop</Badge>
-                                        ) : (
-                                          <Badge color="gray" variant="light" size="sm">Intentional</Badge>
-                                        )
-                                      ) : <Text c="dimmed">—</Text>}
-                                    </Table.Td>
-                                    <Table.Td>{report ? report.environment || '—' : '—'}</Table.Td>
-                                    <Table.Td>{report && report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
-                                    <Table.Td>{report ? report.puppet_version || '—' : '—'}</Table.Td>
-                                  </Table.Tr>
-                                );
-                              })
-                            )}
-                          </Table.Tbody>
-                        </Table>
-                  </ScrollArea>
+                              <Text c="dimmed">—</Text>
+                            ),
+                        },
+                        {
+                          key: 'environment',
+                          header: 'Environment',
+                          sortValue: (r) => r.report?.environment || '',
+                          render: (r) => (r.report ? r.report.environment || '—' : '—'),
+                        },
+                        {
+                          key: 'start_time',
+                          header: 'Start Time',
+                          sortType: 'date',
+                          sortValue: (r) => r.report?.start_time || '',
+                          render: (r) =>
+                            r.report?.start_time
+                              ? new Date(r.report.start_time).toLocaleString()
+                              : '—',
+                        },
+                        {
+                          key: 'puppet_version',
+                          header: 'OpenVox Version',
+                          sortValue: (r) => r.report?.puppet_version || '',
+                          render: (r) => (r.report ? r.report.puppet_version || '—' : '—'),
+                        },
+                      ] as OpsColumn<ReportNodeRow>[]}
+                    />
+                  </Box>
                 </Collapse>
               </Card>
             );
@@ -792,49 +844,61 @@ export function ReportsPage() {
           )}
         </Card>
 
-        {/* From email and schedule (referenced minimal feature) */}
-        <Divider my="sm" />
-        <Text size="sm" fw={500}>From address</Text>
-        <Group>
+        {/* From email + Schedule configuration */}
+        <Divider my="md" />
+        <Title order={5}>From address & Scheduling</Title>
+        <Text size="xs" c="dimmed" mb="xs">
+          From email is used when the mail subsystem on the server requires a specific sender format.
+          Schedule controls when the background timer will deliver the report (ad-hoc always available).
+        </Text>
+
+        <Group grow>
           <TextInput
-            placeholder="reports@yourcompany.com (optional custom From:)"
+            label="From email (optional)"
+            placeholder="reports@yourcompany.com"
             value={fromEmail}
             onChange={(e) => setFromEmail(e.currentTarget.value)}
-            style={{ flex: 1, maxWidth: 420 }}
           />
-          <Button size="sm" onClick={saveExecutiveConfig}>Save</Button>
+          <Button onClick={saveExecutiveConfig} variant="light" mt={22}>Save Config</Button>
         </Group>
 
-        <Text size="sm" fw={500} mt="sm">Schedule</Text>
-        <Group>
+        <Group mt="sm">
           <Switch
-            label="Enable scheduled"
+            label="Enable scheduled delivery"
             checked={schedEnabled}
             onChange={(e) => setSchedEnabled(e.currentTarget.checked)}
           />
           <Select
-            label="Day"
-            data={[{value:'0',label:'Mon'},{value:'1',label:'Tue'},{value:'2',label:'Wed'},{value:'3',label:'Thu'},{value:'4',label:'Fri'},{value:'5',label:'Sat'},{value:'6',label:'Sun'}]}
+            label="Day of week"
+            data={[
+              { value: '0', label: 'Monday' },
+              { value: '1', label: 'Tuesday' },
+              { value: '2', label: 'Wednesday' },
+              { value: '3', label: 'Thursday' },
+              { value: '4', label: 'Friday' },
+              { value: '5', label: 'Saturday' },
+              { value: '6', label: 'Sunday' },
+            ]}
             value={String(schedDay)}
-            onChange={(v) => setSchedDay(parseInt(v||'0',10))}
-            style={{width:100}}
+            onChange={(v) => setSchedDay(parseInt(v || '0', 10))}
+            style={{ maxWidth: 160 }}
           />
           <TextInput
-            label="Time"
+            label="Time (HH:MM)"
             type="time"
             value={schedTime}
             onChange={(e) => setSchedTime(e.currentTarget.value)}
-            style={{width:120}}
+            style={{ maxWidth: 140 }}
           />
-          <Button size="sm" onClick={saveExecutiveConfig}>Save Schedule</Button>
         </Group>
 
         <Text size="xs" c="dimmed">
-          Scheduled runs use the server timer + script (honors day/time). Ad-hoc always available. From address used for email.
+          The server timer fires on its configured cadence; the generator script will only deliver when the day/time matches (or for ad-hoc).
+          Original default was Monday ~08:00.
         </Text>
 
         <Text size="xs" c="dimmed">
-          The scheduled Monday 8AM report will also pick up this list (via the GUI API when no value is set in .env).
+          The scheduled report will also pick up this list (via the GUI API when no value is set in .env).
           Make sure <code>mail</code> or <code>mailx</code> works on the server for email delivery.
         </Text>
       </Stack>

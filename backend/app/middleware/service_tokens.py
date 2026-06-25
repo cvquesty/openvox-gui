@@ -68,7 +68,7 @@ async def verify_service_token(token: str) -> Optional[Dict[str, Any]]:
             return {
                 "user_id": api_token.username,
                 "username": api_token.username,
-                "role": "operator",  # Service tokens get operator by default for now
+                "role": api_token.role or "operator",
                 "token_type": "service",
                 "token_id": api_token.id,
                 "token_name": api_token.name,
@@ -81,20 +81,47 @@ async def verify_service_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+# Scopes stored in api_tokens.role (no schema migration required).
+ALLOWED_TOKEN_ROLES = frozenset({
+    "admin",
+    "operator",
+    "viewer",
+    "bolt",
+    "bolt-inventory-readonly",
+    "service",
+})
+
+
+def normalize_token_role(role: Optional[str]) -> str:
+    """Validate and normalize a service-token scope/role."""
+    r = (role or "operator").strip().lower()
+    # Accept hyphen and underscore forms for inventory-readonly
+    if r in ("bolt_inventory_readonly", "bolt-inventory-ro", "inventory-readonly"):
+        r = "bolt-inventory-readonly"
+    if r not in ALLOWED_TOKEN_ROLES:
+        raise ValueError(
+            f"Invalid token role/scope {role!r}. Allowed: {', '.join(sorted(ALLOWED_TOKEN_ROLES))}"
+        )
+    return r
+
+
 async def create_service_token(
     username: str,
     name: str,
     created_by: str,
     expires_at: Optional[datetime] = None,
+    role: str = "operator",
 ) -> str:
     """
     Create a new long-lived service token for a user.
 
+    role: scoped RBAC principal for the token (see ALLOWED_TOKEN_ROLES).
     Returns the raw token (only returned once).
     The caller is responsible for storing it securely.
     """
     import secrets
 
+    role = normalize_token_role(role)
     raw_token = secrets.token_urlsafe(48)  # ~64 characters
     token_hash = _hash_token(raw_token)
 
@@ -102,6 +129,7 @@ async def create_service_token(
         api_token = ApiToken(
             username=username,
             name=name,
+            role=role,
             token_hash=token_hash,
             created_by=created_by,
             expires_at=expires_at,
@@ -114,8 +142,33 @@ async def create_service_token(
     return raw_token
 
 
+async def list_service_tokens(username: Optional[str] = None) -> list:
+    """List active and revoked tokens (metadata only; never returns raw secrets)."""
+    async with async_session() as db:
+        stmt = select(ApiToken).order_by(ApiToken.created_at.desc())
+        if username:
+            stmt = stmt.where(ApiToken.username == username)
+        result = await db.execute(stmt)
+        rows = result.scalars().all()
+        out = []
+        for t in rows:
+            out.append({
+                "id": t.id,
+                "username": t.username,
+                "name": t.name,
+                "role": t.role,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "created_by": t.created_by,
+                "expires_at": t.expires_at.isoformat() if t.expires_at else None,
+                "last_used_at": t.last_used_at.isoformat() if t.last_used_at else None,
+                "active": bool(t.active),
+                "notes": t.notes,
+            })
+        return out
+
+
 async def revoke_service_token(token_id: int, revoked_by: str) -> bool:
-    """Soft-revoke a service token."""
+    """Soft-revoke a service token (rotation = revoke + create new)."""
     async with async_session() as db:
         stmt = select(ApiToken).where(ApiToken.id == token_id)
         result = await db.execute(stmt)
@@ -125,5 +178,9 @@ async def revoke_service_token(token_id: int, revoked_by: str) -> bool:
             return False
 
         token.active = False
+        if token.notes:
+            token.notes = (token.notes or "") + f"\n[revoked by {revoked_by} at {datetime.now(timezone.utc).isoformat()}]"
+        else:
+            token.notes = f"[revoked by {revoked_by} at {datetime.now(timezone.utc).isoformat()}]"
         await db.commit()
         return True

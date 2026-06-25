@@ -1,0 +1,14 @@
+# Optional allow-list for r10k environments (one name per line).
+# If this file is installed as /opt/openvox-gui/etc/allowed-environments.txt
+# (or OPENVOX_GUI_ALLOWED_ENVS_FILE points at a copy), scripts/r10k-deploy.sh
+# will reject any first positional argument not listed here.
+#
+# Leave the installed file absent to allow any environment name that passes
+# the shape validation (legacy behaviour). Populate from your control-repo
+# branches / r10k sources for stricter production posture (srsysarch1 #8).
+#
+# Examples:
+# production
+# development
+# staging
+# feature/my-branch

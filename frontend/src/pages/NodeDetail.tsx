@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Title, Card, Loader, Center, Alert, Stack, Group, Text, Badge,
+  Title, Card, Loader, Stack, Group, Text, Badge,
   Table, Tabs, Grid, Code, Paper, Button, ScrollArea,
 } from '@mantine/core';
 import { IconServer, IconFileReport, IconList, IconCode, IconPlayerPlay, IconTrash } from '@tabler/icons-react';
@@ -14,9 +14,14 @@ import { useApi } from '../hooks/useApi';
 import { nodes } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { PrettyJson } from '../components/PrettyJson';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { OutputPane } from '../components/OutputPane';
+import { LoadingState, ErrorState, EmptyState } from '../components/StateComponents';
 import { bolt } from '../services/api';
 import { notifications } from '@mantine/notifications';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { useActivity } from '../hooks/ActivityContext';
+import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
 
 /* ═══════════════════════════════════════════════════════════════
    INSPECT-O-BOT 2000 — the node inspection robot
@@ -124,11 +129,18 @@ export function NodeDetailPage() {
 
   const [runningPuppet, setRunningPuppet] = useState(false);
   const [puppetResult, setPuppetResult] = useState<any>(null);
+  const [runConfirmOpen, setRunConfirmOpen] = useState(false);
+  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const { begin, end } = useActivity();
+  const skipConfirm = useSkipAdhocConfirm();
 
   const handleRunPuppet = async () => {
     if (!certname) return;
+    setRunConfirmOpen(false);
     setRunningPuppet(true);
     setPuppetResult(null);
+    const actId = begin(`Run OpenVox: ${certname}`, { href: `/nodes/${certname}` });
     try {
       const r = await bolt.runCommand({
         command: '/opt/puppetlabs/bin/puppet agent -t',
@@ -142,6 +154,8 @@ export function NodeDetailPage() {
         run_as: 'root',
       });
       setPuppetResult(r);
+      const ok = r.returncode === 0 || r.returncode === 2;
+      end(actId, ok ? 'done' : 'error', `exit ${r.returncode}`);
       // Puppet exit codes: 0 = no changes, 2 = changes applied successfully, anything else = error
       if (r.returncode === 0) {
         notifications.show({ title: 'OpenVox Run Complete', message: `No changes needed on ${certname}`, color: 'green' });
@@ -151,6 +165,7 @@ export function NodeDetailPage() {
         notifications.show({ title: 'OpenVox Run Failed', message: `Agent run failed with exit code ${r.returncode}`, color: 'red' });
       }
     } catch (e: any) {
+      end(actId, 'error', e.message);
       notifications.show({ title: 'Error', message: e.message, color: 'red' });
     }
     setRunningPuppet(false);
@@ -158,7 +173,7 @@ export function NodeDetailPage() {
 
   const handlePurge = async () => {
     if (!certname) return;
-    if (!confirm(`Permanently remove '${certname}' from PuppetDB, ENC, and CA? This cannot be undone.`)) return;
+    setPurging(true);
     try {
       const r = await nodes.purge(certname);
       notifications.show({
@@ -166,6 +181,7 @@ export function NodeDetailPage() {
         message: r.message,
         color: r.status === 'success' ? 'green' : 'yellow',
       });
+      setPurgeConfirmOpen(false);
       // Brief delay so PuppetDB processes the async deactivation
       // before the Nodes page queries for the updated list
       await new Promise((res) => setTimeout(res, 1500));
@@ -173,11 +189,19 @@ export function NodeDetailPage() {
     } catch (e: any) {
       notifications.show({ title: 'Purge Failed', message: e.message, color: 'red' });
     }
+    setPurging(false);
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
-  if (!node) return <Alert color="yellow">Node not found</Alert>;
+  if (loading) return <LoadingState label="Loading node…" />;
+  if (error) return <ErrorState title="Failed to load node" message={error} />;
+  if (!node) {
+    return (
+      <EmptyState
+        title="Node not found"
+        description={certname ? `No PuppetDB record for ${certname}.` : 'Missing certname in URL.'}
+      />
+    );
+  }
 
   const keyFacts = ['os', 'networking', 'kernel', 'kernelrelease', 'processors',
     'memorysize', 'uptime', 'virtual', 'is_virtual', 'fqdn', 'ipaddress',
@@ -191,16 +215,39 @@ export function NodeDetailPage() {
         <Button
           leftSection={runningPuppet ? <Loader size={14} color="white" /> : <IconPlayerPlay size={14} />}
           color="green" size="sm" variant="outline"
-          onClick={handleRunPuppet} loading={runningPuppet}>
+          onClick={() => (skipConfirm ? handleRunPuppet() : setRunConfirmOpen(true))} loading={runningPuppet}>
           Run OpenVox
         </Button>
         <Button
           leftSection={<IconTrash size={14} />}
           color="red" size="sm" variant="outline"
-          onClick={handlePurge}>
+          onClick={() => setPurgeConfirmOpen(true)}>
           Purge Node
         </Button>
       </Group>
+
+      <ConfirmModal
+        opened={runConfirmOpen && !skipConfirm}
+        onClose={() => setRunConfirmOpen(false)}
+        onConfirm={handleRunPuppet}
+        title="Run OpenVox agent?"
+        body="This runs puppet agent -t as root via Bolt/sudo on the target node. Continue?"
+        details={certname ? [certname] : undefined}
+        confirmLabel="Run agent"
+        confirmColor="green"
+        loading={runningPuppet}
+      />
+      <ConfirmModal
+        opened={purgeConfirmOpen}
+        onClose={() => !purging && setPurgeConfirmOpen(false)}
+        onConfirm={handlePurge}
+        title="Purge node?"
+        body={`Permanently remove '${certname}' from PuppetDB, ENC, and CA. This cannot be undone.`}
+        details={certname ? [certname] : undefined}
+        confirmLabel="Purge node"
+        danger
+        loading={purging}
+      />
 
       {/* Show Run OpenVox output */}
       {puppetResult && (
@@ -213,10 +260,13 @@ export function NodeDetailPage() {
               Exit {puppetResult.returncode}
             </Badge>
           </Group>
-          {puppetResult.output && (
-            <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 400, overflow: 'auto' }}>
-              {puppetResult.output}
-            </Code>
+          {(puppetResult.output || puppetResult.error) && (
+            <OutputPane
+              output={puppetResult.output}
+              error={puppetResult.error}
+              maxHeight={400}
+              title="Agent output"
+            />
           )}
           {puppetResult.error && (
             <Code block color="red" style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto', marginTop: 8 }}>

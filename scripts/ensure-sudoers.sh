@@ -182,15 +182,17 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
 # Bolt orchestration
-# Method: allow the *full* bolt binary (both common installation paths).
-# Rationale: Bolt commands, tasks, and plans accept a huge number of
-#            arguments (--targets, --inventoryfile, --params, --run-as,
-#            modules, etc.). A wildcarded "bolt *" was previously used;
-#            allowing the real binary is the accepted secure pattern for
-#            orchestration UIs. It is still vastly narrower than
-#            "ALL=(ALL) NOPASSWD: ALL".
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
+# Method: allow the *full* bolt binary as both root (for some ops) and as the 'bolt' user.
+# Rationale: GUI uses `sudo -E -u bolt bolt ...` so that local transport on the
+#            controller runs commands as 'bolt' (whoami returns bolt by default).
+#            Remote uses SSH as bolt. We also keep (root) for compatibility.
+#            SETENV is required for sudo -E (preserve environment); without it
+#            operators see: "sudo: sorry, you are not allowed to preserve the environment".
+#            Explicit (no wildcard). Secure pattern — SETENV only on these bolt binaries.
+${SERVICE_USER} ALL=(bolt) NOPASSWD:SETENV: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(bolt) NOPASSWD:SETENV: /usr/local/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD:SETENV: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD:SETENV: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
 # Method: exact "puppetserver ca <subcommand> --certname" (or --all for list).
@@ -225,15 +227,28 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
 
 # Log Viewer — restricted to specific units and files only
-# Method: journalctl on explicit units + tail on explicit log files.
+# Method: journalctl / tail argv must match backend/app/routers/logs.py exactly.
 # Rationale: The Logs page lets operators view the main components
-#            without granting general log access.
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetdb/puppetdb.log
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetserver/puppetserver.log
+#            without granting general log access. Prior rules only allowed
+#            `journalctl -u <unit>` with no further args and `tail -n <path>`
+#            without a line count — so every GUI log read was denied and panes
+#            were empty. Line-count is a single-arg wildcard (*); optional
+#            --since is a second explicit rule set.
+# Units (with optional --since):
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso --since *
+# Host journal (System Log tab) — no -u, still bounded by -n and output format:
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso --since *
+# Application log files (line count wildcard between -n and path):
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
 
 # SSL Certificate Wizard operations (explicit)
 # Method: tee for the service unit (during cert install), daemon-reload,
@@ -264,12 +279,38 @@ sed -i \
 # Apply strict permissions (sudoers best practice)
 chmod 440 "$SUDOERS_FILE"
 
-# Validate syntax. Some environments have visudo that can be noisy; we
-# tolerate failure for logging purposes but the write still happened.
+# Emit diff vs the backup we just created (P1 hardening per systems architect report).
+# This gives operators immediate visibility into exactly what changed in the
+# managed sudoers file on every deploy/install.
+if [ -n "${BACKUP:-}" ] && [ -f "$BACKUP" ]; then
+    echo ""
+    echo "📄 Diff of sudoers changes vs backup:"
+    diff -u "$BACKUP" "$SUDOERS_FILE" || true
+    echo ""
+fi
+
+# Validate syntax with visudo -cf.
+# Per P1 recommendation: FAIL the whole script (and thus the deploy) if invalid.
+# This leaves maintenance mode up so operators can investigate before the
+# service is restarted with a broken sudoers file.
 if visudo -cf "$SUDOERS_FILE" >/dev/null 2>&1; then
     echo "✅ sudoers syntax OK: $SUDOERS_FILE"
 else
-    echo "⚠️  visudo -cf reported issues for $SUDOERS_FILE (check manually with 'sudo visudo -cf $SUDOERS_FILE')"
+    echo "❌ visudo -cf FAILED for $SUDOERS_FILE"
+    echo "   Refusing to continue. The deploy/install will exit non-zero so that"
+    echo "   maintenance mode (if active) is left on for safety."
+    echo "   Inspect with: sudo visudo -cf $SUDOERS_FILE"
+    echo "   Or review the diff above and the backup: $BACKUP"
+    exit 1
+fi
+
+# Fix perms on bolt config so 'bolt' user can read key for SSH (when CLI run as bolt via sudo -u).
+if [ -d /etc/puppetlabs/bolt ]; then
+  chown -R root:bolt /etc/puppetlabs/bolt 2>/dev/null || true
+  chmod -R g+rwX /etc/puppetlabs/bolt 2>/dev/null || true
+  if [ -f /etc/puppetlabs/bolt/id_bolt ]; then
+    chmod 640 /etc/puppetlabs/bolt/id_bolt 2>/dev/null || true
+  fi
 fi
 
 echo "✅ Ensured canonical sudoers rules for service user '${SERVICE_USER}'"

@@ -17,6 +17,8 @@ import {
 } from '@tabler/icons-react';
 import { certificates } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { LoadingState, ErrorState } from '../components/StateComponents';
 
 /* ═══════════════════════════════════════════════════════════════
    CERT-O-STAMP 3000 — the certificate stamping machine
@@ -132,6 +134,8 @@ export function CertificatesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailData, setDetailData] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<null | { type: 'revoke' | 'clean'; certname: string }>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,26 +163,27 @@ export function CertificatesPage() {
   // info / revoke / clean. The handleSign helper used to live here
   // and was removed at the same time as the Pending Requests Card.
 
-  const handleRevoke = async (certname: string) => {
-    if (!confirm(`Revoke certificate for "${certname}"? This cannot be undone.`)) return;
-    try {
-      await certificates.revoke(certname);
-      notifications.show({ title: 'Revoked', message: `Certificate revoked for ${certname}`, color: 'yellow' });
-      load();
-    } catch (e: any) {
-      notifications.show({ title: 'Error', message: e.message, color: 'red' });
-    }
-  };
+  const requestRevoke = (certname: string) => setPendingAction({ type: 'revoke', certname });
+  const requestClean = (certname: string) => setPendingAction({ type: 'clean', certname });
 
-  const handleClean = async (certname: string) => {
-    if (!confirm(`Clean (permanently delete) certificate for "${certname}"?`)) return;
+  const executePendingAction = async () => {
+    if (!pendingAction) return;
+    const { type, certname } = pendingAction;
+    setActionLoading(true);
     try {
-      await certificates.clean(certname);
-      notifications.show({ title: 'Cleaned', message: `Certificate removed for ${certname}`, color: 'green' });
+      if (type === 'revoke') {
+        await certificates.revoke(certname);
+        notifications.show({ title: 'Revoked', message: `Certificate revoked for ${certname}`, color: 'yellow' });
+      } else {
+        await certificates.clean(certname);
+        notifications.show({ title: 'Cleaned', message: `Certificate removed for ${certname}`, color: 'green' });
+      }
+      setPendingAction(null);
       load();
     } catch (e: any) {
       notifications.show({ title: 'Error', message: e.message, color: 'red' });
     }
+    setActionLoading(false);
   };
 
   const handleInfo = async (certname: string) => {
@@ -194,7 +199,8 @@ export function CertificatesPage() {
     setDetailLoading(false);
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading) return <LoadingState label="Loading certificates…" />;
+  if (error && !data) return <ErrorState title="Failed to load certificates" message={error} onRetry={load} />;
 
   // requested/pending CSRs are surfaced on the Agent Install page
   const signed = data?.signed || [];
@@ -403,12 +409,12 @@ export function CertificatesPage() {
                         </ActionIcon>
                       </Tooltip>
                       <Tooltip label="Revoke certificate">
-                        <ActionIcon variant="subtle" color="yellow" onClick={() => handleRevoke(cert.name)}>
+                        <ActionIcon variant="subtle" color="yellow" onClick={() => requestRevoke(cert.name)}>
                           <IconX size={16} />
                         </ActionIcon>
                       </Tooltip>
                       <Tooltip label="Clean certificate">
-                        <ActionIcon variant="subtle" color="red" onClick={() => handleClean(cert.name)}>
+                        <ActionIcon variant="subtle" color="red" onClick={() => requestClean(cert.name)}>
                           <IconTrash size={16} />
                         </ActionIcon>
                       </Tooltip>
@@ -440,6 +446,22 @@ export function CertificatesPage() {
           </ScrollArea>
         )}
       </Modal>
+
+      <ConfirmModal
+        opened={!!pendingAction}
+        onClose={() => !actionLoading && setPendingAction(null)}
+        onConfirm={executePendingAction}
+        title={pendingAction?.type === 'revoke' ? 'Revoke certificate?' : 'Clean certificate?'}
+        body={
+          pendingAction?.type === 'revoke'
+            ? `Revoke certificate for "${pendingAction?.certname}"? This cannot be undone.`
+            : `Permanently delete certificate for "${pendingAction?.certname}"?`
+        }
+        details={pendingAction ? [pendingAction.certname] : undefined}
+        confirmLabel={pendingAction?.type === 'revoke' ? 'Revoke' : 'Clean'}
+        danger
+        loading={actionLoading}
+      />
     </Stack>
   );
 }

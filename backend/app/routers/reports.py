@@ -42,6 +42,15 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
+from ..utils.validation import validate_pql_value as _validate_pql_value_raw
+
+def validate_pql_value(value: str, field_name: str) -> str:
+    try:
+        return _validate_pql_value_raw(value, field_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 _AUTH = require_role("admin", "operator", "viewer")
@@ -50,27 +59,6 @@ _AUTH = require_role("admin", "operator", "viewer")
 _snapshot_cache: Dict[str, Any] = {}
 _snapshot_cache_ts: Dict[str, float] = {}
 _SNAPSHOT_CACHE_TTL = 60  # seconds — report data is semi-static
-
-# Strict allowlist pattern for values that will be interpolated into PQL
-# query strings. Only alphanumeric characters, dots, hyphens, and
-# underscores are permitted. This covers valid Puppet certnames,
-# environment names, and report status strings.
-_SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
-
-def _validate_pql_value(value: str, field_name: str) -> str:
-    """Validate that a value is safe to interpolate into a PQL query.
-
-    Rejects any value containing characters outside the strict allowlist
-    to prevent PQL injection. For example, a certname like:
-        'webserver1"] or true --'
-    would be rejected because it contains quote characters and spaces.
-    """
-    if not _SAFE_PQL_VALUE.match(value):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid {field_name}: contains disallowed characters",
-        )
-    return value
 
 
 @router.get("/", response_model=List[ReportSummary])
@@ -91,13 +79,13 @@ async def list_reports(
     try:
         conditions = []
         if certname:
-            certname = _validate_pql_value(certname, "certname")
+            certname = validate_pql_value(certname, "certname")
             conditions.append(f'["=", "certname", "{certname}"]')
         if status:
-            status = _validate_pql_value(status, "status")
+            status = validate_pql_value(status, "status")
             conditions.append(f'["=", "status", "{status}"]')
         if environment:
-            environment = _validate_pql_value(environment, "environment")
+            environment = validate_pql_value(environment, "environment")
             conditions.append(f'["=", "environment", "{environment}"]')
 
         query = None
@@ -522,6 +510,7 @@ async def send_executive_report(
     Trigger an ad-hoc Executive Summary Report generation and email delivery.
     Uses live data (--live).
     If no emails provided, sends to all configured recipients.
+    Optional from_email overrides the stored config for this send.
     """
     if payload.emails and len(payload.emails) > 0:
         emails = [e.strip().lower() for e in payload.emails if e.strip()]
@@ -533,6 +522,7 @@ async def send_executive_report(
     if not emails:
         raise HTTPException(status_code=400, detail="No recipients configured or provided")
 
+    # Determine from_email: payload override > stored config > None (let script default)
     effective_from = payload.from_email.strip() if payload.from_email else None
     if not effective_from:
         cfg = await _get_or_create_executive_config(db)
@@ -602,7 +592,7 @@ async def send_executive_report(
 
 
 async def _get_or_create_executive_config(db: AsyncSession):
-    """Ensure single config row exists."""
+    """Ensure a single config row exists and return it."""
     result = await db.execute(select(ExecutiveReportConfig).limit(1))
     cfg = result.scalar_one_or_none()
     if not cfg:
@@ -618,7 +608,7 @@ async def get_executive_config(
     db: AsyncSession = Depends(get_db),
     _user=Depends(_AUTH),
 ):
-    """Get from_email and schedule config for Executive Summary Report."""
+    """Get current Executive Summary Report configuration (from_email + schedule)."""
     cfg = await _get_or_create_executive_config(db)
     return cfg
 
@@ -629,10 +619,11 @@ async def update_executive_config(
     db: AsyncSession = Depends(get_db),
     _user=Depends(_EXECUTIVE_AUTH),
 ):
-    """Update from_email and schedule."""
+    """Update from_email and/or schedule for the Executive Summary Report."""
     cfg = await _get_or_create_executive_config(db)
     if payload.from_email is not None:
-        cfg.from_email = payload.from_email.strip() or None
+        val = payload.from_email.strip()
+        cfg.from_email = val if val else None
     if payload.schedule_enabled is not None:
         cfg.schedule_enabled = bool(payload.schedule_enabled)
     if payload.schedule_day is not None:

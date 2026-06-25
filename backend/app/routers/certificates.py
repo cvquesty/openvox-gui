@@ -16,12 +16,14 @@ import asyncio
 import logging
 import re
 import time
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..dependencies import require_role
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
 from ..services.puppetdb import puppetdb_service
 from ..utils.sudo import run_sudo
+from ..services import certificates_service
 from typing import Optional, List
 
 router = APIRouter(prefix="/api/certificates", tags=["certificates"])
@@ -56,6 +58,7 @@ def _invalidate_cert_list_cache():
     global _cache_cert_list, _cache_cert_list_time
     _cache_cert_list = None
     _cache_cert_list_time = 0
+    certificates_service.invalidate_cert_list_cache()
 
 def _get_cached_ca_info():
     """Return cached CA info if still valid."""
@@ -109,114 +112,88 @@ async def _run_ca_command(args: List[str], timeout: int = 30) -> dict:
 
 @router.get("/list")
 async def list_certificates():
-    """List all signed certificates (cached for speed)."""
-    # Check cache first
-    cached = _get_cached_cert_list()
-    if cached is not None:
-        return cached
-    
-    result = await _run_ca_command(["list", "--all"])
-    if result["returncode"] != 0:
-        # Try alternative: puppet cert list
-        return {"signed": [], "requested": [], "error": result["stderr"]}
-
-    # Strip ANSI escape codes and carriage returns that the PTY may inject
-    import re as _re
-    _ansi_re = _re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
-    raw_output = result["stdout"] + "\n" + result["stderr"]
-    output = _ansi_re.sub('', raw_output).replace('\r', '')
-    logger.debug(f"puppetserver ca list --all raw output: {repr(raw_output[:500])}")
-    
-    signed = []
-    requested = []
-    current_section = "signed"
-    
-    for line in output.strip().split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if "Requested Certificates" in line or "Certificate Requests" in line:
-            current_section = "requested"
-            continue
-        if "Signed Certificates" in line:
-            current_section = "signed"
-            continue
-        if "Revoked Certificates" in line:
-            current_section = "revoked"
-            continue
-        
-        # Parse cert entry
-        parts = line.split()
-        if len(parts) >= 1:
-            name = parts[0].strip('"').strip()
-            if not name or name in ('Requested', 'Signed', 'Revoked', 'Certificates', 'Certificates:'):
-                continue
-            fingerprint = ""
-            for i, p in enumerate(parts):
-                if p == "(SHA256)":
-                    if i + 1 < len(parts):
-                        fingerprint = parts[i + 1]
-                        break
-            
-            entry = {"name": name, "fingerprint": fingerprint, "raw": line}
-            if current_section == "requested":
-                requested.append(entry)
-            else:
-                signed.append(entry)
-    
-    result = {"signed": signed, "requested": requested}
-    _set_cached_cert_list(result)
-    return result
-
+    """List all signed certificates (cached for speed). Delegates to certificates_service (HP3)."""
+    data = await certificates_service.list_certificates(use_cache=True)
+    # Keep legacy in-router cache in sync for any code still using _get_cached_cert_list
+    if data and not data.get("error"):
+        _set_cached_cert_list(data)
+    return data
 
 class CertActionRequest(BaseModel):
     certname: str
 
 
 @router.post("/sign")
+@rate_limit_heavy()
 async def sign_certificate(
-    request: CertActionRequest,
+    body: CertActionRequest,
+    request: Request,
     current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Sign a pending certificate request.
 
     Validates the certname to prevent command injection before passing
     it to the puppetserver ca subprocess. Operator/admin only since
     signing a CSR adds a node to the trusted fleet.
+    Rate/concurrency limited (srsysarch1 P1).
     """
-    _validate_certname(request.certname)
-    result = await _run_ca_command(["sign", "--certname", request.certname], timeout=120)
+    _validate_certname(body.certname)
+    result = await _run_ca_command(["sign", "--certname", body.certname], timeout=120)
+    from ..utils.audit import audit_event
+    audit_event(
+        "cert_sign",
+        user=current_user,
+        targets=body.certname,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
-    return {"status": "success", "message": f"Certificate signed for {request.certname}",
+    return {"status": "success", "message": f"Certificate signed for {body.certname}",
             "output": result["stdout"]}
 
 
 @router.post("/revoke")
+@rate_limit_heavy()
 async def revoke_certificate(
-    request: CertActionRequest,
+    body: CertActionRequest,
+    request: Request,
     current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Revoke a signed certificate.
 
     Validates the certname before passing it to the puppetserver ca
     subprocess to prevent command injection. Operator/admin only --
     revoking a cert immediately stops a node from getting catalogs.
+    Rate/concurrency limited (srsysarch1 P1).
     """
-    _validate_certname(request.certname)
-    result = await _run_ca_command(["revoke", "--certname", request.certname], timeout=120)
+    _validate_certname(body.certname)
+    result = await _run_ca_command(["revoke", "--certname", body.certname], timeout=120)
+    from ..utils.audit import audit_event
+    audit_event(
+        "cert_revoke",
+        user=current_user,
+        targets=body.certname,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
-    return {"status": "success", "message": f"Certificate revoked for {request.certname}",
+    return {"status": "success", "message": f"Certificate revoked for {body.certname}",
             "output": result["stdout"]}
 
 
 @router.post("/clean")
+@rate_limit_heavy()
 async def clean_certificate(
-    request: CertActionRequest,
+    body: CertActionRequest,
+    request: Request,
     current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Clean (remove) a certificate and all associated key material.
 
@@ -226,32 +203,41 @@ async def clean_certificate(
 
     After cleaning the certificate, also deactivates the node in
     PuppetDB and removes it from the ENC so it disappears everywhere.
+    Rate/concurrency limited (srsysarch1 P1).
     """
     from ..services.puppetdb import puppetdb_service
     from ..services.enc import enc_service
     from ..database import get_db as _get_db
 
-    _validate_certname(request.certname)
-    result = await _run_ca_command(["clean", "--certname", request.certname], timeout=120)
+    _validate_certname(body.certname)
+    result = await _run_ca_command(["clean", "--certname", body.certname], timeout=120)
+    from ..utils.audit import audit_event
+    audit_event(
+        "cert_clean",
+        user=current_user,
+        targets=body.certname,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
 
     # Deactivate from PuppetDB
-    pdb_deactivated = await puppetdb_service.deactivate_node(request.certname)
+    pdb_deactivated = await puppetdb_service.deactivate_node(body.certname)
 
     # Remove from ENC SQLite
     enc_removed = False
     try:
         from ..database import async_session
         async with async_session() as db:
-            enc_removed = await enc_service.delete_node(db, request.certname)
+            enc_removed = await enc_service.delete_node(db, body.certname)
             if enc_removed:
                 await db.commit()
     except Exception as e:
-        logger.warning(f"Could not remove '{request.certname}' from ENC: {e}")
+        logger.warning("Could not remove %r from ENC: %s", body.certname, e, exc_info=True)
 
-    parts = [f"Certificate cleaned for {request.certname}"]
+    parts = [f"Certificate cleaned for {body.certname}"]
     if pdb_deactivated:
         parts.append("deactivated from PuppetDB")
     if enc_removed:

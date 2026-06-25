@@ -211,7 +211,7 @@ class SendExecutiveReportRequest(BaseModel):
     )
     from_email: Optional[str] = Field(
         default=None,
-        description="Optional custom From: address for this send."
+        description="Optional From: email address to use for this send (overrides stored config)."
     )
 
     class Config:

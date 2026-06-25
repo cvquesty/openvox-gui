@@ -8,6 +8,7 @@ import configparser
 import json
 import os
 import glob
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import httpx
@@ -200,24 +201,38 @@ class PuppetServerService:
                 "memory": props.get("MemoryCurrent", ""),
             }
         except Exception as e:
-            logger.error(f"Error checking service {service}: {e}")
+            logger.error(f"Error checking service {service}: {e}", exc_info=True)
             return {"service": service, "status": "unknown", "error": str(e)}
 
     def restart_service(self, service: str) -> Dict[str, str]:
-        """Restart a systemd service."""
+        """Restart a systemd service (list-form sudo via run_sudo; srsysarch1 P0)."""
         allowed = {"puppetserver", "puppetdb", "puppet", "openvox-gui"}
         if service not in allowed:
             return {"status": "error", "message": f"Service {service} not allowed"}
         try:
-            result = subprocess.run(
-                ["sudo", "systemctl", "restart", service],
-                capture_output=True, text=True, timeout=60
-            )
-            if result.returncode == 0:
+            from ..utils.sudo import run_sudo
+            import asyncio
+
+            async def _restart():
+                return await run_sudo(["sudo", "systemctl", "restart", service], timeout=60)
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Called from async context — use a thread with a fresh loop
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        result = pool.submit(lambda: asyncio.run(_restart())).result(timeout=70)
+                else:
+                    result = loop.run_until_complete(_restart())
+            except RuntimeError:
+                result = asyncio.run(_restart())
+
+            if result.get("returncode") == 0:
                 return {"status": "success", "message": f"{service} restarted"}
-            else:
-                return {"status": "error", "message": result.stderr}
+            return {"status": "error", "message": result.get("stderr") or result.get("stdout") or "restart failed"}
         except Exception as e:
+            logger.error("restart_service failed: %s", e, exc_info=True)
             return {"status": "error", "message": str(e)}
 
     # ─── PuppetServer Version ──────────────────────────────
@@ -249,13 +264,14 @@ class PuppetServerService:
         for conf_file in ["jetty.ini", "database.ini", "config.ini"]:
             filepath = f"{pdb_confdir}/{conf_file}"
             try:
-                proc = subprocess.run(
-                    ["sudo", "cat", filepath],
-                    capture_output=True, text=True, timeout=5
-                )
-                if proc.returncode != 0:
+                # P0 subprocess audit: use run_sudo for sudo cat (list form)
+                from ..utils.sudo import run_sudo
+                import asyncio
+                loop = asyncio.get_event_loop()
+                sudo_result = loop.run_until_complete(run_sudo(["sudo", "cat", filepath], timeout=5))
+                if sudo_result.get("returncode") != 0:
                     continue
-                content = proc.stdout
+                content = sudo_result.get("stdout", "")
                 config = configparser.ConfigParser()
                 from io import StringIO
                 config.read_string(content)
@@ -272,7 +288,7 @@ class PuppetServerService:
                 if file_data:
                     result[conf_file.replace('.ini', '')] = file_data
             except Exception as e:
-                logger.warning(f"Could not read {filepath}: {e}")
+                logger.warning(f"Could not read {filepath}: {e}", exc_info=True)
                 continue
         return result
 
@@ -288,7 +304,7 @@ class PuppetServerService:
             with open(hiera_path) as f:
                 return yaml.safe_load(f) or {}
         except Exception as e:
-            logger.error(f"Error reading hiera.yaml: {e}")
+            logger.error(f"Error reading hiera.yaml: {e}", exc_info=True)
             return {"error": str(e)}
 
     def read_hiera_raw(self) -> str:
@@ -299,7 +315,7 @@ class PuppetServerService:
         try:
             return hiera_path.read_text()
         except Exception as e:
-            logger.error(f"Error reading hiera.yaml: {e}")
+            logger.error(f"Error reading hiera.yaml: {e}", exc_info=True)
             return ""
 
     def write_hiera_config(self, content: str) -> bool:
@@ -312,18 +328,29 @@ class PuppetServerService:
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML: {e}")
         try:
-            # Backup existing
-            backup_path = str(hiera_path) + ".bak"
+            # Atomic + fsync for P0 durability (critical Hiera config)
             if hiera_path.exists():
                 import shutil
-                shutil.copy2(str(hiera_path), backup_path)
-            hiera_path.write_text(content)
+                shutil.copy2(str(hiera_path), str(hiera_path) + ".bak")
+            fd, tmp_path = tempfile.mkstemp(dir=hiera_path.parent, prefix="hiera.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, hiera_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                raise
             return True
         except PermissionError:
             logger.error(f"Permission denied writing to {hiera_path}")
             return False
         except Exception as e:
-            logger.error(f"Error writing hiera.yaml: {e}")
+            logger.error(f"Error writing hiera.yaml: {e}", exc_info=True)
             return False
 
     def list_hiera_data_files(self, environment: str = "production") -> List[Dict[str, Any]]:
@@ -392,11 +419,23 @@ class PuppetServerService:
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML: {e}")
         try:
-            # Backup
+            # Atomic + fsync for P0 durability (critical Hiera data)
             if resolved.exists():
                 import shutil
                 shutil.copy2(str(resolved), str(resolved) + ".bak")
-            resolved.write_text(content)
+            fd, tmp_path = tempfile.mkstemp(dir=resolved.parent, prefix="hiera-data.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, resolved)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                raise
             return True
         except PermissionError:
             logger.error(f"Permission denied writing to {file_path}")
@@ -420,7 +459,7 @@ class PuppetServerService:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to get Puppet Server status for {service}: {e}")
+            logger.warning(f"Failed to get Puppet Server status for {service}: {e}", exc_info=True)
             return {}
 
     async def get_ps_metrics(self, mbean: str) -> Dict[str, Any]:
@@ -456,7 +495,7 @@ class PuppetServerService:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to list Puppet Server metrics: {e}")
+            logger.warning(f"Failed to list Puppet Server metrics: {e}", exc_info=True)
             return {"error": str(e)}
 
     async def get_ps_health_snapshot(self) -> Dict[str, Any]:

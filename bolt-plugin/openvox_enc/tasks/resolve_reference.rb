@@ -29,18 +29,17 @@ transport       = params['transport'] || 'ssh'
 ssl_verify      = params.fetch('ssl_verify', false)
 api_token       = params['api_token']
 token_file      = params['token_file'] || '/etc/puppetlabs/bolt/.bolt_token'
+user            = params['user'] || 'bolt'  # SSH user for targets; defaults to 'bolt' to match inventory config and GUI expectations (whoami returns 'bolt' by default)
 
-# Run-as settings (default: none — commands/tasks run as the SSH user
-# configured in the inventory transport (typically the 'bolt' service account).
-# The GUI Orchestration page (or an operator at the shell) requests escalation
-# per-invocation: for ad-hoc commands by prefixing "sudo " in the command string,
-# for tasks/scripts by passing --run-as. This keeps CLI (`bolt ...` as the bolt
-# shell user) and GUI behavior consistent and makes "whoami" return "bolt" by
-# default from both surfaces.
+# Run-as settings.
+# - For remote targets: default none (run as the SSH 'user' from inventory, i.e. 'bolt').
+#   Escalation only when GUI sends run_as or prefixes "sudo " in command.
+# - For the controller itself (detected via puppet certname/hostname): always use
+#   transport: local + run-as: <user> so default GUI commands run as 'bolt' user
+#   (whoami returns bolt). This matches the SSH targets and the documented
+#   Orchestration default.
 #
-# Only inject run-as / run-as-command into targets if the caller explicitly
-# passed them as plugin parameters in inventory.yaml. This prevents the plugin
-# from forcing escalation on every Bolt invocation (including direct CLI use).
+# The plugin does NOT force global run-as. Escalation is per-invocation.
 run_as          = params['run_as']
 run_as_command  = params['run_as_command']
 

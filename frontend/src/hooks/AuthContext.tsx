@@ -1,9 +1,10 @@
 /**
  * OpenVox GUI - AuthContext.tsx
- * 
- * Component documentation to be expanded.
+ *
+ * Session via httpOnly cookie; all HTTP goes through services/api.ts (srdevarch1 MP3).
  */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth } from '../services/api';
 
 interface User {
   username: string;
@@ -35,60 +36,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount, check if we have a stored token and validate it
   useEffect(() => {
-    const stored = localStorage.getItem('openvox_token');
-    if (stored) {
-      // Validate the token by calling /api/auth/me
-      fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${stored}` },
+    auth
+      .me()
+      .then((data) => {
+        setUser({ username: data.user_id || data.username, role: data.role });
       })
-        .then((res) => {
-          if (res.ok) return res.json();
-          throw new Error('Invalid token');
-        })
-        .then((data) => {
-          setUser({ username: data.user_id || data.username, role: data.role });
-          setToken(stored);
-        })
-        .catch(() => {
-          localStorage.removeItem('openvox_token');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      // Also check if auth is even required
-      fetch('/api/auth/status')
-        .then((res) => res.json())
-        .then((data) => {
+      .catch(async () => {
+        try {
+          const data = await auth.status();
           if (!data.auth_required) {
-            // No auth needed, set anonymous user
             setUser({ username: 'anonymous', role: 'admin' });
           }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    }
+        } catch {
+          /* ignore */
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (username: string, password: string) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Login failed' }));
-      throw new Error(err.detail || 'Login failed');
-    }
-    const data = await res.json();
-    const newToken = data.token;
-    setToken(newToken);
+    const data = await auth.login(username, password);
     setUser(data.user);
-    localStorage.setItem('openvox_token', newToken);
+    localStorage.removeItem('openvox_token');
   };
 
   const logout = () => {
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    auth.logout().catch(() => {});
     setUser(null);
     setToken(null);
     localStorage.removeItem('openvox_token');

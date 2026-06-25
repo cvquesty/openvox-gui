@@ -23,6 +23,15 @@ import logging
 from ..services.puppetdb import puppetdb_service
 
 logger = logging.getLogger(__name__)
+
+from ..utils.validation import validate_pql_value as _validate_pql_value_raw
+
+def validate_pql_value(value: str, field_name: str) -> str:
+    try:
+        return _validate_pql_value_raw(value, field_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
 router = APIRouter(prefix="/api/performance", tags=["performance"])
 
 # ─── Response cache (TTL-based) ──────────────────────────
@@ -42,17 +51,6 @@ def _set_cached(key: str, value: Any):
     _cache_ts[key] = time.time()
 
 # Strict pattern for values interpolated into PQL queries (certnames).
-_SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
-
-def _validate_pql_value(value: str, field_name: str) -> str:
-    """Validate that a value is safe to interpolate into a PQL query string."""
-    if not _SAFE_PQL_VALUE.match(value):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid {field_name}: contains disallowed characters",
-        )
-    return value
-
 # Key timing metrics we extract from each report
 TIMING_KEYS = [
     "total", "config_retrieval", "fact_generation", "plugin_sync",
@@ -286,7 +284,7 @@ async def node_performance(
     validated against a strict allowlist before being interpolated into
     the PQL query to prevent injection attacks.
     """
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
     try:
         reports = await puppetdb_service.get_reports(
             query=f'["=", "certname", "{certname}"]',

@@ -9,21 +9,752 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.9.8] - 2026-06-24
+## [3.10.04.a8] merge into main — 2026-06-25
 
-### Executive Summary Report: From address + scheduling (minimal port)
-- Added "From" email text box in Logs | Reports | Executive Summary Report pane (for custom From: format).
-- Added schedule options: enable/disable, day of week, time (for regular cadence).
-- Ad-hoc send always available; scheduled honored by generator script (fetches config, checks day/time).
-- Backend: ExecutiveReportConfig model, /config endpoints, send supports from_email.
-- Script: --from-email support, schedule enforcement (minimal).
-- UI: from input + schedule controls + save (references alpha feature but only this part).
-- Logic referenced from main-compatible patterns, only this feature added.
+### Merge
+- Integrated full `3.10.a_r_alpha.6` train into `main` (sole-developer direct merge; PR #39 retained for history).
+- Supersedes interim **3.9.8** main-only port of Executive Summary From/schedule; alpha already includes that feature set plus 3.10 security, architecture, and UI trains through **3.10.04.a8**.
+
+## [3.10.04.a8] - 2026-06-25 (on 3.10.a_r_alpha.6 — restore live Monitoring series)
+
+### Fixed
+- **Empty JMX/live panels on Monitoring:** Server health history `ts` is Unix **seconds**; hour alignment treated it as ms → points in 1970 → filtered off the axis (Command processing, DB pool, Server heap/CPU/catalog route, OpenVoxDB heap/queue all blank).
+- **Shared timeline v2:** All trend charts use the **same numeric UTC domain** `[now−window, now]` with `dataKey=t`. Live polls keep full resolution; hourly API series sit on hour starts. Normalize seconds→ms; seed from legacy history keys when monitor buffers are empty; map `http_metrics` routes for catalog/report means.
 
 ### Versioning
-- Incremented to 3.9.8.
+- **3.10.04.a8** continues sruiux2 (alpha / lab only).
+
+## [3.10.04.a7] - 2026-06-25 (on 3.10.a_r_alpha.6 — synchronized monitoring timeline)
+
+### UI/UX
+- **Monitoring shared X-axis:** All time-series graphs use the **same UTC hour-bucket domain** (configurable **Window**: 12h / 24h / 48h / 72h / 7d). Series are aligned with carry-forward so spikes can be compared across fleet, compliance, run performance, Server, and OpenVoxDB panels. Poll samples store epoch `ts` for reliable bucketing. Compliance distribution remains a current snapshot (not a trend).
+
+### Versioning
+- **3.10.04.a7** continues sruiux2 (alpha / lab only).
+
+## [3.10.04.a6] - 2026-06-25 (on 3.10.a_r_alpha.6 — compliance trend axis fix)
+
+### Fixed
+- **Compliance Trend X-axis:** API timestamps are hour buckets (`YYYY-MM-DDTHH`), not full ISO dates. Stopped calling `new Date()` on them (produced **Invalid Date** on Monitoring and Compliance pages). Use category axis + `tickFormatter` (`HH:00`) matching the original Metrics Compliance chart.
+
+### Versioning
+- **3.10.04.a6** continues sruiux2 (alpha / lab only).
+
+## [3.10.04.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — multi-GRAPH monitoring wallboard)
+
+### UI/UX (sruiux2 — real charts, not KPI tiles)
+- **Monitoring** rewritten as a **scrollable multi-graph wallboard**: MultiSelect chooses **Recharts graphs** (25+ catalog entries) from Fleet status trends, Compliance trend/dist, full **Run Performance** series (run duration, phases, top-10, PDB command/storage/pool/HTTP/dedup/GC/population), **OpenVox Server** (heap, routes, GC, CPU, FDs), **OpenVoxDB** (heap, queue, catalog_save, report_process).
+- Same data sources + client history keys as the dedicated Insights pages; **click graph to expand** full width; external link opens full page. Auto-refresh accumulates JMX histories while the wallboard is open.
+- Preferences key **`openvox-gui-monitor-graphs-v2`** (replaces tile-only v1).
+
+### Versioning
+- **3.10.04.a5** continues sruiux2 (alpha / lab only).
+
+## [3.10.04.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — configurable NOC Monitoring dash)
+
+### UI/UX (sruiux2 — monitoring single pane)
+- First Monitoring pass (later superseded by a5 graph wallboard). Insights catalog at `/insights/all`.
+
+### Versioning
+- **3.10.04.a4** continues sruiux2 (alpha / lab only).
+
+## [3.10.04.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 FilterBar + viz lite)
+
+### UI/UX (sruiux2 designer-2 P1 slice)
+- **P1-1 FilterBar:** New shared `FilterBar` (search + status chips + clear + optional right actions). Adopted on **Nodes** and **Reports** with URL-backed `?q=` / `?status=`.
+- **Nodes:** Status chips filter groups, All Nodes, and unclassified; **Unclassified** uses OpsTable; copy-link still works with status.
+- **P1-2 lite (Dashboard):** Ring legend statuses link to `/nodes?status=…`; trend chart **Legend** / **Area** clicks navigate to filtered Nodes.
+- **Reports:** FilterBar replaces ad-hoc Select+TextInput; keeps fetch-limit + export + copy link.
+
+### Versioning
+- **3.10.04.a3** continues sruiux2 (alpha / lab only). Next: virtualization, Metrics OpsTables, more chart drill-down.
+
+## [3.10.04.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 OpsTable rollout)
+
+### UI/UX (sruiux2 designer-2 P0 slice 2)
+- **P0-2 OpsTable adoption:** **Reports** (per-group node tables), **Inventory**, **Cert Audit** (orphaned + healthy), **ExecutionHistory** — sortable headers + client pagination.
+- **P0-3 lite:** Reports **fetch limit** selector (50–1000) drives `reports.list(?limit=)`; yellow banner when results hit the limit. Inventory large-fleet notice when &gt;200 rows.
+- Fixed **Nodes** missing `Alert` import (large-fleet warning).
+
+### Versioning
+- **3.10.04.a2** continues sruiux2 (alpha / lab only). Next: FilterBar, viz click-through, virtualization, remaining Metrics node lists.
+
+## [3.10.04.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 IA + OpsTable start)
+
+### UI/UX (sruiux2 designer-2 P0 slice 1)
+- **P0-1 Sidebar IA:** Regroup nav — **Overview**, **Infrastructure** (CA + Cert Audit + Orch + Installer), **Classification & Code**, **Data**, **Explore** (PQL/Facts/Resources/Packages), **Insights** (hub + reports + inventory + logs + key metrics), **Settings**. Palette unchanged (⌘K).
+- **P0-2 OpsTable:** New `OpsTable` — sortable headers, client pagination (50/100/200/500), viewport-relative scroll, row counts. **Nodes → All Nodes** adopts it; large-fleet warning when &gt;200 nodes.
+- **P1-3 lite:** Dashboard **Power tools** card grid (PQL, Facts, Resources, Cert Audit, Hiera Lookup).
+
+### Versioning
+- **3.10.04.a1** opens sruiux2 train (alpha / lab only).
+
+## [3.10.03.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — ad-hoc confirm toggle)
+
+### Added
+- **Application Settings:** `skip_adhoc_confirm_dialogs` (Yes/No) — when Yes, skips confirmation for Bolt command/task/plan, r10k deploy, and Run OpenVox (Nodes list + detail). Destructive confirms (purge, certs, ENC, users) unchanged. Persisted in `.env` as `OPENVOX_GUI_SKIP_ADHOC_CONFIRM_DIALOGS`; applied in-process on save (no restart).
+
+## [3.10.03.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — hotfix)
+
+### Fixed
+- **Code Deployment:** restore `ScrollArea` / `Loader` imports (runtime `ScrollArea is not defined` after a3 OutputPane refactor).
+
+## [3.10.03.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 remaining P0)
+
+### UI/UX (sruiux1 P0 completion slice)
+- **P0 #1:** Nodes list **Run OpenVox** (confirm + activity); deploy **status poll** while running, **OutputPane** log, deploy confirm; file transfer/script tabs use **TargetSelector** + OutputPane; activity tracking on deploy / PQL / node runs.
+- **P0 #2:** **`/insights` hub** page + slim Metrics nav (hub + top views); palette **recents** (localStorage) + **dynamic node** actions from AppShell.
+- **P0 #3:** Header **Activity** hover (in-flight + recent session runs); `ActivityProvider` in App.
+- **P0 #4:** `useUrlFilters` — Nodes `?q=`, Reports `?q=&status=`, PQL `?q=` with **copy link** affordances.
+
+### Versioning
+- **3.10.03.a3** on **3.10.a_r_alpha.6** (alpha / lab only). P1+ (ENC merge-trace, tables, theme whimsy) remain.
+
+## [3.10.03.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 confirms + orch breadth + states)
+
+### UI/UX (sruiux1 continuation)
+- **Zero `window.confirm` in FE:** Certificates revoke/clean, CertAudit single clean, Installer sign/reject CSR, ENC env/group/node deletes, ConfigApp user delete — all use shared `ConfirmModal`.
+- **Orchestration:** Run **Task** uses `TargetSelector` + pre-flight confirm (privileged danger tone); Run **Plan** pre-flight confirm; plans Select gains `nothingFoundMessage`.
+- **State components rollout:** Dashboard, Nodes, Reports, Certificates, CertAudit (+ ENC env/group loaders) use `LoadingState` / `ErrorState`.
+
+### Versioning
+- **3.10.03.a2** on **3.10.a_r_alpha.6** (alpha / lab only). Remaining sruiux1: URL filters, Insights launcher, palette dynamics, deploy live tail, P1 ENC/tables/theme.
+
+## [3.10.03.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 UI/UX P0 foundations)
+
+### UI/UX (sruiux1 designer-1 P0 slice 1)
+- **Command palette (P0 #2):** `CommandPalette` + header keyboard affordance; **⌘K / Ctrl+K** via `useHotkeys` in `AppShell` (nav actions aligned to real routes).
+- **ConfirmModal (P0 #1 safety):** Mantine modal replaces `window.confirm` on NodeDetail **Purge** and gates **Run OpenVox**; Orchestration **Run Command** pre-flight with target summary (privileged = danger tone).
+- **TargetSelector (P0 #1):** Shared multi-select with selected/resolved count badge; wired on Orchestration Run Command.
+- **OutputPane (P0 #1/#6):** Filter lines + copy full output; used for NodeDetail agent output and Orchestration ResultPane human/rainbow tabs.
+- **StateComponents (P0 #3):** `LoadingState` / `EmptyState` / `ErrorState` / `SkeletonTable`; NodeDetail adopts loading/error/empty.
+
+### Versioning
+- **3.10.03.a1** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`). First slice of sruiux1 P0; more pages (certs/installer confirms, URL filters, Insights launcher) follow in later **03.aN** tags.
+
+## [3.10.02.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture close-out slice)
+
+### Architecture (remaining srdev2 A1 / A2 / A3 / A6)
+- **A6 History unification (dual-write):** `services/deploy_history.py` owns JSON deploy history; GUI deploy run + webhook append JSON **and** best-effort `execution_history` rows with `execution_type=deploy` (JSON remains source for `/api/deploy/history` UI).
+- **A1 CES remainder:** `CommandExecutionService.run_bolt_cli()` wraps `bolt_runtime.run_bolt_command` + AUDIT + optional history for new call sites.
+- **A2:** `validate_command` raises `ValidationAppError` (also a `ValueError` for legacy handlers); domain handler already maps `OpenVoxError`.
+- **A3:** `api.ts` deploy run typed as `DeployRunResult`.
+- **A7:** No remaining inline role gates in routers (auth user-mgmt role enum checks only).
+- **Tests:** `test_deploy_history.py`.
+
+### Explicitly deferred (needs product decision / larger effort — not blocking alpha)
+- Full migration off `deploy_history.json` (JSON-only UI) to DB-only history API.
+- Migrating every privileged path onto CES (GUI bolt run/* intentionally stays on bolt_execution for lab stability).
+- OpenAPI client codegen / zod on all FE responses.
+- Typed domain exceptions on every `except Exception` in puppetserver/puppetdb (partial S1 remains with srdev1).
+- Remote-host transport beyond CES stub.
+
+### Versioning
+- **3.10.02.a4** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`). Treat as **srdev2 actionable close-out** for this train pending deferred items.
+
+## [3.10.02.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture)
+
+### Architecture (srdev2 A4 — physical bolt router split)
+- Split monolith `routers/bolt.py` into modules **without changing `/api/bolt/*` URLs** or inventory architecture (ENC groups + PDB `all` in `resolve_targets`; optional ENC→`inventory.yaml` sync; live Bolt still uses inventory plugins / PuppetDB as configured):
+  - `bolt_runtime.py` — `find_bolt`, `run_bolt_command`, `resolve_targets` (re-exported from `bolt` for `metrics` etc.)
+  - `bolt_execution.py` — status, tasks/plans/inventory show, run command|task|plan
+  - `bolt_files.py` — file upload/download, script run
+  - `bolt_config_routes.py` — bolt-project/inventory file I/O, ENC inventory sync
+  - `bolt.py` — thin `APIRouter` aggregator + public re-exports
+
+### Versioning
+- **3.10.02.a3** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`).
+
+## [3.10.02.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture)
+
+### Architecture (srdev2 A1 / A3 / A4 progress)
+- **`services/bolt_orchestration.py`:** command normalize, privilege heuristic, escalation, execution-history start/finish, `BoltRunResultModel` + `sanitize_bolt_result` (strip_ansi).
+- **`routers/bolt.py`:** `/run/command|task|plan` delegate history + result shaping to orchestration service; `response_model=BoltRunResultModel`; thin compat wrappers for legacy helpers.
+- **Tests:** `backend/tests/test_bolt_orchestration.py`.
+
+### Versioning
+- **3.10.02.a2** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`).
+
+## [3.10.02.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture train marker)
+
+Closes active **srdev1** implementation push; starts **srdev2** app-architecture Phase 1 foundation. **Alpha + lab only** (`openvox.questy.org` / `10.0.100.225`). **Not merged to `main`.**
+
+### Architecture (srdev2 A2 / A3 / A7 / CES hygiene)
+- **A2 Domain errors:** `utils/exceptions.py` (`OpenVoxError`, `ValidationAppError`, `CommandExecutionError`, …) + FastAPI handler in `main.py` mapping to HTTP + `code`.
+- **A7 Router cleanup:** Remove duplicate `metrics` import in `main.py`; deploy `/run` uses `Depends(require_role("admin", "operator"))` instead of inline `request.state.user` RBAC.
+- **A1/CES:** `LocalSudoTransport` no longer uses `script -qc` (align with bolt router PTY argv path); `CommandExecutionService.execute` emits AUDIT + `strip_ansi` on outputs.
+- **A3 Contract types (start):** Frontend `BoltRunResult` / `DeployRunResult` / `EncClassifyResponse` in `types/index.ts`; `api.ts` bolt run/* typed to `BoltRunResult`.
+- **A5 Tests:** `backend/tests/test_exceptions.py`.
+
+### Versioning
+- **3.10.02.a1** on **3.10.a_r_alpha.6** (srdev2 train id).
+
+## [3.10.01.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev1 security train)
+
+Alpha-only continuation of **srdev1** security work. Lab deploy target only (`openvox.questy.org` / `10.0.100.225`). **Not merged to `main`.**
+
+### Security / observability
+- **S1 (targeted):** `exc_info=True` on privileged error paths in `services/puppetserver.py`, `services/puppetdb.py`, and all `config.py` HTTP 500 handlers; cleaner `restart_service` error log.
+- **Rec #9 AUDIT:** `utils/audit.py` + structured `AUDIT: type=… user=…` lines for Bolt command/task/plan, cert sign/revoke/clean, deploy run + webhook (no payload dumps; truncated targets/detail).
+- **S10 tests:** `test_enc_merge.py`, `test_service_tokens.py`, `test_audit.py`; extra `validate_command` cases (wipefs, device write, shutdown).
+
+### Versioning
+- **3.10.01.a2** on **3.10.a_r_alpha.6**.
+
+## [3.10.01.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev1 security train marker)
+
+Marks the start of implementing **srdev1-openvox-gui-domain-security-issues-senior-developer.md** (security-focused). **Alpha only** — not merged to `main`; lab deploy target remains **openvox.questy.org** (`10.0.100.225`) only.
+
+### Security (srdev1 S2 / S3 / S5 / S1 partial / S10 start)
+- **S2:** Bolt rainbow path no longer uses `script -qc` shell strings; always **argv + PTY** via `run_sudo` (TERM + `--color` for rainbow).
+- **S3:** Metrics live agent-disabled check avoids controller `sudo /bin/sh -c`; uses argv-oriented remote command (sudo test/head/tr/sed/awk || echo ENABLED).
+- **S5:** Expanded `validate_command` denylist (substitution, eval, interpreter `-c`/`-e`, curl|sh, wipefs, critical paths, control chars, length 2000).
+- **S1 (targeted):** `run_sudo` and deploy `_run_command` / cert ENC cleanup / bolt_status log with `exc_info=True`; privileged runner returns generic internal error on unexpected exceptions (no silent swallow).
+- **S10 start:** `backend/tests/test_validation.py` for command validation + strip_ansi + node name checks.
+
+### Versioning
+- **3.10.01.a1** on **3.10.a_r_alpha.6** (review-doc train marker; do not promote to `main` until full merge scan).
+
+## [3.10.0a38] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix openvox_enc inventory HTTP 401 on Orchestration Run Command
+- **Symptom:** `Error executing plugin openvox_enc from resolve_reference` → `API returned HTTP 401: {"detail":"Not authenticated"}`.
+- **Root cause:** `/api/enc/inventory/bolt*` was in middleware `_SKIP_AUTH_PATHS` (no `request.state.user`), while the route still used `Depends(require_role(...))` → always **401 Not authenticated**. Bearer service-token verification never ran for those paths. Lab inventory also calls the public FQDN (`https://host:4567`), so the TCP peer is often the host LAN IP, not `127.0.0.1`.
+- **Fix:** Remove inventory paths from full auth skip. Prefer verified `api_tokens` Bearer; else grant scoped `bolt-inventory-readonly` for **local control-node** peers (loopback **or** this host's own addresses). Remote callers still need JWT or a real service token. GUI admin/operator Bolt runs use `sudo -u bolt` on the control node, so inventory resolves without tying the OS plugin to the browser session JWT.
+
+### Versioning
+- **3.10.0a38** on **3.10.a_r_alpha.6**.
+
+## [3.10.0a37] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix Orchestration "Installed: No" despite Bolt on disk
+- **Root cause:** HP1 `resolve_targets` extraction accidentally removed `BOLT_PATHS` from `routers/bolt.py`, so `find_bolt()` raised `NameError` and `GET /api/bolt/status` returned **500**. Frontend treats failed status as not installed.
+- **Fix:** Restore `BOLT_PATHS`; harden `bolt_status` with direct `--version` fallback and optional `error` field when sudo version probe fails but the binary exists.
+
+### Versioning
+- **3.10.0a37** on **3.10.a_r_alpha.6**.
+
+## [3.10.0a36] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### srdevarch1 HIGH + MP1–MP3 architecture slice (alpha / lab)
+Implements prioritized application-architecture work from `srdevarch1-openvox-gui-app-architecture-refactoring-software-architect.md` without rewriting every Bolt handler in one shot.
+
+#### HP1 — Execution domain
+- `services/execution.py`: centralized `resolve_targets` (ENC groups, `all`, certnames); bolt router delegates.
+- Keeps proven `run_bolt_command` argv assembly in `routers/bolt.py` for Orchestration lab stability; CES + transport stubs remain available.
+
+#### HP2 — Central validation
+- `utils/validation.py`: `SAFE_PQL_VALUE`, `validate_pql_value`, `validate_certname`, `validate_package_name`.
+- `nodes` / `reports` / `performance` use shared validators (HTTP 400 wrappers).
+
+#### HP3 — Fleet / CA decoupling
+- `services/certificates_service.py`: CA list + cache; `puppetdb.get_fleet_nodes` no longer imports certificates **router**.
+- Certificates list endpoint delegates to the service.
+
+#### MP1 — Status / trends
+- `services/fleet_insights.py`: `compute_status_counts` / `compute_trends`; dashboard imports from there.
+
+#### MP2 / MP3 — Router + frontend discipline
+- Auth token list/scopes already on train; ENC inventory RBAC retained.
+- Frontend `api.ts` gains `auth` namespace; `AuthContext` uses it (no raw `/api/auth/*` fetch; session probe avoids 401 reload loop).
+
+### Versioning
+- **3.10.0a36** on **3.10.a_r_alpha.6** (lab deploy only).
+
+## [3.10.0a35] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Hotfix: slowapi requires parameter named `request`
+- Renamed FastAPI `Request` params from `_req` to `request` and body models to `body` on rate-limited cert/config routes so the service imports cleanly (lab deploy was crash-looping).
+
+## [3.10.0a34] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### srsysarch1 alpha-train final backlog (lab only)
+Closes remaining **practical** items from `srsysarch1-openvox-gui-domain-security-issues-systems-architect.md` on the alpha train without full remote-host HA.
+
+#### Added / completed
+- **Rate + concurrency limits** on certificate sign/revoke/clean and Hiera + service-restart config writes (`rate_limit_heavy` + `concurrency_heavy`).
+- **Service token scopes + rotation API**: validated roles (`admin`, `operator`, `viewer`, `bolt`, `bolt-inventory-readonly`, `service`); `GET /api/auth/tokens`, `GET /api/auth/tokens/scopes`, `GET /api/auth/users/{user}/tokens`, `DELETE /api/auth/tokens/{id}` (soft revoke); create path rejects unknown scopes.
+- **ENC Bolt inventory RBAC** allows scoped tokens (`bolt`, `bolt-inventory-readonly`, `service`) alongside UI roles.
+- **Optional installer IP allowlist** (`OPENVOX_GUI_INSTALLER_IP_ALLOWLIST` or `/opt/openvox-gui/etc/installer-ip-allowlist.txt`) for unauthenticated install scripts; example + `etc/README.md` deployed.
+- **CommandExecutionService**: active-job gauge, `SSHRemoteTransport` stub (fails loud), documented transport protocol; `/metrics` exposes `openvox_gui_active_heavy_jobs`.
+- Settings: `bootstrap_token`, `installer_ip_allowlist` fields for env-driven config.
+
+#### Explicitly still deferred (not alpha blockers)
+- Full migration of every subprocess site through CES (Orchestration keeps proven `run_bolt_command`; non-sudo `systemctl is-active` / version probes remain local subprocess).
+- Distributed multi-worker job queue (Celery/Redis); process-local job counter only.
+- Dedicated non-root package-sync OS user (document + network controls instead).
+- Full remote-host SSH execution plane implementation.
+- Rich Users UI for token management (API is complete; ovox/CLI can rotate).
+
+### Versioning
+- Incremented pre-release to **3.10.0a34** on branch **3.10.a_r_alpha.6**.
+
+## [3.10.0a33] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix Log Viewer empty panes (sudoers argv mismatch)
+- **Symptom:** Logs | Log Viewer tabs (OpenVox GUI, Puppet Agent, PuppetServer, PuppetDB, System Log) showed no lines on the lab host.
+- **Root cause:** `backend/app/routers/logs.py` invoked `journalctl --no-pager -n N --output short-iso -u <unit>` and `tail -n N <path>`, but sudoers only allowed `journalctl -u <unit>` with no further arguments and `tail -n <path>` without a line count — every privileged read was denied and the API returned empty `lines` arrays.
+- **Fix:** Align command argv with explicit sudoers rules in `scripts/ensure-sudoers.sh` / `docs/SUDOERS.md` (`journalctl -u <unit> --no-pager -n * --output short-iso` [+ optional `--since *`], host journal without `-u` for System Log, `tail -n * <path>`). Use `run_sudo` (PTY) for requiretty-safe execution; surface read errors in the API payload; show backend hint in the UI empty state.
+- Lab-only validation on alpha train **3.10.0a33**.
+
+### Versioning
+- Incremented pre-release to **3.10.0a33** on branch **3.10.a_r_alpha.6**.
+
+## [3.10.0a32] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix Orchestration Run Command: sudo preserve-environment denied
+- **Symptom:** Infrastructure → Orchestration → Run Command (e.g. `whoami` on All Nodes) failed with `sudo: sorry, you are not allowed to preserve the environment`.
+- **Root cause:** Since 3.10.0a27 the GUI invokes Bolt as `sudo -E -u bolt <bolt> ...` so controller local transport runs as the `bolt` user; sudoers granted `(bolt)` / `(root)` `NOPASSWD` on the bolt binary but **without** the `SETENV` tag required for `sudo -E`.
+- **Fix:** `scripts/ensure-sudoers.sh` now writes `NOPASSWD:SETENV:` on all four bolt binary rules (`(bolt)` and `(root)`, both `/opt/puppetlabs/bolt/bin/bolt` and `/usr/local/bin/bolt`). Documented in `docs/SUDOERS.md` (including the missing `(bolt)` run-as lines).
+- Deploy/update rewrites `/etc/sudoers.d/openvox-gui-users` via ensure-sudoers; lab-only validation on this alpha train.
+
+### Versioning
+- Incremented pre-release to **3.10.0a32** on branch **3.10.a_r_alpha.6**.
+
+## [3.10.0a31] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Version / lab redeploy
+- Incremented pre-release to **3.10.0a31** on branch **3.10.a_r_alpha.6** (no feature delta vs a30; carries HEAD `253581f` systems-architect remainder for a clean lab redeploy and dashboard version visibility).
+- Standing rule: every meaningful alpha-train push increments the `3.10.0aN` counter even when the git branch name stays `3.10.a_r_alpha.6`.
+
+## [3.10.0a30] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Systems architect (srsysarch1) remainder — alpha train / lab only
+Continues P0/P1 items from `srsysarch1-openvox-gui-domain-security-issues-systems-architect.md` that were not fully closed on earlier alpha commits (WAL, CommandExecutionService PoC, bootstrap token, rate/concurrency limits, visudo fail-deploy, approved bolt prefixes, r10k optional allow-list hooks were already present).
+
+#### Added
+- **Prometheus-style `/metrics`** (actionable #9): maintenance enabled, deploy-in-progress, package mirror sync age, SQLite row counts (users/execution_history/enc_*/api_tokens), PS health ring length, `openvox_gui_info{version=...}`. Unauthenticated for scrapers; allowed through maintenance middleware allowlist (same class as `/health`).
+- **`deploy.pid` marker** during `deploy.sh` (actionable #6): prevents auto-clear of "stuck" maintenance while a long deploy PID is still alive. Combined EXIT trap clears PID + maintenance page.
+- **`etc/allowed-environments.txt.example`**: documents optional strict r10k env allow-list; deployed to `/opt/openvox-gui/etc/` without overwriting an operator-installed `allowed-environments.txt`.
+
+#### Fixed / hardened
+- **Maintenance stuck logic** honors live `deploy.pid` before auto-clear; exposes `deploy_in_progress` in maintenance info.
+- **`puppetserver_service.restart_service`**: uses list-form `run_sudo` instead of raw `subprocess.run(["sudo", ...])` (P0 subprocess audit path).
+- **deploy.sh trap**: single trap clears both deploy marker and maintenance (avoids overwriting deploy-pid-only trap).
+
+#### Already on train (recap — not re-done)
+- SQLite WAL + synchronous=FULL + busy_timeout + shutdown checkpoint
+- CommandExecutionService + LocalSudoTransport (partial migration; Orchestration bolt path restored for lab correctness)
+- Optional `OPENVOX_GUI_BOOTSTRAP_TOKEN` on installer scripts
+- `rate_limit_heavy` + `concurrency_heavy` on Bolt/deploy
+- ensure-sudoers visudo -cf fail + sudoers diff vs backup
+- r10k-deploy.sh optional allow-list file + reject `--config-file`
+- Bolt APPROVED_SAFE_PREFIXES for common `puppet agent -t` cases
+- Atomic+fsync maintenance.json and deploy_history.json
+
+#### Still deferred (large follow-ups, not blocking this slice)
+- Full migration of every router/service through CommandExecutionService
+- Background job queue for multi-minute Bolt/r10k (beyond wait_for)
+- Service-token scope UI / rotation
+- Full remote-host SSH transport
+- Package sync as non-root least-priv user
+
+### Versioning
+- Incremented pre-release to **3.10.0a30** on branch **3.10.a_r_alpha.6** (lab deploy only: openvox.questy.org / 10.0.100.225).
+
+## [3.10.0a29] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Executive Summary Report enhancements (Logs | Reports)
+- Added "From email" text box (global for the report) so users in strict environments can set a custom sender address. Passed to the generator script via --from-email and used with mail -r.
+- Added schedule configuration: enable/disable, day-of-week (Mon-Sun), time (HH:MM).
+- Ad-hoc sending remains (Send now / Send to all now), now also passes the from_email if set.
+- Scheduled delivery: the generator script now fetches config and only delivers when schedule matches (supports specific day/time + regular weekly cadence). Ad-hoc bypasses schedule check.
+- Backend: new /reports/executive-summary/config GET/PUT, updated send to support from_email, new model + schema.
+- Generator script updated to accept --from-email, fetch config on --live, and enforce schedule.
+- UI updated in Executive Summary pane.
+
+### Versioning
+- Incremented pre-release to 3.10.0a29.
 
 Assisted By: Grok AI
+
+## [3.10.0a28] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix sudoers and key perms for bolt user (to support sudo -u bolt)
+- Moved the bolt config/key perms fix in ensure-sudoers.sh to after the sudoers file is written (was inside heredoc in previous edit, causing visudo fail).
+- Now on every deploy, sets chown root:bolt and 640/g+rwX so bolt user can read the SSH key when CLI is invoked as bolt.
+- Also added the (bolt) sudo rules.
+
+### Versioning
+- Incremented pre-release to 3.10.0a28.
+
+Assisted By: Grok AI
+
+## [3.10.0a27] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Remediation for GitHub secret alert (no passwords in source)
+- Changed _DEFAULT_SECRET_KEY from generic "change-me-in-production" (flagged by GH secret scanning as generic password) to a non-password placeholder.
+- Never commit real or generic passwords/secrets. Use env only.
+
+### Fix bolt command user on controller (permanent)
+- Changed bolt CLI invocation to `sudo -E -u bolt bolt ...` so local transport runs commands as 'bolt' by default on server (whoami=bolt).
+- Agents use SSH as bolt.
+- Updated run_sudo to support env.
+- Updated ensure-sudoers.sh to:
+  - Allow service user to run bolt binary as (bolt) and (root).
+  - Fix perms on /etc/puppetlabs/bolt/* to 640 root:bolt so bolt user can read key.
+- Updated inventory example comments.
+- This makes default 'bolt' on all nodes (server local as bolt, agents ssh bolt), privileged uses sudo prefix on target.
+- Matches the requirement and main branch intent without global run-as.
+- Deploy will apply the perms and rules.
+
+### Versioning
+- Incremented pre-release to 3.10.0a27.
+
+Assisted By: Grok AI
+
+## [3.10.0a26] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix 500 error in Orchestration run_command
+- Restored missing history_entry creation in run_command (was removed during alpha refactors but update code remained, causing NameError -> 500 Internal Server Error when running commands from UI).
+- Now matches main branch exactly: create history before execute, update after.
+- Frontend calls 3 formats in parallel, so multiple 500s observed.
+- Orchestration command execution behavior now matches main as requested.
+
+### Versioning
+- Incremented pre-release to 3.10.0a26.
+
+Assisted By: Grok AI
+
+## [3.10.0a25] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Restore Orchestration command execution to match main branch behavior
+- Reverted run_command in bolt.py to use the exact logic from main (referenced via git show main:backend/app/routers/bolt.py):
+  - Direct call to run_bolt_command (no CommandExecutionService wrapper for this path).
+  - escalate = bool(req.run_as) or _command_needs_root(normalized)  [no is_approved]
+  - Prefix "sudo " only when run_as or needs root heuristic.
+  - History creation and update as on main.
+- This makes default commands run as the inventory 'bolt' user on agents, and (per main's design with local transport) the server behaves consistently with how main did.
+- Reverted the openvox_enc plugin and inventory.yaml.example to exactly match main's (no forced local+run-as special case in plugin; local group is just "transport: local" as on main).
+- Reverted sudoers and other alpha-only changes for this feature.
+- The CommandExecutionService and other P0 refactors remain for other paths, but Orchestration "Run Command" now matches main's proven implementation.
+- Logic explicitly referenced from main branch to ensure identical behavior for this feature without any changes to main.
+
+### Versioning
+- Incremented pre-release to 3.10.0a25.
+
+Assisted By: Grok AI
+
+## [3.10.0a24] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix: server node now defaults to 'bolt' user (Orchestration "all targets")
+- The openvox_enc plugin now correctly special-cases the controller node:
+  - Detects local certname using `puppet config print certname` (fallback hostname -f).
+  - Emits `transport: local` + `run-as: <user>` (bolt) for the server.
+  - All other nodes get normal ssh + user: bolt.
+- This ensures that when the GUI expands "all" (via PDB) and Bolt resolves via the _plugin (for enc or puppetdb-all groups), the server target gets the local+run-as config.
+- Combined with `sudo bolt` (root) invocation for the CLI (to read keys), default commands now run as 'bolt' on server and agents.
+- "Run privileged" continues to escalate on target.
+- Updated plugin comments.
+- The earlier post-processing in enc.py and static example are now secondary; the plugin is the authoritative path for dynamic "all".
+
+### Versioning
+- Incremented pre-release to 3.10.0a24.
+
+Assisted By: Grok AI
+
+## [3.10.0a23] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Permanent fix for command user on controller vs agents (Orchestration)
+- "whoami" (and other commands) against "all" now correctly run as the 'bolt' user on *every* node (server + agents) by default.
+- When "Run privileged" is checked, runs as root on the target.
+- Root cause of repeated breakage: controller uses `transport: local` (inventory.yaml.example), and GUI was flipping between `sudo bolt` (root context for local) and `sudo -u bolt bolt` (broke remote key access for some users).
+- Permanent repair:
+  - Always invoke bolt CLI via `sudo bolt ...` (as root, so keys in /etc/puppetlabs/bolt/ are readable).
+  - For the controller node, set `transport: local` + `run-as: bolt` (both in the static example and dynamically in /api/enc/inventory/bolt).
+  - Default commands run as 'bolt' via run-as on local (or ssh user on remote).
+  - Privileged still uses "sudo <cmd>" prefix or --run-as (escalates on target via bolt user's sudoers).
+  - Updated plugin comments, example, sudoers, and ENC generation.
+- This should not regress again. The design now matches the documented behavior and pre-alpha state.
+
+### Versioning
+- Incremented pre-release to 3.10.0a23.
+
+Assisted By: Grok AI
+
+## [3.10.0a22] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Fix (Orchestration default user)
+- Commands run from Infrastructure | Orchestration now correctly execute as the 'bolt' SSH user on *all* targets (including the controller node itself) unless "Run privileged" is checked.
+- Root cause: the server node uses `transport: local` in inventory (see bolt-plugin/inventory.yaml.example). The GUI was invoking the bolt CLI via `sudo bolt` (as root), so local transport executed commands as root.
+- Fix: invoke bolt CLI as the 'bolt' user via `sudo -u bolt bolt ...` (in run_bolt_command and the command handler). Local commands now run in 'bolt' context by default. "sudo <cmd>" prefix (from privileged checkbox or heuristic) still escalates on target via the bolt user's sudoers.
+- Updated ensure-sudoers.sh to allow the service user to run the bolt binary as (bolt) in addition to (root).
+- This makes GUI behavior match documented expectations and direct CLI usage as the bolt user (`whoami` returns "bolt" by default on every node).
+
+### Versioning
+- Incremented pre-release to 3.10.0a22.
+
+Assisted By: Grok AI
+
+## [3.10.0a21] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Concurrency limit tuning (Orchestration)
+- Raised heavy concurrency semaphore from 2 to 3 to match the UI behavior in Infrastructure > Orchestration, which intentionally does Promise.all of 3 parallel /bolt/run/command calls (human + json + rainbow formats) for one user action.
+- Increased acquire wait timeout from 0.1s to 5s so legitimate parallel format fetches don't immediately 429.
+- Fixes spurious "Too many concurrent heavy operations from this client" when running commands (e.g. whoami on all targets).
+
+### Versioning
+- Incremented pre-release to 3.10.0a21.
+
+Assisted By: Grok AI
+
+## [3.10.0a20] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Bugfix (Orchestration)
+- Fixed "bolt command run" execution path (Infrastructure > Orchestration): the central CommandExecutionService was being passed only Bolt subcommand args (["command", "run", ...]) instead of the full sudo+bolt invocation list. This caused the controller to exec /usr/bin/command with "run" as the command name, producing "run: command not found" and EXIT 27.
+- Now correctly builds and passes the full `["sudo", bolt, "command", "run", user_cmd, ...]` list to the service (matching pre-refactor behavior in run_bolt_command).
+- Fixes running arbitrary commands (e.g. "whoami") against targets.
+
+### Versioning
+- Incremented pre-release to 3.10.0a20 (every commit is a version increment per project rule).
+
+Assisted By: Grok AI
+
+## [3.10.0a19] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### P0 subprocess audit and list-form
+- Audit of remaining subprocess.run: most critical paths (status, version, sudo ops) use list form with no unvalidated user data in command strings.
+- Converted sudo cat in read_puppetdb_config to use run_sudo (via executor) for consistency with P0 recommendation to prefer run_sudo helper.
+- Addresses "Consistent list-form subprocess everywhere" P0.
+
+### Versioning
+- Incremented pre-release to 3.10.0a19.
+
+Assisted By: Grok AI
+
+## [3.10.0a18] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### P0 timeout for long ops
+- Added asyncio.wait_for around transport.run in CommandExecutionService.execute to enforce timeout and prevent long Bolt/r10k ops from starving the uvicorn event loop/server.
+- Addresses "Timeout + resource limits on long ops" P0 from srsysarch1 report (central path now protected; per-call timeouts already existed in bolt/deploy).
+
+### Versioning
+- Incremented pre-release to 3.10.0a18.
+
+Assisted By: Grok AI
+
+## [3.10.0a17] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### P0 fsync/atomic for Hiera
+- Converted write_hiera_config and write_hiera_data_file to use atomic tempfile + fsync + os.replace (matching pattern for maintenance/deploy_history).
+- Completes the "Explicit fsync / atomic writes for critical state (maintenance.json, deploy_history, Hiera writes)" P0 item from srsysarch1 report.
+
+### Versioning
+- Incremented pre-release to 3.10.0a17 (atomic version increment per rule for this change set).
+
+Assisted By: Grok AI
+
+## [3.10.0a16] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Observability (metrics)
+- Enhanced /api/deploy/metrics to include current maintenance message when active (small incremental improvement to the basic Prometheus exposition added earlier for the report).
+
+### Versioning
+- Incremented pre-release to 3.10.0a16 as its own atomic change set.
+
+Assisted By: Grok AI
+
+## [3.10.0a15] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Observability improvement (CommandExecutionService)
+- Service now returns `executed_args` in result for better debugging and error surfacing (directly addresses P1 "Better error surfacing for external commands" from srsysarch1 report).
+- This is a separate atomic change set with its own version increment.
+
+### Versioning
+- Incremented pre-release to 3.10.0a15.
+- Strict rule now in force: every commit I make is a version increment (bump-version.sh + annotated tag) providing an explicit pointer for rollback to any individual change set.
+
+Assisted By: Grok AI
+
+## [3.10.0a14] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Refactor hygiene (CommandExecutionService centralization)
+- Removed duplicate manual ExecutionHistory creation in `/api/bolt/run/command`.
+- The central `CommandExecutionService.execute()` is now solely responsible for recording (as intended by the P0 "scattered command execution" item from srsysarch1 report).
+- This is the first strictly atomic version-incremented commit under the new rule that every commit must correspond to one explicit change set + version bump + tag (for precise rollback).
+
+### Versioning
+- Incremented pre-release to 3.10.0a14.
+- Every commit from this point is a version increment with an annotated tag pointer (v3.10.0aNN) so any stage of the alpha train can be checked out exactly.
+
+Assisted By: Grok AI
+
+## [3.10.0a13] - 2026-06-24 (on 3.10.a_r_alpha.6)
+
+### Systems Architecture Hardening (srsysarch1 report) - remaining P0/P1/actionable batches
+- CommandExecutionService + LocalSudoTransport skeleton introduced (services/command_execution.py). Bolt /run/command refactored to use it as proof-of-concept for central list-form + history + pluggable transport (addresses scattered execution P0 + actionable #2 + #7).
+- r10k-deploy.sh hardened with optional strict allowed-environments.txt allow-list + rejection of --config-file overrides (actionable #8).
+- deploy.sh now explicitly runs visudo -cf + diff after ensure (actionable #10; ensure already fails on bad).
+- Maintenance get_maintenance_info now auto-clears stuck flags >45min (actionable #6, extends P1).
+- Added basic /api/deploy/metrics Prometheus exposition (maintenance active, last deploy ts) (actionable #9).
+- Subprocess audit pass: all new paths prefer run_sudo / central service where possible; comments added for remaining direct uses.
+- Bootstrap token (a12) + concurrency + fsync + bolt prefixes + sudoers + sqlite cover the main contained P0/P1 from the report.
+
+Large refactors (full migration of all callers to CommandExecutionService, full SSH transport, per-user scopes) are started and documented for follow-up on the train before merge to main.
+
+### Versioning
+- Incremented pre-release to 3.10.0a13.
+- Branch number incremented to 3.10.a_r_alpha.6 (per "increment the branch's number on every commit" rule for milestone batches on the alpha train).
+
+Assisted By: Grok AI
+
+**Branch increment note**: Earlier batches in this effort were committed while checked out on 3.10.a_r_alpha.5. The alpha branch N has now been properly incremented for the completed work per project strategy. All future commits on this refactor will use the next .N branch.
+
+## [3.10.0a12] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - bootstrap token for installer (P0)
+- Actionable #3: optional bootstrap token protection for unauthenticated /api/installer/script/install.bash and .ps1 endpoints.
+  - If OPENVOX_GUI_BOOTSTRAP_TOKEN is set in env, the endpoints now require header X-OpenVox-Bootstrap-Token or ?bootstrap_token= (exact match for simplicity).
+  - If not set, fully backward compatible (no token required) for 30+ day transition.
+  - Strengthens package mirror / bootstrap script surface (agents still get packages via 8140 preferred).
+- Added _require_bootstrap_token helper. Recommended to set at install time for new deployments.
+
+### Versioning
+- Incremented pre-release to 3.10.0a12.
+
+Assisted By: Grok AI
+
+## [3.10.0a11] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - bolt execution surface (P0)
+- Added explicit APPROVED_SAFE_PREFIXES list for the common safe "puppet agent -t" / "--test" cases (and --noop variants).
+  - _is_approved_safe_command() helper + usage in /run/command handler.
+  - Approved prefixes force system paths (via prepare_puppet_agent_command) + sudo escalation on target.
+  - This makes the "common case" first-class and explicit rather than purely heuristic-based (addresses top P0 recommendation to harden free-form vs. known-good puppet agent runs).
+- Free-form commands continue to flow through full validate_command + heuristic for other privileged ops.
+
+### Versioning
+- Incremented pre-release to 3.10.0a11.
+
+Assisted By: Grok AI
+
+## [3.10.0a10] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - fsync / atomic writes (P0)
+- Added explicit atomic write + fsync for critical live state files:
+  - deploy_history.json (in _save_history): temp + fsync + os.replace.
+  - maintenance.json (in enable_maintenance): same atomic+fsync pattern.
+- Addresses P0 recommendation for durability of maintenance state and deployment audit history (prevents partial writes on crash/power loss).
+- Hiera/config writes already had backup-before-write; these two are the primary "state" files called out.
+- Complements the SQLite WAL/FULL/checkpoint work (a6).
+
+### Versioning
+- Incremented pre-release to 3.10.0a10 per established alpha train rule.
+
+Assisted By: Grok AI
+
+## [3.10.0a9] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - concurrency limits
+- Completed actionable #4: added per-client concurrency limit (2 concurrent) alongside rate limiting for heavy endpoints.
+  - New `concurrency_heavy` async dependency in middleware/security.py using asyncio.Semaphore per IP key.
+  - Applied to all Bolt run/* and Deploy /run (in addition to existing @rate_limit_heavy()).
+  - Returns 429 with Retry-After when limit hit. Complements the rate limit (10/min).
+- This prevents abuse or accidental starvation of the server during long-running privileged ops (Bolt, r10k).
+- Rate was previously applied in a8; this batch finishes the "rate + concurrency" P1 item.
+
+### Versioning
+- Incremented pre-release to 3.10.0a9 per rule (every meaningful push increments alpha counter on the train).
+
+Assisted By: Grok AI
+
+## [3.10.0a8] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - rate limiting
+- Applied `rate_limit_heavy()` (10/min per IP) to all dangerous orchestration and deployment endpoints:
+  - Bolt: /api/bolt/run/command, /run/task, /run/plan, /run/script
+  - Deploy: /api/deploy/run
+- These were previously covered only by the generic api rate limit. Now explicitly classified as "heavy" alongside PQL.
+- Lays groundwork for additional per-user concurrency limits (semaphores) in a follow-up if needed.
+- Matches P1 recommendation for rate limiting + concurrency on high-impact endpoints.
+
+### Versioning
+- Incremented pre-release to 3.10.0a8 on the alpha branch.
+
+Assisted By: Grok AI
+
+## [3.10.0a7] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture Hardening (srsysarch1 report) - follow-up
+- Sudoers script (P1): emit unified diff vs .bak on every rewrite; run `visudo -cf` after substitution and FAIL the script (exit 1) on syntax errors so the calling deploy leaves maintenance mode active for operator intervention.
+- This strengthens the "full rewrite on deploy" model with automatic validation + visibility, per the systems architect recommendation.
+- No change to the actual rules; only the management script's safety behavior.
+- Script continues to use quoted heredoc per project AGENTS.md rules.
+
+### Versioning
+- Incremented pre-release to 3.10.0a7 on the alpha branch for this discrete improvement batch.
+
+Assisted By: Grok AI
+
+## [3.10.0a6] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Systems Architecture / Security Hardening (srsysarch1 report)
+- SQLite P0 hardening (durability + concurrency for critical state):
+  - WAL mode was already present from prior work. Completed the recommendation by adding:
+    - `PRAGMA synchronous = FULL`
+    - `PRAGMA busy_timeout = 10000`
+    - `PRAGMA wal_autocheckpoint = 2000`
+  - Added `checkpoint_database()` (FULL checkpoint) and invoke it during lifespan shutdown.
+  - Protects SQLite contents used for users, ENC (common/env/group/node), execution_history, token denylist, executive reports, and sessions.
+  - Directly implements actionable item from the Systems / Runtime / Deployment Architecture Assessment (srsysarch1-openvox-gui-domain-security-issues-systems-architect.md).
+
+### Versioning
+- Incremented pre-release to 3.10.0a6 per project rule (every meaningful push on the alpha train increments the counter).
+- All changes pushed to the 3.10.a_r_alpha.5 branch only. Branch alpha number will increment on subsequent milestone batches. Main branch is untouched.
+
+Assisted By: Grok AI
+
+## [3.10.0a5] - 2026-06-24 (on 3.10.a_r_alpha.5)
+
+### Versioning
+- Incremented branch to 3.10.a_r_alpha.5 and version to 3.10.0a5 to keep them in sync for this push.
+- Follows established process: increment branch alpha number and app pre-release version on every push.
+
+## [3.10.0a4] - 2026-06-24 (on 3.10.a_r_alpha.1)
+
+### Versioning
+- Incremented pre-release to 3.10.0a4 for verification push and additional P1 items from enterprise report.
+
+### Enterprise Recommendations Follow-up
+- Added basic /api/execution-history/audit/export endpoint (P1.7) returning structured JSON for history (actor, timestamps, etc.). Can be extended.
+- Updated installer.sh with supply-chain note for --require-hashes (P1.9).
+- Updated AGENTS.md with SBOM/provenance step in release process (P1.9).
+- Verified all P0 items implemented in deployed code and lab infrastructure (history hardening, cookie auth, token roles, no-none guard, RBAC consistency, bolt user setup, sudoers, inventory).
+- Inventory and targets configured for default 'bolt' user (no global run-as), with users/keys/sudoers provisioned for functionality testing.
+- Plugin updated to enforce user: bolt for dynamic targets.
+
+## [3.10.0a3] - 2026-06-24 (on 3.10.a_r_alpha.1)
+
+### Versioning
+- Incremented pre-release version to 3.10.0a3 for this push of dev work on the alpha branch.
+- Follows project rule: every meaningful push increments the pre-release counter.
+
+## [3.10.0a2] - 2026-06-24 (on 3.10.a_r_alpha.1)
+
+### Versioning
+- Incremented pre-release version to 3.10.0a2 for next push of dev work on the alpha branch.
+- Follows project rule: every meaningful push increments the pre-release counter.
+
+## [3.10.a_r_alpha.1] - Unreleased (Alpha Refactor Development Branch)
+
+### Process & Strategy Declaration
+- Created dedicated development branch `3.10.a_r_alpha.1` (incrementing alpha counter for milestones) to implement recommendations from the June 2026 subagent evaluation reports (security, architecture, systems, enterprise, and UI/UX).
+- **Strict testing policy declared**: All validation and testing deploys are performed **exclusively** against the lab server `openvox.questy.org` (10.0.100.225). Production infrastructure is never targeted from this branch or its changes.
+- Deploys for validation **always** use maintenance mode (`ovox maintenance enable` ... `update_remote.sh --yes` ... `ovox maintenance disable`).
+- Updated project instructions (AGENTS.md) with the full branching and testing strategy for this effort to ensure zero impact on end users.
+- All work on this branch will follow the full pre-commit checklist, conventional commits, and the `/commit` skill process.
+- Alpha number will be incremented (e.g. `3.10.a_r_alpha.2`) to mark meaningful progress batches.
+
+### Enterprise Architecture Recommendations (from subagent report) - Implemented in 3.10.a_r_alpha.1
+- P0: Hardened execution history deletes with require_role("admin") + logging.
+- P0: Removed raw JWT persistence from localStorage (prefer httpOnly cookie).
+- P0: Added role scoping for service tokens (configurable, default still operator for compat; new "bolt" etc.).
+- P0: Strengthened "none" auth guard to fail on non-localhost/debug binds.
+- P0: Converted inline admin checks in auth.py user mgmt to use require_role dependency.
+- P1: Added role to ApiToken model + migration; updated create/verify/CLI/API.
+- P1: Basic supply-chain comment + hash note in requirements.
+- Updated AGENTS.md, CHANGELOG, models, routers, frontend, ovox for scoping and hardening.
+- All changes on alpha branch only; lab testing with maintenance.
 
 ## [3.9.7] - 2026-06-24
 

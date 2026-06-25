@@ -95,7 +95,7 @@ class PuppetDBService:
             logger.error(f"PuppetDB HTTP error: {e.response.status_code} - {e.response.text}")
             raise
         except Exception as e:
-            logger.error(f"PuppetDB connection error: {e}")
+            logger.error(f"PuppetDB connection error: {e}", exc_info=True)
             raise
 
     # ─── Nodes ──────────────────────────────────────────────
@@ -150,17 +150,15 @@ class PuppetDBService:
         signed certificates), and the previously "lost" nodes become visible
         (with appropriate unreported/orphan status).
         """
-        # Local import: certificates router already depends on puppetdb_service,
-        # so we import the list function at runtime inside the method to avoid
-        # any module-level import cycles.
-        from ..routers.certificates import list_certificates
+        # Domain service (srdevarch1 HP3) — no router import / cycle.
+        from .certificates_service import list_certificates as list_ca_certificates
 
         # Get the authoritative list of signed certs (the fleet)
         try:
-            cert_data = await list_certificates()
+            cert_data = await list_ca_certificates()
             signed_certs = cert_data.get("signed", []) if isinstance(cert_data, dict) else []
         except Exception as e:
-            logger.warning(f"Failed to load CA signed cert list for fleet nodes: {e}")
+            logger.warning(f"Failed to load CA signed cert list for fleet nodes: {e}", exc_info=True)
             signed_certs = []
 
         # Get the richest possible PDB data (active + deactivated + expired)
@@ -168,7 +166,7 @@ class PuppetDBService:
         try:
             pdb_nodes = await self.get_nodes(include_inactive=True)
         except Exception as e:
-            logger.warning(f"Failed to load full PDB nodes for fleet enrichment: {e}")
+            logger.warning(f"Failed to load full PDB nodes for fleet enrichment: {e}", exc_info=True)
             pdb_nodes = []
 
         pdb_map: dict[str, dict] = {}
@@ -249,7 +247,7 @@ class PuppetDBService:
             logger.info(f"Deactivated node '{certname}' from PuppetDB via command API")
             return True
         except Exception as e:
-            logger.warning(f"Failed to deactivate node '{certname}' via PuppetDB API: {e}")
+            logger.warning(f"Failed to deactivate node '{certname}' via PuppetDB API: {e}", exc_info=True)
             return False
 
     # ─── Reports ────────────────────────────────────────────
@@ -303,7 +301,7 @@ class PuppetDBService:
         try:
             return await self._query(f"reports/{report_hash}/logs")
         except Exception as e:
-            logger.warning(f"Failed to fetch logs for report {report_hash}: {e}")
+            logger.warning(f"Failed to fetch logs for report {report_hash}: {e}", exc_info=True)
             return []
 
     async def get_report_metrics(self, report_hash: str) -> List[Dict]:
@@ -316,7 +314,7 @@ class PuppetDBService:
         try:
             return await self._query(f"reports/{report_hash}/metrics")
         except Exception as e:
-            logger.warning(f"Failed to fetch metrics for report {report_hash}: {e}")
+            logger.warning(f"Failed to fetch metrics for report {report_hash}: {e}", exc_info=True)
             return []
 
     # ─── Facts ──────────────────────────────────────────────
@@ -528,7 +526,7 @@ class PuppetDBService:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to get PuppetDB status: {e}")
+            logger.warning(f"Failed to get PuppetDB status: {e}", exc_info=True)
             return {}
 
     async def get_pdb_metrics(self, metric_name: str) -> Dict:
@@ -539,7 +537,7 @@ class PuppetDBService:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to get PuppetDB metric {metric_name}: {e}")
+            logger.warning(f"Failed to get PuppetDB metric {metric_name}: {e}", exc_info=True)
             return {}
 
     # ─── System Inventory Report ────────────────────────────

@@ -1,0 +1,15 @@
+# Optional allowlist for unauthenticated installer script endpoints:
+#   GET /api/installer/script/install.bash
+#   GET /api/installer/script/install.ps1
+#
+# Copy to /opt/openvox-gui/etc/installer-ip-allowlist.txt (not overwritten on deploy)
+# OR set OPENVOX_GUI_INSTALLER_IP_ALLOWLIST=10.0.0.0/8,192.168.1.0/24
+#
+# One IP or CIDR per line. Lines starting with # are ignored.
+# If the file is absent and the env var is empty, all clients are allowed
+# (backward compatible). Prefer combining with OPENVOX_GUI_BOOTSTRAP_TOKEN.
+#
+# Examples:
+# 10.0.0.0/8
+# 192.168.0.0/16
+# 127.0.0.1

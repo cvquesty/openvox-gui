@@ -1024,19 +1024,16 @@ async def check_agent_disabled_live(
 
         resolved = await resolve_targets(req.targets, db)
 
-        # Use sudo + /bin/sh -c for the compound shell statement (if/fi).
-        # Prefixing "sudo if ..." would make sudo try to exec a command named "if"
-        # (shell builtins are not external commands). The sh -c form ensures the
-        # entire conditional runs under root (to read the root-owned lockfile).
-        inner = (
-            'if [ -f /opt/puppetlabs/puppet/cache/state/agent_disabled.lock ]; then '
-            '  msg=$(cat /opt/puppetlabs/puppet/cache/state/agent_disabled.lock 2>/dev/null | head -n 1 | tr -d "\n\r" | sed \'s/"/\\\\"/g\'); '
-            '  echo "DISABLED:$msg"; '
-            'else '
-            '  echo "ENABLED"; '
-            'fi'
+        # Avoid /bin/sh -c on the controller (srdev1 S3). Run a single argv-safe
+        # command on targets: test + cat via sudo so root-owned lock is readable.
+        # Output is either DISABLED:<msg> or ENABLED (parsed below).
+        command = (
+            "sudo /usr/bin/test -f /opt/puppetlabs/puppet/cache/state/agent_disabled.lock "
+            "&& sudo /usr/bin/head -n 1 /opt/puppetlabs/puppet/cache/state/agent_disabled.lock "
+            "| /usr/bin/tr -d '\\n\\r' | /usr/bin/sed 's/\"/\\\\\"/g' "
+            "| /usr/bin/awk '{print \"DISABLED:\" $0}' "
+            "|| echo ENABLED"
         )
-        command = f"sudo /bin/sh -c '{inner}'"
 
         args = ["command", "run", command, "--targets", resolved, "--format", "json"]
 

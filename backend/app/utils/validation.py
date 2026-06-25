@@ -169,38 +169,142 @@ def validate_pql_query(query: str) -> str:
     return query
 
 
+# ─── PQL interpolation values (srdevarch1 HP2) ─────────────────
+# Single source for certname/status/env/package fragments embedded in PQL.
+# Previously duplicated in routers/nodes.py, reports.py, performance.py.
+
+SAFE_PQL_VALUE = re.compile(r"^[a-zA-Z0-9._-]+$")
+
+
+def validate_pql_value(value: str, field_name: str = "value") -> str:
+    """
+    Validate a single token safe to interpolate into PuppetDB PQL.
+
+    Rejects anything outside [A-Za-z0-9._-] so operators cannot inject
+    PQL operators or quotes via path/query parameters.
+    """
+    if value is None:
+        raise ValueError(f"Invalid {field_name}: empty")
+    value = str(value).strip()
+    if not value:
+        raise ValueError(f"Invalid {field_name}: empty")
+    if not SAFE_PQL_VALUE.match(value):
+        raise ValueError(
+            f"Invalid {field_name}: must match {SAFE_PQL_VALUE.pattern}"
+        )
+    return value
+
+
+def validate_certname(certname: str) -> str:
+    """Validate a Puppet certname for CA ops and PQL (alias of node name + PQL-safe)."""
+    # Prefer FQDN-style node validation; fall back message aligns with CA routes.
+    try:
+        return validate_node_name(certname)
+    except ValueError:
+        # Some labs use short names; still enforce PQL-safe charset
+        return validate_pql_value(certname, "certname")
+
+
+def validate_package_name(name: str) -> str:
+    """Package name fragment for inventory / PQL queries."""
+    return validate_pql_value(name, "package name")
+
+
+# Back-compat aliases used during migration from private router helpers
+_SAFE_PQL_VALUE = SAFE_PQL_VALUE
+_validate_pql_value = validate_pql_value
+
+
 def validate_command(command: str, allowed_commands: Optional[List[str]] = None) -> str:
     """
-    Validate a shell command for Bolt execution.
+    Validate a shell command for Bolt execution (denylist + optional allowlist).
+
+    This is a defense-in-depth choke point (srdev1 S5), not a full shell parser.
+    Operators still run arbitrary commands on targets by design; we block the
+    most destructive / obviously hostile patterns and length abuse.
+
+    Raises ValueError for backward compatibility; also raises ValidationAppError
+    when domain exceptions are preferred (same message) — callers catching
+    ValueError continue to work (srdev2 A2: ValidationAppError subclasses Exception
+    but we use ValueError as primary so existing ``except ValueError`` in routers works).
     """
-    # If allowed commands list is provided, check against it
+    def _fail(msg: str) -> None:
+        # ValueError keeps existing router ``except ValueError`` paths working.
+        # ValidationAppError is available for new call sites / handlers (srdev2 A2).
+        try:
+            from .exceptions import ValidationAppError
+            raise ValidationAppError(msg) from None
+        except ImportError:
+            raise ValueError(msg)
+
+    if command is None or not isinstance(command, str):
+        _fail("Command must be a non-empty string")
+    command = command.strip()
+    if not command:
+        _fail("Command must be a non-empty string")
+
+    # Limit command length (slightly higher than legacy 1000 for real ops cmds)
+    if len(command) > 2000:
+        _fail("Command too long")
+
+    # Null bytes / control chars (except tab/newline which we reject entirely)
+    if "\x00" in command or any(ord(c) < 32 and c not in "\t" for c in command):
+        _fail("Command contains invalid control characters")
+
+    # If allowed commands list is provided, check first token (best-effort)
     if allowed_commands:
-        cmd_parts = command.split()
+        try:
+            import shlex
+            cmd_parts = shlex.split(command, posix=True)
+        except ValueError:
+            cmd_parts = command.split()
         if cmd_parts and cmd_parts[0] not in allowed_commands:
-            raise ValueError(f"Command not allowed: {cmd_parts[0]}")
-    
-    # Check for dangerous shell patterns
+            _fail(f"Command not allowed: {cmd_parts[0]}")
+
+    # Dangerous shell patterns (case-insensitive where useful)
     dangerous_patterns = [
-        r';\s*rm\s+-rf',  # Dangerous rm commands
-        r'>\s*/dev/s',  # Writing to devices
-        r'mkfs',  # Filesystem formatting
-        r'dd\s+if=',  # Dangerous dd usage
-        r':()\s*{',  # Fork bomb
-        r'\$\(',  # Command substitution
+        # Destructive rm (with or without leading separators)
+        r'(^|[;&|]\s*)rm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|--force\b)',
+        r'(^|[;&|]\s*)rm\s+-rf\b',
+        r'(^|[;&|]\s*)rm\s+-fr\b',
+        r'\bsudo\s+rm\s+-r?f\b',
+        r'>\s*/dev/sd',  # Writing to block devices
+        r'>\s*/dev/nvme',
+        r'\bmkfs(\.|$)',  # Filesystem formatting
+        r'\bdd\s+if=',  # Dangerous dd usage
+        r':\s*\(\s*\)\s*\{',  # Fork bomb
+        r'\$\(',  # Command substitution $(...)
+        r'\$\{',  # Parameter expansion often used in evasion
         r'`',  # Backticks
-        r'&&\s*curl',  # Chained curl commands
-        r'&&\s*wget',  # Chained wget commands
-        r'\|.*nc\s',  # Netcat pipes
+        r'\beval\b',
+        r'\bbase64\b.*\|\s*(ba)?sh\b',
+        r'\bpython[23]?\s+-c\b',
+        r'\bperl\s+-e\b',
+        r'\bruby\s+-e\b',
+        r'&&\s*curl\b',
+        r'&&\s*wget\b',
+        r'(^|[;&|]\s*)(curl|wget)\b.*\|\s*(ba)?sh\b',
+        r'\|\s*(ba)?sh\b',
+        r'\|.*\bnc\s',  # Netcat pipes
+        r'\|.*\bncat\b',
+        r'\bchmod\s+(-R\s+)?777\b',
+        r'\bchown\s+(-R\s+)?root\b.*/',
+        r'\bshutdown\b',
+        r'\breboot\b',
+        r'\binit\s+0\b',
+        r'\bmkfs\.',
+        r'\bwipefs\b',
+        r'\buserdel\b',
+        r'(^|[;&|]\s*)passwd\b',
+        r'>\s*/etc/(passwd|shadow|sudoers)',
+        r'\biptables\s+-F\b',
+        r'\bnft\s+flush\b',
     ]
-    
+
     for pattern in dangerous_patterns:
         if re.search(pattern, command, re.IGNORECASE):
-            raise ValueError("Command contains potentially dangerous patterns")
-    
-    # Limit command length
-    if len(command) > 1000:
-        raise ValueError("Command too long")
-    
+            _fail("Command contains potentially dangerous patterns")
+
     return command
 
 

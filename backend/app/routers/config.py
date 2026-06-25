@@ -4,12 +4,14 @@ import socket
 """
 Configuration API - Manage PuppetServer, PuppetDB, Hiera, and application settings.
 """
+import logging
 from fastapi import Request, APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from ..services.puppetserver import puppetserver_service
 from ..config import settings
 from ..dependencies import require_role
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
 
 # All mutating endpoints in this router are admin-only (3.3.5-26).
 # These edit puppet.conf, hiera, ssl, .env, restart the puppet stack,
@@ -17,6 +19,7 @@ from ..dependencies import require_role
 _ADMIN_ONLY = require_role("admin")
 
 router = APIRouter(prefix="/api/config", tags=["configuration"])
+logger = logging.getLogger(__name__)
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -57,6 +60,7 @@ async def get_puppet_config():
             "environments": puppetserver_service.list_environments(),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -83,6 +87,7 @@ async def get_puppetdb_config():
     try:
         return puppetserver_service.read_puppetdb_config()
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -99,6 +104,7 @@ async def list_available_classes(environment: str = "production"):
             "total": len(classes),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -116,17 +122,23 @@ async def get_hiera_config():
             "path": str(puppetserver_service.confdir / "hiera.yaml"),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/hiera")
+@rate_limit_heavy()
 async def update_hiera_config(
-    request: HieraUpdateRequest,
+    body: HieraUpdateRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
-    """Update hiera.yaml content. Creates a backup of the existing file."""
+    """Update hiera.yaml content. Creates a backup of the existing file.
+    Rate/concurrency limited (srsysarch1 P1 dangerous writes).
+    """
     try:
-        success = puppetserver_service.write_hiera_config(request.content)
+        success = puppetserver_service.write_hiera_config(body.content)
         if not success:
             raise HTTPException(status_code=500,
                                 detail="Failed to write hiera.yaml (permission denied?)")
@@ -134,6 +146,7 @@ async def update_hiera_config(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -150,6 +163,7 @@ async def list_hiera_data_files(environment: str = "production"):
             "total": len(files),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -168,19 +182,23 @@ async def get_hiera_data_file(environment: str, path: str):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/hiera/data/{environment}/file")
+@rate_limit_heavy()
 async def update_hiera_data_file(
     environment: str,
     path: str,
-    request: HieraDataFileRequest,
+    body: HieraDataFileRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Update a specific Hiera data file. Pass the full_path as a query param ?path=..."""
     try:
-        success = puppetserver_service.write_hiera_data_file(path, request.content)
+        success = puppetserver_service.write_hiera_data_file(path, body.content)
         if not success:
             raise HTTPException(status_code=500,
                                 detail="Failed to write data file (permission denied?)")
@@ -188,14 +206,18 @@ async def update_hiera_data_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/hiera/data/{environment}/file")
+@rate_limit_heavy()
 async def create_hiera_data_file(
     environment: str,
-    request: HieraDataFileCreateRequest,
+    body: HieraDataFileCreateRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Create a new Hiera data file in an environment's data directory."""
     from pathlib import Path
@@ -204,31 +226,35 @@ async def create_hiera_data_file(
         data_dir = Path(puppetserver_service.codedir) / "environments" / environment / "data"
         if not data_dir.exists():
             data_dir.mkdir(parents=True, exist_ok=True)
-        full_path = data_dir / request.file_path
+        full_path = data_dir / body.file_path
         # Security: ensure path is within data_dir
         if not str(full_path.resolve()).startswith(str(data_dir.resolve())):
             raise HTTPException(status_code=400, detail="Path traversal not allowed")
         if full_path.exists():
-            raise HTTPException(status_code=409, detail=f"File already exists: {request.file_path}")
+            raise HTTPException(status_code=409, detail=f"File already exists: {body.file_path}")
         # Create parent dirs
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        success = puppetserver_service.write_hiera_data_file(str(full_path), request.content or "---\n")
+        success = puppetserver_service.write_hiera_data_file(str(full_path), body.content or "---\n")
         if not success:
             raise HTTPException(status_code=500, detail="Failed to create data file")
-        return {"status": "success", "message": f"Created: {request.file_path}", "full_path": str(full_path)}
+        return {"status": "success", "message": f"Created: {body.file_path}", "full_path": str(full_path)}
     except HTTPException:
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/hiera/data/{environment}/file")
+@rate_limit_heavy()
 async def delete_hiera_data_file(
     environment: str,
     path: str,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Delete a Hiera data file. Pass the full_path as a query param ?path=..."""
     from pathlib import Path
@@ -247,6 +273,7 @@ async def delete_hiera_data_file(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -279,22 +306,28 @@ async def get_services_status():
 
 
 @router.post("/services/restart")
+@rate_limit_heavy()
 async def restart_service(
-    request: ServiceActionRequest,
+    body: ServiceActionRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
-    """Restart a Puppet service."""
-    if request.action != "restart":
+    """Restart a Puppet service. Rate/concurrency limited (srsysarch1 P1)."""
+    if body.action != "restart":
         raise HTTPException(status_code=400, detail="Only 'restart' action is supported")
-    result = puppetserver_service.restart_service(request.service)
+    result = puppetserver_service.restart_service(body.service)
     if result["status"] == "error":
         raise HTTPException(status_code=500, detail=result["message"])
     return result
 
 
 @router.post("/services/restart-puppet-stack")
+@rate_limit_heavy()
 async def restart_puppet_stack(
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Restart PuppetServer, PuppetDB, and Puppet agent in the correct order."""
     results = []
@@ -432,6 +465,7 @@ async def list_config_files():
         tree = _build_config_file_tree()
         return {"groups": tree, "os_family": _detect_os_family()}
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -491,6 +525,7 @@ async def read_config_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied reading file")
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -529,6 +564,7 @@ async def save_config_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied writing file")
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -641,6 +677,7 @@ async def puppet_lookup(
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail=f"puppet binary not found at {puppet_bin}")
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -663,6 +700,7 @@ async def get_app_config():
         "puppetdb_port": settings.puppetdb_port,
         "auth_backend": settings.auth_backend,
         "debug": settings.debug,
+        "skip_adhoc_confirm_dialogs": settings.skip_adhoc_confirm_dialogs,
         "http_proxy": settings.http_proxy or "",
         "https_proxy": settings.https_proxy or "",
         "no_proxy": settings.no_proxy,
@@ -687,6 +725,7 @@ async def update_app_config(
         "puppetdb_host": "OPENVOX_GUI_PUPPETDB_HOST",
         "puppetdb_port": "OPENVOX_GUI_PUPPETDB_PORT",
         "debug": "OPENVOX_GUI_DEBUG",
+        "skip_adhoc_confirm_dialogs": "OPENVOX_GUI_SKIP_ADHOC_CONFIRM_DIALOGS",
         "http_proxy": "OPENVOX_GUI_HTTP_PROXY",
         "https_proxy": "OPENVOX_GUI_HTTPS_PROXY",
         "no_proxy": "OPENVOX_GUI_NO_PROXY",
@@ -703,6 +742,22 @@ async def update_app_config(
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=500, content={"detail": ".env file not found"})
 
+    # Normalize booleans for .env and in-memory settings
+    write_value = value
+    if key in ("debug", "skip_adhoc_confirm_dialogs"):
+        truthy = str(value).lower() in ("1", "true", "yes", "on")
+        write_value = "true" if truthy else "false"
+        setattr(settings, key, truthy)
+    elif key == "app_name":
+        settings.app_name = str(value)
+    elif key in ("puppet_server_host", "puppetdb_host", "http_proxy", "https_proxy", "no_proxy"):
+        setattr(settings, key, str(value) if value is not None else "")
+    elif key in ("puppet_server_port", "puppetdb_port"):
+        try:
+            setattr(settings, key, int(value))
+        except (TypeError, ValueError):
+            pass
+
     # Read current .env, update or add the variable
     lines = env_path.read_text().splitlines()
     found = False
@@ -711,22 +766,28 @@ async def update_app_config(
         if line.strip().startswith(env_var + "="):
             # Quote string values that contain spaces
             if key in ("app_name",):
-                new_lines.append(f'{env_var}="{value}"')
+                new_lines.append(f'{env_var}="{write_value}"')
             else:
-                new_lines.append(f"{env_var}={value}")
+                new_lines.append(f"{env_var}={write_value}")
             found = True
         else:
             new_lines.append(line)
 
     if not found:
         if key in ("app_name",):
-            new_lines.append(f'{env_var}="{value}"')
+            new_lines.append(f'{env_var}="{write_value}"')
         else:
-            new_lines.append(f"{env_var}={value}")
+            new_lines.append(f"{env_var}={write_value}")
 
     env_path.write_text("\n".join(new_lines) + "\n")
 
-    return {"status": "ok", "key": key, "value": value, "message": "Setting updated. Restart service for changes to take effect."}
+    needs_restart = key not in ("skip_adhoc_confirm_dialogs",)
+    msg = (
+        "Setting updated and applied for this process."
+        if not needs_restart
+        else "Setting updated. Restart service for changes to take effect."
+    )
+    return {"status": "ok", "key": key, "value": write_value, "message": msg}
 
 
 # ── Proxy connection test ───────────────────────────────────

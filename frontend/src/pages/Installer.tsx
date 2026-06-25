@@ -44,6 +44,7 @@ import {
   UpstreamInfo, UpstreamFamily, MirrorSelections,
 } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 /**
  * Format a byte count as a human-friendly string (B / KB / MB / GB / TB).
@@ -147,11 +148,8 @@ function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('openvox_token');
-    // EventSource doesn't support custom headers, so we pass the
-    // token as a query param. The backend auth middleware accepts
-    // both Authorization header and ?token= for SSE streams.
-    const url = `/api/installer/log/stream?lines=80${token ? '&token=' + encodeURIComponent(token) : ''}`;
+    // Rely on httpOnly cookie for auth on same-origin SSE (cookies sent automatically).
+    const url = `/api/installer/log/stream?lines=80`;
     const es = new EventSource(url);
 
     es.onopen = () => setConnected(true);
@@ -227,6 +225,8 @@ export function InstallerPage() {
 
   // Operators and admins can trigger syncs and sign certs; viewers cannot.
   const canManage = user && (user.role === 'admin' || user.role === 'operator');
+  const [pendingCertAction, setPendingCertAction] = useState<null | { type: 'sign' | 'reject'; certname: string }>(null);
+  const [certActionLoading, setCertActionLoading] = useState(false);
 
   /**
    * Fetch installer info + disk info + log tail + pending certs in parallel.
@@ -295,13 +295,10 @@ export function InstallerPage() {
     }
   };
 
-  /**
-   * Sign a pending CSR. Operator/admin only. Confirms via window dialog
-   * to match the existing pattern from the old Certificates.tsx code.
-   */
+  /** Sign a pending CSR. Operator/admin only — ConfirmModal gates the action. */
   const handleSignCert = async (certname: string) => {
     if (!canManage) return;
-    if (!confirm(`Sign certificate for "${certname}"?`)) return;
+    setCertActionLoading(true);
     try {
       await certificates.sign(certname);
       notifications.show({
@@ -309,6 +306,7 @@ export function InstallerPage() {
         message: `Certificate signed for ${certname}`,
         color: 'green',
       });
+      setPendingCertAction(null);
       await refresh();
     } catch (e: any) {
       notifications.show({
@@ -317,14 +315,13 @@ export function InstallerPage() {
         color: 'red',
       });
     }
+    setCertActionLoading(false);
   };
 
-  /**
-   * Reject a pending CSR by cleaning it. Operator/admin only.
-   */
+  /** Reject a pending CSR by cleaning it. Operator/admin only. */
   const handleRejectCert = async (certname: string) => {
     if (!canManage) return;
-    if (!confirm(`Reject (clean) certificate request for "${certname}"?`)) return;
+    setCertActionLoading(true);
     try {
       await certificates.clean(certname);
       notifications.show({
@@ -332,6 +329,7 @@ export function InstallerPage() {
         message: `Certificate request for ${certname} cleaned`,
         color: 'yellow',
       });
+      setPendingCertAction(null);
       await refresh();
     } catch (e: any) {
       notifications.show({
@@ -340,6 +338,7 @@ export function InstallerPage() {
         color: 'red',
       });
     }
+    setCertActionLoading(false);
   };
 
   // ── Distribution selection helpers ──────────────────────────────────────
@@ -826,7 +825,7 @@ export function InstallerPage() {
                         size="xs"
                         color="green"
                         leftSection={<IconCheck size={14} />}
-                        onClick={() => handleSignCert(cert.name)}
+                        onClick={() => setPendingCertAction({ type: 'sign', certname: cert.name })}
                         disabled={!canManage}
                         title={canManage ? '' : 'Requires admin or operator role'}
                       >
@@ -837,7 +836,7 @@ export function InstallerPage() {
                         color="red"
                         variant="outline"
                         leftSection={<IconTrash size={14} />}
-                        onClick={() => handleRejectCert(cert.name)}
+                        onClick={() => setPendingCertAction({ type: 'reject', certname: cert.name })}
                         disabled={!canManage}
                         title={canManage ? '' : 'Requires admin or operator role'}
                       >
@@ -852,6 +851,27 @@ export function InstallerPage() {
           </ScrollArea>
         )}
       </Card>
+
+      <ConfirmModal
+        opened={!!pendingCertAction}
+        onClose={() => !certActionLoading && setPendingCertAction(null)}
+        onConfirm={() => {
+          if (!pendingCertAction) return;
+          if (pendingCertAction.type === 'sign') handleSignCert(pendingCertAction.certname);
+          else handleRejectCert(pendingCertAction.certname);
+        }}
+        title={pendingCertAction?.type === 'sign' ? 'Sign certificate?' : 'Reject certificate request?'}
+        body={
+          pendingCertAction?.type === 'sign'
+            ? `Sign certificate for "${pendingCertAction?.certname}"?`
+            : `Reject (clean) certificate request for "${pendingCertAction?.certname}"?`
+        }
+        details={pendingCertAction ? [pendingCertAction.certname] : undefined}
+        confirmLabel={pendingCertAction?.type === 'sign' ? 'Sign' : 'Reject'}
+        confirmColor={pendingCertAction?.type === 'sign' ? 'green' : 'red'}
+        danger={pendingCertAction?.type === 'reject'}
+        loading={certActionLoading}
+      />
     </Stack>
   );
 }

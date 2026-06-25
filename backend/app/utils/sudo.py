@@ -15,7 +15,7 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 
-async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
+async def run_sudo(cmd: List[str], timeout: int = 30, env: dict = None) -> Dict[str, object]:
     """Run a command (typically prefixed with 'sudo') with a pseudo-TTY.
 
     Allocates a PTY and runs the subprocess in a new session so the PTY
@@ -26,6 +26,8 @@ async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
     matching the interface used by subprocess helpers throughout the
     application.
     """
+    if env is None:
+        env = os.environ.copy()
     master_fd, slave_fd = pty.openpty()
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -34,6 +36,7 @@ async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
             stderr=asyncio.subprocess.PIPE,
             stdin=slave_fd,
             start_new_session=True,
+            env=env,
         )
         os.close(slave_fd)
         slave_fd = -1
@@ -46,10 +49,16 @@ async def run_sudo(cmd: List[str], timeout: int = 30) -> Dict[str, object]:
             "stderr": stderr.decode("utf-8", errors="replace"),
         }
     except asyncio.TimeoutError:
+        logger.error("Command timed out after %ss: %s", timeout, cmd[:6])
         return {"returncode": -1, "stdout": "", "stderr": "Command timed out"}
-    except Exception as e:
-        logger.error(f"Error running {cmd[0:3]}: {e}")
+    except (OSError, ValueError) as e:
+        logger.error("Error running %s: %s", cmd[0:3], e, exc_info=True)
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
+    except Exception as e:
+        # Last-resort: privileged runner must never raise into FastAPI uncaught,
+        # but always log full traceback (srdev1 S1).
+        logger.error("Unexpected error running %s: %s", cmd[0:3], e, exc_info=True)
+        return {"returncode": -1, "stdout": "", "stderr": "Internal error running privileged command"}
     finally:
         if slave_fd >= 0:
             os.close(slave_fd)

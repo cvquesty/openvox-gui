@@ -18,6 +18,8 @@ import {
 import { enc, nodes as nodesApi, config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson } from '../components/PrettyJson';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { LoadingState } from '../components/StateComponents';
 
 /* ═══════════════════════════════════════════════════════════════
    SHARED: Class badges display
@@ -473,6 +475,8 @@ function EnvironmentsTab() {
   const [formDesc, setFormDesc] = useState('');
   const [formClasses, setFormClasses] = useState<string[]>([]);
   const [formParams, setFormParams] = useState<Array<{ key: string; val: string }>>([]);
+  const [pendingDeleteEnv, setPendingDeleteEnv] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -526,12 +530,19 @@ function EnvironmentsTab() {
     } catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
   };
   const handleDelete = async (name: string) => {
-    if (!confirm(`Delete environment '${name}'?`)) return;
-    try { await enc.deleteEnvironment(name); notifications.show({ title: 'Deleted', message: `'${name}' removed`, color: 'green' }); load(); }
-    catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
+    setDeleteLoading(true);
+    try {
+      await enc.deleteEnvironment(name);
+      notifications.show({ title: 'Deleted', message: `'${name}' removed`, color: 'green' });
+      setPendingDeleteEnv(null);
+      load();
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+    }
+    setDeleteLoading(false);
   };
 
-  if (loading) return <Center h={300}><Loader size="xl" /></Center>;
+  if (loading) return <LoadingState height={300} label="Loading environments…" />;
 
   return (
     <Stack>
@@ -561,7 +572,7 @@ function EnvironmentsTab() {
                 <Table.Td>
                   <Group gap="xs" justify="flex-end">
                     <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(e)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                    <Tooltip label="Delete"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(e.name)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                    <Tooltip label="Delete"><ActionIcon variant="subtle" color="red" onClick={() => setPendingDeleteEnv(e.name)}><IconTrash size={16} /></ActionIcon></Tooltip>
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -586,6 +597,17 @@ function EnvironmentsTab() {
           <Button onClick={handleSave}>{editing ? 'Update' : 'Create'}</Button>
         </Stack>
       </Modal>
+      <ConfirmModal
+        opened={!!pendingDeleteEnv}
+        onClose={() => !deleteLoading && setPendingDeleteEnv(null)}
+        onConfirm={() => pendingDeleteEnv && handleDelete(pendingDeleteEnv)}
+        title="Delete environment?"
+        body={`Delete environment '${pendingDeleteEnv}'?`}
+        details={pendingDeleteEnv ? [pendingDeleteEnv] : undefined}
+        confirmLabel="Delete"
+        danger
+        loading={deleteLoading}
+      />
     </Stack>
   );
 }
@@ -604,6 +626,8 @@ function GroupsTab() {
   const [formDesc, setFormDesc] = useState('');
   const [formClasses, setFormClasses] = useState<string[]>([]);
   const [formParams, setFormParams] = useState<Array<{ key: string; val: string }>>([]);
+  const [pendingDeleteGroup, setPendingDeleteGroup] = useState<null | { id: number; name: string }>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -644,12 +668,19 @@ function GroupsTab() {
     } catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
   };
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete group '${name}'?`)) return;
-    try { await enc.deleteGroup(id); notifications.show({ title: 'Deleted', message: `'${name}' removed`, color: 'green' }); load(); }
-    catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
+    setDeleteLoading(true);
+    try {
+      await enc.deleteGroup(id);
+      notifications.show({ title: 'Deleted', message: `'${name}' removed`, color: 'green' });
+      setPendingDeleteGroup(null);
+      load();
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+    }
+    setDeleteLoading(false);
   };
 
-  if (loading) return <Center h={300}><Loader size="xl" /></Center>;
+  if (loading) return <LoadingState height={300} label="Loading groups…" />;
 
   return (
     <Stack>
@@ -681,7 +712,7 @@ function GroupsTab() {
                 <Table.Td>
                   <Group gap="xs" justify="flex-end">
                     <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(g)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                    <Tooltip label="Delete"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(g.id, g.name)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                    <Tooltip label="Delete"><ActionIcon variant="subtle" color="red" onClick={() => setPendingDeleteGroup({ id: g.id, name: g.name })}><IconTrash size={16} /></ActionIcon></Tooltip>
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -708,6 +739,17 @@ function GroupsTab() {
           <Button onClick={handleSave}>{editing ? 'Update' : 'Create'}</Button>
         </Stack>
       </Modal>
+      <ConfirmModal
+        opened={!!pendingDeleteGroup}
+        onClose={() => !deleteLoading && setPendingDeleteGroup(null)}
+        onConfirm={() => pendingDeleteGroup && handleDelete(pendingDeleteGroup.id, pendingDeleteGroup.name)}
+        title="Delete group?"
+        body={`Delete group '${pendingDeleteGroup?.name}'?`}
+        details={pendingDeleteGroup ? [pendingDeleteGroup.name] : undefined}
+        confirmLabel="Delete"
+        danger
+        loading={deleteLoading}
+      />
     </Stack>
   );
 }
@@ -728,6 +770,8 @@ function NodesTab() {
   const [formGroupIds, setFormGroupIds] = useState<string[]>([]);
   const [formClasses, setFormClasses] = useState<string[]>([]);
   const [formParams, setFormParams] = useState<Array<{ key: string; val: string }>>([]);
+  const [pendingDeleteNode, setPendingDeleteNode] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -771,9 +815,16 @@ function NodesTab() {
     } catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
   };
   const handleDelete = async (certname: string) => {
-    if (!confirm(`Remove classification for '${certname}'?`)) return;
-    try { await enc.deleteNode(certname); notifications.show({ title: 'Removed', message: `'${certname}' removed`, color: 'green' }); load(); }
-    catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }
+    setDeleteLoading(true);
+    try {
+      await enc.deleteNode(certname);
+      notifications.show({ title: 'Removed', message: `'${certname}' removed`, color: 'green' });
+      setPendingDeleteNode(null);
+      load();
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+    }
+    setDeleteLoading(false);
   };
 
   // PuppetDB is the source of truth for node existence. Filter out
@@ -843,7 +894,7 @@ function NodesTab() {
                   <Table.Td>
                     <Group gap="xs" justify="flex-end">
                       <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(n)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                      <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(n.certname)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                      <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" onClick={() => setPendingDeleteNode(n.certname)}><IconTrash size={16} /></ActionIcon></Tooltip>
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -886,6 +937,17 @@ function NodesTab() {
           <Button onClick={handleSave}>{editing ? 'Update' : 'Classify'}</Button>
         </Stack>
       </Modal>
+      <ConfirmModal
+        opened={!!pendingDeleteNode}
+        onClose={() => !deleteLoading && setPendingDeleteNode(null)}
+        onConfirm={() => pendingDeleteNode && handleDelete(pendingDeleteNode)}
+        title="Remove classification?"
+        body={`Remove classification for '${pendingDeleteNode}'?`}
+        details={pendingDeleteNode ? [pendingDeleteNode] : undefined}
+        confirmLabel="Remove"
+        danger
+        loading={deleteLoading}
+      />
     </Stack>
   );
 }

@@ -30,7 +30,7 @@ _config_logger = logging.getLogger(__name__)
 # compare against it at startup to detect whether the operator forgot to
 # set a real secret. It must never be used in production because anyone
 # who can read this source code could forge valid JWT tokens.
-_DEFAULT_SECRET_KEY = "change-me-in-production"
+_DEFAULT_SECRET_KEY = "OVOX-DEV-PLACEHOLDER--NEVER-USE-IN-PRODUCTION"
 
 
 class Settings(BaseSettings):
@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     app_host: str = "::"
     app_port: int = 4567
     debug: bool = False
+    # When True, GUI skips Mantine pre-flight confirms for Bolt runs (command/task/plan),
+    # r10k deploy, and single-node "Run OpenVox". Destructive actions (purge, certs, ENC
+    # deletes, user delete) always keep their confirms.
+    skip_adhoc_confirm_dialogs: bool = False
 
     # Secret key used for signing JWT authentication tokens. This MUST
     # be changed to a unique, random value in production. The install
@@ -84,6 +88,14 @@ class Settings(BaseSettings):
     # ── Filesystem paths ──────────────────────────────────────
     data_dir: str = "/opt/openvox-gui/data"
     log_dir: str = "/opt/openvox-gui/logs"
+
+    # Optional bootstrap token for unauthenticated installer script routes
+    # (OPENVOX_GUI_BOOTSTRAP_TOKEN). Empty = no token required.
+    bootstrap_token: Optional[str] = None
+
+    # Optional comma-separated IP/CIDR allowlist for installer script routes
+    # (OPENVOX_GUI_INSTALLER_IP_ALLOWLIST). Empty = allow all (or use etc file).
+    installer_ip_allowlist: Optional[str] = None
 
     # ── Proxy settings ────────────────────────────────────────
     # These are auto-detected during installation and used for

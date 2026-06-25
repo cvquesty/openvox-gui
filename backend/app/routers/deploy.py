@@ -4,9 +4,17 @@ Code Deployment API - Interface with r10k for Puppet code deployment.
 import subprocess
 import asyncio
 import logging
-from fastapi import APIRouter, HTTPException, Request
+import json
+import os
+import tempfile
+from pathlib import Path
+from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List
+
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
+from ..dependencies import require_role
 
 router = APIRouter(prefix="/api/deploy", tags=["deploy"])
 logger = logging.getLogger(__name__)
@@ -36,6 +44,8 @@ def _run_command(cmd: List[str], timeout: int = 300) -> dict:
             "success": False,
         }
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("deploy _run_command failed: %s", e, exc_info=True)
         return {
             "exit_code": -1,
             "stdout": "",
@@ -252,16 +262,41 @@ async def webhook_deploy(request: Request):
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: _run_command(cmd, timeout=300))
 
-    # Record in deploy history
-    _add_history_entry({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "environment": branch or "all",
-        "triggered_by": f"github-webhook ({pusher})",
-        "success": result["success"],
-        "exit_code": result["exit_code"],
-        "output_lines": len((result.get("stdout", "") + result.get("stderr", "")).strip().splitlines()),
-        "commit": commit_msg,
-    })
+    from ..utils.audit import audit_event
+    from ..services import deploy_history as deploy_hist
+
+    out_preview = ((result.get("stdout") or "") + (result.get("stderr") or ""))[:500]
+    deploy_hist.record_deploy(
+        environment=branch or "all",
+        triggered_by=f"github-webhook ({pusher})",
+        success=result["success"],
+        exit_code=result["exit_code"],
+        output_lines=len(out_preview.splitlines()),
+        output_preview=out_preview,
+        commit=commit_msg,
+    )
+    try:
+        from ..database import async_session
+        async with async_session() as db:
+            await deploy_hist.record_deploy_execution(
+                db,
+                environment=branch or "all",
+                executed_by=f"webhook:{pusher}",
+                success=result["success"],
+                exit_code=result["exit_code"],
+                output_preview=out_preview,
+            )
+    except Exception:
+        pass
+
+    audit_event(
+        "deploy_webhook",
+        user=f"webhook:{pusher}",
+        targets=branch or "all",
+        detail=(commit_msg or "")[:120],
+        rc=result["exit_code"],
+        success=result["success"],
+    )
 
     return {
         "success": result["success"],
@@ -272,22 +307,18 @@ async def webhook_deploy(request: Request):
 
 
 @router.post("/run")
-async def run_deployment(deploy: DeployRequest, request: Request):
+@rate_limit_heavy()
+async def run_deployment(
+    deploy: DeployRequest,
+    request: Request,
+    current_user: str = Depends(require_role("admin", "operator")),
+    _=Depends(concurrency_heavy),
+):
     """
     Trigger an r10k deployment.
-    Requires admin or operator role.
+    Requires admin or operator role (srdev2 A7 — Depends, not inline RBAC).
     """
-    from ..dependencies import require_role
-    # Role check is now handled by the require_role dependency pattern,
-    # but we keep inline check here for backward compatibility with the
-    # request.state.user pattern used in this endpoint.
-    user = getattr(request.state, "user", None)
-    username = "anonymous"
-    if user:
-        role = user.get("role", "viewer")
-        username = user.get("user_id", user.get("username", "unknown"))
-        if role not in ("admin", "operator"):
-            raise HTTPException(status_code=403, detail="Access denied. Required role: admin or operator. Your role: " + role)
+    username = current_user or "anonymous"
 
     try:
         cmd = ["sudo", "/opt/openvox-gui/scripts/r10k-deploy.sh"]
@@ -300,11 +331,48 @@ async def run_deployment(deploy: DeployRequest, request: Request):
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, lambda: _run_command(cmd, timeout=300))
 
+        from ..utils.audit import audit_event
+        from ..services import deploy_history as deploy_hist
+
+        audit_event(
+            "deploy_run",
+            user=username,
+            targets=deploy.environment or "all",
+            detail="r10k-deploy.sh -pv",
+            rc=result["exit_code"],
+            success=result["success"],
+        )
+
         log_lines = []
         if result["stdout"]:
             log_lines.extend(result["stdout"].strip().splitlines())
         if result["stderr"]:
             log_lines.extend(result["stderr"].strip().splitlines())
+
+        preview = "\n".join(log_lines)[:500]
+        deploy_hist.record_deploy(
+            environment=deploy.environment or "all",
+            triggered_by=username,
+            success=result["success"],
+            exit_code=result["exit_code"],
+            output_lines=len(log_lines),
+            output_preview=preview,
+        )
+        # Dual-write SQLite execution_history (srdev2 A6)
+        try:
+            from ..database import async_session
+            async with async_session() as db:
+                await deploy_hist.record_deploy_execution(
+                    db,
+                    environment=deploy.environment or "all",
+                    executed_by=username,
+                    success=result["success"],
+                    exit_code=result["exit_code"],
+                    output_preview=preview,
+                    error_message=None if result["success"] else (result.get("stderr") or "")[:500],
+                )
+        except Exception as db_exc:
+            logger.warning("deploy execution_history dual-write failed: %s", db_exc)
 
         response = {
             "success": result["success"],
@@ -313,83 +381,52 @@ async def run_deployment(deploy: DeployRequest, request: Request):
             "triggered_by": username,
             "output": log_lines,
         }
-        # Persist to history
-        _add_history_entry({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "environment": deploy.environment or "all",
-            "triggered_by": username,
-            "success": result["success"],
-            "exit_code": result["exit_code"],
-            "output_lines": len(log_lines),
-        })
         return response
     except Exception as e:
-        logger.error(f"Deployment error: {e}")
+        logger.error("Deployment error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Deploy History ────────────────────────────────────────
-# Deployment history is persisted as a JSON array in a flat file. We
-# keep the last 100 entries to prevent unbounded growth. Because
-# multiple deployment requests could arrive concurrently (especially
-# if an operator clicks the button twice, or if a CI pipeline fires
-# deployments in parallel), we use a threading lock to serialise
-# read-modify-write cycles on the history file. Without this lock,
-# two concurrent _add_history_entry calls could both read the same
-# state, each append their own entry, and then the second write would
-# silently overwrite the first entry — a classic lost-update race
-# condition.
-import json
-import threading
-from datetime import datetime, timezone
-from pathlib import Path
-
-HISTORY_FILE = Path("/opt/openvox-gui/data/deploy_history.json")
-
-# Serialises all read-modify-write access to the deploy history file
-# to prevent lost updates from concurrent deployment requests.
-_history_lock = threading.Lock()
-
-
-def _load_history() -> list:
-    """Load the deployment history from the JSON file on disk.
-
-    Returns an empty list if the file does not exist or cannot be
-    parsed — this is intentionally lenient so that a corrupted history
-    file does not prevent new deployments from being recorded.
-    """
-    if HISTORY_FILE.exists():
-        try:
-            return json.loads(HISTORY_FILE.read_text())
-        except Exception:
-            return []
-    return []
-
-
-def _save_history(history: list):
-    """Write the deployment history list to disk as pretty-printed JSON.
-
-    The default=str serialiser handles datetime objects that may appear
-    in the entry dictionaries.
-    """
-    HISTORY_FILE.write_text(json.dumps(history, indent=2, default=str))
-
-
-def _add_history_entry(entry: dict):
-    """Atomically append a new deployment entry to the history file.
-
-    Acquires the history lock to prevent lost updates when multiple
-    deployments are triggered concurrently. The history is capped at
-    100 entries to keep the file size bounded.
-    """
-    with _history_lock:
-        history = _load_history()
-        history.insert(0, entry)
-        history = history[:100]
-        _save_history(history)
+# ─── Deploy History (JSON via services.deploy_history; srdev2 A6) ──
+from ..services.deploy_history import (
+    add_json_history_entry as _add_history_entry,
+    load_json_history as _load_history,
+)
 
 
 @router.get("/history")
 async def get_deploy_history():
-    """Get deployment history."""
+    """Get deployment history (JSON file; also dual-written to execution_history on run)."""
     return {"history": _load_history()}
+
+
+# Basic Prometheus-style /metrics (actionable #9, P2 from srsysarch1).
+# Exposes a few key operational values in exposition format.
+# Extend with real counters as needed.
+@router.get("/metrics", response_class=PlainTextResponse)
+async def ops_metrics():
+    from ..utils.maintenance import get_maintenance_info
+    maint = get_maintenance_info()
+    maint_enabled = "1" if maint.get("enabled") else "0"
+    lines = [
+        "# HELP openvox_gui_maintenance_active 1 if maintenance mode is active",
+        "# TYPE openvox_gui_maintenance_active gauge",
+        f"openvox_gui_maintenance_active {maint_enabled}",
+        "# HELP openvox_gui_last_deploy_timestamp Unix time of last known deploy (best effort from history)",
+        "# TYPE openvox_gui_last_deploy_timestamp gauge",
+    ]
+    if maint.get("message"):
+        # Simple text metric for current maintenance reason (can be extended to labels).
+        lines.append(f'# Maintenance message: {maint["message"]}')
+    try:
+        hist = _load_history()
+        if hist:
+            ts = hist[0].get("timestamp")
+            if ts:
+                from datetime import datetime
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                lines.append(f"openvox_gui_last_deploy_timestamp {dt.timestamp()}")
+    except Exception:
+        pass
+    # Add more (ps health, mirror age, sqlite rows) in follow-up.
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain")

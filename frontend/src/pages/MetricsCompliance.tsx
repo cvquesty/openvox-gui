@@ -133,10 +133,9 @@ export function MetricsCompliancePage() {
 
   const compliantPct = data.total ? Math.round((data.compliant / data.total) * 100) : 0;
 
-  const trendData = (data.trend || []).map((t: any) => ({
-    ...t,
-    timestamp: t.timestamp ? new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-  }));
+  // Keep API hour buckets ("YYYY-MM-DDTHH") as-is; XAxis tickFormatter renders HH:00.
+  // Do not Date.parse — partial timestamps become Invalid Date.
+  const trendData = data.trend || [];
 
   const statCards = [
     { label: 'Total Nodes', value: data.total, color: 'blue' },

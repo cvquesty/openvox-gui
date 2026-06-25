@@ -26,12 +26,10 @@ const API_BASE = '/api';
  * the Bearer token read from localStorage.
  */
 function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = localStorage.getItem('openvox_token');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
+  // Prefer httpOnly cookie set by backend on login (XSS protection).
+  // No longer read raw token from localStorage for Authorization header.
+  // Cookie is sent automatically for same-origin requests.
+  return { 'Content-Type': 'application/json' };
 }
 
 /**
@@ -50,8 +48,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (response.status === 401) {
-    // Token has expired or been revoked. Clear local state and reload
-    // the page so the user is presented with the login form.
+    // Session invalid (cookie or token). Clear any legacy local state and reload.
     localStorage.removeItem('openvox_token');
     window.location.reload();
     throw new Error('Session expired. Please log in again.');
@@ -67,6 +64,30 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 // ─── Dashboard ──────────────────────────────────────────────
+
+
+// ─── Auth (session cookie; used by AuthContext — srdevarch1 MP3) ───
+
+export const auth = {
+  /** Session probe — does NOT force reload on 401 (AuthContext handles unauthenticated). */
+  me: async () => {
+    const response = await fetch(`${API_BASE}/auth/me`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`API Error ${response.status}`);
+    return response.json();
+  },
+  status: async () => {
+    const response = await fetch(`${API_BASE}/auth/status`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`API Error ${response.status}`);
+    return response.json() as Promise<{ auth_required?: boolean; auth_backend?: string }>;
+  },
+  login: (username: string, password: string) =>
+    fetchJSON<{ user: { username: string; role: string }; token?: string }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: () =>
+    fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: getAuthHeaders() }).then(() => undefined),
+};
 
 export const dashboard = {
   getData: () => fetchJSON<any>('/dashboard/data'),
@@ -122,7 +143,7 @@ export const reports = {
   // Live Inventory report (Logs | Reports | Inventory)
   inventory: () => fetchJSON<any[]>('/reports/inventory'),
 
-  // Executive Summary (Fleet Health) Report recipients
+  // Executive Summary (Fleet Health) Report recipients + config
   listExecutiveRecipients: () => fetchJSON<any[]>('/reports/executive-summary/recipients'),
   addExecutiveRecipient: (email: string) =>
     fetchJSON<any>('/reports/executive-summary/recipients', {
@@ -154,7 +175,7 @@ export const deploy = {
   getStatus: () => fetchJSON<any>('/deploy/status'),
   getHistory: () => fetchJSON<any>('/deploy/history'),
   run: (environment?: string) =>
-    fetchJSON<any>('/deploy/run', {
+    fetchJSON<import('../types').DeployRunResult>('/deploy/run', {
       method: 'POST',
       body: JSON.stringify({ environment: environment || null }),
     }),
@@ -233,11 +254,11 @@ export const bolt = {
   syncInventoryFromEnc: () =>
     fetchJSON<any>('/bolt/inventory/sync', { method: 'POST' }),
   runCommand: (data: { command: string; targets: string; format?: string; run_as?: string }) =>
-    fetchJSON<any>('/bolt/run/command', { method: 'POST', body: JSON.stringify(data) }),
+    fetchJSON<import('../types').BoltRunResult>('/bolt/run/command', { method: 'POST', body: JSON.stringify(data) }),
   runTask: (data: { task: string; targets: string; params?: any; format?: string; run_as?: string }) =>
-    fetchJSON<any>('/bolt/run/task', { method: 'POST', body: JSON.stringify(data) }),
+    fetchJSON<import('../types').BoltRunResult>('/bolt/run/task', { method: 'POST', body: JSON.stringify(data) }),
   runPlan: (data: { plan: string; params?: any; format?: string }) =>
-    fetchJSON<any>('/bolt/run/plan', { method: 'POST', body: JSON.stringify(data) }),
+    fetchJSON<import('../types').BoltRunResult>('/bolt/run/plan', { method: 'POST', body: JSON.stringify(data) }),
 
   // File transfer (upload / download)
   uploadFile: (file: File, targets: string, destination: string) => {
@@ -246,8 +267,7 @@ export const bolt = {
     formData.append('targets', targets);
     formData.append('destination', destination);
     const headers: Record<string, string> = {};
-    const token = localStorage.getItem('openvox_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Cookie-based auth preferred; no localStorage token sent here.
     // Do NOT set Content-Type — browser sets it with boundary for multipart
     return fetch(`${API_BASE}/bolt/file/upload`, {
       method: 'POST', headers, body: formData,
@@ -264,8 +284,7 @@ export const bolt = {
     formData.append('targets', targets);
     formData.append('arguments', args);
     const headers: Record<string, string> = {};
-    const token = localStorage.getItem('openvox_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // Cookie-based auth preferred; no localStorage token sent here.
     return fetch(`${API_BASE}/bolt/run/script`, {
       method: 'POST', headers, body: formData,
     }).then(async (r) => {
@@ -435,9 +454,7 @@ function sslUpload(url: string, files: Record<string, File | null>, fields?: Rec
       formData.append(key, val);
     }
   }
-  const headers: Record<string, string> = {};
-  const token = localStorage.getItem('openvox_token');
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Rely on httpOnly cookie for auth; no localStorage token.
   return fetch(`${API_BASE}${url}`, {
     method: 'POST', headers, body: formData,
   }).then(async (r) => {

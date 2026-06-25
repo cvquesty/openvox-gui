@@ -11,7 +11,6 @@ or character patterns before being interpolated into PQL query strings
 to prevent PQL injection attacks.
 """
 import logging
-import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
@@ -20,32 +19,19 @@ from ..services.puppetdb import puppetdb_service
 from ..services.enc import enc_service
 from ..models.schemas import NodeSummary, NodeDetail
 from ..dependencies import require_role
+from ..utils.validation import validate_pql_value as _validate_pql_value_raw
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/nodes", tags=["nodes"])
 
-# Strict pattern for identifiers that may be interpolated into PQL queries.
-# Puppet certnames, environment names, and report statuses should only ever
-# contain alphanumeric characters, hyphens, underscores, and dots.
-_SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
 
-def _validate_pql_value(value: str, field_name: str) -> str:
-    """Validate that a value is safe to interpolate into a PQL query string.
-
-    PQL queries are built via string interpolation, so any user-supplied
-    value that gets embedded in a query must be sanitised first. This
-    function rejects anything that contains characters outside the strict
-    allowlist (alphanumeric, dots, hyphens, underscores) to prevent PQL
-    injection — for example, an attacker injecting extra clauses via a
-    crafted environment name like: production"] or 1=1 --
-    """
-    if not _SAFE_PQL_VALUE.match(value):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid {field_name}: contains disallowed characters",
-        )
-    return value
+def validate_pql_value(value: str, field_name: str) -> str:
+    """HTTP-facing wrapper: central charset check, 400 on failure (srdevarch1 HP2)."""
+    try:
+        return _validate_pql_value_raw(value, field_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/", response_model=List[NodeSummary])
@@ -75,9 +61,9 @@ async def list_nodes(
         # status explicitly matches "unreported".
         if environment or status:
             if environment:
-                environment = _validate_pql_value(environment, "environment")
+                environment = validate_pql_value(environment, "environment")
             if status:
-                status = _validate_pql_value(status, "status")
+                status = validate_pql_value(status, "status")
 
             env_l = environment.lower() if environment else None
             status_l = status.lower() if status else None
@@ -196,7 +182,7 @@ async def search_packages(
 
         # ── Strategy 2: Fallback to Puppet Package resources ──────────
         # Only finds packages explicitly managed in Puppet manifests.
-        safe_name = _validate_pql_value(name, "package name")
+        safe_name = validate_pql_value(name, "package name")
         pql = f'resources {{ type = "Package" and title = "{safe_name}" order by certname limit {limit} }}'
         result = await puppetdb_service._query("", params={"query": pql})
         if not isinstance(result, list):
@@ -230,7 +216,7 @@ async def get_node_detail(certname: str):
     excluding the synthetic "main" and "Settings" classes that Puppet
     always includes.
     """
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
     try:
         node = await puppetdb_service.get_node(certname)
         facts_raw = await puppetdb_service.get_node_facts(certname)
@@ -273,7 +259,7 @@ async def get_node_facts(certname: str):
     Returns the raw list of fact objects, each containing a name, value,
     and environment.
     """
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
     try:
         facts = await puppetdb_service.get_node_facts(certname)
         return facts
@@ -288,7 +274,7 @@ async def get_node_resources(certname: str):
     Returns the full list of Puppet resources (packages, files, services,
     etc.) from the node's most recent catalogue.
     """
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
     try:
         resources = await puppetdb_service.get_node_resources(certname)
         return resources
@@ -304,7 +290,7 @@ async def get_node_reports(certname: str, limit: int = 20):
     The certname is validated before being interpolated into the PQL
     query string to prevent injection.
     """
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
     try:
         reports = await puppetdb_service.get_reports(
             query=f'["=", "certname", "{certname}"]',
@@ -335,7 +321,7 @@ async def deactivate_node(
     _user: str = Depends(require_role("admin", "operator")),
 ):
     """Deactivate a node in PuppetDB and remove it from the ENC."""
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
 
     results = {}
     results["puppetdb"] = await puppetdb_service.deactivate_node(certname)
@@ -369,7 +355,7 @@ async def purge_node(
     """
     from ..utils.sudo import run_sudo
 
-    certname = _validate_pql_value(certname, "certname")
+    certname = validate_pql_value(certname, "certname")
     results = {}
 
     # 1. Deactivate from PuppetDB
