@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.1.b2] - 2026-06-25 (fix Orchestration triple Bolt run — GitHub #38)
+
+### Fixed
+- **Orchestration Run Command executed 3× per click (GitHub #38):** The UI fetched **human**, **json**, and **rainbow** formats via three parallel `POST /bolt/run/command` calls, so Bolt ran the ad-hoc command three times on every target (visible in Network and on-target side effects). **One** Bolt invocation now runs (`--format json` for structured PrettyJson); Human / JSON / Rainbow tabs share that single result (rainbow was already plain text after ANSI strip #26).
+- **Same pattern for Run Task and Run Plan:** Eliminated triple `runTask` / `runPlan` parallel calls so tasks and plans also execute once per confirm.
+
+### Credits
+- Report and reproduction by **@Jdav00** on issue #38 (append-to-file test; CLI bolt = 1×, GUI = 3×).
+
 ## [3.10.1.b1] - 2026-06-25 (beta train settle on main)
 
 ### Versioning

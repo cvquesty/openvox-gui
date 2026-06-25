@@ -60,6 +60,17 @@ const ansiConverter = new AnsiToHtml({
   },
 });
 
+/**
+ * GitHub #38: UI format tabs (human / json / rainbow) must NOT each trigger a
+ * separate Bolt run — that executed the ad-hoc command (or task/plan) three
+ * times on targets. Run Bolt once (prefer --format json for PrettyJson) and
+ * reuse the same API payload for all tabs. Rainbow is already plain text
+ * server-side (#26 ANSI strip), so a second bolt run bought nothing.
+ */
+function resultsFromSingleRun(result: any) {
+  return { human: result, json: result, rainbow: result };
+}
+
 /* ── Shared result pane with ANSI color support ────────────── */
 function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?: any } | null }) {
   const [activeTab, setActiveTab] = useState<string>('human');
@@ -410,30 +421,16 @@ function RunCommandTab() {
     setRunning(true);
     setResults(null);
 
-    const payload: any = { command, targets: targets.join(','), format: 'human' };
+    // Single Bolt invocation (#38) — format tabs share one result (json for PrettyJson tab)
+    const payload: any = { command, targets: targets.join(','), format: 'json' };
     if (runPrivileged) payload.run_as = 'root';
 
     try {
-      // Fetch all three formats in parallel
-      const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runCommand(payload),
-        bolt.runCommand({ ...payload, format: 'json' }),
-        bolt.runCommand({ ...payload, format: 'rainbow' }),
-      ]);
-
-      setResults({
-        human: humanResult,
-        json: jsonResult,
-        rainbow: rainbowResult,
-      });
+      const result = await bolt.runCommand(payload);
+      setResults(resultsFromSingleRun(result));
     } catch (e: any) {
-      // If any request fails, store error in all formats
       const errorResult = { returncode: -1, output: '', error: e.message };
-      setResults({
-        human: errorResult,
-        json: errorResult,
-        rainbow: errorResult,
-      });
+      setResults(resultsFromSingleRun(errorResult));
     }
     setRunning(false);
   };
@@ -555,28 +552,16 @@ function RunTaskTab() {
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
 
-    const taskPayload: any = { task: selectedTask, targets: targets.join(','), params: paramDict, format: 'human' };
+    // Single Bolt task run (#38) — same bug as Run Command (triple execution)
+    const taskPayload: any = { task: selectedTask, targets: targets.join(','), params: paramDict, format: 'json' };
     if (runPrivileged) taskPayload.run_as = 'root';
 
     try {
-      const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runTask(taskPayload),
-        bolt.runTask({ ...taskPayload, format: 'json' }),
-        bolt.runTask({ ...taskPayload, format: 'rainbow' }),
-      ]);
-
-      setResults({
-        human: humanResult,
-        json: jsonResult,
-        rainbow: rainbowResult,
-      });
+      const result = await bolt.runTask(taskPayload);
+      setResults(resultsFromSingleRun(result));
     } catch (e: any) {
       const errorResult = { returncode: -1, output: '', error: e.message };
-      setResults({
-        human: errorResult,
-        json: errorResult,
-        rainbow: errorResult,
-      });
+      setResults(resultsFromSingleRun(errorResult));
     }
     setRunning(false);
   };
@@ -684,24 +669,12 @@ function RunPlanTab() {
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
 
     try {
-      const [humanResult, jsonResult, rainbowResult] = await Promise.all([
-        bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'human' }),
-        bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'json' }),
-        bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'rainbow' }),
-      ]);
-
-      setResults({
-        human: humanResult,
-        json: jsonResult,
-        rainbow: rainbowResult,
-      });
+      // Single Bolt plan run (#38) — avoid triple execution for format tabs
+      const result = await bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'json' });
+      setResults(resultsFromSingleRun(result));
     } catch (e: any) {
       const errorResult = { returncode: -1, output: '', error: e.message };
-      setResults({
-        human: errorResult,
-        json: errorResult,
-        rainbow: errorResult,
-      });
+      setResults(resultsFromSingleRun(errorResult));
     }
     setRunning(false);
   };
