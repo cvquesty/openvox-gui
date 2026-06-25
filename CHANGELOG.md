@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a32] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix Orchestration Run Command: sudo preserve-environment denied
+- **Symptom:** Infrastructure → Orchestration → Run Command (e.g. `whoami` on All Nodes) failed with `sudo: sorry, you are not allowed to preserve the environment`.
+- **Root cause:** Since 3.10.0a27 the GUI invokes Bolt as `sudo -E -u bolt <bolt> ...` so controller local transport runs as the `bolt` user; sudoers granted `(bolt)` / `(root)` `NOPASSWD` on the bolt binary but **without** the `SETENV` tag required for `sudo -E`.
+- **Fix:** `scripts/ensure-sudoers.sh` now writes `NOPASSWD:SETENV:` on all four bolt binary rules (`(bolt)` and `(root)`, both `/opt/puppetlabs/bolt/bin/bolt` and `/usr/local/bin/bolt`). Documented in `docs/SUDOERS.md` (including the missing `(bolt)` run-as lines).
+- Deploy/update rewrites `/etc/sudoers.d/openvox-gui-users` via ensure-sudoers; lab-only validation on this alpha train.
+
+### Versioning
+- Incremented pre-release to **3.10.0a32** on branch **3.10.a_r_alpha.6**.
+
 ## [3.10.0a31] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Version / lab redeploy

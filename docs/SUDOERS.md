@@ -112,12 +112,16 @@ puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppetdb
 puppet ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 
 # Bolt orchestration
-# We explicitly allow the full bolt binary (both common paths).
-# This permits the GUI (running as the puppet user) to execute
-# commands, tasks, plans, etc. with all the arguments Bolt requires.
+# We explicitly allow the full bolt binary (both common paths), as the
+# `bolt` user (default orchestration identity) and as root (compat).
+# SETENV is required because the GUI invokes Bolt with `sudo -E -u bolt ...`
+# so TERM/PATH and related env are preserved; without SETENV, sudo fails with
+# "sorry, you are not allowed to preserve the environment".
 # It is far more secure than the previous broad `bolt *` rules.
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
-puppet ALL=(root) NOPASSWD: /usr/local/bin/bolt
+puppet ALL=(bolt) NOPASSWD:SETENV: /opt/puppetlabs/bolt/bin/bolt
+puppet ALL=(bolt) NOPASSWD:SETENV: /usr/local/bin/bolt
+puppet ALL=(root) NOPASSWD:SETENV: /opt/puppetlabs/bolt/bin/bolt
+puppet ALL=(root) NOPASSWD:SETENV: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list --all

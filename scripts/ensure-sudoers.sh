@@ -186,11 +186,13 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl status puppet
 # Rationale: GUI uses `sudo -E -u bolt bolt ...` so that local transport on the
 #            controller runs commands as 'bolt' (whoami returns bolt by default).
 #            Remote uses SSH as bolt. We also keep (root) for compatibility.
-#            Explicit (no wildcard). Secure pattern.
-${SERVICE_USER} ALL=(bolt) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
-${SERVICE_USER} ALL=(bolt) NOPASSWD: /usr/local/bin/bolt
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bolt/bin/bolt
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/bolt
+#            SETENV is required for sudo -E (preserve environment); without it
+#            operators see: "sudo: sorry, you are not allowed to preserve the environment".
+#            Explicit (no wildcard). Secure pattern — SETENV only on these bolt binaries.
+${SERVICE_USER} ALL=(bolt) NOPASSWD:SETENV: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(bolt) NOPASSWD:SETENV: /usr/local/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD:SETENV: /opt/puppetlabs/bolt/bin/bolt
+${SERVICE_USER} ALL=(root) NOPASSWD:SETENV: /usr/local/bin/bolt
 
 # Certificate Authority management (explicit subcommands only)
 # Method: exact "puppetserver ca <subcommand> --certname" (or --all for list).
