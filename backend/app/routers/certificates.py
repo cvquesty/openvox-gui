@@ -23,6 +23,7 @@ from ..dependencies import require_role
 from ..middleware.security import rate_limit_heavy, concurrency_heavy
 from ..services.puppetdb import puppetdb_service
 from ..utils.sudo import run_sudo
+from ..services import certificates_service
 from typing import Optional, List
 
 router = APIRouter(prefix="/api/certificates", tags=["certificates"])
@@ -57,6 +58,7 @@ def _invalidate_cert_list_cache():
     global _cache_cert_list, _cache_cert_list_time
     _cache_cert_list = None
     _cache_cert_list_time = 0
+    certificates_service.invalidate_cert_list_cache()
 
 def _get_cached_ca_info():
     """Return cached CA info if still valid."""
@@ -110,65 +112,12 @@ async def _run_ca_command(args: List[str], timeout: int = 30) -> dict:
 
 @router.get("/list")
 async def list_certificates():
-    """List all signed certificates (cached for speed)."""
-    # Check cache first
-    cached = _get_cached_cert_list()
-    if cached is not None:
-        return cached
-    
-    result = await _run_ca_command(["list", "--all"])
-    if result["returncode"] != 0:
-        # Try alternative: puppet cert list
-        return {"signed": [], "requested": [], "error": result["stderr"]}
-
-    # Strip ANSI escape codes and carriage returns that the PTY may inject
-    import re as _re
-    _ansi_re = _re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
-    raw_output = result["stdout"] + "\n" + result["stderr"]
-    output = _ansi_re.sub('', raw_output).replace('\r', '')
-    logger.debug(f"puppetserver ca list --all raw output: {repr(raw_output[:500])}")
-    
-    signed = []
-    requested = []
-    current_section = "signed"
-    
-    for line in output.strip().split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if "Requested Certificates" in line or "Certificate Requests" in line:
-            current_section = "requested"
-            continue
-        if "Signed Certificates" in line:
-            current_section = "signed"
-            continue
-        if "Revoked Certificates" in line:
-            current_section = "revoked"
-            continue
-        
-        # Parse cert entry
-        parts = line.split()
-        if len(parts) >= 1:
-            name = parts[0].strip('"').strip()
-            if not name or name in ('Requested', 'Signed', 'Revoked', 'Certificates', 'Certificates:'):
-                continue
-            fingerprint = ""
-            for i, p in enumerate(parts):
-                if p == "(SHA256)":
-                    if i + 1 < len(parts):
-                        fingerprint = parts[i + 1]
-                        break
-            
-            entry = {"name": name, "fingerprint": fingerprint, "raw": line}
-            if current_section == "requested":
-                requested.append(entry)
-            else:
-                signed.append(entry)
-    
-    result = {"signed": signed, "requested": requested}
-    _set_cached_cert_list(result)
-    return result
-
+    """List all signed certificates (cached for speed). Delegates to certificates_service (HP3)."""
+    data = await certificates_service.list_certificates(use_cache=True)
+    # Keep legacy in-router cache in sync for any code still using _get_cached_cert_list
+    if data and not data.get("error"):
+        _set_cached_cert_list(data)
+    return data
 
 class CertActionRequest(BaseModel):
     certname: str

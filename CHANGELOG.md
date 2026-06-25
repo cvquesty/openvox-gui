@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a36] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### srdevarch1 HIGH + MP1–MP3 architecture slice (alpha / lab)
+Implements prioritized application-architecture work from `srdevarch1-openvox-gui-app-architecture-refactoring-software-architect.md` without rewriting every Bolt handler in one shot.
+
+#### HP1 — Execution domain
+- `services/execution.py`: centralized `resolve_targets` (ENC groups, `all`, certnames); bolt router delegates.
+- Keeps proven `run_bolt_command` argv assembly in `routers/bolt.py` for Orchestration lab stability; CES + transport stubs remain available.
+
+#### HP2 — Central validation
+- `utils/validation.py`: `SAFE_PQL_VALUE`, `validate_pql_value`, `validate_certname`, `validate_package_name`.
+- `nodes` / `reports` / `performance` use shared validators (HTTP 400 wrappers).
+
+#### HP3 — Fleet / CA decoupling
+- `services/certificates_service.py`: CA list + cache; `puppetdb.get_fleet_nodes` no longer imports certificates **router**.
+- Certificates list endpoint delegates to the service.
+
+#### MP1 — Status / trends
+- `services/fleet_insights.py`: `compute_status_counts` / `compute_trends`; dashboard imports from there.
+
+#### MP2 / MP3 — Router + frontend discipline
+- Auth token list/scopes already on train; ENC inventory RBAC retained.
+- Frontend `api.ts` gains `auth` namespace; `AuthContext` uses it (no raw `/api/auth/*` fetch; session probe avoids 401 reload loop).
+
+### Versioning
+- **3.10.0a36** on **3.10.a_r_alpha.6** (lab deploy only).
+
 ## [3.10.0a35] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Hotfix: slowapi requires parameter named `request`

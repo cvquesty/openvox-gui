@@ -65,6 +65,30 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ─── Dashboard ──────────────────────────────────────────────
 
+
+// ─── Auth (session cookie; used by AuthContext — srdevarch1 MP3) ───
+
+export const auth = {
+  /** Session probe — does NOT force reload on 401 (AuthContext handles unauthenticated). */
+  me: async () => {
+    const response = await fetch(`${API_BASE}/auth/me`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`API Error ${response.status}`);
+    return response.json();
+  },
+  status: async () => {
+    const response = await fetch(`${API_BASE}/auth/status`, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error(`API Error ${response.status}`);
+    return response.json() as Promise<{ auth_required?: boolean; auth_backend?: string }>;
+  },
+  login: (username: string, password: string) =>
+    fetchJSON<{ user: { username: string; role: string }; token?: string }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: () =>
+    fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: getAuthHeaders() }).then(() => undefined),
+};
+
 export const dashboard = {
   getData: () => fetchJSON<any>('/dashboard/data'),
   getStats: () => fetchJSON<any>('/dashboard/stats'),

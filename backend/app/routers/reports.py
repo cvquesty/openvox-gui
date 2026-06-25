@@ -42,6 +42,15 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
+from ..utils.validation import validate_pql_value as _validate_pql_value_raw
+
+def validate_pql_value(value: str, field_name: str) -> str:
+    try:
+        return _validate_pql_value_raw(value, field_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 _AUTH = require_role("admin", "operator", "viewer")
@@ -50,27 +59,6 @@ _AUTH = require_role("admin", "operator", "viewer")
 _snapshot_cache: Dict[str, Any] = {}
 _snapshot_cache_ts: Dict[str, float] = {}
 _SNAPSHOT_CACHE_TTL = 60  # seconds — report data is semi-static
-
-# Strict allowlist pattern for values that will be interpolated into PQL
-# query strings. Only alphanumeric characters, dots, hyphens, and
-# underscores are permitted. This covers valid Puppet certnames,
-# environment names, and report status strings.
-_SAFE_PQL_VALUE = re.compile(r'^[a-zA-Z0-9._-]+$')
-
-def _validate_pql_value(value: str, field_name: str) -> str:
-    """Validate that a value is safe to interpolate into a PQL query.
-
-    Rejects any value containing characters outside the strict allowlist
-    to prevent PQL injection. For example, a certname like:
-        'webserver1"] or true --'
-    would be rejected because it contains quote characters and spaces.
-    """
-    if not _SAFE_PQL_VALUE.match(value):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid {field_name}: contains disallowed characters",
-        )
-    return value
 
 
 @router.get("/", response_model=List[ReportSummary])
@@ -91,13 +79,13 @@ async def list_reports(
     try:
         conditions = []
         if certname:
-            certname = _validate_pql_value(certname, "certname")
+            certname = validate_pql_value(certname, "certname")
             conditions.append(f'["=", "certname", "{certname}"]')
         if status:
-            status = _validate_pql_value(status, "status")
+            status = validate_pql_value(status, "status")
             conditions.append(f'["=", "status", "{status}"]')
         if environment:
-            environment = _validate_pql_value(environment, "environment")
+            environment = validate_pql_value(environment, "environment")
             conditions.append(f'["=", "environment", "{environment}"]')
 
         query = None

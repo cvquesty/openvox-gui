@@ -169,6 +169,52 @@ def validate_pql_query(query: str) -> str:
     return query
 
 
+# ─── PQL interpolation values (srdevarch1 HP2) ─────────────────
+# Single source for certname/status/env/package fragments embedded in PQL.
+# Previously duplicated in routers/nodes.py, reports.py, performance.py.
+
+SAFE_PQL_VALUE = re.compile(r"^[a-zA-Z0-9._-]+$")
+
+
+def validate_pql_value(value: str, field_name: str = "value") -> str:
+    """
+    Validate a single token safe to interpolate into PuppetDB PQL.
+
+    Rejects anything outside [A-Za-z0-9._-] so operators cannot inject
+    PQL operators or quotes via path/query parameters.
+    """
+    if value is None:
+        raise ValueError(f"Invalid {field_name}: empty")
+    value = str(value).strip()
+    if not value:
+        raise ValueError(f"Invalid {field_name}: empty")
+    if not SAFE_PQL_VALUE.match(value):
+        raise ValueError(
+            f"Invalid {field_name}: must match {SAFE_PQL_VALUE.pattern}"
+        )
+    return value
+
+
+def validate_certname(certname: str) -> str:
+    """Validate a Puppet certname for CA ops and PQL (alias of node name + PQL-safe)."""
+    # Prefer FQDN-style node validation; fall back message aligns with CA routes.
+    try:
+        return validate_node_name(certname)
+    except ValueError:
+        # Some labs use short names; still enforce PQL-safe charset
+        return validate_pql_value(certname, "certname")
+
+
+def validate_package_name(name: str) -> str:
+    """Package name fragment for inventory / PQL queries."""
+    return validate_pql_value(name, "package name")
+
+
+# Back-compat aliases used during migration from private router helpers
+_SAFE_PQL_VALUE = SAFE_PQL_VALUE
+_validate_pql_value = validate_pql_value
+
+
 def validate_command(command: str, allowed_commands: Optional[List[str]] = None) -> str:
     """
     Validate a shell command for Bolt execution.

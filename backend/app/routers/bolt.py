@@ -39,91 +39,16 @@ from ..utils.validation import validate_command, strip_ansi
 from ..services.enc import enc_service
 from ..services.puppetdb import puppetdb_service
 from ..middleware.security import rate_limit_heavy, concurrency_heavy
+from ..services.execution import resolve_targets as execution_resolve_targets
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
 
 
 async def resolve_targets(targets: str, db: AsyncSession) -> str:
-    """Resolve a target string (or comma-separated list) to actual certnames for Bolt.
+    """Delegate to domain Execution service (srdevarch1 HP1)."""
+    return await execution_resolve_targets(targets, db)
 
-    Supports:
-      - Single value or comma-separated list of: certnames, ENC group names, or 'all'
-      - Multiple groups: "staging,production" → union of their nodes
-      - Mix of groups + ad-hoc nodes: "webservers,node1,node2"
-      - 'all' anywhere expands to all known nodes (deduped overall)
-
-    Output is always a comma-separated list of certnames (deduplicated, sorted for determinism)
-    suitable for Bolt's --targets flag.
-    """
-    if not targets or not targets.strip():
-        return ''
-
-    # Split on commas and normalize
-    raw_parts = [p.strip() for p in targets.split(',') if p.strip()]
-    if not raw_parts:
-        return ''
-
-    # Dedup while preserving first-seen order, then we'll sort at end for output
-    seen: set[str] = set()
-    resolved: list[str] = []
-
-    # Pre-fetch groups and nodes once
-    try:
-        groups = await enc_service.list_groups(db)
-        all_nodes_list = await enc_service.list_nodes(db)
-    except Exception:
-        groups = []
-        all_nodes_list = []
-
-    group_map = {g.name.lower(): g for g in groups}
-
-    all_certnames: list[str] = []
-    if any(p.lower() == 'all' for p in raw_parts):
-        try:
-            pdb_nodes = await puppetdb_service.get_nodes()
-            all_certnames = [n['certname'] for n in pdb_nodes if n.get('certname')]
-        except Exception:
-            # fallback to ENC nodes
-            all_certnames = [n.certname for n in all_nodes_list if n.certname]
-
-    for part in raw_parts:
-        part_lower = part.lower()
-
-        if part_lower == 'all':
-            for cn in all_certnames:
-                if cn not in seen:
-                    seen.add(cn)
-                    resolved.append(cn)
-            continue
-
-        # Check for ENC group
-        group = group_map.get(part_lower)
-        if group:
-            members = []
-            for node in all_nodes_list:
-                if node.certname and group.name in [g.name for g in node.groups]:
-                    members.append(node.certname)
-            for cn in members:
-                if cn not in seen:
-                    seen.add(cn)
-                    resolved.append(cn)
-            continue
-
-        # Otherwise treat as literal certname / hostname
-        if part not in seen:
-            seen.add(part)
-            resolved.append(part)
-
-    # Sort for stable, predictable --targets ordering
-    resolved.sort(key=lambda x: x.lower())
-    return ','.join(resolved)
-
-BOLT_PATHS = [
-    "/opt/puppetlabs/bolt/bin/bolt",
-    "/opt/puppetlabs/bin/bolt",
-    "/usr/local/bin/bolt",
-]
 
 
 def _normalize_command_for_gui(command: str) -> str:

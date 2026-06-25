@@ -150,14 +150,12 @@ class PuppetDBService:
         signed certificates), and the previously "lost" nodes become visible
         (with appropriate unreported/orphan status).
         """
-        # Local import: certificates router already depends on puppetdb_service,
-        # so we import the list function at runtime inside the method to avoid
-        # any module-level import cycles.
-        from ..routers.certificates import list_certificates
+        # Domain service (srdevarch1 HP3) — no router import / cycle.
+        from .certificates_service import list_certificates as list_ca_certificates
 
         # Get the authoritative list of signed certs (the fleet)
         try:
-            cert_data = await list_certificates()
+            cert_data = await list_ca_certificates()
             signed_certs = cert_data.get("signed", []) if isinstance(cert_data, dict) else []
         except Exception as e:
             logger.warning(f"Failed to load CA signed cert list for fleet nodes: {e}")
