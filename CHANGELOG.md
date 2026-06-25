@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.1.b1] - 2026-06-25 (beta train settle on main)
+
+### Versioning
+- **Settle** the post-merge line on **`main`** as **3.10.1.b1** (first **beta** tag of the 3.10.1 train).
+- Supersedes the interim alpha-style label **3.10.04.a8** that was on LAB after the `3.10.a_r_alpha.6` → `main` merge; code content is the same train, retagged for beta cadence.
+- Subsequent beta work on `main` continues **3.10.1.b2**, **3.10.1.b3**, … until a stable **3.10.1** (or `/release` promotion).
+- **`3.10.a_r_alpha.6` branch retention:** keep remote/local alpha branch until LAB is verified on **3.10.1.b1** and explicit prune is requested (separate step).
+
+### Merge context (unchanged from a8)
+- Integrated full `3.10.a_r_alpha.6` train into `main` (sole-developer direct merge; PR #39 retained for history).
+- Supersedes interim **3.9.8** main-only port of Executive Summary From/schedule; includes 3.10 security, architecture, and UI trains through Monitoring NOC / sruiux2 (OpsTable, FilterBar, Insights hub, live graph timeline fixes).
+
 ## [3.10.04.a8] merge into main — 2026-06-25
 
 ### Merge
