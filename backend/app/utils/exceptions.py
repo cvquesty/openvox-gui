@@ -28,8 +28,11 @@ class OpenVoxError(Exception):
         return {"message": self.message, "details": self.details, "code": self.code}
 
 
-class ValidationAppError(OpenVoxError):
-    """Input failed validation (maps to HTTP 400)."""
+class ValidationAppError(OpenVoxError, ValueError):
+    """Input failed validation (maps to HTTP 400).
+
+    Also subclasses ValueError so legacy ``except ValueError`` in routers still works.
+    """
 
     http_status = 400
     code = "validation_error"

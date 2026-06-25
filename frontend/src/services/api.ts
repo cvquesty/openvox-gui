@@ -175,7 +175,7 @@ export const deploy = {
   getStatus: () => fetchJSON<any>('/deploy/status'),
   getHistory: () => fetchJSON<any>('/deploy/history'),
   run: (environment?: string) =>
-    fetchJSON<any>('/deploy/run', {
+    fetchJSON<import('../types').DeployRunResult>('/deploy/run', {
       method: 'POST',
       body: JSON.stringify({ environment: environment || null }),
     }),

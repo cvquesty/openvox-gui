@@ -262,18 +262,33 @@ async def webhook_deploy(request: Request):
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, lambda: _run_command(cmd, timeout=300))
 
-    # Record in deploy history
-    _add_history_entry({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "environment": branch or "all",
-        "triggered_by": f"github-webhook ({pusher})",
-        "success": result["success"],
-        "exit_code": result["exit_code"],
-        "output_lines": len((result.get("stdout", "") + result.get("stderr", "")).strip().splitlines()),
-        "commit": commit_msg,
-    })
-
     from ..utils.audit import audit_event
+    from ..services import deploy_history as deploy_hist
+
+    out_preview = ((result.get("stdout") or "") + (result.get("stderr") or ""))[:500]
+    deploy_hist.record_deploy(
+        environment=branch or "all",
+        triggered_by=f"github-webhook ({pusher})",
+        success=result["success"],
+        exit_code=result["exit_code"],
+        output_lines=len(out_preview.splitlines()),
+        output_preview=out_preview,
+        commit=commit_msg,
+    )
+    try:
+        from ..database import async_session
+        async with async_session() as db:
+            await deploy_hist.record_deploy_execution(
+                db,
+                environment=branch or "all",
+                executed_by=f"webhook:{pusher}",
+                success=result["success"],
+                exit_code=result["exit_code"],
+                output_preview=out_preview,
+            )
+    except Exception:
+        pass
+
     audit_event(
         "deploy_webhook",
         user=f"webhook:{pusher}",
@@ -317,6 +332,8 @@ async def run_deployment(
         result = await loop.run_in_executor(None, lambda: _run_command(cmd, timeout=300))
 
         from ..utils.audit import audit_event
+        from ..services import deploy_history as deploy_hist
+
         audit_event(
             "deploy_run",
             user=username,
@@ -332,6 +349,31 @@ async def run_deployment(
         if result["stderr"]:
             log_lines.extend(result["stderr"].strip().splitlines())
 
+        preview = "\n".join(log_lines)[:500]
+        deploy_hist.record_deploy(
+            environment=deploy.environment or "all",
+            triggered_by=username,
+            success=result["success"],
+            exit_code=result["exit_code"],
+            output_lines=len(log_lines),
+            output_preview=preview,
+        )
+        # Dual-write SQLite execution_history (srdev2 A6)
+        try:
+            from ..database import async_session
+            async with async_session() as db:
+                await deploy_hist.record_deploy_execution(
+                    db,
+                    environment=deploy.environment or "all",
+                    executed_by=username,
+                    success=result["success"],
+                    exit_code=result["exit_code"],
+                    output_preview=preview,
+                    error_message=None if result["success"] else (result.get("stderr") or "")[:500],
+                )
+        except Exception as db_exc:
+            logger.warning("deploy execution_history dual-write failed: %s", db_exc)
+
         response = {
             "success": result["success"],
             "exit_code": result["exit_code"],
@@ -339,100 +381,22 @@ async def run_deployment(
             "triggered_by": username,
             "output": log_lines,
         }
-        # Persist to history
-        _add_history_entry({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "environment": deploy.environment or "all",
-            "triggered_by": username,
-            "success": result["success"],
-            "exit_code": result["exit_code"],
-            "output_lines": len(log_lines),
-        })
         return response
     except Exception as e:
-        logger.error(f"Deployment error: {e}")
+        logger.error("Deployment error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Deploy History ────────────────────────────────────────
-# Deployment history is persisted as a JSON array in a flat file. We
-# keep the last 100 entries to prevent unbounded growth. Because
-# multiple deployment requests could arrive concurrently (especially
-# if an operator clicks the button twice, or if a CI pipeline fires
-# deployments in parallel), we use a threading lock to serialise
-# read-modify-write cycles on the history file. Without this lock,
-# two concurrent _add_history_entry calls could both read the same
-# state, each append their own entry, and then the second write would
-# silently overwrite the first entry — a classic lost-update race
-# condition.
-import json
-import threading
-from datetime import datetime, timezone
-from pathlib import Path
-
-HISTORY_FILE = Path("/opt/openvox-gui/data/deploy_history.json")
-
-# Serialises all read-modify-write access to the deploy history file
-# to prevent lost updates from concurrent deployment requests.
-_history_lock = threading.Lock()
-
-
-def _load_history() -> list:
-    """Load the deployment history from the JSON file on disk.
-
-    Returns an empty list if the file does not exist or cannot be
-    parsed — this is intentionally lenient so that a corrupted history
-    file does not prevent new deployments from being recorded.
-    """
-    if HISTORY_FILE.exists():
-        try:
-            return json.loads(HISTORY_FILE.read_text())
-        except Exception:
-            return []
-    return []
-
-
-def _save_history(history: list):
-    """Write the deployment history list to disk as pretty-printed JSON.
-
-    Uses atomic write (temp + replace) + fsync for durability (P0 from
-    systems architect report for critical state like deploy_history).
-    """
-    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    data = json.dumps(history, indent=2, default=str) + "\n"
-    # Atomic write + fsync to protect against partial writes on crash/power loss.
-    fd, tmp_path = tempfile.mkstemp(dir=HISTORY_FILE.parent, prefix="deploy_history.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(data)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, HISTORY_FILE)
-    except Exception:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-        raise
-
-
-def _add_history_entry(entry: dict):
-    """Atomically append a new deployment entry to the history file.
-
-    Acquires the history lock to prevent lost updates when multiple
-    deployments are triggered concurrently. The history is capped at
-    100 entries to keep the file size bounded.
-    """
-    with _history_lock:
-        history = _load_history()
-        history.insert(0, entry)
-        history = history[:100]
-        _save_history(history)
+# ─── Deploy History (JSON via services.deploy_history; srdev2 A6) ──
+from ..services.deploy_history import (
+    add_json_history_entry as _add_history_entry,
+    load_json_history as _load_history,
+)
 
 
 @router.get("/history")
 async def get_deploy_history():
-    """Get deployment history."""
+    """Get deployment history (JSON file; also dual-written to execution_history on run)."""
     return {"history": _load_history()}
 
 

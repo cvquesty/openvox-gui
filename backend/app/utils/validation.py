@@ -229,7 +229,13 @@ def validate_command(command: str, allowed_commands: Optional[List[str]] = None)
     but we use ValueError as primary so existing ``except ValueError`` in routers works).
     """
     def _fail(msg: str) -> None:
-        raise ValueError(msg)
+        # ValueError keeps existing router ``except ValueError`` paths working.
+        # ValidationAppError is available for new call sites / handlers (srdev2 A2).
+        try:
+            from .exceptions import ValidationAppError
+            raise ValidationAppError(msg) from None
+        except ImportError:
+            raise ValueError(msg)
 
     if command is None or not isinstance(command, str):
         _fail("Command must be a non-empty string")

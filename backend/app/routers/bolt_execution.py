@@ -169,6 +169,7 @@ async def run_command(
     try:
         validate_command(req.command)
     except ValueError as e:
+        # ValidationAppError subclasses ValueError; OpenVoxError handler also maps it.
         raise HTTPException(status_code=400, detail=str(e))
 
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"

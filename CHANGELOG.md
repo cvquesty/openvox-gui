@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.02.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture close-out slice)
+
+### Architecture (remaining srdev2 A1 / A2 / A3 / A6)
+- **A6 History unification (dual-write):** `services/deploy_history.py` owns JSON deploy history; GUI deploy run + webhook append JSON **and** best-effort `execution_history` rows with `execution_type=deploy` (JSON remains source for `/api/deploy/history` UI).
+- **A1 CES remainder:** `CommandExecutionService.run_bolt_cli()` wraps `bolt_runtime.run_bolt_command` + AUDIT + optional history for new call sites.
+- **A2:** `validate_command` raises `ValidationAppError` (also a `ValueError` for legacy handlers); domain handler already maps `OpenVoxError`.
+- **A3:** `api.ts` deploy run typed as `DeployRunResult`.
+- **A7:** No remaining inline role gates in routers (auth user-mgmt role enum checks only).
+- **Tests:** `test_deploy_history.py`.
+
+### Explicitly deferred (needs product decision / larger effort — not blocking alpha)
+- Full migration off `deploy_history.json` (JSON-only UI) to DB-only history API.
+- Migrating every privileged path onto CES (GUI bolt run/* intentionally stays on bolt_execution for lab stability).
+- OpenAPI client codegen / zod on all FE responses.
+- Typed domain exceptions on every `except Exception` in puppetserver/puppetdb (partial S1 remains with srdev1).
+- Remote-host transport beyond CES stub.
+
+### Versioning
+- **3.10.02.a4** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`). Treat as **srdev2 actionable close-out** for this train pending deferred items.
+
 ## [3.10.02.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture)
 
 ### Architecture (srdev2 A4 — physical bolt router split)

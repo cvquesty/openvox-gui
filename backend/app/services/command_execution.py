@@ -208,4 +208,70 @@ class CommandExecutionService:
         return {**result, "duration_ms": duration, "executed_args": args}
 
 
+    async def run_bolt_cli(
+        self,
+        args: List[str],
+        *,
+        timeout: int = 300,
+        executed_by: str = "system",
+        targets: str = "",
+        execution_type: str = "bolt_cli",
+        db=None,
+        track_job: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Run Bolt via routers.bolt_runtime (inventory + project flags) with optional history.
+
+        Prefer this over ad-hoc subprocess for new call sites (srdev2 A1 remainder).
+        Orchestration GUI still uses bolt_execution handlers for lab-proven paths.
+        """
+        from ..routers.bolt_runtime import run_bolt_command
+        from ..utils.audit import audit_event
+        from ..utils.validation import strip_ansi
+
+        if track_job:
+            _job_enter()
+        try:
+            result = await run_bolt_command(list(args), timeout=timeout)
+        finally:
+            if track_job:
+                _job_leave()
+
+        try:
+            audit_event(
+                execution_type,
+                user=executed_by,
+                targets=targets or "n/a",
+                detail=" ".join(str(a) for a in args[:8]),
+                rc=result.get("returncode"),
+                success=result.get("returncode") == 0,
+            )
+            if isinstance(result.get("stdout"), str):
+                result = {**result, "stdout": strip_ansi(result["stdout"])}
+            if isinstance(result.get("stderr"), str):
+                result = {**result, "stderr": strip_ansi(result["stderr"])}
+        except Exception:
+            pass
+
+        if db is not None:
+            try:
+                from ..models import ExecutionHistory
+
+                hist = ExecutionHistory(
+                    execution_type=execution_type[:20],
+                    node_name=(targets or "n/a")[:255],
+                    command_name=" ".join(str(a) for a in args[:3])[:255],
+                    status="success" if result.get("returncode") == 0 else "failure",
+                    executed_by=executed_by,
+                    result_preview=(result.get("stdout") or "")[:500],
+                    error_message=(result.get("stderr") or "")[:500] or None,
+                )
+                db.add(hist)
+                await db.commit()
+            except Exception:
+                pass
+
+        return result
+
+
 default_service = CommandExecutionService()
