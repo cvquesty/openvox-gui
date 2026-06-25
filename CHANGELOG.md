@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.03.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — ad-hoc confirm toggle)
+
+### Added
+- **Application Settings:** `skip_adhoc_confirm_dialogs` (Yes/No) — when Yes, skips confirmation for Bolt command/task/plan, r10k deploy, and Run OpenVox (Nodes list + detail). Destructive confirms (purge, certs, ENC, users) unchanged. Persisted in `.env` as `OPENVOX_GUI_SKIP_ADHOC_CONFIRM_DIALOGS`; applied in-process on save (no restart).
+
 ## [3.10.03.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — hotfix)
 
 ### Fixed

@@ -13,6 +13,7 @@ import { notifications } from '@mantine/notifications';
 import { TargetSelector } from '../components/TargetSelector';
 import { OutputPane } from '../components/OutputPane';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
 
 /* Simple Error Boundary to prevent result rendering crashes from bubbling to the page bottom */
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
@@ -377,6 +378,7 @@ function RunCommandTab() {
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [runPrivileged, setRunPrivileged] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const skipConfirm = useSkipAdhocConfirm();
 
   useEffect(() => {
     nodesApi.list()
@@ -466,7 +468,7 @@ function RunCommandTab() {
           />
 
           <Button
-            onClick={() => setConfirmOpen(true)}
+            onClick={() => (skipConfirm ? handleRun() : setConfirmOpen(true))}
             loading={running}
             disabled={!command || targets.length === 0}
             leftSection={<IconPlayerPlay size={16} />}
@@ -477,7 +479,7 @@ function RunCommandTab() {
         </Stack>
       </Card>
       <ConfirmModal
-        opened={confirmOpen}
+        opened={confirmOpen && !skipConfirm}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleRun}
         title="Confirm Bolt command"
@@ -514,6 +516,7 @@ function RunTaskTab() {
   const [loading, setLoading] = useState(true);
   const [runPrivileged, setRunPrivileged] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const skipConfirm = useSkipAdhocConfirm();
 
   useEffect(() => {
     Promise.all([
@@ -627,12 +630,12 @@ function RunTaskTab() {
               </Group>
             ))}
           </div>
-          <Button onClick={() => setConfirmOpen(true)} loading={running} disabled={!selectedTask || targets.length === 0}
+          <Button onClick={() => (skipConfirm ? handleRun() : setConfirmOpen(true))} loading={running} disabled={!selectedTask || targets.length === 0}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Task</Button>
         </Stack>
       </Card>
       <ConfirmModal
-        opened={confirmOpen}
+        opened={confirmOpen && !skipConfirm}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleRun}
         title="Confirm Bolt task"
@@ -665,6 +668,7 @@ function RunPlanTab() {
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const skipConfirm = useSkipAdhocConfirm();
 
   useEffect(() => {
     bolt.getPlans().then((p) => setPlans(p.plans || [])).catch(() => {}).finally(() => setLoading(false));
@@ -732,12 +736,12 @@ function RunPlanTab() {
               </Group>
             ))}
           </div>
-          <Button onClick={() => setConfirmOpen(true)} loading={running} disabled={!selectedPlan}
+          <Button onClick={() => (skipConfirm ? handleRun() : setConfirmOpen(true))} loading={running} disabled={!selectedPlan}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Plan</Button>
         </Stack>
       </Card>
       <ConfirmModal
-        opened={confirmOpen}
+        opened={confirmOpen && !skipConfirm}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleRun}
         title="Confirm Bolt plan"

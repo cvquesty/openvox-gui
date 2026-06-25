@@ -146,9 +146,29 @@ function ApplicationTab({ onSwitchToServices }: { onSwitchToServices: () => void
     puppetdb_host:       { label: 'OpenVox DB Host',      description: 'FQDN of the OpenVoxDB server', editable: true },
     puppetdb_port:       { label: 'OpenVox DB Port',      description: 'OpenVoxDB HTTPS API port (usually 8081)', editable: true, type: 'number' },
     debug:               { label: 'Debug Mode',          description: 'Enable verbose debug logging (restart required)', editable: true, type: 'boolean' },
+    skip_adhoc_confirm_dialogs: {
+      label: 'Skip ad-hoc run confirms',
+      description:
+        'When Yes, skip confirmation dialogs for Bolt (command / task / plan), r10k deploy, and Run OpenVox. Destructive actions (purge node, certs, ENC deletes, user delete) always require confirmation. Applies immediately (no restart).',
+      editable: true,
+      type: 'boolean',
+    },
   };
 
-  const entries = data ? Object.entries(data).filter(([key]) => key !== 'auth_backend') : [];
+  const HIDDEN_APP_KEYS = new Set(['auth_backend', 'http_proxy', 'https_proxy', 'no_proxy']);
+  const entries = data
+    ? Object.entries(data).filter(([key]) => !HIDDEN_APP_KEYS.has(key))
+    : [];
+  // Stable order: known meta keys first (incl. new toggle at bottom of identity/debug block), then any extras
+  const metaOrder = Object.keys(settingsMeta);
+  entries.sort(([a], [b]) => {
+    const ia = metaOrder.indexOf(a);
+    const ib = metaOrder.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
 
   const handleEdit = (key: string, currentValue: any) => {
     setEditing((prev) => ({ ...prev, [key]: String(currentValue) }));
@@ -160,7 +180,15 @@ function ApplicationTab({ onSwitchToServices }: { onSwitchToServices: () => void
     setSaving(key);
     try {
       await config.updateApp(key, editing[key]);
-      notifications.show({ title: 'Setting Updated', message: `${settingsMeta[key]?.label || key} updated. Go to the Services tab to restart.`, color: 'green' });
+      const restartHint =
+        key === 'skip_adhoc_confirm_dialogs'
+          ? 'Applied for this process — reload other tabs if needed.'
+          : 'Go to the Services tab to restart.';
+      notifications.show({
+        title: 'Setting Updated',
+        message: `${settingsMeta[key]?.label || key} updated. ${restartHint}`,
+        color: 'green',
+      });
       handleCancel(key);
       refetch();
     } catch (err: any) {

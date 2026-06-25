@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     app_host: str = "::"
     app_port: int = 4567
     debug: bool = False
+    # When True, GUI skips Mantine pre-flight confirms for Bolt runs (command/task/plan),
+    # r10k deploy, and single-node "Run OpenVox". Destructive actions (purge, certs, ENC
+    # deletes, user delete) always keep their confirms.
+    skip_adhoc_confirm_dialogs: bool = False
 
     # Secret key used for signing JWT authentication tokens. This MUST
     # be changed to a unique, random value in production. The install

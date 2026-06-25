@@ -18,6 +18,7 @@ import { LoadingState, ErrorState } from '../components/StateComponents';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useActivity } from '../hooks/ActivityContext';
+import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
 
@@ -172,6 +173,7 @@ export function NodesPage() {
   const { data: hierarchy, loading: hierarchyLoading, error: hierarchyError } = useApi<any>(() => enc.getHierarchy());
   const navigate = useNavigate();
   const { begin, end } = useActivity();
+  const skipConfirm = useSkipAdhocConfirm();
 
   const loading = nodesLoading || hierarchyLoading;
   const error = nodesError || hierarchyError;
@@ -345,7 +347,7 @@ export function NodesPage() {
           variant="subtle"
           color="green"
           loading={runningCert === node.certname}
-          onClick={() => setRunTarget(node.certname)}
+          onClick={() => (skipConfirm ? runOpenVox(node.certname) : setRunTarget(node.certname))}
         >
           <IconPlayerPlay size={18} />
         </ActionIcon>
@@ -389,7 +391,7 @@ export function NodesPage() {
       </Group>
 
       <ConfirmModal
-        opened={!!runTarget}
+        opened={!!runTarget && !skipConfirm}
         onClose={() => setRunTarget(null)}
         onConfirm={() => runTarget && runOpenVox(runTarget)}
         title="Run OpenVox agent?"

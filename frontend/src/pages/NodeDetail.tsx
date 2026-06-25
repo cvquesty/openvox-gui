@@ -21,6 +21,7 @@ import { bolt } from '../services/api';
 import { notifications } from '@mantine/notifications';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { useActivity } from '../hooks/ActivityContext';
+import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
 
 /* ═══════════════════════════════════════════════════════════════
    INSPECT-O-BOT 2000 — the node inspection robot
@@ -132,6 +133,7 @@ export function NodeDetailPage() {
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
   const [purging, setPurging] = useState(false);
   const { begin, end } = useActivity();
+  const skipConfirm = useSkipAdhocConfirm();
 
   const handleRunPuppet = async () => {
     if (!certname) return;
@@ -213,7 +215,7 @@ export function NodeDetailPage() {
         <Button
           leftSection={runningPuppet ? <Loader size={14} color="white" /> : <IconPlayerPlay size={14} />}
           color="green" size="sm" variant="outline"
-          onClick={() => setRunConfirmOpen(true)} loading={runningPuppet}>
+          onClick={() => (skipConfirm ? handleRunPuppet() : setRunConfirmOpen(true))} loading={runningPuppet}>
           Run OpenVox
         </Button>
         <Button
@@ -225,7 +227,7 @@ export function NodeDetailPage() {
       </Group>
 
       <ConfirmModal
-        opened={runConfirmOpen}
+        opened={runConfirmOpen && !skipConfirm}
         onClose={() => setRunConfirmOpen(false)}
         onConfirm={handleRunPuppet}
         title="Run OpenVox agent?"

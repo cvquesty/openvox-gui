@@ -700,6 +700,7 @@ async def get_app_config():
         "puppetdb_port": settings.puppetdb_port,
         "auth_backend": settings.auth_backend,
         "debug": settings.debug,
+        "skip_adhoc_confirm_dialogs": settings.skip_adhoc_confirm_dialogs,
         "http_proxy": settings.http_proxy or "",
         "https_proxy": settings.https_proxy or "",
         "no_proxy": settings.no_proxy,
@@ -724,6 +725,7 @@ async def update_app_config(
         "puppetdb_host": "OPENVOX_GUI_PUPPETDB_HOST",
         "puppetdb_port": "OPENVOX_GUI_PUPPETDB_PORT",
         "debug": "OPENVOX_GUI_DEBUG",
+        "skip_adhoc_confirm_dialogs": "OPENVOX_GUI_SKIP_ADHOC_CONFIRM_DIALOGS",
         "http_proxy": "OPENVOX_GUI_HTTP_PROXY",
         "https_proxy": "OPENVOX_GUI_HTTPS_PROXY",
         "no_proxy": "OPENVOX_GUI_NO_PROXY",
@@ -740,6 +742,22 @@ async def update_app_config(
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=500, content={"detail": ".env file not found"})
 
+    # Normalize booleans for .env and in-memory settings
+    write_value = value
+    if key in ("debug", "skip_adhoc_confirm_dialogs"):
+        truthy = str(value).lower() in ("1", "true", "yes", "on")
+        write_value = "true" if truthy else "false"
+        setattr(settings, key, truthy)
+    elif key == "app_name":
+        settings.app_name = str(value)
+    elif key in ("puppet_server_host", "puppetdb_host", "http_proxy", "https_proxy", "no_proxy"):
+        setattr(settings, key, str(value) if value is not None else "")
+    elif key in ("puppet_server_port", "puppetdb_port"):
+        try:
+            setattr(settings, key, int(value))
+        except (TypeError, ValueError):
+            pass
+
     # Read current .env, update or add the variable
     lines = env_path.read_text().splitlines()
     found = False
@@ -748,22 +766,28 @@ async def update_app_config(
         if line.strip().startswith(env_var + "="):
             # Quote string values that contain spaces
             if key in ("app_name",):
-                new_lines.append(f'{env_var}="{value}"')
+                new_lines.append(f'{env_var}="{write_value}"')
             else:
-                new_lines.append(f"{env_var}={value}")
+                new_lines.append(f"{env_var}={write_value}")
             found = True
         else:
             new_lines.append(line)
 
     if not found:
         if key in ("app_name",):
-            new_lines.append(f'{env_var}="{value}"')
+            new_lines.append(f'{env_var}="{write_value}"')
         else:
-            new_lines.append(f"{env_var}={value}")
+            new_lines.append(f"{env_var}={write_value}")
 
     env_path.write_text("\n".join(new_lines) + "\n")
 
-    return {"status": "ok", "key": key, "value": value, "message": "Setting updated. Restart service for changes to take effect."}
+    needs_restart = key not in ("skip_adhoc_confirm_dialogs",)
+    msg = (
+        "Setting updated and applied for this process."
+        if not needs_restart
+        else "Setting updated. Restart service for changes to take effect."
+    )
+    return {"status": "ok", "key": key, "value": write_value, "message": msg}
 
 
 # ── Proxy connection test ───────────────────────────────────

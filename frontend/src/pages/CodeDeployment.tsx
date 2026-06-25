@@ -19,6 +19,7 @@ import { OutputPane } from '../components/OutputPane';
 import { LoadingState } from '../components/StateComponents';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useActivity } from '../hooks/ActivityContext';
+import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
 
 /* ── Giant Robot vs City – inline SVG comic ──────────────── */
 function RobotComic({ attacking }: { attacking: boolean }) {
@@ -257,6 +258,7 @@ export function CodeDeploymentPage() {
   const [lastSuccess, setLastSuccess] = useState<boolean | null>(null);
   const [confirmDeploy, setConfirmDeploy] = useState(false);
   const { begin, end } = useActivity();
+  const skipConfirm = useSkipAdhocConfirm();
 
   const [restartingStack, setRestartingStack] = useState(false);
 
@@ -360,7 +362,7 @@ export function CodeDeploymentPage() {
                 <Button
                   leftSection={deploying ? <Loader size={16} color="white" /> : <IconPlayerPlay size={16} />}
                   color="#EC8622"
-                  onClick={() => setConfirmDeploy(true)}
+                  onClick={() => (skipConfirm ? handleDeploy() : setConfirmDeploy(true))}
                   disabled={deploying}
                   loading={deploying}
                 >
@@ -445,7 +447,7 @@ export function CodeDeploymentPage() {
         </Paper>
       </Card>
       <ConfirmModal
-        opened={confirmDeploy}
+        opened={confirmDeploy && !skipConfirm}
         onClose={() => setConfirmDeploy(false)}
         onConfirm={handleDeploy}
         title="Run r10k deploy?"
