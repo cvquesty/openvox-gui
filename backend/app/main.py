@@ -40,8 +40,8 @@ from .routers import logs as logs_router
 from .routers import metrics as metrics_router
 from .routers import infra as infra_router
 from .routers import maintenance as maintenance_router
-from .routers import metrics as metrics_router
 from .services.puppetdb import puppetdb_service
+from .utils.exceptions import OpenVoxError
 
 # Configure logging
 logging.basicConfig(
@@ -198,6 +198,17 @@ app = FastAPI(
 # Add rate limiter state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(OpenVoxError)
+async def openvox_domain_error_handler(request: Request, exc: OpenVoxError):
+    """Map domain exceptions (srdev2 A2) to HTTP without leaking stack traces."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        status_code=getattr(exc, "http_status", 500),
+        content={"detail": exc.to_detail(), "code": getattr(exc, "code", "error")},
+    )
 
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)

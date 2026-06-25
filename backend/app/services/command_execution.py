@@ -55,15 +55,18 @@ class ExecutionTransport(Protocol):
 
 
 class LocalSudoTransport:
-    """Local execution via sudo (current default)."""
+    """Local execution via sudo (current default). PTY via run_sudo (srdev1 S2 / srdev2)."""
 
     async def run(self, args: List[str], timeout: int = 300, rainbow: bool = False) -> Dict[str, Any]:
-        if rainbow:
-            from shlex import quote as shlex_quote
-            cmd_str = " ".join(shlex_quote(a) for a in args)
-            full = ["script", "-qc", cmd_str, "/dev/null"]
-            return await run_sudo(full, timeout=timeout)
-        return await run_sudo(args, timeout=timeout)
+        # Rainbow historically used script(1); run_sudo already allocates a PTY.
+        # Keep argv-only — no shell string construction.
+        result = await run_sudo(args, timeout=timeout)
+        if rainbow and isinstance(result.get("stdout"), str):
+            result = {
+                **result,
+                "stdout": result["stdout"].replace("\r\n", "\n").replace("\r", ""),
+            }
+        return result
 
 
 class SSHRemoteTransport:
@@ -182,6 +185,25 @@ class CommandExecutionService:
             history.result_preview = (result.get("stdout") or "")[:500]
             history.error_message = (result.get("stderr") or "")[:500]
             await db.commit()
+
+        try:
+            from ..utils.audit import audit_event
+            from ..utils.validation import strip_ansi
+
+            audit_event(
+                execution_type or "command_execution",
+                user=executed_by,
+                targets=targets,
+                detail=" ".join(str(a) for a in args[:6]),
+                rc=result.get("returncode"),
+                success=result.get("returncode") == 0,
+            )
+            if isinstance(result.get("stdout"), str):
+                result["stdout"] = strip_ansi(result["stdout"])
+            if isinstance(result.get("stderr"), str):
+                result["stderr"] = strip_ansi(result["stderr"])
+        except Exception:
+            pass
 
         return {**result, "duration_ms": duration, "executed_args": args}
 

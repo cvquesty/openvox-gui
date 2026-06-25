@@ -222,20 +222,28 @@ def validate_command(command: str, allowed_commands: Optional[List[str]] = None)
     This is a defense-in-depth choke point (srdev1 S5), not a full shell parser.
     Operators still run arbitrary commands on targets by design; we block the
     most destructive / obviously hostile patterns and length abuse.
+
+    Raises ValueError for backward compatibility; also raises ValidationAppError
+    when domain exceptions are preferred (same message) — callers catching
+    ValueError continue to work (srdev2 A2: ValidationAppError subclasses Exception
+    but we use ValueError as primary so existing ``except ValueError`` in routers works).
     """
+    def _fail(msg: str) -> None:
+        raise ValueError(msg)
+
     if command is None or not isinstance(command, str):
-        raise ValueError("Command must be a non-empty string")
+        _fail("Command must be a non-empty string")
     command = command.strip()
     if not command:
-        raise ValueError("Command must be a non-empty string")
+        _fail("Command must be a non-empty string")
 
     # Limit command length (slightly higher than legacy 1000 for real ops cmds)
     if len(command) > 2000:
-        raise ValueError("Command too long")
+        _fail("Command too long")
 
     # Null bytes / control chars (except tab/newline which we reject entirely)
     if "\x00" in command or any(ord(c) < 32 and c not in "\t" for c in command):
-        raise ValueError("Command contains invalid control characters")
+        _fail("Command contains invalid control characters")
 
     # If allowed commands list is provided, check first token (best-effort)
     if allowed_commands:
@@ -245,7 +253,7 @@ def validate_command(command: str, allowed_commands: Optional[List[str]] = None)
         except ValueError:
             cmd_parts = command.split()
         if cmd_parts and cmd_parts[0] not in allowed_commands:
-            raise ValueError(f"Command not allowed: {cmd_parts[0]}")
+            _fail(f"Command not allowed: {cmd_parts[0]}")
 
     # Dangerous shell patterns (case-insensitive where useful)
     dangerous_patterns = [
@@ -289,7 +297,7 @@ def validate_command(command: str, allowed_commands: Optional[List[str]] = None)
 
     for pattern in dangerous_patterns:
         if re.search(pattern, command, re.IGNORECASE):
-            raise ValueError("Command contains potentially dangerous patterns")
+            _fail("Command contains potentially dangerous patterns")
 
     return command
 

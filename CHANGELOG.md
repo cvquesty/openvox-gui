@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.02.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture train marker)
+
+Closes active **srdev1** implementation push; starts **srdev2** app-architecture Phase 1 foundation. **Alpha + lab only** (`openvox.questy.org` / `10.0.100.225`). **Not merged to `main`.**
+
+### Architecture (srdev2 A2 / A3 / A7 / CES hygiene)
+- **A2 Domain errors:** `utils/exceptions.py` (`OpenVoxError`, `ValidationAppError`, `CommandExecutionError`, …) + FastAPI handler in `main.py` mapping to HTTP + `code`.
+- **A7 Router cleanup:** Remove duplicate `metrics` import in `main.py`; deploy `/run` uses `Depends(require_role("admin", "operator"))` instead of inline `request.state.user` RBAC.
+- **A1/CES:** `LocalSudoTransport` no longer uses `script -qc` (align with bolt router PTY argv path); `CommandExecutionService.execute` emits AUDIT + `strip_ansi` on outputs.
+- **A3 Contract types (start):** Frontend `BoltRunResult` / `DeployRunResult` / `EncClassifyResponse` in `types/index.ts`; `api.ts` bolt run/* typed to `BoltRunResult`.
+- **A5 Tests:** `backend/tests/test_exceptions.py`.
+
+### Versioning
+- **3.10.02.a1** on **3.10.a_r_alpha.6** (srdev2 train id).
+
 ## [3.10.01.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev1 security train)
 
 Alpha-only continuation of **srdev1** security work. Lab deploy target only (`openvox.questy.org` / `10.0.100.225`). **Not merged to `main`.**

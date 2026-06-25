@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from ..middleware.security import rate_limit_heavy, concurrency_heavy
+from ..dependencies import require_role
 
 router = APIRouter(prefix="/api/deploy", tags=["deploy"])
 logger = logging.getLogger(__name__)
@@ -292,22 +293,17 @@ async def webhook_deploy(request: Request):
 
 @router.post("/run")
 @rate_limit_heavy()
-async def run_deployment(deploy: DeployRequest, request: Request, _ = Depends(concurrency_heavy)):
+async def run_deployment(
+    deploy: DeployRequest,
+    request: Request,
+    current_user: str = Depends(require_role("admin", "operator")),
+    _=Depends(concurrency_heavy),
+):
     """
     Trigger an r10k deployment.
-    Requires admin or operator role.
+    Requires admin or operator role (srdev2 A7 — Depends, not inline RBAC).
     """
-    from ..dependencies import require_role
-    # Role check is now handled by the require_role dependency pattern,
-    # but we keep inline check here for backward compatibility with the
-    # request.state.user pattern used in this endpoint.
-    user = getattr(request.state, "user", None)
-    username = "anonymous"
-    if user:
-        role = user.get("role", "viewer")
-        username = user.get("user_id", user.get("username", "unknown"))
-        if role not in ("admin", "operator"):
-            raise HTTPException(status_code=403, detail="Access denied. Required role: admin or operator. Your role: " + role)
+    username = current_user or "anonymous"
 
     try:
         cmd = ["sudo", "/opt/openvox-gui/scripts/r10k-deploy.sh"]

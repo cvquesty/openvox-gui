@@ -10,6 +10,7 @@ For the current major development effort implementing recommendations from the s
 - Create and work on dedicated alpha branches named **`3.10.a_r_alpha.N`** (where N starts at 1 and increments for each significant milestone or batch of changes).
 - **Branch purpose**: Isolate all refactor, hardening, architecture, and UI/UX work based on the 2026-06 evaluation reports (Senior Developer, Software Architect, Systems Architect, Enterprise Architect, and UI/UX designers).
 - **srdev1 security train marker (2026-06-25+):** Version strings **`3.10.01.aN`** (e.g. `3.10.01.a1`) track work from `srdev1-openvox-gui-domain-security-issues-senior-developer.md` while remaining on branch **`3.10.a_r_alpha.6`** (or later alpha.N). This is **not** a merge to `main` — a deliberate massive merge + final security scan happens only when that effort is complete.
+- **srdev2 architecture train marker (2026-06-25+):** Version strings **`3.10.02.aN`** track `srdev2-openvox-gui-app-architecture-refactoring-senior-developer.md` (layering, CES, domain errors, contracts, router thinning). Same branch / lab-only / no `main` rules as srdev1.
 - **Testing & Validation Policy (STRICT)**:
   - All testing and validation deploys are **only** performed against the lab/test server: `openvox.questy.org` (IP `10.0.100.225`).
   - Prefer explicit SSH for lab when default `ssh` fails (keys / IPv4):  
