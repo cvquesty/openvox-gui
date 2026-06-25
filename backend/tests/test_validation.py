@@ -85,3 +85,15 @@ def test_validate_node_name_rejects_traversal():
         validate_node_name("../etc/passwd")
     with pytest.raises(ValueError):
         validate_node_name("bad;name")
+
+
+def test_validate_command_rejects_wipefs_and_device_write():
+    with pytest.raises(ValueError, match="dangerous"):
+        validate_command("wipefs -a /dev/sda")
+    with pytest.raises(ValueError, match="dangerous"):
+        validate_command("echo x > /dev/sda1")
+
+
+def test_validate_command_rejects_shutdown():
+    with pytest.raises(ValueError, match="dangerous"):
+        validate_command("shutdown -h now")

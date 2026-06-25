@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.01.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev1 security train)
+
+Alpha-only continuation of **srdev1** security work. Lab deploy target only (`openvox.questy.org` / `10.0.100.225`). **Not merged to `main`.**
+
+### Security / observability
+- **S1 (targeted):** `exc_info=True` on privileged error paths in `services/puppetserver.py`, `services/puppetdb.py`, and all `config.py` HTTP 500 handlers; cleaner `restart_service` error log.
+- **Rec #9 AUDIT:** `utils/audit.py` + structured `AUDIT: type=… user=…` lines for Bolt command/task/plan, cert sign/revoke/clean, deploy run + webhook (no payload dumps; truncated targets/detail).
+- **S10 tests:** `test_enc_merge.py`, `test_service_tokens.py`, `test_audit.py`; extra `validate_command` cases (wipefs, device write, shutdown).
+
+### Versioning
+- **3.10.01.a2** on **3.10.a_r_alpha.6**.
+
 ## [3.10.01.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev1 security train marker)
 
 Marks the start of implementing **srdev1-openvox-gui-domain-security-issues-senior-developer.md** (security-focused). **Alpha only** — not merged to `main`; lab deploy target remains **openvox.questy.org** (`10.0.100.225`) only.

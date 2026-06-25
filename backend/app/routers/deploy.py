@@ -272,6 +272,16 @@ async def webhook_deploy(request: Request):
         "commit": commit_msg,
     })
 
+    from ..utils.audit import audit_event
+    audit_event(
+        "deploy_webhook",
+        user=f"webhook:{pusher}",
+        targets=branch or "all",
+        detail=(commit_msg or "")[:120],
+        rc=result["exit_code"],
+        success=result["success"],
+    )
+
     return {
         "success": result["success"],
         "branch": branch,
@@ -309,6 +319,16 @@ async def run_deployment(deploy: DeployRequest, request: Request, _ = Depends(co
 
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, lambda: _run_command(cmd, timeout=300))
+
+        from ..utils.audit import audit_event
+        audit_event(
+            "deploy_run",
+            user=username,
+            targets=deploy.environment or "all",
+            detail="r10k-deploy.sh -pv",
+            rc=result["exit_code"],
+            success=result["success"],
+        )
 
         log_lines = []
         if result["stdout"]:

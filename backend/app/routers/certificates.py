@@ -140,6 +140,14 @@ async def sign_certificate(
     """
     _validate_certname(body.certname)
     result = await _run_ca_command(["sign", "--certname", body.certname], timeout=120)
+    from ..utils.audit import audit_event
+    audit_event(
+        "cert_sign",
+        user=current_user,
+        targets=body.certname,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
@@ -164,6 +172,14 @@ async def revoke_certificate(
     """
     _validate_certname(body.certname)
     result = await _run_ca_command(["revoke", "--certname", body.certname], timeout=120)
+    from ..utils.audit import audit_event
+    audit_event(
+        "cert_revoke",
+        user=current_user,
+        targets=body.certname,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
@@ -195,6 +211,14 @@ async def clean_certificate(
 
     _validate_certname(body.certname)
     result = await _run_ca_command(["clean", "--certname", body.certname], timeout=120)
+    from ..utils.audit import audit_event
+    audit_event(
+        "cert_clean",
+        user=current_user,
+        targets=body.certname,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])

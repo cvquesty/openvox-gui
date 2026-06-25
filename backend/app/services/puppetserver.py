@@ -201,7 +201,7 @@ class PuppetServerService:
                 "memory": props.get("MemoryCurrent", ""),
             }
         except Exception as e:
-            logger.error(f"Error checking service {service}: {e}")
+            logger.error(f"Error checking service {service}: {e}", exc_info=True)
             return {"service": service, "status": "unknown", "error": str(e)}
 
     def restart_service(self, service: str) -> Dict[str, str]:
@@ -232,6 +232,7 @@ class PuppetServerService:
                 return {"status": "success", "message": f"{service} restarted"}
             return {"status": "error", "message": result.get("stderr") or result.get("stdout") or "restart failed"}
         except Exception as e:
+            logger.error("restart_service failed: %s", e, exc_info=True)
             return {"status": "error", "message": str(e)}
 
     # ─── PuppetServer Version ──────────────────────────────
@@ -287,7 +288,7 @@ class PuppetServerService:
                 if file_data:
                     result[conf_file.replace('.ini', '')] = file_data
             except Exception as e:
-                logger.warning(f"Could not read {filepath}: {e}")
+                logger.warning(f"Could not read {filepath}: {e}", exc_info=True)
                 continue
         return result
 
@@ -303,7 +304,7 @@ class PuppetServerService:
             with open(hiera_path) as f:
                 return yaml.safe_load(f) or {}
         except Exception as e:
-            logger.error(f"Error reading hiera.yaml: {e}")
+            logger.error(f"Error reading hiera.yaml: {e}", exc_info=True)
             return {"error": str(e)}
 
     def read_hiera_raw(self) -> str:
@@ -314,7 +315,7 @@ class PuppetServerService:
         try:
             return hiera_path.read_text()
         except Exception as e:
-            logger.error(f"Error reading hiera.yaml: {e}")
+            logger.error(f"Error reading hiera.yaml: {e}", exc_info=True)
             return ""
 
     def write_hiera_config(self, content: str) -> bool:
@@ -349,7 +350,7 @@ class PuppetServerService:
             logger.error(f"Permission denied writing to {hiera_path}")
             return False
         except Exception as e:
-            logger.error(f"Error writing hiera.yaml: {e}")
+            logger.error(f"Error writing hiera.yaml: {e}", exc_info=True)
             return False
 
     def list_hiera_data_files(self, environment: str = "production") -> List[Dict[str, Any]]:
@@ -458,7 +459,7 @@ class PuppetServerService:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to get Puppet Server status for {service}: {e}")
+            logger.warning(f"Failed to get Puppet Server status for {service}: {e}", exc_info=True)
             return {}
 
     async def get_ps_metrics(self, mbean: str) -> Dict[str, Any]:
@@ -494,7 +495,7 @@ class PuppetServerService:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.warning(f"Failed to list Puppet Server metrics: {e}")
+            logger.warning(f"Failed to list Puppet Server metrics: {e}", exc_info=True)
             return {"error": str(e)}
 
     async def get_ps_health_snapshot(self) -> Dict[str, Any]:

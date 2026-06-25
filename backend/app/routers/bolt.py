@@ -477,6 +477,17 @@ async def run_command(
     
     stdout = strip_ansi(result.get("stdout", ""))
     stderr = strip_ansi(result.get("stderr", ""))
+    from ..utils.audit import audit_event
+    audit_event(
+        "bolt_command",
+        user=current_user,
+        targets=resolved_targets,
+        detail=req.command[:120],
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+        format=fmt,
+        escalate=escalate,
+    )
     return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 
@@ -541,6 +552,16 @@ async def run_task(
     
     stdout = strip_ansi(result.get("stdout", ""))
     stderr = strip_ansi(result.get("stderr", ""))
+    from ..utils.audit import audit_event
+    audit_event(
+        "bolt_task",
+        user=current_user,
+        targets=resolved_targets,
+        detail=req.task,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+        run_as=req.run_as or "",
+    )
     return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 
@@ -588,6 +609,15 @@ async def run_plan(
     
     stdout = strip_ansi(result.get("stdout", ""))
     stderr = strip_ansi(result.get("stderr", ""))
+    from ..utils.audit import audit_event
+    audit_event(
+        "bolt_plan",
+        user=current_user,
+        targets="plan",
+        detail=req.plan,
+        rc=result["returncode"],
+        success=result["returncode"] == 0,
+    )
     return {"returncode": result["returncode"], "output": stdout, "error": stderr}
 
 

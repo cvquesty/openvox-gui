@@ -4,6 +4,7 @@ import socket
 """
 Configuration API - Manage PuppetServer, PuppetDB, Hiera, and application settings.
 """
+import logging
 from fastapi import Request, APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -18,6 +19,7 @@ from ..middleware.security import rate_limit_heavy, concurrency_heavy
 _ADMIN_ONLY = require_role("admin")
 
 router = APIRouter(prefix="/api/config", tags=["configuration"])
+logger = logging.getLogger(__name__)
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -58,6 +60,7 @@ async def get_puppet_config():
             "environments": puppetserver_service.list_environments(),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -84,6 +87,7 @@ async def get_puppetdb_config():
     try:
         return puppetserver_service.read_puppetdb_config()
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -100,6 +104,7 @@ async def list_available_classes(environment: str = "production"):
             "total": len(classes),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -117,6 +122,7 @@ async def get_hiera_config():
             "path": str(puppetserver_service.confdir / "hiera.yaml"),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -140,6 +146,7 @@ async def update_hiera_config(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -156,6 +163,7 @@ async def list_hiera_data_files(environment: str = "production"):
             "total": len(files),
         }
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -174,6 +182,7 @@ async def get_hiera_data_file(environment: str, path: str):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -197,6 +206,7 @@ async def update_hiera_data_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -233,6 +243,7 @@ async def create_hiera_data_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -262,6 +273,7 @@ async def delete_hiera_data_file(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -453,6 +465,7 @@ async def list_config_files():
         tree = _build_config_file_tree()
         return {"groups": tree, "os_family": _detect_os_family()}
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -512,6 +525,7 @@ async def read_config_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied reading file")
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -550,6 +564,7 @@ async def save_config_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied writing file")
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -662,6 +677,7 @@ async def puppet_lookup(
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail=f"puppet binary not found at {puppet_bin}")
     except Exception as e:
+        logger.error("config endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
