@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 FilterBar + viz lite)
+
+### UI/UX (sruiux2 designer-2 P1 slice)
+- **P1-1 FilterBar:** New shared `FilterBar` (search + status chips + clear + optional right actions). Adopted on **Nodes** and **Reports** with URL-backed `?q=` / `?status=`.
+- **Nodes:** Status chips filter groups, All Nodes, and unclassified; **Unclassified** uses OpsTable; copy-link still works with status.
+- **P1-2 lite (Dashboard):** Ring legend statuses link to `/nodes?status=…`; trend chart **Legend** / **Area** clicks navigate to filtered Nodes.
+- **Reports:** FilterBar replaces ad-hoc Select+TextInput; keeps fetch-limit + export + copy link.
+
+### Versioning
+- **3.10.04.a3** continues sruiux2 (alpha / lab only). Next: virtualization, Metrics OpsTables, more chart drill-down.
+
 ## [3.10.04.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 OpsTable rollout)
 
 ### UI/UX (sruiux2 designer-2 P0 slice 2)

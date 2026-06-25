@@ -17,6 +17,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OpsTable, OpsColumn } from '../components/OpsTable';
+import { FilterBar } from '../components/FilterBar';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useActivity } from '../hooks/ActivityContext';
 import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
@@ -164,9 +165,20 @@ interface GroupedNodes {
 
 export function NodesPage() {
   const { isRobots } = useAppTheme();
-  const { values, setFilter, copyLink } = useUrlFilters(['q']);
+  const { values, setFilter, copyLink } = useUrlFilters(['q', 'status']);
   const search = values.q;
   const setSearch = (v: string) => setFilter('q', v);
+  const statusFilter = values.status || null;
+  const setStatusFilter = (v: string | null) => setFilter('status', v || '');
+
+  const matchesNodeFilters = (n: NodeSummary) => {
+    if (search && !n.certname.toLowerCase().includes(search.toLowerCase())) return false;
+    if (statusFilter) {
+      const st = (n.latest_report_status || '').toLowerCase();
+      if (st !== statusFilter.toLowerCase()) return false;
+    }
+    return true;
+  };
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [runTarget, setRunTarget] = useState<string | null>(null);
   const [runningCert, setRunningCert] = useState<string | null>(null);
@@ -297,38 +309,34 @@ export function NodesPage() {
       .sort((a, b) => a.certname.localeCompare(b.certname));
   }, [nodeList, hierarchy]);
 
-  // Filter groups and nodes by search
+  // Filter groups and nodes by search + status chips (sruiux2 P1-1 FilterBar)
   const filteredGroups = useMemo(() => {
-    if (!search) return groupedNodes;
-    const searchLower = search.toLowerCase();
+    if (!search && !statusFilter) return groupedNodes;
+    const searchLower = (search || '').toLowerCase();
     const filtered: GroupedNodes = {};
     Object.entries(groupedNodes).forEach(([groupName, data]) => {
-      const matchingNodes = data.nodes.filter((n) =>
-        n.certname.toLowerCase().includes(searchLower)
-      );
-      if (groupName.toLowerCase().includes(searchLower) || matchingNodes.length > 0) {
+      const matchingNodes = data.nodes.filter(matchesNodeFilters);
+      if (
+        (searchLower && groupName.toLowerCase().includes(searchLower) && matchingNodes.length === data.nodes.length) ||
+        matchingNodes.length > 0
+      ) {
         filtered[groupName] = { nodes: matchingNodes };
       }
     });
     return filtered;
-  }, [groupedNodes, search]);
+  }, [groupedNodes, search, statusFilter]);
 
-  // Filter unclassified nodes by search
-  const filteredUnclassified = useMemo(() => {
-    if (!search) return unclassifiedNodes;
-    const searchLower = search.toLowerCase();
-    return unclassifiedNodes.filter((n) =>
-      n.certname.toLowerCase().includes(searchLower)
-    );
-  }, [unclassifiedNodes, search]);
+  // Filter unclassified nodes
+  const filteredUnclassified = useMemo(
+    () => unclassifiedNodes.filter(matchesNodeFilters),
+    [unclassifiedNodes, search, statusFilter]
+  );
 
-  // All nodes filtered by search (for the All Nodes section)
+  // All nodes filtered (for the All Nodes section)
   const filtered = useMemo(() => {
     if (!nodeList) return [];
-    if (!search) return nodeList;
-    const searchLower = search.toLowerCase();
-    return nodeList.filter((n) => n.certname.toLowerCase().includes(searchLower));
-  }, [nodeList, search]);
+    return nodeList.filter(matchesNodeFilters);
+  }, [nodeList, search, statusFilter]);
 
   const toggleGroup = (groupName: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
@@ -363,16 +371,15 @@ export function NodesPage() {
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <Title order={2}>Nodes ({totalNodes})</Title>
-        <Group gap="xs">
-          <TextInput
-            placeholder="Search nodes..."
-            leftSection={<IconSearch size={16} />}
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            style={{ width: 300 }}
-          />
+      <Title order={2}>Nodes ({totalNodes})</Title>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search nodes by certname…"
+        status={statusFilter}
+        onStatusChange={setStatusFilter}
+        hint="Status chips filter All Nodes / groups / unclassified. Shareable via URL (?q=&status=)."
+        rightSection={
           <Tooltip label="Copy link to this filtered view">
             <ActionIcon
               variant="light"
@@ -388,8 +395,8 @@ export function NodesPage() {
               <IconLink size={18} />
             </ActionIcon>
           </Tooltip>
-        </Group>
-      </Group>
+        }
+      />
 
       <ConfirmModal
         opened={!!runTarget && !skipConfirm}
@@ -534,49 +541,48 @@ export function NodesPage() {
          form the complete fleet. */}
       <Title order={4}>Unclassified Nodes ({filteredUnclassified.length})</Title>
       <Card withBorder shadow="sm" padding="lg" style={{ overflow: 'hidden' }}>
-        {filteredUnclassified.length === 0 ? (
-          <Text c="dimmed" ta="center">All known nodes are classified</Text>
-        ) : (
-          <Box style={{ maxHeight: 600, minHeight: 0, overflow: 'hidden' }}>
-            <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Certname</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Environment</Table.Th>
-                  <Table.Th>Last Report</Table.Th>
-                  <Table.Th>Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filteredUnclassified.map((node) => (
-                  <Table.Tr
-                    key={node.certname}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/nodes/${node.certname}`)}
-                  >
-                    <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
-                    <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
-                    <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
-                    <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
-                    <Table.Td>
-                      <Tooltip label="View details">
-                        <ActionIcon variant="subtle" onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/nodes/${node.certname}`);
-                        }}>
-                          <IconEye size={18} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-            </ScrollArea>
-          </Box>
-        )}
+        <OpsTable<NodeSummary>
+          data={filteredUnclassified}
+          rowKey={(n) => n.certname}
+          defaultPageSize={50}
+          maxHeight={480}
+          emptyTitle="All known nodes are classified"
+          emptyDescription={search || statusFilter ? 'No unclassified nodes match filters.' : undefined}
+          onRowClick={(n) => navigate(`/nodes/${n.certname}`)}
+          columns={[
+            {
+              key: 'certname',
+              header: 'Certname',
+              sortValue: (n) => n.certname,
+              render: (n) => <Text fw={500}>{n.certname}</Text>,
+            },
+            {
+              key: 'latest_report_status',
+              header: 'Status',
+              sortValue: (n) => n.latest_report_status || '',
+              render: (n) => <StatusBadge status={n.latest_report_status} />,
+            },
+            {
+              key: 'report_environment',
+              header: 'Environment',
+              sortValue: (n) => n.report_environment || '',
+              render: (n) => n.report_environment || '\u2014',
+            },
+            {
+              key: 'report_timestamp',
+              header: 'Last Report',
+              sortType: 'date',
+              sortValue: (n) => n.report_timestamp || '',
+              render: (n) => timeAgo(n.report_timestamp),
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              sortable: false,
+              render: (n) => actionCell(n),
+            },
+          ] as OpsColumn<NodeSummary>[]}
+        />
       </Card>
     </Stack>
   );

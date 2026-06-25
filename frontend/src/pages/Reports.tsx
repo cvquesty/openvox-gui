@@ -19,6 +19,7 @@ import { ExportActions } from '../components/ExportActions';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { OpsTable, OpsColumn } from '../components/OpsTable';
+import { FilterBar } from '../components/FilterBar';
 
 type ReportNodeRow = {
   certname: string;
@@ -571,60 +572,48 @@ export function ReportsPage() {
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <Title order={2}>Reports ({totalReports})</Title>
-        <Group>
-          <Select
-            placeholder="Filter by status"
-            data={[
-              { value: '', label: 'All' },
-              { value: 'changed', label: 'Changed' },
-              { value: 'unchanged', label: 'Unchanged' },
-              { value: 'failed', label: 'Failed' },
-            ]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            clearable
-            style={{ width: 160 }}
-          />
-          <Select
-            label="Fetch limit"
-            size="xs"
-            w={110}
-            data={['50', '100', '200', '500', '1000']}
-            value={String(reportLimit)}
-            onChange={(v) => setReportLimit(parseInt(v || '200', 10))}
-            allowDeselect={false}
-          />
-          <TextInput
-            placeholder="Search by certname..."
-            leftSection={<IconSearch size={16} />}
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            style={{ width: 250 }}
-          />
-          <Tooltip label="Copy link to this filtered view">
-            <ActionIcon
-              variant="light"
-              onClick={async () => {
-                try {
-                  await copyLink();
-                  notifications.show({ message: 'Link copied', color: 'green' });
-                } catch {
-                  notifications.show({ message: 'Copy failed', color: 'red' });
-                }
-              }}
-            >
-              <IconLink size={18} />
-            </ActionIcon>
-          </Tooltip>
-          <ExportActions
-            results={Object.values(filteredGroups).flatMap(g => g.reports || [])}
-            filenameBase="reports-export"
-            variant="compact"
-          />
-        </Group>
-      </Group>
+      <Title order={2}>Reports ({totalReports})</Title>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by certname…"
+        status={statusFilter}
+        onStatusChange={setStatusFilter}
+        hint="Status chips also drive the API fetch (server-side). URL is shareable (?q=&status=)."
+        rightSection={
+          <>
+            <Select
+              label="Fetch limit"
+              size="xs"
+              w={110}
+              data={['50', '100', '200', '500', '1000']}
+              value={String(reportLimit)}
+              onChange={(v) => setReportLimit(parseInt(v || '200', 10))}
+              allowDeselect={false}
+            />
+            <Tooltip label="Copy link to this filtered view">
+              <ActionIcon
+                variant="light"
+                onClick={async () => {
+                  try {
+                    await copyLink();
+                    notifications.show({ message: 'Link copied', color: 'green' });
+                  } catch {
+                    notifications.show({ message: 'Copy failed', color: 'red' });
+                  }
+                }}
+              >
+                <IconLink size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <ExportActions
+              results={Object.values(filteredGroups).flatMap(g => g.reports || [])}
+              filenameBase="reports-export"
+              variant="compact"
+            />
+          </>
+        }
+      />
 
       {reportList && reportList.length >= reportLimit && (
         <Alert color="yellow" variant="light">

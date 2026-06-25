@@ -309,20 +309,44 @@ export function DashboardPage() {
               />
             </Center>
             <Group justify="center" mt="md" gap="lg">
-              <Group gap={4}><Badge color="green" size="xs" circle /> <Text size="xs">Unchanged</Text></Group>
-              <Group gap={4}><Badge color="yellow" size="xs" circle /> <Text size="xs">Changed</Text></Group>
-              <Group gap={4}><Badge color="red" size="xs" circle /> <Text size="xs">Failed</Text></Group>
-              <Group gap={4}><Badge color="blue" size="xs" circle /> <Text size="xs">Noop</Text></Group>
+              {[
+                { label: 'Unchanged', color: 'green', status: 'unchanged' },
+                { label: 'Changed', color: 'yellow', status: 'changed' },
+                { label: 'Failed', color: 'red', status: 'failed' },
+                { label: 'Noop', color: 'blue', status: 'noop' },
+              ].map((s) => (
+                <Group
+                  key={s.status}
+                  gap={4}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => navigate(`/nodes?status=${s.status}`)}
+                >
+                  <Badge color={s.color} size="xs" circle />
+                  <Text size="xs" td="underline">{s.label}</Text>
+                </Group>
+              ))}
               <Group gap={4}><Badge color="gray" size="xs" circle /> <Text size="xs">Unreported</Text></Group>
             </Group>
+            <Text size="xs" c="dimmed" ta="center" mt="xs">Click a status to open Nodes with that filter</Text>
           </Card>
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Active Node Status Trends</Title>
+            <Text size="xs" c="dimmed" mb="xs">Click a series in the legend or chart area → filtered Nodes list (sruiux2 P1-2 lite)</Text>
             <ResponsiveContainer width="100%" height={400}>
-              <AreaChart data={nodeTrends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <AreaChart
+                data={nodeTrends}
+                margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                style={{ cursor: 'pointer' }}
+                onClick={(state: any) => {
+                  // Prefer active series if Recharts provides it; else open Nodes
+                  const key = state?.activeTooltipIndex != null ? null : null;
+                  void key;
+                  navigate('/nodes');
+                }}
+              >
                 <defs>
                   <linearGradient id="gUnchanged" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2ecc71" stopOpacity={0.35} />
@@ -351,12 +375,22 @@ export function DashboardPage() {
                   contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
                   labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <Area type="natural" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} />
-                <Area type="natural" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} />
-                <Area type="natural" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} />
-                <Area type="natural" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} />
-                <Area type="natural" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} />
+                <Legend
+                  wrapperStyle={{ fontSize: 12, paddingTop: 8, cursor: 'pointer' }}
+                  onClick={(e: any) => {
+                    const key = String(e?.dataKey || '').toLowerCase();
+                    if (key === 'failed' || key === 'changed' || key === 'unchanged' || key === 'noop') {
+                      navigate(`/nodes?status=${key}`);
+                    } else {
+                      navigate('/nodes');
+                    }
+                  }}
+                />
+                <Area type="natural" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes')} />
+                <Area type="natural" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=unchanged')} />
+                <Area type="natural" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=changed')} />
+                <Area type="natural" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=failed')} />
+                <Area type="natural" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=noop')} />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
