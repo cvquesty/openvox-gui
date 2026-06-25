@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.03.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 remaining P0)
+
+### UI/UX (sruiux1 P0 completion slice)
+- **P0 #1:** Nodes list **Run OpenVox** (confirm + activity); deploy **status poll** while running, **OutputPane** log, deploy confirm; file transfer/script tabs use **TargetSelector** + OutputPane; activity tracking on deploy / PQL / node runs.
+- **P0 #2:** **`/insights` hub** page + slim Metrics nav (hub + top views); palette **recents** (localStorage) + **dynamic node** actions from AppShell.
+- **P0 #3:** Header **Activity** hover (in-flight + recent session runs); `ActivityProvider` in App.
+- **P0 #4:** `useUrlFilters` — Nodes `?q=`, Reports `?q=&status=`, PQL `?q=` with **copy link** affordances.
+
+### Versioning
+- **3.10.03.a3** on **3.10.a_r_alpha.6** (alpha / lab only). P1+ (ENC merge-trace, tables, theme whimsy) remain.
+
 ## [3.10.03.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 confirms + orch breadth + states)
 
 ### UI/UX (sruiux1 continuation)

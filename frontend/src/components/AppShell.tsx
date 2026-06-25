@@ -58,8 +58,10 @@ import {
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
-import { dashboard, config } from '../services/api';
+import { useActivity } from '../hooks/ActivityContext';
+import { dashboard, config, nodes as nodesApi } from '../services/api';
 import { APP_VERSION } from '../version';
+import type { PaletteAction } from './CommandPalette';
 
 // Navigation item type (supports nested sub-items)
 interface NavItem {
@@ -101,19 +103,14 @@ const explorerNav: NavItem[] = [
   { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
 ];
 
+// Single hub entry — deep links remain on /insights/* (sruiux1 P0 #2)
 const metricsNav: NavItem[] = [
+  { label: 'Insights hub', icon: IconChartBar, path: '/insights' },
   { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/insights/compliance' },
-  { label: 'Run Performance', icon: IconActivity, path: '/insights/performance' },
-  { label: 'Change Timeline', icon: IconTimeline, path: '/insights/timeline' },
-  { label: 'Fact Distribution', icon: IconChartPie, path: '/insights/facts' },
-  { label: 'Classification Tree', icon: IconBinaryTree, path: '/insights/classification' },
-  { label: 'Catalog Graph', icon: IconTopologyRing, path: '/insights/catalog' },
+  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
   { label: 'OpenVox Server Health', icon: IconServer, path: '/insights/openvox-server-health' },
   { label: 'OpenVoxDB Health', icon: IconHeartRateMonitor, path: '/insights/openvoxdb-health' },
-  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
-  { label: 'Node Heatmap', icon: IconGridDots, path: '/insights/heatmap' },
-  { label: 'Environments', icon: IconWorldNav, path: '/insights/environments' },
-  { label: 'Class Coverage', icon: IconStack2, path: '/insights/classes' },
+  { label: 'Run Performance', icon: IconActivity, path: '/insights/performance' },
 ];
 
 const logsNav: NavItem[] = [
@@ -136,8 +133,11 @@ export function AppShellLayout() {
   const { isDark } = useAppTheme();
   const [activeSessions, setActiveSessions] = useState<any>(null);
   const [appName, setAppName] = useState('OpenVox GUI');
+  const [nodeNames, setNodeNames] = useState<string[]>([]);
   // Track which nav groups are expanded (keyed by label)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const { items: activityItems } = useActivity();
+  const runningCount = activityItems.filter((i) => i.status === 'running').length;
 
   useHotkeys([
     ['mod+K', () => setPaletteOpen((v) => !v)],
@@ -159,6 +159,22 @@ export function AppShellLayout() {
     const interval = setInterval(fetchSessions, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    nodesApi.list()
+      .then((ns: any[]) => setNodeNames(ns.map((n) => n.certname).filter(Boolean).slice(0, 40)))
+      .catch(() => {});
+  }, []);
+
+  const paletteExtra: PaletteAction[] = [
+    { id: 'insights-hub', label: 'Insights hub (all metrics)', path: '/insights', keywords: 'metrics catalog launcher' },
+    ...nodeNames.map((cn) => ({
+      id: `node-${cn}`,
+      label: `Node: ${cn}`,
+      path: `/nodes/${cn}`,
+      keywords: `certname fleet ${cn}`,
+    })),
+  ];
 
   const activeCount = activeSessions?.active_count || 0;
   const activeUsersList = activeSessions?.users || [];
@@ -288,6 +304,43 @@ export function AppShellLayout() {
           </Group>
           {user && (
             <Group gap="sm">
+              <HoverCard width={280} shadow="md" position="bottom" withArrow openDelay={150}>
+                <HoverCard.Target>
+                  <Badge
+                    variant={runningCount > 0 ? 'filled' : 'outline'}
+                    color={runningCount > 0 ? 'orange' : 'gray'}
+                    size="sm"
+                    style={{ cursor: 'default' }}
+                  >
+                    <Group gap={4}>
+                      <IconActivity size={12} />
+                      {runningCount > 0 ? `${runningCount} running` : 'Activity'}
+                    </Group>
+                  </Badge>
+                </HoverCard.Target>
+                <HoverCard.Dropdown>
+                  <Text fw={600} size="xs" mb={6}>Recent activity</Text>
+                  {activityItems.length === 0 ? (
+                    <Text size="xs" c="dimmed">No runs this session yet</Text>
+                  ) : (
+                    <Stack gap={4}>
+                      {activityItems.slice(0, 8).map((a) => (
+                        <Text
+                          key={a.id}
+                          size="xs"
+                          c={a.status === 'error' ? 'red' : a.status === 'running' ? 'orange' : undefined}
+                          style={a.href ? { cursor: 'pointer', textDecoration: 'underline' } : undefined}
+                          onClick={() => a.href && navigate(a.href)}
+                        >
+                          {a.status === 'running' ? '… ' : a.status === 'error' ? '✗ ' : '✓ '}
+                          {a.label}
+                          {a.detail ? ` — ${a.detail}` : ''}
+                        </Text>
+                      ))}
+                    </Stack>
+                  )}
+                </HoverCard.Dropdown>
+              </HoverCard>
               <Tooltip
                 label={
                   <Group gap={4}>
@@ -365,7 +418,11 @@ export function AppShellLayout() {
         <Outlet />
       </MantineAppShell.Main>
 
-      <CommandPalette opened={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        opened={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        extraActions={paletteExtra}
+      />
     </MantineAppShell>
   );
 }

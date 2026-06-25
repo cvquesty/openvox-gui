@@ -6,14 +6,18 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text,
+  Title, Table, Card, TextInput, Stack, Group, Text,
   ActionIcon, Tooltip, Collapse, ScrollArea, Box,
 } from '@mantine/core';
-import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { IconSearch, IconEye, IconChevronDown, IconChevronRight, IconPlayerPlay, IconLink } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useApi } from '../hooks/useApi';
-import { nodes, enc } from '../services/api';
+import { nodes, enc, bolt } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState } from '../components/StateComponents';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { useUrlFilters } from '../hooks/useUrlFilters';
+import { useActivity } from '../hooks/ActivityContext';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
 
@@ -158,14 +162,45 @@ interface GroupedNodes {
 
 export function NodesPage() {
   const { isRobots } = useAppTheme();
-  const [search, setSearch] = useState('');
+  const { values, setFilter, copyLink } = useUrlFilters(['q']);
+  const search = values.q;
+  const setSearch = (v: string) => setFilter('q', v);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [runTarget, setRunTarget] = useState<string | null>(null);
+  const [runningCert, setRunningCert] = useState<string | null>(null);
   const { data: nodeList, loading: nodesLoading, error: nodesError } = useApi<NodeSummary[]>(nodes.list);
   const { data: hierarchy, loading: hierarchyLoading, error: hierarchyError } = useApi<any>(() => enc.getHierarchy());
   const navigate = useNavigate();
+  const { begin, end } = useActivity();
 
   const loading = nodesLoading || hierarchyLoading;
   const error = nodesError || hierarchyError;
+
+  const runOpenVox = async (certname: string) => {
+    setRunTarget(null);
+    setRunningCert(certname);
+    const actId = begin(`Run OpenVox: ${certname}`, { href: `/nodes/${certname}` });
+    try {
+      const r = await bolt.runCommand({
+        command: '/opt/puppetlabs/bin/puppet agent -t',
+        targets: certname,
+        run_as: 'root',
+      });
+      const ok = r.returncode === 0 || r.returncode === 2;
+      end(actId, ok ? 'done' : 'error', `exit ${r.returncode}`);
+      notifications.show({
+        title: ok ? 'OpenVox Run Complete' : 'OpenVox Run Failed',
+        message: ok
+          ? (r.returncode === 2 ? `Changes applied on ${certname}` : `No changes on ${certname}`)
+          : `Exit code ${r.returncode} on ${certname}`,
+        color: ok ? 'green' : 'red',
+      });
+    } catch (e: any) {
+      end(actId, 'error', e.message);
+      notifications.show({ title: 'Error', message: e.message, color: 'red' });
+    }
+    setRunningCert(null);
+  };
 
   // Build grouped nodes by node groups
   // Use hierarchy.nodes (has groups) merged with nodeList (has full details)
@@ -303,18 +338,67 @@ export function NodesPage() {
   const classifiedCount = Object.values(filteredGroups).reduce((sum, g) => sum + g.nodes.length, 0);
   const totalNodes = classifiedCount + filteredUnclassified.length;
 
+  const actionCell = (node: NodeSummary) => (
+    <Group gap={4} onClick={(e) => e.stopPropagation()}>
+      <Tooltip label="Run OpenVox (puppet agent -t as root)">
+        <ActionIcon
+          variant="subtle"
+          color="green"
+          loading={runningCert === node.certname}
+          onClick={() => setRunTarget(node.certname)}
+        >
+          <IconPlayerPlay size={18} />
+        </ActionIcon>
+      </Tooltip>
+      <Tooltip label="View details">
+        <ActionIcon variant="subtle" onClick={() => navigate(`/nodes/${node.certname}`)}>
+          <IconEye size={18} />
+        </ActionIcon>
+      </Tooltip>
+    </Group>
+  );
+
   return (
     <Stack>
       <Group justify="space-between">
         <Title order={2}>Nodes ({totalNodes})</Title>
-        <TextInput
-          placeholder="Search nodes..."
-          leftSection={<IconSearch size={16} />}
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ width: 300 }}
-        />
+        <Group gap="xs">
+          <TextInput
+            placeholder="Search nodes..."
+            leftSection={<IconSearch size={16} />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            style={{ width: 300 }}
+          />
+          <Tooltip label="Copy link to this filtered view">
+            <ActionIcon
+              variant="light"
+              onClick={async () => {
+                try {
+                  await copyLink();
+                  notifications.show({ message: 'Link copied', color: 'green' });
+                } catch {
+                  notifications.show({ message: 'Copy failed', color: 'red' });
+                }
+              }}
+            >
+              <IconLink size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
       </Group>
+
+      <ConfirmModal
+        opened={!!runTarget}
+        onClose={() => setRunTarget(null)}
+        onConfirm={() => runTarget && runOpenVox(runTarget)}
+        title="Run OpenVox agent?"
+        body="Runs puppet agent -t as root via Bolt/sudo on this node."
+        details={runTarget ? [runTarget] : undefined}
+        confirmLabel="Run agent"
+        confirmColor="green"
+        loading={!!runningCert}
+      />
 
       {/* Casual illustration */}
       {isRobots && (
@@ -375,16 +459,7 @@ export function NodesPage() {
                                   <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
                                   <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
                                   <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
-                                  <Table.Td>
-                                    <Tooltip label="View details">
-                                      <ActionIcon variant="subtle" onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/nodes/${node.certname}`);
-                                      }}>
-                                        <IconEye size={18} />
-                                      </ActionIcon>
-                                    </Tooltip>
-                                  </Table.Td>
+                                  <Table.Td>{actionCell(node)}</Table.Td>
                                 </Table.Tr>
                               ))
                             )}
@@ -426,16 +501,7 @@ export function NodesPage() {
                       <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
                       <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
                       <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
-                      <Table.Td>
-                        <Tooltip label="View details">
-                          <ActionIcon variant="subtle" onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/nodes/${node.certname}`);
-                          }}>
-                            <IconEye size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Table.Td>
+                      <Table.Td>{actionCell(node)}</Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>

@@ -8,11 +8,15 @@ import {
   Title, Card, Stack, Group, Text, Button, Textarea, Alert, Loader, Center,
   Code, Badge, Select, Table, ScrollArea, Paper, ActionIcon, Tooltip, Grid,
 } from '@mantine/core';
-import { IconTerminal, IconPlayerPlay, IconTrash } from '@tabler/icons-react';
+import { IconTerminal, IconPlayerPlay, IconTrash, IconLink } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { pql, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { PrettyJson } from '../components/PrettyJson';
 import { ExportActions } from '../components/ExportActions';
+import { useUrlFilters } from '../hooks/useUrlFilters';
+import { useActivity } from '../hooks/ActivityContext';
+import { OutputPane } from '../components/OutputPane';
 
 /* ═══════════════════════════════════════════════════════════════
    QUERY-O-TRON 7000 — the PQL query machine
@@ -116,7 +120,12 @@ function QueryOTron() {
 
 export function PQLConsolePage() {
   const { isRobots } = useAppTheme();
-  const [query, setQuery] = useState('nodes {}');
+  const { values, setFilter, copyLink } = useUrlFilters(['q']);
+  const [query, setQueryLocal] = useState(() => values.q || 'nodes {}');
+  const setQuery = (q: string) => {
+    setQueryLocal(q);
+    setFilter('q', q === 'nodes {}' ? '' : q);
+  };
   const [results, setResults] = useState<any>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +133,11 @@ export function PQLConsolePage() {
   const [history, setHistory] = useState<string[]>([]);
   const [certnames, setCertnames] = useState<string[]>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const { begin, end } = useActivity();
+
+  useEffect(() => {
+    if (values.q && values.q !== query) setQueryLocal(values.q);
+  }, [values.q]);
 
   useEffect(() => {
     pql.getExamples().then((d) => setExamples(d.examples || [])).catch(() => {});
@@ -151,19 +165,20 @@ export function PQLConsolePage() {
     setRunning(true);
     setError(null);
     setResults(null);
+    const actId = begin('PQL query', { href: '/pql' });
     try {
       const r = await pql.query(query.trim());
       setResults(r);
       setHistory((prev) => [query.trim(), ...prev.filter((h) => h !== query.trim())].slice(0, 20));
+      end(actId, 'done', `${r?.results?.length ?? 0} rows`);
     } catch (e: any) {
-      // Parse error message to extract a human-readable PuppetDB error
       let msg = e.message || 'Unknown error';
-      // Try to extract the detail from JSON error responses like: API Error 400: {"detail":"..."}
       const jsonMatch = msg.match(/\{[^]*"detail"\s*:\s*"([^"]*)"/);
       if (jsonMatch) {
         msg = jsonMatch[1];
       }
       setError(msg);
+      end(actId, 'error', msg);
     }
     setRunning(false);
   };
@@ -180,9 +195,26 @@ export function PQLConsolePage() {
 
   return (
     <Stack>
-      <Group>
-        <IconTerminal size={28} />
-        <Title order={2}>PQL Console</Title>
+      <Group justify="space-between">
+        <Group>
+          <IconTerminal size={28} />
+          <Title order={2}>PQL Console</Title>
+        </Group>
+        <Tooltip label="Copy link to this query">
+          <ActionIcon
+            variant="light"
+            onClick={async () => {
+              try {
+                await copyLink();
+                notifications.show({ message: 'Link copied', color: 'green' });
+              } catch {
+                notifications.show({ message: 'Copy failed', color: 'red' });
+              }
+            }}
+          >
+            <IconLink size={18} />
+          </ActionIcon>
+        </Tooltip>
       </Group>
 
       <Alert variant="light" color="blue">
@@ -229,7 +261,7 @@ export function PQLConsolePage() {
             <Group mt="sm" justify="space-between">
               <Text size="xs" c="dimmed">Ctrl+Enter to run</Text>
               <Group gap="xs">
-                <Button variant="subtle" color="gray" size="sm" onClick={() => { setQuery(''); setResults(null); setError(null); }}>
+                <Button variant="subtle" color="gray" size="sm" onClick={() => { setQuery('nodes {}'); setResults(null); setError(null); }}>
                   Clear
                 </Button>
                 <Button

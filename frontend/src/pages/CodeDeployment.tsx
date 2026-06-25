@@ -3,11 +3,11 @@
  * 
  * Component documentation to be expanded.
  */
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Button, Select, Alert, Table,
-  Loader, Center, Code, Paper, ThemeIcon, Grid,
-  ScrollArea, Divider,
+  Code, Paper, ThemeIcon, Grid,
+  Divider,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -16,6 +16,10 @@ import {
 import { useApi } from '../hooks/useApi';
 import { deploy, config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { OutputPane } from '../components/OutputPane';
+import { LoadingState } from '../components/StateComponents';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { useActivity } from '../hooks/ActivityContext';
 
 /* ── Giant Robot vs City – inline SVG comic ──────────────── */
 function RobotComic({ attacking }: { attacking: boolean }) {
@@ -252,9 +256,17 @@ export function CodeDeploymentPage() {
   const [outputLog, setOutputLog] = useState<string[]>([]);
   const [lastExitCode, setLastExitCode] = useState<number | null>(null);
   const [lastSuccess, setLastSuccess] = useState<boolean | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [confirmDeploy, setConfirmDeploy] = useState(false);
+  const { begin, end } = useActivity();
 
   const [restartingStack, setRestartingStack] = useState(false);
+
+  // Poll deploy status while running (live affordance; output still from run response)
+  useEffect(() => {
+    if (!deploying) return;
+    const t = setInterval(() => { refetchStatus(); }, 2000);
+    return () => clearInterval(t);
+  }, [deploying, refetchStatus]);
 
   const handleRestartPuppetStack = async () => {
     setRestartingStack(true);
@@ -271,6 +283,7 @@ export function CodeDeploymentPage() {
   const environments = envsData?.environments || [];
 
   const handleDeploy = async () => {
+    setConfirmDeploy(false);
     setDeploying(true);
     setDeployError(null);
     setLastExitCode(null);
@@ -278,6 +291,7 @@ export function CodeDeploymentPage() {
 
     const timestamp = new Date().toLocaleString();
     const env = selectedEnv || 'all';
+    const actId = begin(`r10k deploy: ${env}`, { href: '/deployment' });
     setOutputLog((prev) => [
       ...prev,
       '',
@@ -300,26 +314,20 @@ export function CodeDeploymentPage() {
       ]);
       setLastExitCode(result.exit_code);
       setLastSuccess(result.success);
+      end(actId, result.success ? 'done' : 'error', `exit ${result.exit_code}`);
       refetchStatus();
     } catch (e: any) {
       const errMsg = e.message || 'Deployment failed';
       setDeployError(errMsg);
       setOutputLog((prev) => [...prev, `ERROR: ${errMsg}`, '']);
+      end(actId, 'error', errMsg);
     } finally {
       setDeploying(false);
-      // Scroll to bottom after output updates
-      setTimeout(() => {
-        if (scrollRef.current) {
-          const viewport = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]') ||
-                           scrollRef.current.querySelector('.mantine-ScrollArea-viewport');
-          if (viewport) viewport.scrollTop = viewport.scrollHeight;
-        }
-      }, 100);
     }
   };
 
   if (envsLoading) {
-    return <Center h={400}><Loader size="xl" /></Center>;
+    return <LoadingState label="Loading environments…" />;
   }
 
   return (
@@ -353,7 +361,7 @@ export function CodeDeploymentPage() {
                 <Button
                   leftSection={deploying ? <Loader size={16} color="white" /> : <IconPlayerPlay size={16} />}
                   color="#EC8622"
-                  onClick={handleDeploy}
+                  onClick={() => setConfirmDeploy(true)}
                   disabled={deploying}
                   loading={deploying}
                 >
@@ -424,19 +432,30 @@ export function CodeDeploymentPage() {
           </Group>
         </Group>
         <Paper withBorder p="sm" bg="dark.8" radius="md" style={{ minHeight: 400 }}>
-          <ScrollArea style={{ height: 400 }} ref={scrollRef}>
-            {outputLog.length > 0 ? (
-              <Code block style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
-                {outputLog.join('\n')}
-              </Code>
-            ) : (
-              <Text c="dimmed" size="sm" ta="center" py="xl">
-                {deploying ? 'Deploying... please wait' : 'No deployment output yet. Click "Deploy Now" to run r10k.'}
-              </Text>
-            )}
-          </ScrollArea>
+          {outputLog.length > 0 ? (
+            <OutputPane
+              output={outputLog.join('\n')}
+              maxHeight={400}
+              title={deploying ? 'Deploy in progress…' : 'Deploy log'}
+            />
+          ) : (
+            <Text c="dimmed" size="sm" ta="center" py="xl">
+              {deploying ? 'Deploying... please wait' : 'No deployment output yet. Click "Deploy Now" to run r10k.'}
+            </Text>
+          )}
         </Paper>
       </Card>
+      <ConfirmModal
+        opened={confirmDeploy}
+        onClose={() => setConfirmDeploy(false)}
+        onConfirm={handleDeploy}
+        title="Run r10k deploy?"
+        body={`Deploy Puppet code${selectedEnv ? ` for environment "${selectedEnv}"` : ' for all environments'} via r10k?`}
+        details={selectedEnv ? [selectedEnv] : ['all environments']}
+        confirmLabel="Deploy Now"
+        confirmColor="orange"
+        loading={deploying}
+      />
       {/* Deploy History */}
       <Divider my="md" />
       <DeployHistory />

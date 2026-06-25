@@ -33,9 +33,32 @@ const DEFAULT_ACTIONS: PaletteAction[] = [
   { id: 'lookup', label: 'Hiera Lookup', path: '/data/lookup', keywords: 'explain' },
   { id: 'config-puppet', label: 'OpenVox Configuration', path: '/config/puppet', keywords: 'puppet.conf hiera' },
   { id: 'config-app', label: 'Application Configuration', path: '/config/app', keywords: 'settings users ldap' },
+  { id: 'insights-hub', label: 'Insights hub', path: '/insights', keywords: 'metrics catalog launcher health' },
   { id: 'insights-compliance', label: 'Fleet Compliance', path: '/insights/compliance', keywords: 'metrics health' },
   { id: 'insights-node-health', label: 'Node Health', path: '/insights/node-health', keywords: 'metrics' },
 ];
+
+const RECENT_KEY = 'openvox-gui-palette-recent';
+
+function loadRecent(): PaletteAction[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as PaletteAction[];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecent(action: PaletteAction) {
+  try {
+    const prev = loadRecent().filter((a) => a.id !== action.id);
+    const next = [{ id: action.id, label: action.label, path: action.path, keywords: action.keywords }, ...prev].slice(0, 8);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 function fuzzy(q: string, action: PaletteAction): boolean {
   if (!q.trim()) return true;
@@ -57,16 +80,26 @@ export function CommandPalette({
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
-  const actions = useMemo(
-    () => [...DEFAULT_ACTIONS, ...extraActions].filter((a) => fuzzy(q, a)),
-    [q, extraActions]
-  );
+  const [recent, setRecent] = useState<PaletteAction[]>([]);
+  const actions = useMemo(() => {
+    const base = [...DEFAULT_ACTIONS, ...extraActions];
+    if (!q.trim() && recent.length > 0) {
+      const recentTagged = recent.map((r) => ({ ...r, id: `recent-${r.id}`, label: `Recent: ${r.label}` }));
+      return [...recentTagged, ...base.filter((a) => !recent.some((r) => r.id === a.id || r.path === a.path))];
+    }
+    return base.filter((a) => fuzzy(q, a));
+  }, [q, extraActions, recent]);
 
   useEffect(() => {
-    if (opened) setQ('');
+    if (opened) {
+      setQ('');
+      setRecent(loadRecent());
+    }
   }, [opened]);
 
   const go = (a: PaletteAction) => {
+    const store = { ...a, id: a.id.replace(/^recent-/, '') };
+    pushRecent(store);
     if (a.run) a.run();
     else if (a.path) navigate(a.path);
     onClose();

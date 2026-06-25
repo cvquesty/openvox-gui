@@ -7,15 +7,17 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch, Tooltip,
 } from '@mantine/core';
-import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus } from '@tabler/icons-react';
+import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus, IconLink } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useApi } from '../hooks/useApi';
 import { reports, enc, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { ExportActions } from '../components/ExportActions';
 import { LoadingState, ErrorState } from '../components/StateComponents';
+import { useUrlFilters } from '../hooks/useUrlFilters';
 
 
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
@@ -290,8 +292,11 @@ function getStatusBadgeProps(status: 'unchanged' | 'changed' | 'failed') {
 export function ReportsPage() {
   const { isRobots } = useAppTheme();
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const { values, setFilter, copyLink } = useUrlFilters(['q', 'status']);
+  const search = values.q;
+  const setSearch = (v: string) => setFilter('q', v);
+  const statusFilter = values.status || null;
+  const setStatusFilter = (v: string | null) => setFilter('status', v || '');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   // Executive Summary Report (Fleet Health) recipients + config
@@ -581,6 +586,21 @@ export function ReportsPage() {
             onChange={(e) => setSearch(e.currentTarget.value)}
             style={{ width: 250 }}
           />
+          <Tooltip label="Copy link to this filtered view">
+            <ActionIcon
+              variant="light"
+              onClick={async () => {
+                try {
+                  await copyLink();
+                  notifications.show({ message: 'Link copied', color: 'green' });
+                } catch {
+                  notifications.show({ message: 'Copy failed', color: 'red' });
+                }
+              }}
+            >
+              <IconLink size={18} />
+            </ActionIcon>
+          </Tooltip>
           <ExportActions
             results={Object.values(filteredGroups).flatMap(g => g.reports || [])}
             filenameBase="reports-export"

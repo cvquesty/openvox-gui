@@ -31,6 +31,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader, Center } from '@mantine/core';
 import { AuthProvider, useAuth } from './hooks/AuthContext';
+import { ActivityProvider } from './hooks/ActivityContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/Login';
 import { AppShellLayout } from './components/AppShell';
@@ -43,6 +44,7 @@ const NodesPage = lazyWithRetry(() => import('./pages/Nodes').then(m => ({ defau
 const NodeDetailPage = lazyWithRetry(() => import('./pages/NodeDetail').then(m => ({ default: m.NodeDetailPage })));
 const ReportsPage = lazyWithRetry(() => import('./pages/Reports').then(m => ({ default: m.ReportsPage })));
 const ReportDetailPage = lazyWithRetry(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetailPage })));
+const InsightsHubPage = lazyWithRetry(() => import('./pages/InsightsHub').then(m => ({ default: m.InsightsHubPage })));
 const CodeDeploymentPage = lazyWithRetry(() => import('./pages/CodeDeployment').then(m => ({ default: m.CodeDeploymentPage })));
 const NodeClassifierPage = lazyWithRetry(() => import('./pages/NodeClassifier').then(m => ({ default: m.NodeClassifierPage })));
 const ConfigPuppetPage = lazyWithRetry(() => import('./pages/ConfigPuppet').then(m => ({ default: m.ConfigPuppetPage })));
@@ -141,7 +143,8 @@ function AppRoutes() {
           {/* Certificate Audit */}
           <Route path="/cert-audit" element={<CertAuditPage />} />
 
-          {/* Metrics */}
+          {/* Metrics / Insights */}
+          <Route path="/insights" element={<InsightsHubPage />} />
           <Route path="/insights/compliance" element={<MetricsCompliancePage />} />
           <Route path="/insights/performance" element={<MetricsPerformancePage />} />
           <Route path="/insights/timeline" element={<MetricsTimelinePage />} />
@@ -172,7 +175,9 @@ export function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppRoutes />
+        <ActivityProvider>
+          <AppRoutes />
+        </ActivityProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

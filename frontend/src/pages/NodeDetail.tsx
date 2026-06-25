@@ -20,6 +20,7 @@ import { LoadingState, ErrorState, EmptyState } from '../components/StateCompone
 import { bolt } from '../services/api';
 import { notifications } from '@mantine/notifications';
 import { useAppTheme } from '../hooks/ThemeContext';
+import { useActivity } from '../hooks/ActivityContext';
 
 /* ═══════════════════════════════════════════════════════════════
    INSPECT-O-BOT 2000 — the node inspection robot
@@ -130,12 +131,14 @@ export function NodeDetailPage() {
   const [runConfirmOpen, setRunConfirmOpen] = useState(false);
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
   const [purging, setPurging] = useState(false);
+  const { begin, end } = useActivity();
 
   const handleRunPuppet = async () => {
     if (!certname) return;
     setRunConfirmOpen(false);
     setRunningPuppet(true);
     setPuppetResult(null);
+    const actId = begin(`Run OpenVox: ${certname}`, { href: `/nodes/${certname}` });
     try {
       const r = await bolt.runCommand({
         command: '/opt/puppetlabs/bin/puppet agent -t',
@@ -149,6 +152,8 @@ export function NodeDetailPage() {
         run_as: 'root',
       });
       setPuppetResult(r);
+      const ok = r.returncode === 0 || r.returncode === 2;
+      end(actId, ok ? 'done' : 'error', `exit ${r.returncode}`);
       // Puppet exit codes: 0 = no changes, 2 = changes applied successfully, anything else = error
       if (r.returncode === 0) {
         notifications.show({ title: 'OpenVox Run Complete', message: `No changes needed on ${certname}`, color: 'green' });
@@ -158,6 +163,7 @@ export function NodeDetailPage() {
         notifications.show({ title: 'OpenVox Run Failed', message: `Agent run failed with exit code ${r.returncode}`, color: 'red' });
       }
     } catch (e: any) {
+      end(actId, 'error', e.message);
       notifications.show({ title: 'Error', message: e.message, color: 'red' });
     }
     setRunningPuppet(false);

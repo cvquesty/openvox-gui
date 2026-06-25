@@ -1105,9 +1105,13 @@ function FilesTab() {
                 )}
               </Box>
 
-              <MultiSelect label="Targets" required searchable clearable data={targetSelectData}
-                value={uploadTargets} onChange={setUploadTargets}
-                placeholder="Select one or more groups or nodes" />
+              <TargetSelector
+                data={targetSelectData}
+                value={uploadTargets}
+                onChange={setUploadTargets}
+                required
+                placeholder="Select one or more groups or nodes"
+              />
               <TextInput label="Remote Destination Path" required
                 value={uploadDest} onChange={(e) => setUploadDest(e.currentTarget.value)}
                 placeholder="/tmp/myfile.conf or /etc/myapp/config.yaml" />
@@ -1118,9 +1122,12 @@ function FilesTab() {
               </Button>
 
               {uploadResult && (
-                <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>
-                  {uploadResult.output || uploadResult.error || 'No output'}
-                </Code>
+                <OutputPane
+                  output={uploadResult.output}
+                  error={uploadResult.error}
+                  maxHeight={200}
+                  title="Upload result"
+                />
               )}
             </Stack>
           </Card>
@@ -1140,9 +1147,13 @@ function FilesTab() {
               <TextInput label="Remote Source Path" required
                 value={downloadSource} onChange={(e) => setDownloadSource(e.currentTarget.value)}
                 placeholder="/etc/hosts or /var/log/messages" />
-              <MultiSelect label="Targets" required searchable clearable data={targetSelectData}
-                value={downloadTargets} onChange={setDownloadTargets}
-                placeholder="Select one or more groups or nodes" />
+              <TargetSelector
+                data={targetSelectData}
+                value={downloadTargets}
+                onChange={setDownloadTargets}
+                required
+                placeholder="Select one or more groups or nodes"
+              />
               <TextInput label="Local Destination Directory" required
                 value={downloadDest} onChange={(e) => setDownloadDest(e.currentTarget.value)}
                 placeholder="/opt/openvox-gui/data/bolt-downloads" />
@@ -1154,9 +1165,12 @@ function FilesTab() {
 
               {downloadResult && (
                 <>
-                  <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>
-                    {downloadResult.output || downloadResult.error || 'No output'}
-                  </Code>
+                  <OutputPane
+                    output={downloadResult.output}
+                    error={downloadResult.error}
+                    maxHeight={200}
+                    title="Download result"
+                  />
                   {downloadResult.files && downloadResult.files.length > 0 && (
                     <Card withBorder padding="xs">
                       <Text size="sm" fw={600} mb="xs">Retrieved Files:</Text>
@@ -1214,9 +1228,13 @@ function FilesTab() {
                   <Text size="sm" c="dimmed">Drag a script here or click to browse (.sh, .py, .rb, .ps1)</Text>
                 )}
               </Box>
-              <MultiSelect label="Targets" required searchable clearable data={targetSelectData}
-                value={scriptTargets} onChange={setScriptTargets}
-                placeholder="Select one or more groups or nodes" />
+              <TargetSelector
+                data={targetSelectData}
+                value={scriptTargets}
+                onChange={setScriptTargets}
+                required
+                placeholder="Select one or more groups or nodes"
+              />
               <TextInput label="Script Arguments (optional)"
                 value={scriptArgs} onChange={(e) => setScriptArgs(e.currentTarget.value)}
                 placeholder="--flag1 value1 --flag2 value2" />
@@ -1229,9 +1247,12 @@ function FilesTab() {
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             {scriptResult ? (
-              <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflow: 'auto' }}>
-                {scriptResult.output || scriptResult.error || 'No output'}
-              </Code>
+              <OutputPane
+                output={scriptResult.output}
+                error={scriptResult.error}
+                maxHeight={300}
+                title="Script result"
+              />
             ) : (
               <Center h={200}><Text c="dimmed" size="sm">Script output will appear here</Text></Center>
             )}
