@@ -164,7 +164,17 @@ function formatMs(v: number) {
   return `${(v || 0).toFixed(1)}ms`;
 }
 
-/** UTC hour bucket key: YYYY-MM-DDTHH (matches PuppetDB / compliance API) */
+/**
+ * Normalize epoch to milliseconds. Backend PS health uses time.time() (seconds);
+ * treating seconds as ms put all points in 1970 → off the shared axis → empty charts.
+ */
+function toEpochMs(ts: number): number {
+  if (!Number.isFinite(ts)) return NaN;
+  // < year 2001 in ms ⇒ almost certainly seconds
+  return ts < 1e12 ? ts * 1000 : ts;
+}
+
+/** UTC hour bucket key: YYYY-MM-DDTHH (PuppetDB / compliance API style) */
 function hourKeyFromMs(ms: number): string {
   const d = new Date(ms);
   const y = d.getUTCFullYear();
@@ -174,166 +184,193 @@ function hourKeyFromMs(ms: number): string {
   return `${y}-${m}-${day}T${h}`;
 }
 
-function nowHourKey(): string {
-  return hourKeyFromMs(Date.now());
-}
-
-/** Contiguous UTC hour keys for the shared wallboard window (oldest → newest). */
-function buildHourAxis(hours: number): string[] {
-  const n = Math.max(1, Math.min(168, hours));
-  const end = Date.now();
-  // Align end to current UTC hour
-  const endHour = new Date(end);
-  endHour.setUTCMinutes(0, 0, 0);
-  const keys: string[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    keys.push(hourKeyFromMs(endHour.getTime() - i * 3600_000));
+/** Start of UTC hour for a bucket key → epoch ms */
+function hourKeyToMs(key: string): number {
+  const s = String(key || '');
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(s)) {
+    return Date.parse(`${s}:00:00.000Z`);
   }
-  return keys;
+  if (s.length >= 13 && s.includes('T')) {
+    return Date.parse(s.length === 13 ? `${s}:00:00.000Z` : s);
+  }
+  const p = Date.parse(s);
+  return Number.isNaN(p) ? NaN : p;
 }
 
-/**
- * Parse a point's time into an hour key. Accepts API buckets, ISO strings, or epoch ms (ts field).
- * Locale-only clock strings without date cannot be placed on the shared axis reliably.
- */
-function pointHourKey(row: any, timeField = 'timestamp'): string | null {
+function windowBounds(hours: number): { startMs: number; endMs: number } {
+  const endMs = Date.now();
+  const startMs = endMs - Math.max(1, Math.min(168, hours)) * 3600_000;
+  return { startMs, endMs };
+}
+
+/** Resolve any row to epoch ms, or null if unplaceable on the timeline. */
+function pointEpochMs(row: any, timeField = 'timestamp'): number | null {
   if (row == null) return null;
   if (typeof row.ts === 'number' && Number.isFinite(row.ts)) {
-    return hourKeyFromMs(row.ts);
+    const ms = toEpochMs(row.ts);
+    return Number.isNaN(ms) ? null : ms;
   }
   const raw = row[timeField] ?? row.time ?? row.timestamp ?? row.hour ?? row.label;
   if (raw == null || raw === '') return null;
-  if (typeof raw === 'number' && Number.isFinite(raw)) return hourKeyFromMs(raw);
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const ms = toEpochMs(raw);
+    return Number.isNaN(ms) ? null : ms;
+  }
   const s = String(raw);
-  // Already a bucket
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(s)) return s;
-  // ISO / receive_time prefix
-  if (s.length >= 13 && s[4] === '-' && s.includes('T')) return s.slice(0, 13);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(s)) {
+    const ms = hourKeyToMs(s);
+    return Number.isNaN(ms) ? null : ms;
+  }
+  if (s.length >= 13 && s[4] === '-' && s.includes('T')) {
+    const ms = hourKeyToMs(s.slice(0, 13));
+    return Number.isNaN(ms) ? null : ms;
+  }
   const parsed = Date.parse(s);
-  if (!Number.isNaN(parsed)) return hourKeyFromMs(parsed);
+  if (!Number.isNaN(parsed)) return parsed;
   return null;
 }
 
 /**
- * Align arbitrary series onto the shared hour axis.
- * - Multiple samples in one hour: last wins (or average for avgFields).
- * - Gaps: carry forward last known value so lines stay continuous; null until first sample.
+ * Map rows onto the shared numeric timeline (field `t` = epoch ms).
+ * Identical domain on every chart; live polls keep full resolution (not crushed to 1 pt/hour).
+ * Hourly API series become one point at each hour start — still on the same start/end.
  */
-function alignToHourAxis(
-  axis: string[],
+function seriesInWindow(
   rows: any[],
+  startMs: number,
+  endMs: number,
   valueFields: string[],
-  opts?: { timeField?: string; average?: boolean }
+  opts?: { timeField?: string; averageByHour?: boolean }
 ): any[] {
   const timeField = opts?.timeField ?? 'timestamp';
-  const byHour: Record<string, any> = {};
-  const counts: Record<string, Record<string, number>> = {};
 
+  if (opts?.averageByHour) {
+    const buckets: Record<string, { sums: Record<string, number>; counts: Record<string, number>; extras: Record<string, number> }> = {};
+    for (const row of rows || []) {
+      const ms = pointEpochMs(row, timeField);
+      if (ms == null || ms < startMs || ms > endMs) continue;
+      const hk = hourKeyFromMs(ms);
+      if (!buckets[hk]) buckets[hk] = { sums: {}, counts: {}, extras: {} };
+      const b = buckets[hk];
+      for (const f of valueFields) {
+        const v = row[f];
+        if (v == null || v === '' || Number.isNaN(Number(v))) continue;
+        const num = Number(v);
+        b.sums[f] = (b.sums[f] || 0) + num;
+        b.counts[f] = (b.counts[f] || 0) + 1;
+      }
+      for (const [k, v] of Object.entries(row)) {
+        if (valueFields.includes(k) || k === 'ts' || k === 'time' || k === 'timestamp' || k === 't' || k === 'x') continue;
+        if (typeof v === 'number' && !Number.isNaN(v)) b.extras[k] = v;
+      }
+    }
+    return Object.keys(buckets)
+      .sort()
+      .map((hk) => {
+        const b = buckets[hk];
+        const out: any = { t: hourKeyToMs(hk), x: hk };
+        for (const f of valueFields) {
+          if (b.counts[f]) out[f] = b.sums[f] / b.counts[f];
+        }
+        Object.assign(out, b.extras);
+        return out;
+      })
+      .filter((p) => Number.isFinite(p.t));
+  }
+
+  const out: any[] = [];
   for (const row of rows || []) {
-    const hk = pointHourKey(row, timeField);
-    if (!hk) continue;
-    if (!byHour[hk]) byHour[hk] = {};
-    if (!counts[hk]) counts[hk] = {};
+    const ms = pointEpochMs(row, timeField);
+    if (ms == null || ms < startMs || ms > endMs) continue;
+    const point: any = { t: ms, x: hourKeyFromMs(ms) };
+    let any = false;
     for (const f of valueFields) {
       const v = row[f];
       if (v == null || v === '' || Number.isNaN(Number(v))) continue;
-      const num = Number(v);
-      if (opts?.average) {
-        byHour[hk][f] = (byHour[hk][f] || 0) + num;
-        counts[hk][f] = (counts[hk][f] || 0) + 1;
-      } else {
-        byHour[hk][f] = num;
-      }
+      point[f] = Number(v);
+      any = true;
     }
-    // Preserve non-numeric extras (e.g. certname series keys for top10)
     for (const [k, v] of Object.entries(row)) {
-      if (valueFields.includes(k) || k === timeField || k === 'time' || k === 'timestamp' || k === 'ts' || k === 'hour' || k === 'label') {
+      if (valueFields.includes(k) || k === 'ts' || k === 'time' || k === 'timestamp' || k === 't' || k === 'x' || k === 'hour' || k === 'label') {
         continue;
       }
       if (typeof v === 'number' && !Number.isNaN(v)) {
-        byHour[hk][k] = v;
+        point[k] = v;
+        any = true;
       }
     }
+    if (any) out.push(point);
   }
-
-  if (opts?.average) {
-    for (const hk of Object.keys(byHour)) {
-      for (const f of valueFields) {
-        if (counts[hk]?.[f]) byHour[hk][f] = byHour[hk][f] / counts[hk][f];
-      }
-    }
-  }
-
-  const last: Record<string, number | null> = {};
-  for (const f of valueFields) last[f] = null;
-
-  return axis.map((x) => {
-    const src = byHour[x] || {};
-    const out: any = { x, timestamp: x };
-    const allKeys = new Set([...valueFields, ...Object.keys(src)]);
-    for (const f of allKeys) {
-      if (src[f] != null && typeof src[f] === 'number' && !Number.isNaN(src[f])) {
-        out[f] = src[f];
-        if (valueFields.includes(f) || typeof src[f] === 'number') last[f] = src[f];
-      } else if (last[f] != null) {
-        out[f] = last[f];
-      } else {
-        out[f] = null;
-      }
-    }
-    // Carry-forward dynamic keys (top10 certnames) from last non-empty hour
-    return out;
-  });
+  out.sort((a, b) => a.t - b.t);
+  return out;
 }
 
-/** Align series that use dynamic value keys (e.g. certnames). */
-function alignDynamicToHourAxis(axis: string[], rows: any[], timeField = 'time'): any[] {
-  const byHour: Record<string, any> = {};
-  for (const row of rows || []) {
-    const hk = pointHourKey(row, timeField);
-    if (!hk) continue;
-    byHour[hk] = { ...row };
+/** Top-10 style: average dynamic certname keys per hour, still on shared numeric domain. */
+function top10InWindow(rows: any[], startMs: number, endMs: number, certnames: string[]): any[] {
+  const hourBuckets: Record<string, Record<string, number[]>> = {};
+  for (const run of rows || []) {
+    const ms = pointEpochMs(run, 'time');
+    if (ms == null || ms < startMs || ms > endMs) continue;
+    const cn = run.certname;
+    if (!certnames.includes(cn)) continue;
+    const hk = hourKeyFromMs(ms);
+    if (!hourBuckets[hk]) hourBuckets[hk] = {};
+    if (!hourBuckets[hk][cn]) hourBuckets[hk][cn] = [];
+    hourBuckets[hk][cn].push(Number(run.total) || 0);
   }
-  let last: Record<string, any> = {};
-  return axis.map((x) => {
-    if (byHour[x]) {
-      last = { ...byHour[x] };
-      delete last.time;
-      delete last.timestamp;
-      delete last.ts;
-    }
-    return { x, timestamp: x, ...last };
-  });
+  return Object.keys(hourBuckets)
+    .sort()
+    .map((hk) => {
+      const point: any = { t: hourKeyToMs(hk), x: hk };
+      for (const [cn, vals] of Object.entries(hourBuckets[hk])) {
+        point[cn] = vals.reduce((a, b) => a + b, 0) / vals.length;
+      }
+      return point;
+    });
+}
+
+function formatAxisTick(ms: number, windowHours: number): string {
+  if (!Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  if (windowHours > 48) {
+    const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${mo}-${day} ${hh}:00`;
+  }
+  return `${hh}:${mm}`;
+}
+
+/** Shared numeric X — same domain on every time-series panel */
+function sharedXAxisProps(startMs: number, endMs: number, windowHours: number) {
+  return {
+    dataKey: 't' as const,
+    type: 'number' as const,
+    domain: [startMs, endMs] as [number, number],
+    tick: { fontSize: 9 },
+    tickFormatter: (v: number) => formatAxisTick(v, windowHours),
+    tickCount: 7,
+    allowDataOverflow: true,
+  };
+}
+
+function sharedLabelFormatter(v: unknown) {
+  const ms = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(ms)) return String(v ?? '');
+  const d = new Date(ms);
+  return d.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
 }
 
 function tickTime(v: string) {
   const s = String(v || '');
   if (!s || s.length < 4) return s;
-  // Hour buckets from API: "2026-06-25T16" or full ISO "2026-06-25T16:30:00Z"
   const hourOnly = s.match(/T(\d{2})$/);
   if (hourOnly) return `${hourOnly[1]}:00`;
   const hm = s.match(/T(\d{2}:\d{2})/);
   if (hm) return hm[1];
   if (s.includes('T')) return s.split('T')[1]?.substring(0, 5) || s;
   return s.length > 10 ? s.substring(11, 16) : s;
-}
-
-/** Shared X axis props — identical domain on every time-series graph */
-function sharedXAxisProps(axisLen: number) {
-  return {
-    dataKey: 'x' as const,
-    type: 'category' as const,
-    tick: { fontSize: 9 },
-    tickFormatter: tickTime,
-    // Keep density readable for long windows
-    interval: axisLen > 36 ? Math.floor(axisLen / 12) : axisLen > 24 ? 1 : 0,
-    minTickGap: 8,
-  };
-}
-
-function sharedLabelFormatter(v: unknown) {
-  const s = String(v || '');
-  return s.length >= 13 ? `${s.slice(0, 10)} ${tickTime(s)} UTC` : `${tickTime(s) || s} UTC`;
 }
 
 function shortName(cn: string) {
@@ -416,12 +453,28 @@ export function MonitoringDashboardPage() {
   const [dashData, setDashData] = useState<any>(null);
   const [compliance, setCompliance] = useState<any>(null);
   const [perfData, setPerfData] = useState<any>(null);
-  const [perfServerHist, setPerfServerHist] = useState<any[]>(() => loadJson(PERF_HIST_KEY, []));
-  const [psHist, setPsHist] = useState<any[]>(() => loadJson(PS_HIST_KEY, []));
-  const [pdbHist, setPdbHist] = useState<any[]>(() => loadJson(PDB_HIST_KEY, []));
+  const [perfServerHist, setPerfServerHist] = useState<any[]>(() => {
+    const cur = loadJson<any[]>(PERF_HIST_KEY, []);
+    if (cur.length) return cur;
+    // Prefer prior Run Performance page history if monitor buffer is empty
+    return loadJson<any[]>('openvox_perf_server_history', []);
+  });
+  const [psHist, setPsHist] = useState<any[]>(() => {
+    const cur = loadJson<any[]>(PS_HIST_KEY, []);
+    if (cur.length) return cur.map((p) => (typeof p.ts === 'number' ? { ...p, ts: toEpochMs(p.ts) } : p));
+    const legacy = loadJson<any[]>('openvox_ps_health_history', []);
+    return legacy.map((p) => (typeof p.ts === 'number' ? { ...p, ts: toEpochMs(p.ts) } : p));
+  });
+  const [pdbHist, setPdbHist] = useState<any[]>(() => {
+    const cur = loadJson<any[]>(PDB_HIST_KEY, []);
+    if (cur.length) return cur;
+    return loadJson<any[]>('openvox_pdb_heap_history', []);
+  });
 
-  /** Shared X domain for every time-series graph on this page */
-  const hourAxis = useMemo(() => buildHourAxis(windowHours), [windowHours, lastRefresh]);
+  const { startMs, endMs } = useMemo(
+    () => windowBounds(windowHours),
+    [windowHours, lastRefresh]
+  );
 
   const enabled = useMemo(() => new Set(graphIds), [graphIds]);
   const neededSources = useMemo(() => {
@@ -496,13 +549,17 @@ export function MonitoringDashboardPage() {
           metrics.puppetserverHealth().then((result) => {
             if (result?.history?.length) {
               const mapped = result.history.map((p: any, idx: number) => {
-                const ts =
+                // Backend stores ts as Unix seconds (time.time()); normalize to ms.
+                let ms =
                   typeof p.ts === 'number'
-                    ? p.ts
-                    : Date.parse(p.time) || tsNow - (result.history.length - idx) * 10_000;
+                    ? toEpochMs(p.ts)
+                    : Date.parse(p.time);
+                if (!Number.isFinite(ms) || Number.isNaN(ms)) {
+                  ms = tsNow - (result.history.length - idx) * 10_000;
+                }
                 return {
-                  ts,
-                  time: hourKeyFromMs(ts),
+                  ts: ms,
+                  time: hourKeyFromMs(ms),
                   heap_used_mb: p.heap_used_mb,
                   nonheap_used_mb: p.nonheap_used_mb,
                   http_catalog_mean: p.http_catalog_mean,
@@ -513,18 +570,39 @@ export function MonitoringDashboardPage() {
                   open_fds: p.open_fds,
                 };
               });
+              // Also append current snapshot so gauges appear even if history is stale
+              const snapMs = tsNow;
+              mapped.push({
+                ts: snapMs,
+                time: hourKeyFromMs(snapMs),
+                heap_used_mb: result?.jvm_heap?.used_mb,
+                nonheap_used_mb: result?.jvm_nonheap?.used_mb,
+                http_catalog_mean: result?.http_catalog_mean ?? result?.http?.catalog_mean,
+                http_report_mean: result?.http_report_mean ?? result?.http?.report_mean,
+                gc_young_time: result?.gc_young?.time_ms,
+                gc_old_time: result?.gc_old?.time_ms,
+                process_cpu_load: result?.os?.process_cpu_load,
+                open_fds: result?.os?.open_file_descriptors,
+              });
               const trimmed = mapped.slice(-MAX_HIST);
               setPsHist(trimmed);
               saveJson(PS_HIST_KEY, trimmed);
               return;
+            }
+            let http_catalog_mean = result?.http_catalog_mean ?? result?.http?.catalog_mean;
+            let http_report_mean = result?.http_report_mean ?? result?.http?.report_mean;
+            for (const hm of result?.http_metrics || []) {
+              const r = String(hm?.route || '').toLowerCase();
+              if (r.includes('catalog')) http_catalog_mean = hm?.mean;
+              else if (r.includes('report')) http_report_mean = hm?.mean;
             }
             const point = {
               ts: tsNow,
               time: hourKeyFromMs(tsNow),
               heap_used_mb: result?.jvm_heap?.used_mb,
               nonheap_used_mb: result?.jvm_nonheap?.used_mb,
-              http_catalog_mean: result?.http_catalog_mean ?? result?.http?.catalog_mean,
-              http_report_mean: result?.http_report_mean ?? result?.http?.report_mean,
+              http_catalog_mean,
+              http_report_mean,
               gc_young_time: result?.gc_young?.time_ms,
               gc_old_time: result?.gc_old?.time_ms,
               process_cpu_load: result?.os?.process_cpu_load,
@@ -592,25 +670,29 @@ export function MonitoringDashboardPage() {
     saveJson(WINDOW_KEY, windowHours);
   }, [windowHours]);
 
-  const xAxis = sharedXAxisProps(hourAxis.length);
+  const xAxis = sharedXAxisProps(startMs, endMs, windowHours);
 
-  // ── All time series aligned to the SAME hourAxis ─────────────────
+  // ── All time series on the SAME numeric domain [startMs, endMs] ──
   const nodeTrends = useMemo(
     () =>
-      alignToHourAxis(hourAxis, dashData?.node_trends || [], [
+      seriesInWindow(dashData?.node_trends || [], startMs, endMs, [
         'unchanged',
         'changed',
         'failed',
         'noop',
         'unreported',
       ]),
-    [hourAxis, dashData]
+    [startMs, endMs, dashData]
   );
 
   const complianceTrend = useMemo(
     () =>
-      alignToHourAxis(hourAxis, compliance?.trend || [], ['compliant', 'drifted', 'failed']),
-    [hourAxis, compliance]
+      seriesInWindow(compliance?.trend || [], startMs, endMs, [
+        'compliant',
+        'drifted',
+        'failed',
+      ]),
+    [startMs, endMs, compliance]
   );
 
   const complianceDist = compliance
@@ -623,15 +705,17 @@ export function MonitoringDashboardPage() {
       ].filter((d) => d.value > 0)
     : [];
 
-  const runTrends = useMemo(() => {
-    const raw = perfData?.run_time_trends || [];
-    return alignToHourAxis(
-      hourAxis,
-      raw,
-      ['total', 'fact_generation', 'plugin_sync', 'config_retrieval', 'catalog_application'],
-      { timeField: 'time', average: true }
-    );
-  }, [hourAxis, perfData]);
+  const runTrends = useMemo(
+    () =>
+      seriesInWindow(
+        perfData?.run_time_trends || [],
+        startMs,
+        endMs,
+        ['total', 'fact_generation', 'plugin_sync', 'config_retrieval', 'catalog_application'],
+        { timeField: 'time', averageByHour: true }
+      ),
+    [startMs, endMs, perfData]
+  );
 
   const nodeComparison = useMemo(
     () =>
@@ -641,84 +725,84 @@ export function MonitoringDashboardPage() {
     [perfData]
   );
 
-  const top10Data = useMemo(() => {
-    const top10Names = nodeComparison.map((n: any) => n.certname);
-    const hourBuckets: Record<string, Record<string, number[]>> = {};
-    for (const run of perfData?.run_time_trends || []) {
-      if (!top10Names.includes(run.certname)) continue;
-      const hour = pointHourKey(run, 'time') || (run.time || '').substring(0, 13);
-      if (!hour || hour.length < 13) continue;
-      if (!hourBuckets[hour]) hourBuckets[hour] = {};
-      if (!hourBuckets[hour][run.certname]) hourBuckets[hour][run.certname] = [];
-      hourBuckets[hour][run.certname].push(run.total);
-    }
-    const rows = Object.entries(hourBuckets).map(([hour, nodeRuns]) => {
-      const point: any = { time: hour, timestamp: hour };
-      for (const [cn, values] of Object.entries(nodeRuns)) {
-        point[cn] = Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2));
-      }
-      return point;
-    });
-    return alignDynamicToHourAxis(hourAxis, rows, 'time');
-  }, [hourAxis, perfData, nodeComparison]);
+  const top10Data = useMemo(
+    () =>
+      top10InWindow(
+        perfData?.run_time_trends || [],
+        startMs,
+        endMs,
+        nodeComparison.map((n: any) => n.certname)
+      ),
+    [startMs, endMs, perfData, nodeComparison]
+  );
 
   const perfAligned = useMemo(
     () =>
-      alignToHourAxis(hourAxis, perfServerHist, [
-        'catalog_ms',
-        'facts_ms',
-        'report_ms',
-        'store_catalog_ms',
-        'store_facts_ms',
-        'store_report_ms',
-        'http_query_ms',
-        'http_cmd_ms',
-        'write_active',
-        'write_idle',
-        'read_active',
-        'read_idle',
-        'write_pending',
-        'read_pending',
-        'hash_match_ms',
-        'hash_miss_ms',
-        'gc_young_count',
-        'gc_old_count',
-        'nodes',
-        'avg_resources',
-      ], { timeField: 'time' }),
-    [hourAxis, perfServerHist]
+      seriesInWindow(
+        perfServerHist,
+        startMs,
+        endMs,
+        [
+          'catalog_ms',
+          'facts_ms',
+          'report_ms',
+          'store_catalog_ms',
+          'store_facts_ms',
+          'store_report_ms',
+          'http_query_ms',
+          'http_cmd_ms',
+          'write_active',
+          'write_idle',
+          'read_active',
+          'read_idle',
+          'write_pending',
+          'read_pending',
+          'hash_match_ms',
+          'hash_miss_ms',
+          'gc_young_count',
+          'gc_old_count',
+          'nodes',
+          'avg_resources',
+        ],
+        { timeField: 'time' }
+      ),
+    [startMs, endMs, perfServerHist]
   );
 
   const psAligned = useMemo(
     () =>
-      alignToHourAxis(hourAxis, psHist, [
-        'heap_used_mb',
-        'nonheap_used_mb',
-        'http_catalog_mean',
-        'http_report_mean',
-        'gc_young_time',
-        'gc_old_time',
-        'process_cpu_load',
-        'open_fds',
-      ], { timeField: 'time' }),
-    [hourAxis, psHist]
+      seriesInWindow(
+        psHist,
+        startMs,
+        endMs,
+        [
+          'heap_used_mb',
+          'nonheap_used_mb',
+          'http_catalog_mean',
+          'http_report_mean',
+          'gc_young_time',
+          'gc_old_time',
+          'process_cpu_load',
+          'open_fds',
+        ],
+        { timeField: 'time' }
+      ),
+    [startMs, endMs, psHist]
   );
 
   const pdbAligned = useMemo(
     () =>
-      alignToHourAxis(hourAxis, pdbHist, [
-        'used_mb',
-        'queue_depth',
-        'catalog_save_mean',
-        'report_process_mean',
-      ], { timeField: 'time' }),
-    [hourAxis, pdbHist]
+      seriesInWindow(
+        pdbHist,
+        startMs,
+        endMs,
+        ['used_mb', 'queue_depth', 'catalog_save_mean', 'report_process_mean'],
+        { timeField: 'time' }
+      ),
+    [startMs, endMs, pdbHist]
   );
 
-  const axisRangeLabel =
-    hourAxis.length > 0
-      ? `${tickTime(hourAxis[0])} → ${tickTime(hourAxis[hourAxis.length - 1])} UTC (${windowHours}h, ${hourAxis.length} buckets)`
-      : `${windowHours}h`;
+  const axisRangeLabel = `${formatAxisTick(startMs, windowHours)} → ${formatAxisTick(endMs, windowHours)} UTC (${windowHours}h)`;
 
   const multiSelectData = GRAPH_CATALOG.map((g) => ({
     value: g.id,
@@ -1148,10 +1232,11 @@ export function MonitoringDashboardPage() {
       )}
 
       
-      <Alert variant="light" color="blue" title="Synchronized X-axis">
-        All trend graphs share this period: <strong>{axisRangeLabel}</strong>. Change <em>Window</em> to resync
-        every chart (12h–7d). Compliance distribution is a current snapshot (not a time series). Sparse live metrics
-        (Server/DB/JMX) use carry-forward within each hour so empty polls do not shift the timeline.
+      <Alert variant="light" color="blue" title="Synchronized timeline">
+        All trend graphs share domain <strong>{axisRangeLabel}</strong> (numeric UTC axis — spikes line up).
+        Live Server/DB/JMX series keep poll resolution; fleet/compliance/run trends use hourly points on the same
+        window. Change <em>Window</em> to resync. Leave Monitoring open with Auto refresh so JMX series fill in.
+        Compliance distribution is a current snapshot only.
       </Alert>
 
       {error && (

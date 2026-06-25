@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a8] - 2026-06-25 (on 3.10.a_r_alpha.6 — restore live Monitoring series)
+
+### Fixed
+- **Empty JMX/live panels on Monitoring:** Server health history `ts` is Unix **seconds**; hour alignment treated it as ms → points in 1970 → filtered off the axis (Command processing, DB pool, Server heap/CPU/catalog route, OpenVoxDB heap/queue all blank).
+- **Shared timeline v2:** All trend charts use the **same numeric UTC domain** `[now−window, now]` with `dataKey=t`. Live polls keep full resolution; hourly API series sit on hour starts. Normalize seconds→ms; seed from legacy history keys when monitor buffers are empty; map `http_metrics` routes for catalog/report means.
+
+### Versioning
+- **3.10.04.a8** continues sruiux2 (alpha / lab only).
+
 ## [3.10.04.a7] - 2026-06-25 (on 3.10.a_r_alpha.6 — synchronized monitoring timeline)
 
 ### UI/UX
