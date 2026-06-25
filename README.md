@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.9.7-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.10.2-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -83,45 +83,61 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - **[Architecture Guide](docs/ARCHITECTURE.md)** — System design, component relationships, and why `ovox` is treated as a first-class interface alongside the web GUI
 - **[Tuning Guide](docs/TUNING.md)** — Health checks, recommendations, and safe tuning with `ovox infra` (including JVM control)
 - **[Metrics Setup](docs/METRICS.md)** — Required Puppet Server + PuppetDB configuration for full Run Performance, Server Health, and PuppetDB Health data (auth.conf, metrics.conf, puppetserver.conf)
+- **[Agent Installer](docs/INSTALLER.md)** — Local package mirror and one-line agent bootstrap on port 8140
 - **[ovox CLI Documentation](ovox/README.md)** — Full command reference for the first-class `ovox` CLI (tokens, infra tuning, nodes, certs, PQL, etc.)
 - **[Troubleshooting](TROUBLESHOOTING.md)** — Solutions to common problems (including ovox-specific issues)
 - **[Changelog](CHANGELOG.md)** — Complete version history with every change documented
+- **[Security Policy](SECURITY.md)** — Supported versions and how to report vulnerabilities
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to the project
 - **[Contributors](CONTRIBUTORS.md)** — People who helped build this project
+- **[Release announcements](docs/releases/)** — Press kits for stable GitHub Releases (e.g. [3.10.2](docs/releases/press_3.10.2.md))
 
 ## ✨ Main Features
 
-### 📊 Dashboard
+Navigation is grouped for operators: **Dashboard / Nodes**, **Infrastructure** (CA, Orchestration, Agent Install, Certificate Audit), **Code** (ENC, Deployment), **Data** (Hiera), **Tools** (PQL, Fact/Resource explorers, Package Inventory), **Insights** (Monitoring NOC + metrics catalog + Reports/Inventory/Logs), and **Configuration**.
+
+### 📊 Dashboard & Nodes
 See everything at a glance:
 - How many servers are running fine vs having problems
 - Recent activity and changes
 - System health indicators
 - Who's currently using the system
+- Fleet node list with consistent **OpsTable** / filter patterns (3.10+), Run OpenVox, purge/classify actions on node detail
+
+### 📈 Insights & Monitoring *(3.7+ metrics, 3.10 NOC)*
+- **Monitoring** (`/insights`) — NOC-style multi-graph wallboard: fleet, compliance, run performance, OpenVox Server and OpenVoxDB health on a **shared UTC timeline** (configurable window). Live series use a single execution model for timeline alignment.
+- **Insights catalog** (`/insights/all`) — launcher for all metrics pages (compliance, node health, timeline, performance, PuppetDB/Server health, heatmap, classification, class coverage, environments, fact dist, catalog graph, …)
+- **Reports**, **Inventory**, **Log Viewer** under Insights for day-2 ops
+- Full server-side JMX charts still need [docs/METRICS.md](docs/METRICS.md) on the OpenVox Server
 
 ### 📋 Detailed Reports
-Click on any server to see:
+Click on any server or report to see:
 - What changed in the last update
 - Any errors or warnings
 - Performance metrics (how long things took)
 - Complete logs of what happened
+- Grouped views and alphabetical certname consistency across lists
 
 ### 🚀 Code Deployment
 Deploy new configurations to your servers:
-- One button to update everything
+- One button to update everything (r10k)
 - Choose specific environments to update
 - See the results in real-time
 - Keep a history of all deployments
+- Optional deploy webhook with HMAC (set secret on upgrade — see UPDATE.md)
 
 ### ⚡ Orchestration (Running Commands)
-Run commands on multiple servers at once:
-- Execute shell commands across your fleet
+Run commands on multiple servers at once via Bolt / OpenBolt:
+- Execute shell commands across your fleet (optional privileged / sudo on target)
 - Run pre-built tasks and plans
-- **Target ENC groups directly** — select "📁 webservers" instead of individual nodes
-- See the output from each server with ANSI color support
+- **Target ENC groups directly** — select groups and/or individual nodes (unioned targets)
+- Result tabs (Human / JSON / Rainbow) share **one** Bolt run per click — not three (fixed in **3.10.1.b2** / **3.10.2**, [GitHub #38](https://github.com/cvquesty/openvox-gui/issues/38))
+- Execution history in the GUI
+- Confirm dialogs for ad-hoc runs (skippable preference for operators who know what they're doing)
 
-### 🏷️ Node Classifier
+### 🏷️ Node Classifier (ENC)
 Control what software and settings each server gets:
-- Set defaults for all servers
+- Set defaults for all servers (Common → Environment → Group → Node merge)
 - Create groups of servers with similar needs
 - Override settings for individual servers
 - Preview changes before applying them
@@ -139,6 +155,7 @@ Eliminate manual Bolt inventory maintenance:
 ### 📁 Data Management
 Edit your configuration files directly:
 - Browse and edit Hiera data files (server settings)
+- Hiera lookup with explain
 - Edit configuration files with syntax checking
 - Automatic backups before changes
 - Create and delete files as needed
@@ -149,6 +166,7 @@ Manage server certificates (like ID cards for servers):
 - Sign new certificates to allow servers to connect
 - Revoke certificates for decommissioned servers
 - See certificate details and expiration dates
+- **Certificate Audit** — find orphaned CA certs vs PuppetDB nodes and clean up in bulk
 
 ### 📥 Agent Installer *(3.6.0+)*
 Bootstrap new OpenVox agents with a single command, the same way Puppet Enterprise does:
@@ -161,15 +179,29 @@ Bootstrap new OpenVox agents with a single command, the same way Puppet Enterpri
 
 ### 🔍 Explorers (Tools menu)
 Search and explore your infrastructure:
-- **Fact Explorer**: Find servers by their properties (OS, memory, etc.)
+- **Fact Explorer**: Find servers by their properties (OS, memory, etc.), node-scope filters by ENC group
 - **Resource Explorer**: Search for installed software, services, files
 - **PQL Console**: Run advanced queries (for power users)
+- **Package Inventory**: Fleet package views
 
-All explorer results now support one-click **Copy as Markdown / CSV / JSON** (perfect for Slack, email, runbooks, and wikis) plus optional file downloads. The same data is available via `ovox pql '...' --format markdown|csv`.
+All explorer results support one-click **Copy as Markdown / CSV / JSON** (perfect for Slack, email, runbooks, and wikis) plus optional file downloads. The same data is available via `ovox pql '...' --format markdown|csv`.
+
+### 🛠️ Operations UX *(3.10+)*
+Shared patterns so list pages behave the same way:
+- **OpsTable** / **FilterBar** on fleet-scale lists
+- Command palette / keyboard navigation helpers
+- **TargetSelector** and **ConfirmModal** for orchestration and ad-hoc actions
+- **OutputPane** for long command output (filter + copy)
+- Dual themes: **Casual** (fun, dark-leaning accents) and **Formal** (clean business)
+
+### 🔐 Authentication
+- Local users (bcrypt + JWT) with roles: **admin**, **operator**, **viewer**
+- Optional **LDAP / Active Directory** per-user or enterprise bind (see [docs/LDAP.md](docs/LDAP.md))
+- Privileged API routes require explicit role checks (hardened since 3.6.0)
 
 ### 🎨 Themes
 Choose how the interface looks:
-- **Casual Mode**: Fun, colorful interface with animations
+- **Casual Mode**: Fun, colorful interface with animations and whimsical touches
 - **Formal Mode**: Clean, professional business interface
 
 ## 🖥️ ovox CLI — First-Class Command Line Experience
@@ -274,57 +306,36 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## What's New in Version 3.7.0
+## What's New in Version 3.10.2 (current stable)
 
-### Metrics Section (the headline feature)
+**3.10.2** is the current stable release on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.2)). It promotes the 3.10 alpha/beta line (including **3.10.1.b1** / **3.10.1.b2**) after merging the major 3.10 refactor trains into `main`.
 
-A new top-level **Metrics** section with 10 visualization pages providing
-fleet-wide analytics and server-side instrumentation.
+### Headline for operators
+- **Monitoring NOC** — multi-graph Insights Monitoring with a **shared UTC hour window** across fleet, compliance, performance, Server, and OpenVoxDB panels; live series timeline fixes (seconds vs milliseconds so JMX graphs are not stuck in 1970).
+- **Ops UI consistency** — **OpsTable**, **FilterBar**, Insights hub (`/insights` + `/insights/all`), shared orchestration confirm/target patterns.
+- **Orchestration runs Bolt once per click** — fixes [issue #38](https://github.com/cvquesty/openvox-gui/issues/38) (older builds ran the ad-hoc command three times because the UI fetched human/json/rainbow formats in parallel). **3.10.2** (and **3.10.1.b2**) execute **one** Bolt command/task/plan and share the result across format tabs.
+- **3.10 platform work from alpha** — security hardening, backend architecture layering (services / contracts), UI/UX designer trains (command palette, OutputPane, state components), Executive Summary email From/schedule delivery, and related changes — full list in [CHANGELOG.md](CHANGELOG.md).
 
-> **Important**: Full server-side metrics (Run Performance, Puppet Server Health,
-> PuppetDB Health) require additional configuration on your OpenVox Server
-> (`auth.conf` / authorization rules + `metrics.conf` + http-client settings).
-> See **[docs/METRICS.md](docs/METRICS.md)**. Without it many charts will be
-> empty or show minimal data.
+### How we version (quick mental model)
+- **Stable:** `MAJOR.MINOR.PATCH` (this release: **3.10.2**).
+- **Dev / beta trains:** pre-releases such as `3.10.1.b1`, `3.9.0-dev.N`, or historical alpha labels like `3.10.04.a8` on feature branches. The **`ovox` CLI** stays in **lockstep** with the GUI via the root `VERSION` file (`scripts/bump-version.sh`).
+- **Default branch:** **`main`** only (the old `staging` branch is gone).
+- GitHub **Releases** are deliberate for shippable stables; pre-release tags may exist for lab testing.
 
-- **Run Performance** — 10-chart dashboard with click-to-expand thumbnails.
-  Agent-side: run duration trends, timing phase breakdown, top 10 slowest
-  nodes. Server-side via PuppetDB Jolokia: command processing, storage timing,
-  DB connection pool, HTTP latency, catalog deduplication, GC pressure, fleet
-  population. All server metrics auto-refresh (configurable 5s–1m) with
-  localStorage persistence.
-- **Fleet Compliance** — compliance distribution bar chart with trend line.
-  Expandable alphabetized node lists per category with clickable certnames.
-- **Fleet Fact Overview** — auto-detects interesting facts ranked by variety.
-  Scatter plots for numeric data (uptime, memory), bar charts for categorical
-  (OS, kernel). Outlier detection with node links. Custom fact explorer.
-- **Catalog Graph** — real directed dependency graph using React Flow + dagre.
-  Class hierarchy view shows role → profile → module structure built from
-  Puppet tags. Color-coded nodes, bright theme, auto-fit zoom.
-- **PuppetDB Health** — JVM heap usage over time with localStorage persistence.
-- **Change Timeline** — real-time fleet-wide resource change feed.
-- **Environment Comparison** — per-environment time-series with auto-refresh.
-- **Node Heatmap**, **Classification Tree**, **Class Coverage**.
+> **Metrics note (unchanged since 3.7):** Full Run Performance / Server Health / PuppetDB Health still need OpenVox Server config — see **[docs/METRICS.md](docs/METRICS.md)**. Without it many Insights charts stay empty or thin.
 
-### Certificate Audit
-New tool under **Tools > Certificate Audit** that cross-references signed CA
-certificates against PuppetDB nodes. Finds orphaned certs from decommissioned
-or renamed nodes. Checkbox multi-select for bulk cleanup.
+### Earlier 3.x highlights (still in the product)
+Everything below shipped in prior minors and remains part of **3.10.2** — see CHANGELOG for the full timeline.
 
-### Navigation Restructure
-- "Monitoring" renamed to "Dashboard" with Nodes as a child
-- "Information" renamed to "Tools" with Certificate Audit added
-- Reports moved under Logs
-- Colored nav icons for each section
+**3.7.x** — Metrics/Insights pages (performance, compliance, fact overview, catalog graph, PuppetDB/Server health, timeline, environments, heatmap, classification, class coverage), Certificate Audit, navigation and chart polish, server-side caching for heavy PuppetDB queries, maintenance program + `ovox maintenance`.
 
-### UX Improvements
-- Every certname anywhere in the GUI is a clickable link to the node detail page
-- All dropdowns alphabetized (certificates, node selectors, classifiers)
-- Certificate Authority list is scrollable with alphabetized certnames
-- High-quality chart rendering: smooth curves, gradient fills, dark tooltips
-- Server-side response caching (30s TTL) for expensive PuppetDB queries
+**3.6.x** — Agent Installer (local mirror on 8140), SSL Certificate Wizard, Log Viewer, Fact Explorer node-scope filters, unclassified nodes / purge node, deploy webhook HMAC, RBAC on privileged APIs, JWT logout denylist.
 
-## What's New in Version 3.6.6
+**3.3.x** — Dynamic orchestration targets, native SSL on 4567, ENC-grouped reports, broader nav/IA foundations.
+
+**2.x** — LDAP/AD, OpenVox rebrand foundations, dependency/CVE cleanup era.
+
+## What's New in Version 3.6.6 (historical detail)
 
 ### SSL Certificate Wizard (the headline feature)
 

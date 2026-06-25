@@ -4,29 +4,20 @@
 - **Default branch is `main`** — staging branch has been removed
 - All development and releases go through `main`
 
-### 3.10 Alpha Refactor Effort (2026-06 onward)
-For the current major development effort implementing recommendations from the subagent evaluation reports (stored in `~/Desktop/OpenVox/`):
+### 3.10 line status (as of **3.10.2** stable on `main`)
 
-- Create and work on dedicated alpha branches named **`3.10.a_r_alpha.N`** (where N starts at 1 and increments for each significant milestone or batch of changes).
-- **Branch purpose**: Isolate all refactor, hardening, architecture, and UI/UX work based on the 2026-06 evaluation reports (Senior Developer, Software Architect, Systems Architect, Enterprise Architect, and UI/UX designers).
-- **srdev1 security train marker (2026-06-25+):** Version strings **`3.10.01.aN`** (e.g. `3.10.01.a1`) track work from `srdev1-openvox-gui-domain-security-issues-senior-developer.md` while remaining on branch **`3.10.a_r_alpha.6`** (or later alpha.N). This is **not** a merge to `main` — a deliberate massive merge + final security scan happens only when that effort is complete.
-- **srdev2 architecture train marker (2026-06-25+):** Version strings **`3.10.02.aN`** track `srdev2-openvox-gui-app-architecture-refactoring-senior-developer.md` (layering, CES, domain errors, contracts, router thinning). Same branch / lab-only / no `main` rules as srdev1.
-- **sruiux1 UI/UX train marker (2026-06-25+):** Version strings **`3.10.03.aN`** track `sruiux1-openvox-gui-uiux-recommendations-designer-1.md` (command palette, TargetSelector, ConfirmModal, OutputPane, state components). Same branch / lab-only / no `main` rules as srdev1/srdev2.
-- **sruiux2 UI/UX train marker (2026-06-25+):** Version strings **`3.10.04.aN`** track `sruiux2-openvox-gui-uiux-recommendations-designer-2.md` (IA regroup, OpsTable, fleet scale, power-tool discovery, viz). Same branch / lab-only / no `main` rules.
-- **Testing & Validation Policy (STRICT)**:
-  - All testing and validation deploys are **only** performed against the lab/test server: `openvox.questy.org` (IP `10.0.100.225`).
-  - Prefer explicit SSH for lab when default `ssh` fails (keys / IPv4):  
-    `rsync -e '/usr/bin/ssh -4 -F /dev/null -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 -i ~/.ssh/id_rsa' …` then remote `sudo bash …/scripts/deploy.sh`.
-  - Or: `OPENVOX_DEPLOY_HOST=10.0.100.225 OPENVOX_DEPLOY_USER=jsheets scripts/update_remote.sh --yes` when SSH agent/config works.
-  - **Always** wrap lab deploys with the maintenance program first when using ovox on the server:
-    - `ovox maintenance enable --message "Alpha refactor validation" --eta "XXm" --yes` (or equivalent)
-    - Perform the deploy
-    - Verify thoroughly
-    - `ovox maintenance disable --yes`
-  - **Never** push or deploy these alpha branches (or changes from them) to production infrastructure (e.g., xAI fleet servers).
-  - **Never** merge alpha security/refactor work into **`main`** until the scheduled massive merge + final scan. Push **only** the active alpha branch (and its tags), not `main`.
-- Changes are merged back toward `main` only after validation, review, and when a stable increment is ready.
-- This strategy ensures zero impact on end-users during the dev effort. All work follows the full pre-commit checklist, `/commit` skill process, and meticulous verification.
+The 2026-06 evaluation-driven alpha effort (**`3.10.a_r_alpha.N`**, trains `3.10.01`–`3.10.04` / srdev1–sruiux2) was **merged into `main`** and promoted through beta **`3.10.1.b1`** / **`3.10.1.b2`** to stable **`3.10.2`**. Day-to-day development and releases go through **`main`** again.
+
+- **Current stable:** **3.10.2** (`VERSION` file, GitHub Release `v3.10.2`). Do **not** invent a parallel version for docs-only commits unless the user asks for a release bump.
+- **Historical alpha branch** `3.10.a_r_alpha.6` may still exist on the remote for reference; **prune only when explicitly requested** after lab verification. Do not treat it as the active develop branch unless a new alpha effort is opened.
+- **Train markers (archive / archaeology):** `3.10.01.aN` security, `3.10.02.aN` architecture, `3.10.03.aN` sruiux1, `3.10.04.aN` sruiux2 — useful when reading old commits/CHANGELOG, not for new work on `main`.
+- **New large spike / risky refactor:** optionally open a **new** `3.10.a_r_alpha.N` (or next minor alpha) with the same lab-only rules below; otherwise commit on `main` with SemVer pre-releases (`3.10.3-dev.N` or `3.10.3.bN` style per team preference) via `/commit`.
+
+**Lab / production discipline (still STRICT):**
+- Primary validation deploys: lab **`openvox.questy.org`** (`10.0.100.225`) only unless the user names production bastion workflow.
+- Prefer: `OPENVOX_DEPLOY_HOST=10.0.100.225 OPENVOX_DEPLOY_USER=jsheets scripts/update_remote.sh --yes` (PATH `/usr/bin` first if Homebrew SSH breaks routing).
+- Maintenance wrapper on the server when using ovox: `ovox maintenance enable` → deploy → verify → `ovox maintenance disable`.
+- **Never** confuse lab claims with production (`openvox.pdxc-it.twitter.biz` via bastion). See Infrastructure section below.
 
 ## Heredoc Safety (Important)
 

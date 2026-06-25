@@ -6,10 +6,13 @@ We actively support security and operational updates for the latest stable and p
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 3.9.x and newer (including pre-releases like 3.9.6-dev.N) | :white_check_mark: |
+| **3.10.x** stable (current: **3.10.2**) and newer | :white_check_mark: |
+| 3.10.x pre-releases / betas (e.g. `3.10.1.b2`) while testing | :white_check_mark: (lab/test only) |
+| 3.9.x | :white_check_mark: (security fixes as feasible; prefer upgrade to 3.10.2+) |
+| 3.0 – 3.8.x | Limited — upgrade when you can |
 | < 3.0   | :x: (end of life)  |
 
-We recommend running the most recent release (or the latest dev pre-release if testing upcoming fixes). Patch releases within a minor series receive priority security backports where feasible.
+We recommend running the **latest stable** GitHub Release ([v3.10.2](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.2) as of this policy refresh). Use pre-release tags only on lab/test systems unless you have a deliberate beta rollout. Patch releases within a minor series receive priority security backports where feasible.
 
 ## Reporting a Vulnerability
 

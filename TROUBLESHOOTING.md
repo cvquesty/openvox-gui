@@ -625,6 +625,16 @@ To use a real certificate, see the Configuration documentation.
    cat /opt/openvox-gui/bolt-project.yaml
    ```
 
+4. **Inventory / targets:** Prefer ENC groups or PuppetDB-backed targets from the GUI Target selector. Sync inventory if you still maintain a static file: Orchestration inventory sync or `openvox_enc` plugin (see [bolt-plugin/README.md](bolt-plugin/README.md)).
+
+### Problem: One click on Run Command runs the shell command three times on targets
+
+**Symptom:** Browser Network tab shows three `POST /api/bolt/run/command` (or task/plan) calls; append-to-file tests write three lines; CLI `bolt command run` on the server is only once.
+
+**Cause (fixed in 3.10.1.b2 / 3.10.2):** Older GUIs requested **human**, **json**, and **rainbow** Bolt formats in **parallel**, so each click executed Bolt **three times**. Not a React double-mount alone.
+
+**Fix:** Upgrade to **3.10.2** (or at least **3.10.1.b2**). After upgrade you should see **one** Network POST per confirm/click; result tabs share that single run. See [GitHub #38](https://github.com/cvquesty/openvox-gui/issues/38).
+
 ---
 
 ## Agent Installer Problems *(3.6.0+)*

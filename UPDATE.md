@@ -607,43 +607,49 @@ If you're stuck:
 
 ### Understanding Version Numbers
 
-OpenVox GUI uses semantic versioning: `MAJOR.MINOR.PATCH`
+OpenVox GUI uses **Semantic Versioning (SemVer 2.0.0)** plus optional **pre-releases**:
 
-- **MAJOR** (1.x.x): Big changes that might break compatibility
-- **MINOR** (x.4.x): New features that are backwards compatible  
-- **PATCH** (x.x.0): Bug fixes and small improvements
+- **Stable:** `MAJOR.MINOR.PATCH` (example: **3.10.2** — current stable on `main`)
+- **Pre-release / beta trains:** e.g. `3.10.1.b2`, `3.9.0-dev.42`, historical alpha labels such as `3.10.04.a8` on feature branches
+- **ovox CLI** version always matches the GUI (root `VERSION` file) as of 3.7.3
+
+Rules of thumb:
+
+- **MAJOR** — big changes that might break compatibility
+- **MINOR** — new features that are backwards compatible
+- **PATCH** — bug fixes and small improvements
+- Prefer the latest **stable** GitHub Release for production; use betas only on lab/test unless you mean to
 
 Examples:
-- `1.3.9` → `1.3.10`: Small bug fix, safe to update
-- `1.3.10` → `1.4.0`: New features added, safe to update
-- `1.4.0` → `1.4.8`: Security updates + version management + bug fixes, safe to update
-- `1.4.8` → `2.0.0`: Major new feature (LDAP authentication), read notes below
+- `3.9.7` → `3.10.2`: Feature line promotion (Insights NOC, ops UI, Orchestration #38) — read notes below
+- `3.10.1.b2` → `3.10.2`: Beta train promoted to stable (same code family)
+- `1.4.8` → `2.0.0`: Major new feature (LDAP authentication) — see CHANGELOG for historical detail
 
 ### Recent Versions
 
-**Version 3.7.0 (Current)**
-- **Metrics section** — 10 new visualization pages: Run Performance (10
-  charts with JMX instrumentation), Fleet Compliance, Fleet Fact Overview,
-  Catalog Graph (React Flow), PuppetDB Health, Change Timeline, Environment
+**Version 3.10.2 (Current stable — June 2026)**
+- Promotes the 3.10 line on **`main`** after the `3.10.a_r_alpha.6` merge and **3.10.1.b1** / **3.10.1.b2** betas ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.2))
+- **Monitoring NOC** multi-graph wallboard with shared UTC timeline; live JMX series timestamp fix
+- **Ops UI** — OpsTable, FilterBar, Insights hub (`/insights`, `/insights/all`)
+- **Orchestration:** one Bolt run per click (fixes triple execution — GitHub [#38](https://github.com/cvquesty/openvox-gui/issues/38))
+- Security / architecture / UI trains from 3.10 alpha (full detail in [CHANGELOG.md](CHANGELOG.md))
+- **Default git branch remains `main`** (no `staging` branch)
+
+**Version 3.10.1.b2 (beta, superseded by 3.10.2)**
+- Orchestration single-run fix only (#38); prefer upgrading to **3.10.2**
+
+**Version 3.7.0**
+- **Metrics / Insights section** — visualization pages: Run Performance (JMX), Fleet Compliance,
+  Fleet Fact Overview, Catalog Graph (React Flow), PuppetDB Health, Change Timeline, Environment
   Comparison, Node Heatmap, Classification Tree, Class Coverage
 - **Certificate Audit** tool for finding/cleaning orphaned CA certs
-- **Navigation restructure** — Dashboard/Tools/Logs reorganization, colored icons
-- **Clickable certnames everywhere**, alphabetized dropdowns/lists
-- **High-quality charts** — smooth lines, gradient fills, time-series with
-  localStorage persistence and configurable auto-refresh
-- **Server-side caching** (30s TTL) for expensive PuppetDB queries
+- Navigation and chart polish; server-side caching (30s TTL) for expensive PuppetDB queries
+- Maintenance program foundations (`ovox maintenance`, branded maintenance pages)
 
 **Version 3.6.6**
-- **SSL Certificate Wizard** — complete redesign of the SSL Configuration page with
-  guided workflows for web certificate upload (corporate PKI, Let's Encrypt, Puppet
-  certs) and Puppet CA intermediate setup (CSR generation, PKI team handoff, import).
-  Drag-and-drop file upload with PEM validation and key-cert matching. Educational
-  content explains certificate concepts in plain English with IT team terminology
-  cross-reference. 11 new `/api/ssl/*` backend endpoints.
+- **SSL Certificate Wizard** — guided web certificate and Puppet CA intermediate workflows
 - **Unclassified Nodes pane** on Classification page now always visible
-- Security & maintenance: 9 Python dependency updates (cryptography 48.0.0, fastapi
-  0.136.1, uvicorn 0.47.0), sqlite3 crash fix, sudoers hardening (removed duplicate
-  CA and openssl wildcards), decommissioned betavox-gui service
+- Security & maintenance: dependency updates, sqlite3 crash fix, sudoers hardening
 
 **Version 3.6.5**
 - Node Scope filter on Fact Explorer (ENC group chip bar with multi-select)
@@ -664,14 +670,8 @@ Examples:
 **Version 3.3.0**
 - Orchestration targets resolved from PuppetDB in real-time instead of static inventory
 - Deploy health checks use HTTPS when SSL is enabled (fixes false "not healthy" errors)
-- Dashboard status trends chart layered with green background field
-- Native SSL support on port 4567 with Puppet certs
-- SSL Configuration tab in Application Configuration
-- Dashboard graph enhancements (pie chart, 2D/3D toggle)
-- Reports grouped by ENC node groups
-- Navigation restructuring (Infrastructure under Monitoring, Classification under Code)
-- Certificate caching and async CA info
-- Comprehensive inline docstrings across all backend modules
+- Native SSL support on port 4567 with Puppet certs; SSL Configuration tab
+- Reports grouped by ENC node groups; broader navigation foundations
 
 **Version 2.3.x**
 - Zero CVEs — all dependencies audited and upgraded (FastAPI 0.135.1, PyJWT 2.12.1)

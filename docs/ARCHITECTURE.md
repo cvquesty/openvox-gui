@@ -6,14 +6,18 @@ This document describes the high-level architecture of OpenVox GUI, with special
 
 OpenVox GUI is a full-stack application that provides both a **web interface** and a **command-line interface** (`ovox`) for managing an OpenVox (open-source Puppet) infrastructure.
 
+**Current stable line:** **3.10.2** (see root `VERSION` and [CHANGELOG.md](../CHANGELOG.md)). The 3.10 effort layered security hardening, clearer backend service boundaries, and operator-focused UI (Insights **Monitoring** NOC, shared **OpsTable** / filters, orchestration UX). Installation remains **on the OpenVox Server host** (local filesystem, CA, Bolt, systemd) — remote-host GUI install is not supported yet.
+
 The system is deliberately designed with two primary user interfaces that are treated as equals:
 
-- **Web GUI** — React + Mantine frontend
-- **ovox CLI** — Python/Typer client
+- **Web GUI** — React + Mantine frontend (Vite build; lazy routes with retry on deploy chunk mismatches)
+- **ovox CLI** — Python/Typer client (version lockstep with the GUI since 3.7.3)
 
 **`ovox` is a feature**, in-line with the GUI itself. It is not categorized under "API". Both the web interface and the CLI are first-class ways for humans (and automation) to interact with the system.
 
 Both interfaces are clients of the same backend. There is no "API tier" that is separate from the GUI — the FastAPI application *is* the core of the system.
+
+**Navigation mental model (3.10 UI):** Dashboard & Nodes → Infrastructure (CA, Orchestration, Agent Install, Cert Audit) → Code (ENC, r10k deploy) → Data (Hiera) → Tools (PQL / explorers) → **Insights** (Monitoring wallboard + metrics catalog + reports/logs) → Configuration (OpenVox + Application/SSL).
 
 ## High-Level Component Diagram
 

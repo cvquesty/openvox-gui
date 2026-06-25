@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Orchestration Run Command / Task / Plan: **one** Bolt invocation per click (was three for format tabs).
 - Prior 3.10 alpha platform work merged via PR #39 / direct sole-dev merge.
 
+### Documentation (post-release refresh — same **3.10.2**, no version bump)
+- README badge and feature map aligned to **3.10.2** (Insights/Monitoring NOC, ops UI, #38, nav groups, Security link).
+- UPDATE version history, SECURITY supported versions, CONTRIBUTING (`main`-only), ARCHITECTURE overview, ovox versioning examples, AGENTS 3.10 status (alpha merged; prune branch only on request).
+- TROUBLESHOOTING note for historical triple Bolt runs on Orchestration when running older than **3.10.1.b2**.
+
 ## [3.10.1.b2] - 2026-06-25 (fix Orchestration triple Bolt run — GitHub #38)
 
 ### Fixed
