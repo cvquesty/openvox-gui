@@ -295,6 +295,88 @@ async def get_version():
     return {"version": __version__}
 
 
+@app.get("/metrics")
+async def prometheus_metrics():
+    """
+    Prometheus-style ops metrics (srsysarch1 actionable #9).
+
+    Unauthenticated by design for scraper access (same class as /health).
+    Allowed through maintenance middleware allowlist. Exposes control-plane
+    signals: maintenance state, deploy-in-progress, SQLite row counts (best
+    effort), package mirror last-sync age, app version info.
+    """
+    from fastapi.responses import PlainTextResponse
+    from .utils.maintenance import get_maintenance_info, is_deploy_in_progress
+    from .database import async_session
+    from sqlalchemy import text
+
+    lines: list[str] = []
+    lines.append("# HELP openvox_gui_info Static labels for this GUI instance")
+    lines.append("# TYPE openvox_gui_info gauge")
+    ver = __version__.replace('"', "")
+    lines.append(f'openvox_gui_info{{version="{ver}"}} 1')
+
+    try:
+        info = get_maintenance_info()
+        maint = 1 if info.get("enabled") else 0
+    except Exception:
+        maint = 0
+    lines.append("# HELP openvox_gui_maintenance_enabled 1 if maintenance mode is active")
+    lines.append("# TYPE openvox_gui_maintenance_enabled gauge")
+    lines.append(f"openvox_gui_maintenance_enabled {maint}")
+
+    try:
+        deploy_ip = 1 if is_deploy_in_progress() else 0
+    except Exception:
+        deploy_ip = 0
+    lines.append("# HELP openvox_gui_deploy_in_progress 1 if deploy.pid is live")
+    lines.append("# TYPE openvox_gui_deploy_in_progress gauge")
+    lines.append(f"openvox_gui_deploy_in_progress {deploy_ip}")
+
+    # Package mirror last-sync age (seconds); -1 if unknown
+    sync_age = -1
+    for candidate in (
+        Path("/opt/openvox-gui/data/.last-sync"),
+        Path("/opt/openvox-pkgs/.last-sync"),
+        Path("/opt/openvox-gui/data/last-sync"),
+    ):
+        try:
+            if candidate.exists():
+                import time as _time
+                sync_age = int(_time.time() - candidate.stat().st_mtime)
+                break
+        except Exception:
+            pass
+    lines.append("# HELP openvox_gui_package_mirror_sync_age_seconds Seconds since last package mirror sync marker")
+    lines.append("# TYPE openvox_gui_package_mirror_sync_age_seconds gauge")
+    lines.append(f"openvox_gui_package_mirror_sync_age_seconds {sync_age}")
+
+    # SQLite table row counts (best effort; may be 0 on failure)
+    for table in ("users", "execution_history", "enc_nodes", "enc_groups", "api_tokens"):
+        count = -1
+        try:
+            async with async_session() as session:
+                result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                count = int(result.scalar() or 0)
+        except Exception:
+            count = -1
+        lines.append(f"# HELP openvox_gui_sqlite_rows_{table} Row count for {table}")
+        lines.append(f"# TYPE openvox_gui_sqlite_rows_{table} gauge")
+        lines.append(f"openvox_gui_sqlite_rows_{table} {count}")
+
+    # PS health ring size if collector is running
+    try:
+        ring_len = len(getattr(metrics_router, "_ps_health_ring", []) or [])
+    except Exception:
+        ring_len = 0
+    lines.append("# HELP openvox_gui_ps_health_ring_samples In-memory Puppet Server health ring buffer length")
+    lines.append("# TYPE openvox_gui_ps_health_ring_samples gauge")
+    lines.append(f"openvox_gui_ps_health_ring_samples {ring_len}")
+
+    body = "\n".join(lines) + "\n"
+    return PlainTextResponse(content=body, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
 @app.api_route("/{full_path:path}", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH"])
 async def serve_spa(request: Request, full_path: str):
     """Serve static files from dist root, or fall back to React SPA.

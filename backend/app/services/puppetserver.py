@@ -205,19 +205,32 @@ class PuppetServerService:
             return {"service": service, "status": "unknown", "error": str(e)}
 
     def restart_service(self, service: str) -> Dict[str, str]:
-        """Restart a systemd service."""
+        """Restart a systemd service (list-form sudo via run_sudo; srsysarch1 P0)."""
         allowed = {"puppetserver", "puppetdb", "puppet", "openvox-gui"}
         if service not in allowed:
             return {"status": "error", "message": f"Service {service} not allowed"}
         try:
-            result = subprocess.run(
-                ["sudo", "systemctl", "restart", service],
-                capture_output=True, text=True, timeout=60
-            )
-            if result.returncode == 0:
+            from ..utils.sudo import run_sudo
+            import asyncio
+
+            async def _restart():
+                return await run_sudo(["sudo", "systemctl", "restart", service], timeout=60)
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Called from async context — use a thread with a fresh loop
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        result = pool.submit(lambda: asyncio.run(_restart())).result(timeout=70)
+                else:
+                    result = loop.run_until_complete(_restart())
+            except RuntimeError:
+                result = asyncio.run(_restart())
+
+            if result.get("returncode") == 0:
                 return {"status": "success", "message": f"{service} restarted"}
-            else:
-                return {"status": "error", "message": result.stderr}
+            return {"status": "error", "message": result.get("stderr") or result.get("stdout") or "restart failed"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 

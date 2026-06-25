@@ -39,6 +39,10 @@ MAINTENANCE_FLAG_PATH = Path("/opt/openvox-gui/data/maintenance.flag")
 # minutes and no active deploy marker. Complements the startup stale clear.
 MAX_STUCK_MAINT_MINUTES = 45
 
+# Written by deploy.sh / update_* while a deploy is in progress (PID + timestamp).
+# Presence prevents auto-clear of "stuck" maintenance during a legitimate long deploy.
+DEPLOY_PID_PATH = Path("/opt/openvox-gui/data/deploy.pid")
+
 
 def _ensure_parent_dir(path: Path) -> None:
     """Create the parent directory if it does not exist (best effort)."""
@@ -46,6 +50,31 @@ def _ensure_parent_dir(path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
     except Exception as exc:
         logger.warning(f"Could not ensure parent dir for {path}: {exc}")
+
+
+def is_deploy_in_progress() -> bool:
+    """True if deploy.pid exists and the PID is still running."""
+    try:
+        if not DEPLOY_PID_PATH.exists():
+            return False
+        text = DEPLOY_PID_PATH.read_text(encoding="utf-8").strip()
+        if not text:
+            return False
+        # First line is PID; optional second line is ISO timestamp / note
+        pid_str = text.splitlines()[0].strip().split()[0]
+        pid = int(pid_str)
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError, ValueError, OSError):
+        # Stale marker — remove best-effort so future stuck checks work
+        try:
+            if DEPLOY_PID_PATH.exists():
+                DEPLOY_PID_PATH.unlink()
+        except Exception:
+            pass
+        return False
+    except Exception:
+        return False
 
 
 def get_maintenance_info() -> Dict[str, Any]:
@@ -60,17 +89,18 @@ def get_maintenance_info() -> Dict[str, Any]:
       - activated_by: str or null
 
     P1 extension: if the flag is older than MAX_STUCK_MAINT_MINUTES and
-    there is no obvious active deploy (simple heuristic on age), auto-clear
-    to avoid stuck 503s (in addition to startup clear in lifespan).
+    there is no active deploy.pid, auto-clear to avoid stuck 503s
+    (in addition to startup clear in lifespan).
     """
     if not MAINTENANCE_STATE_PATH.exists():
-        return {"enabled": False}
+        return {"enabled": False, "deploy_in_progress": is_deploy_in_progress()}
 
     try:
         data = json.loads(MAINTENANCE_STATE_PATH.read_text(encoding="utf-8"))
         data.setdefault("enabled", bool(data.get("enabled", False)))
 
-        # Stuck flag auto-clear logic (actionable #6)
+        # Stuck flag auto-clear logic (actionable #6 / srsysarch1)
+        # Do not clear while deploy.pid points at a live process (long deploys).
         started = data.get("started_at")
         if data.get("enabled") and started:
             try:
@@ -78,13 +108,20 @@ def get_maintenance_info() -> Dict[str, Any]:
                 dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
                 age_min = (datetime.now(tz.utc) - dt).total_seconds() / 60
                 if age_min > MAX_STUCK_MAINT_MINUTES:
-                    # No deploy pid marker in this simple impl; clear it.
-                    logger.warning(f"Auto-clearing stuck maintenance flag (age {age_min:.0f}m > {MAX_STUCK_MAINT_MINUTES}m)")
+                    if is_deploy_in_progress():
+                        data["deploy_in_progress"] = True
+                        data["stuck_check_skipped"] = "deploy.pid active"
+                        return data
+                    logger.warning(
+                        "Auto-clearing stuck maintenance flag "
+                        f"(age {age_min:.0f}m > {MAX_STUCK_MAINT_MINUTES}m, no active deploy)"
+                    )
                     disable_maintenance()
                     return {"enabled": False, "auto_cleared": True, "reason": "stuck"}
             except Exception:
                 pass
 
+        data["deploy_in_progress"] = is_deploy_in_progress()
         return data
     except Exception as exc:
         logger.warning(f"Failed to read maintenance state file: {exc}")

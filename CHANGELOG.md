@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a30] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Systems architect (srsysarch1) remainder — alpha train / lab only
+Continues P0/P1 items from `srsysarch1-openvox-gui-domain-security-issues-systems-architect.md` that were not fully closed on earlier alpha commits (WAL, CommandExecutionService PoC, bootstrap token, rate/concurrency limits, visudo fail-deploy, approved bolt prefixes, r10k optional allow-list hooks were already present).
+
+#### Added
+- **Prometheus-style `/metrics`** (actionable #9): maintenance enabled, deploy-in-progress, package mirror sync age, SQLite row counts (users/execution_history/enc_*/api_tokens), PS health ring length, `openvox_gui_info{version=...}`. Unauthenticated for scrapers; allowed through maintenance middleware allowlist (same class as `/health`).
+- **`deploy.pid` marker** during `deploy.sh` (actionable #6): prevents auto-clear of "stuck" maintenance while a long deploy PID is still alive. Combined EXIT trap clears PID + maintenance page.
+- **`etc/allowed-environments.txt.example`**: documents optional strict r10k env allow-list; deployed to `/opt/openvox-gui/etc/` without overwriting an operator-installed `allowed-environments.txt`.
+
+#### Fixed / hardened
+- **Maintenance stuck logic** honors live `deploy.pid` before auto-clear; exposes `deploy_in_progress` in maintenance info.
+- **`puppetserver_service.restart_service`**: uses list-form `run_sudo` instead of raw `subprocess.run(["sudo", ...])` (P0 subprocess audit path).
+- **deploy.sh trap**: single trap clears both deploy marker and maintenance (avoids overwriting deploy-pid-only trap).
+
+#### Already on train (recap — not re-done)
+- SQLite WAL + synchronous=FULL + busy_timeout + shutdown checkpoint
+- CommandExecutionService + LocalSudoTransport (partial migration; Orchestration bolt path restored for lab correctness)
+- Optional `OPENVOX_GUI_BOOTSTRAP_TOKEN` on installer scripts
+- `rate_limit_heavy` + `concurrency_heavy` on Bolt/deploy
+- ensure-sudoers visudo -cf fail + sudoers diff vs backup
+- r10k-deploy.sh optional allow-list file + reject `--config-file`
+- Bolt APPROVED_SAFE_PREFIXES for common `puppet agent -t` cases
+- Atomic+fsync maintenance.json and deploy_history.json
+
+#### Still deferred (large follow-ups, not blocking this slice)
+- Full migration of every router/service through CommandExecutionService
+- Background job queue for multi-minute Bolt/r10k (beyond wait_for)
+- Service-token scope UI / rotation
+- Full remote-host SSH transport
+- Package sync as non-root least-priv user
+
+### Versioning
+- Incremented pre-release to **3.10.0a30** on branch **3.10.a_r_alpha.6** (lab deploy only: openvox.questy.org / 10.0.100.225).
+
 ## [3.10.0a29] - 2026-06-24 (on 3.10.a_r_alpha.6)
 
 ### Executive Summary Report enhancements (Logs | Reports)
