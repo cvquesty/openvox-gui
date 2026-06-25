@@ -16,6 +16,7 @@ import { nodes, enc, bolt } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { OpsTable, OpsColumn } from '../components/OpsTable';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useActivity } from '../hooks/ActivityContext';
 import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
@@ -475,41 +476,56 @@ export function NodesPage() {
         </Stack>
       )}
 
-      {/* All nodes — complete fleet view */}
+      {/* All nodes — OpsTable (sruiux2 P0-2: sort + paginate) */}
       <Title order={4}>All Nodes ({totalNodes})</Title>
+      {totalNodes > 200 && (
+        <Alert color="yellow" variant="light">
+          Large fleet ({totalNodes} nodes loaded client-side). Use search and OpsTable page size; further server-side paging is planned in later 3.10.04 slices.
+        </Alert>
+      )}
       <Card withBorder shadow="sm" padding="lg" style={{ overflow: 'hidden' }}>
-        {filtered.length === 0 ? (
-          <Text c="dimmed" ta="center">No nodes found</Text>
-        ) : (
-          <ScrollArea h={650} type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Certname</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Environment</Table.Th>
-                    <Table.Th>Last Report</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {filtered.map((node) => (
-                    <Table.Tr
-                      key={node.certname}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/nodes/${node.certname}`)}
-                    >
-                      <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
-                      <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
-                      <Table.Td>{node.report_environment || '\u2014'}</Table.Td>
-                      <Table.Td>{timeAgo(node.report_timestamp)}</Table.Td>
-                      <Table.Td>{actionCell(node)}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-          </ScrollArea>
-        )}
+        <OpsTable<NodeSummary>
+          data={filtered}
+          rowKey={(n) => n.certname}
+          defaultPageSize={100}
+          maxHeight="calc(100vh - 320px)"
+          emptyTitle="No nodes found"
+          emptyDescription={search ? 'Try a different search.' : 'No nodes reported to PuppetDB yet.'}
+          onRowClick={(n) => navigate(`/nodes/${n.certname}`)}
+          columns={[
+            {
+              key: 'certname',
+              header: 'Certname',
+              sortValue: (n) => n.certname,
+              render: (n) => <Text fw={500}>{n.certname}</Text>,
+            },
+            {
+              key: 'latest_report_status',
+              header: 'Status',
+              sortValue: (n) => n.latest_report_status || '',
+              render: (n) => <StatusBadge status={n.latest_report_status} />,
+            },
+            {
+              key: 'report_environment',
+              header: 'Environment',
+              sortValue: (n) => n.report_environment || '',
+              render: (n) => n.report_environment || '\u2014',
+            },
+            {
+              key: 'report_timestamp',
+              header: 'Last Report',
+              sortType: 'date',
+              sortValue: (n) => n.report_timestamp || '',
+              render: (n) => timeAgo(n.report_timestamp),
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              sortable: false,
+              render: (n) => actionCell(n),
+            },
+          ] as OpsColumn<NodeSummary>[]}
+        />
       </Card>
 
       {/* Unclassified nodes — signed certs (from CA) that are not (yet) classified in the ENC.

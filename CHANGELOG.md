@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 IA + OpsTable start)
+
+### UI/UX (sruiux2 designer-2 P0 slice 1)
+- **P0-1 Sidebar IA:** Regroup nav — **Overview**, **Infrastructure** (CA + Cert Audit + Orch + Installer), **Classification & Code**, **Data**, **Explore** (PQL/Facts/Resources/Packages), **Insights** (hub + reports + inventory + logs + key metrics), **Settings**. Palette unchanged (⌘K).
+- **P0-2 OpsTable:** New `OpsTable` — sortable headers, client pagination (50/100/200/500), viewport-relative scroll, row counts. **Nodes → All Nodes** adopts it; large-fleet warning when &gt;200 nodes.
+- **P1-3 lite:** Dashboard **Power tools** card grid (PQL, Facts, Resources, Cert Audit, Hiera Lookup).
+
+### Versioning
+- **3.10.04.a1** opens sruiux2 train (alpha / lab only). Next: OpsTable on Reports/Inventory/CertAudit, limit controls, more Insights nav polish.
+
 ## [3.10.03.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — ad-hoc confirm toggle)
 
 ### Added

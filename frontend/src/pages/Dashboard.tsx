@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
-  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea,
+  Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea, SimpleGrid,
 } from '@mantine/core';
 import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
@@ -264,6 +264,34 @@ export function DashboardPage() {
           <CommandCenterOTron />
         </Card>
       )}
+
+      {/* sruiux2 P1-3 — power tool discovery */}
+      <Card withBorder shadow="sm" padding="md">
+        <Text fw={600} mb="xs">Power tools</Text>
+        <Text size="xs" c="dimmed" mb="sm">
+          Fast paths into the explorers operators use daily. Also available under Explore in the sidebar and ⌘K.
+        </Text>
+        <SimpleGrid cols={{ base: 2, sm: 3, md: 5 }} spacing="sm">
+          {[
+            { label: 'PQL Console', path: '/pql', color: 'blue' },
+            { label: 'Fact Explorer', path: '/facts', color: 'teal' },
+            { label: 'Resources', path: '/resources', color: 'violet' },
+            { label: 'Cert Audit', path: '/cert-audit', color: 'orange' },
+            { label: 'Hiera Lookup', path: '/data/lookup', color: 'grape' },
+          ].map((t) => (
+            <Card
+              key={t.path}
+              padding="sm"
+              withBorder
+              style={{ cursor: 'pointer' }}
+              onClick={() => navigate(t.path)}
+            >
+              <Badge color={t.color} variant="light" size="sm" mb={4}>{t.label.split(' ')[0]}</Badge>
+              <Text size="sm" fw={500}>{t.label}</Text>
+            </Card>
+          ))}
+        </SimpleGrid>
+      </Card>
 
       <Grid>
         <Grid.Col span={{ base: 12, md: 4 }}>

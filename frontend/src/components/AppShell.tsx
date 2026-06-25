@@ -71,23 +71,22 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const dashboardNav: NavItem[] = [
-  { label: 'Overview', icon: IconDashboard, path: '/' },
+// sruiux2 P0-1 — operator mental model: Overview → Infra → Class/Code → Data → Explore → Insights → Settings
+const overviewNav: NavItem[] = [
+  { label: 'Dashboard', icon: IconDashboard, path: '/' },
   { label: 'Nodes', icon: IconServer, path: '/nodes' },
 ];
 
-// Infrastructure was promoted from a sub-group of Monitoring to a
-// top-level nav group of its own, parallel to Monitoring / Code /
-// Data / Information / Settings (3.3.5-8+).
 const infrastructureNav: NavItem[] = [
   { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
   { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
   { label: 'Agent Install', icon: IconDownload, path: '/installer' },
+  { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
 ];
 
-const codeNav: NavItem[] = [
-  { label: 'Classification', icon: IconHierarchy2, path: '/enc' },
-  { label: 'Deployment', icon: IconRocket, path: '/deployment' },
+const classificationCodeNav: NavItem[] = [
+  { label: 'Classification (ENC)', icon: IconHierarchy2, path: '/enc' },
+  { label: 'Code Deployment', icon: IconRocket, path: '/deployment' },
 ];
 
 const dataNav: NavItem[] = [
@@ -95,28 +94,23 @@ const dataNav: NavItem[] = [
   { label: 'Hiera Lookup', icon: IconSearch, path: '/data/lookup' },
 ];
 
-const explorerNav: NavItem[] = [
+/** Power explorers — promoted from "Tools" (sruiux2) */
+const exploreNav: NavItem[] = [
   { label: 'PQL Console', icon: IconTerminal, path: '/pql' },
   { label: 'Fact Explorer', icon: IconSearch, path: '/facts' },
   { label: 'Resource Explorer', icon: IconPackage, path: '/resources' },
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
-  { label: 'Certificate Audit', icon: IconCertificate, path: '/cert-audit' },
 ];
 
-// Single hub entry — deep links remain on /insights/* (sruiux1 P0 #2)
-const metricsNav: NavItem[] = [
+/** Analytics + history surfaces together (sruiux2 Insights group) */
+const insightsNav: NavItem[] = [
   { label: 'Insights hub', icon: IconChartBar, path: '/insights' },
-  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/insights/compliance' },
-  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
-  { label: 'OpenVox Server Health', icon: IconServer, path: '/insights/openvox-server-health' },
-  { label: 'OpenVoxDB Health', icon: IconHeartRateMonitor, path: '/insights/openvoxdb-health' },
-  { label: 'Run Performance', icon: IconActivity, path: '/insights/performance' },
-];
-
-const logsNav: NavItem[] = [
-  { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
   { label: 'Inventory', icon: IconListDetails, path: '/inventory' },
+  { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
+  { label: 'Fleet Compliance', icon: IconHeartRateMonitor, path: '/insights/compliance' },
+  { label: 'Node Health', icon: IconHeartbeat, path: '/insights/node-health' },
+  { label: 'Change Timeline', icon: IconTimeline, path: '/insights/timeline' },
 ];
 
 const configNav: NavItem[] = [
@@ -377,13 +371,12 @@ export function AppShellLayout() {
 
       <MantineAppShell.Navbar p="xs" style={{ backgroundColor: navBg, borderRight: navBorder }}>
         <MantineAppShell.Section grow component={ScrollArea}>
-          {renderNavGroup('Dashboard', IconDashboard, dashboardNav, '#3498db')}
+          {renderNavGroup('Overview', IconDashboard, overviewNav, '#3498db')}
           {renderNavGroup('Infrastructure', IconCertificate, infrastructureNav, '#e67e22')}
-          {renderNavGroup('Code', IconRocket, codeNav, '#2ecc71')}
+          {renderNavGroup('Classification & Code', IconRocket, classificationCodeNav, '#2ecc71')}
           {renderNavGroup('Data', IconPackage, dataNav, '#9b59b6')}
-          {renderNavGroup('Metrics', IconChartBar, metricsNav, '#1abc9c')}
-          {renderNavGroup('Tools', IconTool, explorerNav, '#f39c12')}
-          {renderNavGroup('Logs', IconFileText, logsNav, '#e74c3c')}
+          {renderNavGroup('Explore', IconTool, exploreNav, '#f39c12')}
+          {renderNavGroup('Insights', IconChartBar, insightsNav, '#1abc9c')}
           {renderNavGroup('Settings', IconSettings, configNav, '#95a5a6')}
         </MantineAppShell.Section>
 
