@@ -143,12 +143,19 @@ puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain *
 puppet ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
 
 # Log Viewer — restricted to specific units and files only
-puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver
-puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb
-puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet
-puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui
-puppet ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetdb/puppetdb.log
-puppet ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetserver/puppetserver.log
+# Argv must match backend/app/routers/logs.py (line count is a single * arg).
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver --no-pager -n * --output short-iso
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver --no-pager -n * --output short-iso --since *
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso --since *
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso --since *
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso --since *
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso --since *
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
 
 # SSL Certificate Wizard operations (explicit)
 puppet ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service

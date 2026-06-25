@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a33] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix Log Viewer empty panes (sudoers argv mismatch)
+- **Symptom:** Logs | Log Viewer tabs (OpenVox GUI, Puppet Agent, PuppetServer, PuppetDB, System Log) showed no lines on the lab host.
+- **Root cause:** `backend/app/routers/logs.py` invoked `journalctl --no-pager -n N --output short-iso -u <unit>` and `tail -n N <path>`, but sudoers only allowed `journalctl -u <unit>` with no further arguments and `tail -n <path>` without a line count — every privileged read was denied and the API returned empty `lines` arrays.
+- **Fix:** Align command argv with explicit sudoers rules in `scripts/ensure-sudoers.sh` / `docs/SUDOERS.md` (`journalctl -u <unit> --no-pager -n * --output short-iso` [+ optional `--since *`], host journal without `-u` for System Log, `tail -n * <path>`). Use `run_sudo` (PTY) for requiretty-safe execution; surface read errors in the API payload; show backend hint in the UI empty state.
+- Lab-only validation on alpha train **3.10.0a33**.
+
+### Versioning
+- Incremented pre-release to **3.10.0a33** on branch **3.10.a_r_alpha.6**.
+
 ## [3.10.0a32] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Fix Orchestration Run Command: sudo preserve-environment denied

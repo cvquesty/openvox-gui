@@ -89,6 +89,8 @@ export function LogsPage() {
   };
 
   const currentData = logData[activeTab];
+  // Prefer backend-surfaced empty-read hints (sudo/file) over a silent blank pane
+  const backendHint = currentData?.error as string | undefined;
 
   /**
    * Render a single log line with visual enhancements:
@@ -355,7 +357,12 @@ export function LogsPage() {
             </div>
           ) : (
             <Center h={200}>
-              <Text c="dimmed" size="sm">No log entries found for the selected filters.</Text>
+              <Stack gap={4} align="center">
+                <Text c="dimmed" size="sm">No log entries found for the selected filters.</Text>
+                {backendHint && (
+                  <Text c="orange" size="xs" maw={640} ta="center">{backendHint}</Text>
+                )}
+              </Stack>
             </Center>
           )}
         </ScrollArea>

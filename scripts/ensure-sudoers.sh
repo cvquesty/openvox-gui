@@ -227,15 +227,28 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet lookup --explain
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/openvox-gui/scripts/sync-openvox-repo.sh
 
 # Log Viewer — restricted to specific units and files only
-# Method: journalctl on explicit units + tail on explicit log files.
+# Method: journalctl / tail argv must match backend/app/routers/logs.py exactly.
 # Rationale: The Logs page lets operators view the main components
-#            without granting general log access.
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetdb/puppetdb.log
-${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n /var/log/puppetlabs/puppetserver/puppetserver.log
+#            without granting general log access. Prior rules only allowed
+#            `journalctl -u <unit>` with no further args and `tail -n <path>`
+#            without a line count — so every GUI log read was denied and panes
+#            were empty. Line-count is a single-arg wildcard (*); optional
+#            --since is a second explicit rule set.
+# Units (with optional --since):
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetserver --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso --since *
+# Host journal (System Log tab) — no -u, still bounded by -n and output format:
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso --since *
+# Application log files (line count wildcard between -n and path):
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
 
 # SSL Certificate Wizard operations (explicit)
 # Method: tee for the service unit (during cert install), daemon-reload,
