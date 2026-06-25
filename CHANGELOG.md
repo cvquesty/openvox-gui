@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a7] - 2026-06-25 (on 3.10.a_r_alpha.6 — synchronized monitoring timeline)
+
+### UI/UX
+- **Monitoring shared X-axis:** All time-series graphs use the **same UTC hour-bucket domain** (configurable **Window**: 12h / 24h / 48h / 72h / 7d). Series are aligned with carry-forward so spikes can be compared across fleet, compliance, run performance, Server, and OpenVoxDB panels. Poll samples store epoch `ts` for reliable bucketing. Compliance distribution remains a current snapshot (not a trend).
+
+### Versioning
+- **3.10.04.a7** continues sruiux2 (alpha / lab only).
+
 ## [3.10.04.a6] - 2026-06-25 (on 3.10.a_r_alpha.6 — compliance trend axis fix)
 
 ### Fixed

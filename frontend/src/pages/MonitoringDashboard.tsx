@@ -22,10 +22,11 @@ import { dashboard, metrics, performance as perfApi } from '../services/api';
 
 const GRAPHS_KEY = 'openvox-gui-monitor-graphs-v2';
 const REFRESH_KEY = 'openvox-gui-monitor-refresh-v2';
-const PERF_HIST_KEY = 'openvox_perf_server_history';
-const PS_HIST_KEY = 'openvox_ps_health_history';
-const PDB_HIST_KEY = 'openvox_pdb_heap_history';
-const MAX_HIST = 360;
+const WINDOW_KEY = 'openvox-gui-monitor-window-hours-v1';
+const PERF_HIST_KEY = 'openvox_monitor_perf_hist_v2';
+const PS_HIST_KEY = 'openvox_monitor_ps_hist_v2';
+const PDB_HIST_KEY = 'openvox_monitor_pdb_hist_v2';
+const MAX_HIST = 2000;
 
 const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db'];
 
@@ -82,7 +83,7 @@ type GraphDef = {
 /** Every entry is a real time-series / chart — not a stat tile */
 const GRAPH_CATALOG: GraphDef[] = [
   { id: 'fleet_status_trends', label: 'Fleet node status trends', group: 'Fleet', sources: ['dash'], detailPath: '/', defaultOn: true },
-  { id: 'compliance_trend', label: 'Compliance trend (24h)', group: 'Fleet', sources: ['compliance'], detailPath: '/insights/compliance', defaultOn: true },
+  { id: 'compliance_trend', label: 'Compliance trend', group: 'Fleet', sources: ['compliance'], detailPath: '/insights/compliance', defaultOn: true },
   { id: 'compliance_dist', label: 'Compliance distribution (bar)', group: 'Fleet', sources: ['compliance'], detailPath: '/insights/compliance', defaultOn: true },
   { id: 'run_duration_trends', label: 'Run duration trends', group: 'Run Performance', sources: ['perf'], detailPath: '/insights/performance', defaultOn: true },
   { id: 'timing_phase_breakdown', label: 'Timing phase breakdown', group: 'Run Performance', sources: ['perf'], detailPath: '/insights/performance', defaultOn: true },
@@ -163,6 +164,148 @@ function formatMs(v: number) {
   return `${(v || 0).toFixed(1)}ms`;
 }
 
+/** UTC hour bucket key: YYYY-MM-DDTHH (matches PuppetDB / compliance API) */
+function hourKeyFromMs(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  return `${y}-${m}-${day}T${h}`;
+}
+
+function nowHourKey(): string {
+  return hourKeyFromMs(Date.now());
+}
+
+/** Contiguous UTC hour keys for the shared wallboard window (oldest → newest). */
+function buildHourAxis(hours: number): string[] {
+  const n = Math.max(1, Math.min(168, hours));
+  const end = Date.now();
+  // Align end to current UTC hour
+  const endHour = new Date(end);
+  endHour.setUTCMinutes(0, 0, 0);
+  const keys: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    keys.push(hourKeyFromMs(endHour.getTime() - i * 3600_000));
+  }
+  return keys;
+}
+
+/**
+ * Parse a point's time into an hour key. Accepts API buckets, ISO strings, or epoch ms (ts field).
+ * Locale-only clock strings without date cannot be placed on the shared axis reliably.
+ */
+function pointHourKey(row: any, timeField = 'timestamp'): string | null {
+  if (row == null) return null;
+  if (typeof row.ts === 'number' && Number.isFinite(row.ts)) {
+    return hourKeyFromMs(row.ts);
+  }
+  const raw = row[timeField] ?? row.time ?? row.timestamp ?? row.hour ?? row.label;
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return hourKeyFromMs(raw);
+  const s = String(raw);
+  // Already a bucket
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(s)) return s;
+  // ISO / receive_time prefix
+  if (s.length >= 13 && s[4] === '-' && s.includes('T')) return s.slice(0, 13);
+  const parsed = Date.parse(s);
+  if (!Number.isNaN(parsed)) return hourKeyFromMs(parsed);
+  return null;
+}
+
+/**
+ * Align arbitrary series onto the shared hour axis.
+ * - Multiple samples in one hour: last wins (or average for avgFields).
+ * - Gaps: carry forward last known value so lines stay continuous; null until first sample.
+ */
+function alignToHourAxis(
+  axis: string[],
+  rows: any[],
+  valueFields: string[],
+  opts?: { timeField?: string; average?: boolean }
+): any[] {
+  const timeField = opts?.timeField ?? 'timestamp';
+  const byHour: Record<string, any> = {};
+  const counts: Record<string, Record<string, number>> = {};
+
+  for (const row of rows || []) {
+    const hk = pointHourKey(row, timeField);
+    if (!hk) continue;
+    if (!byHour[hk]) byHour[hk] = {};
+    if (!counts[hk]) counts[hk] = {};
+    for (const f of valueFields) {
+      const v = row[f];
+      if (v == null || v === '' || Number.isNaN(Number(v))) continue;
+      const num = Number(v);
+      if (opts?.average) {
+        byHour[hk][f] = (byHour[hk][f] || 0) + num;
+        counts[hk][f] = (counts[hk][f] || 0) + 1;
+      } else {
+        byHour[hk][f] = num;
+      }
+    }
+    // Preserve non-numeric extras (e.g. certname series keys for top10)
+    for (const [k, v] of Object.entries(row)) {
+      if (valueFields.includes(k) || k === timeField || k === 'time' || k === 'timestamp' || k === 'ts' || k === 'hour' || k === 'label') {
+        continue;
+      }
+      if (typeof v === 'number' && !Number.isNaN(v)) {
+        byHour[hk][k] = v;
+      }
+    }
+  }
+
+  if (opts?.average) {
+    for (const hk of Object.keys(byHour)) {
+      for (const f of valueFields) {
+        if (counts[hk]?.[f]) byHour[hk][f] = byHour[hk][f] / counts[hk][f];
+      }
+    }
+  }
+
+  const last: Record<string, number | null> = {};
+  for (const f of valueFields) last[f] = null;
+
+  return axis.map((x) => {
+    const src = byHour[x] || {};
+    const out: any = { x, timestamp: x };
+    const allKeys = new Set([...valueFields, ...Object.keys(src)]);
+    for (const f of allKeys) {
+      if (src[f] != null && typeof src[f] === 'number' && !Number.isNaN(src[f])) {
+        out[f] = src[f];
+        if (valueFields.includes(f) || typeof src[f] === 'number') last[f] = src[f];
+      } else if (last[f] != null) {
+        out[f] = last[f];
+      } else {
+        out[f] = null;
+      }
+    }
+    // Carry-forward dynamic keys (top10 certnames) from last non-empty hour
+    return out;
+  });
+}
+
+/** Align series that use dynamic value keys (e.g. certnames). */
+function alignDynamicToHourAxis(axis: string[], rows: any[], timeField = 'time'): any[] {
+  const byHour: Record<string, any> = {};
+  for (const row of rows || []) {
+    const hk = pointHourKey(row, timeField);
+    if (!hk) continue;
+    byHour[hk] = { ...row };
+  }
+  let last: Record<string, any> = {};
+  return axis.map((x) => {
+    if (byHour[x]) {
+      last = { ...byHour[x] };
+      delete last.time;
+      delete last.timestamp;
+      delete last.ts;
+    }
+    return { x, timestamp: x, ...last };
+  });
+}
+
 function tickTime(v: string) {
   const s = String(v || '');
   if (!s || s.length < 4) return s;
@@ -173,6 +316,24 @@ function tickTime(v: string) {
   if (hm) return hm[1];
   if (s.includes('T')) return s.split('T')[1]?.substring(0, 5) || s;
   return s.length > 10 ? s.substring(11, 16) : s;
+}
+
+/** Shared X axis props — identical domain on every time-series graph */
+function sharedXAxisProps(axisLen: number) {
+  return {
+    dataKey: 'x' as const,
+    type: 'category' as const,
+    tick: { fontSize: 9 },
+    tickFormatter: tickTime,
+    // Keep density readable for long windows
+    interval: axisLen > 36 ? Math.floor(axisLen / 12) : axisLen > 24 ? 1 : 0,
+    minTickGap: 8,
+  };
+}
+
+function sharedLabelFormatter(v: unknown) {
+  const s = String(v || '');
+  return s.length >= 13 ? `${s.slice(0, 10)} ${tickTime(s)} UTC` : `${tickTime(s) || s} UTC`;
 }
 
 function shortName(cn: string) {
@@ -244,6 +405,10 @@ export function MonitoringDashboardPage() {
   const [expanded, setExpanded] = useState<GraphId | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(() => loadJson(REFRESH_KEY + '-auto', true));
   const [refreshSec, setRefreshSec] = useState(() => loadJson(REFRESH_KEY + '-sec', '15'));
+  const [windowHours, setWindowHours] = useState(() => {
+    const w = Number(loadJson(WINDOW_KEY, 24));
+    return [12, 24, 48, 72, 168].includes(w) ? w : 24;
+  });
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -254,6 +419,9 @@ export function MonitoringDashboardPage() {
   const [perfServerHist, setPerfServerHist] = useState<any[]>(() => loadJson(PERF_HIST_KEY, []));
   const [psHist, setPsHist] = useState<any[]>(() => loadJson(PS_HIST_KEY, []));
   const [pdbHist, setPdbHist] = useState<any[]>(() => loadJson(PDB_HIST_KEY, []));
+
+  /** Shared X domain for every time-series graph on this page */
+  const hourAxis = useMemo(() => buildHourAxis(windowHours), [windowHours, lastRefresh]);
 
   const enabled = useMemo(() => new Set(graphIds), [graphIds]);
   const neededSources = useMemo(() => {
@@ -271,6 +439,7 @@ export function MonitoringDashboardPage() {
 
   const fetchAll = useCallback(async () => {
     setError(null);
+    const tsNow = Date.now();
     try {
       const tasks: Promise<void>[] = [];
 
@@ -278,7 +447,7 @@ export function MonitoringDashboardPage() {
         tasks.push(dashboard.getData().then(setDashData));
       }
       if (neededSources.has('compliance')) {
-        tasks.push(metrics.compliance(24).then(setCompliance));
+        tasks.push(metrics.compliance(windowHours).then(setCompliance));
       }
       if (neededSources.has('perf')) {
         tasks.push(
@@ -289,27 +458,30 @@ export function MonitoringDashboardPage() {
             ]);
             setPerfData(perf);
             if (server) {
-              const point: any = { time: new Date().toLocaleTimeString() };
-              point.catalog_ms = Number(server.catalog_processing?.Mean) || 0;
-              point.facts_ms = Number(server.facts_processing?.Mean) || 0;
-              point.report_ms = Number(server.report_processing?.Mean) || 0;
-              point.store_catalog_ms = Number(server.store_catalog?.Mean) / 1000 || 0;
-              point.store_facts_ms = Number(server.store_facts?.Mean) / 1000 || 0;
-              point.store_report_ms = Number(server.store_report?.Mean) / 1000 || 0;
-              point.http_query_ms = Number(server.http_query_time?.Mean) || 0;
-              point.http_cmd_ms = Number(server.http_cmd_time?.Mean) || 0;
-              point.write_active = Number(server.write_pool_active?.Value) || 0;
-              point.write_idle = Number(server.write_pool_idle?.Value) || 0;
-              point.read_active = Number(server.read_pool_active?.Value) || 0;
-              point.read_idle = Number(server.read_pool_idle?.Value) || 0;
-              point.write_pending = Number(server.write_pool_pending?.Value) || 0;
-              point.read_pending = Number(server.read_pool_pending?.Value) || 0;
-              point.hash_match_ms = Number(server.catalog_hash_match?.Mean) / 1000 || 0;
-              point.hash_miss_ms = Number(server.catalog_hash_miss?.Mean) / 1000 || 0;
-              point.gc_young_count = Number(server.gc_young?.CollectionCount) || 0;
-              point.gc_old_count = Number(server.gc_old?.CollectionCount) || 0;
-              point.nodes = Number(server.population_nodes?.Value) || 0;
-              point.avg_resources = Number(server.population_avg_resources?.Value) || 0;
+              const point: any = {
+                ts: tsNow,
+                time: hourKeyFromMs(tsNow),
+                catalog_ms: Number(server.catalog_processing?.Mean) || 0,
+                facts_ms: Number(server.facts_processing?.Mean) || 0,
+                report_ms: Number(server.report_processing?.Mean) || 0,
+                store_catalog_ms: Number(server.store_catalog?.Mean) / 1000 || 0,
+                store_facts_ms: Number(server.store_facts?.Mean) / 1000 || 0,
+                store_report_ms: Number(server.store_report?.Mean) / 1000 || 0,
+                http_query_ms: Number(server.http_query_time?.Mean) || 0,
+                http_cmd_ms: Number(server.http_cmd_time?.Mean) || 0,
+                write_active: Number(server.write_pool_active?.Value) || 0,
+                write_idle: Number(server.write_pool_idle?.Value) || 0,
+                read_active: Number(server.read_pool_active?.Value) || 0,
+                read_idle: Number(server.read_pool_idle?.Value) || 0,
+                write_pending: Number(server.write_pool_pending?.Value) || 0,
+                read_pending: Number(server.read_pool_pending?.Value) || 0,
+                hash_match_ms: Number(server.catalog_hash_match?.Mean) / 1000 || 0,
+                hash_miss_ms: Number(server.catalog_hash_miss?.Mean) / 1000 || 0,
+                gc_young_count: Number(server.gc_young?.CollectionCount) || 0,
+                gc_old_count: Number(server.gc_old?.CollectionCount) || 0,
+                nodes: Number(server.population_nodes?.Value) || 0,
+                avg_resources: Number(server.population_avg_resources?.Value) || 0,
+              };
               setPerfServerHist((prev) => {
                 const updated = [...prev, point].slice(-MAX_HIST);
                 saveJson(PERF_HIST_KEY, updated);
@@ -323,24 +495,32 @@ export function MonitoringDashboardPage() {
         tasks.push(
           metrics.puppetserverHealth().then((result) => {
             if (result?.history?.length) {
-              const mapped = result.history.map((p: any) => ({
-                time: p.time,
-                heap_used_mb: p.heap_used_mb,
-                nonheap_used_mb: p.nonheap_used_mb,
-                http_catalog_mean: p.http_catalog_mean,
-                http_report_mean: p.http_report_mean,
-                gc_young_time: p.gc_young_time,
-                gc_old_time: p.gc_old_time,
-                process_cpu_load: p.process_cpu_load,
-                open_fds: p.open_fds,
-              }));
+              const mapped = result.history.map((p: any, idx: number) => {
+                const ts =
+                  typeof p.ts === 'number'
+                    ? p.ts
+                    : Date.parse(p.time) || tsNow - (result.history.length - idx) * 10_000;
+                return {
+                  ts,
+                  time: hourKeyFromMs(ts),
+                  heap_used_mb: p.heap_used_mb,
+                  nonheap_used_mb: p.nonheap_used_mb,
+                  http_catalog_mean: p.http_catalog_mean,
+                  http_report_mean: p.http_report_mean,
+                  gc_young_time: p.gc_young_time,
+                  gc_old_time: p.gc_old_time,
+                  process_cpu_load: p.process_cpu_load,
+                  open_fds: p.open_fds,
+                };
+              });
               const trimmed = mapped.slice(-MAX_HIST);
               setPsHist(trimmed);
               saveJson(PS_HIST_KEY, trimmed);
               return;
             }
             const point = {
-              time: new Date().toLocaleTimeString(),
+              ts: tsNow,
+              time: hourKeyFromMs(tsNow),
               heap_used_mb: result?.jvm_heap?.used_mb,
               nonheap_used_mb: result?.jvm_nonheap?.used_mb,
               http_catalog_mean: result?.http_catalog_mean ?? result?.http?.catalog_mean,
@@ -366,7 +546,8 @@ export function MonitoringDashboardPage() {
             const findMean = (arr: any[], key: string) =>
               arr.find((x: any) => (x.metric || '').includes(key))?.mean;
             const point = {
-              time: new Date().toLocaleTimeString(),
+              ts: tsNow,
+              time: hourKeyFromMs(tsNow),
               used_mb: jvm.used_mb ?? 0,
               queue_depth: result.queue_depth ?? 0,
               catalog_save_mean: findMean(pdbm, 'catalog_save'),
@@ -388,7 +569,7 @@ export function MonitoringDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [neededSources]);
+  }, [neededSources, windowHours]);
 
   useEffect(() => {
     setLoading(true);
@@ -407,17 +588,30 @@ export function MonitoringDashboardPage() {
     saveJson(REFRESH_KEY + '-sec', refreshSec);
   }, [autoRefresh, refreshSec]);
 
-  const nodeTrends = (dashData?.node_trends || []).map((trend: any) => ({
-    timestamp: trend.timestamp,
-    unchanged: trend.unchanged || 0,
-    changed: trend.changed || 0,
-    failed: trend.failed || 0,
-    noop: trend.noop || 0,
-    unreported: trend.unreported || 0,
-  }));
+  useEffect(() => {
+    saveJson(WINDOW_KEY, windowHours);
+  }, [windowHours]);
 
-  // Trend timestamps are hour buckets like "2026-06-25T16" (not full ISO) — never Date.parse.
-  const complianceTrend = compliance?.trend || [];
+  const xAxis = sharedXAxisProps(hourAxis.length);
+
+  // ── All time series aligned to the SAME hourAxis ─────────────────
+  const nodeTrends = useMemo(
+    () =>
+      alignToHourAxis(hourAxis, dashData?.node_trends || [], [
+        'unchanged',
+        'changed',
+        'failed',
+        'noop',
+        'unreported',
+      ]),
+    [hourAxis, dashData]
+  );
+
+  const complianceTrend = useMemo(
+    () =>
+      alignToHourAxis(hourAxis, compliance?.trend || [], ['compliant', 'drifted', 'failed']),
+    [hourAxis, compliance]
+  );
 
   const complianceDist = compliance
     ? [
@@ -431,8 +625,13 @@ export function MonitoringDashboardPage() {
 
   const runTrends = useMemo(() => {
     const raw = perfData?.run_time_trends || [];
-    return raw.filter((_: any, i: number) => i % 2 === 0).slice(-120);
-  }, [perfData]);
+    return alignToHourAxis(
+      hourAxis,
+      raw,
+      ['total', 'fact_generation', 'plugin_sync', 'config_retrieval', 'catalog_application'],
+      { timeField: 'time', average: true }
+    );
+  }, [hourAxis, perfData]);
 
   const nodeComparison = useMemo(
     () =>
@@ -447,22 +646,79 @@ export function MonitoringDashboardPage() {
     const hourBuckets: Record<string, Record<string, number[]>> = {};
     for (const run of perfData?.run_time_trends || []) {
       if (!top10Names.includes(run.certname)) continue;
-      const hour = (run.time || '').substring(0, 13);
-      if (!hour) continue;
+      const hour = pointHourKey(run, 'time') || (run.time || '').substring(0, 13);
+      if (!hour || hour.length < 13) continue;
       if (!hourBuckets[hour]) hourBuckets[hour] = {};
       if (!hourBuckets[hour][run.certname]) hourBuckets[hour][run.certname] = [];
       hourBuckets[hour][run.certname].push(run.total);
     }
-    return Object.entries(hourBuckets)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([hour, nodeRuns]) => {
-        const point: any = { time: hour };
-        for (const [cn, values] of Object.entries(nodeRuns)) {
-          point[cn] = Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2));
-        }
-        return point;
-      });
-  }, [perfData, nodeComparison]);
+    const rows = Object.entries(hourBuckets).map(([hour, nodeRuns]) => {
+      const point: any = { time: hour, timestamp: hour };
+      for (const [cn, values] of Object.entries(nodeRuns)) {
+        point[cn] = Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2));
+      }
+      return point;
+    });
+    return alignDynamicToHourAxis(hourAxis, rows, 'time');
+  }, [hourAxis, perfData, nodeComparison]);
+
+  const perfAligned = useMemo(
+    () =>
+      alignToHourAxis(hourAxis, perfServerHist, [
+        'catalog_ms',
+        'facts_ms',
+        'report_ms',
+        'store_catalog_ms',
+        'store_facts_ms',
+        'store_report_ms',
+        'http_query_ms',
+        'http_cmd_ms',
+        'write_active',
+        'write_idle',
+        'read_active',
+        'read_idle',
+        'write_pending',
+        'read_pending',
+        'hash_match_ms',
+        'hash_miss_ms',
+        'gc_young_count',
+        'gc_old_count',
+        'nodes',
+        'avg_resources',
+      ], { timeField: 'time' }),
+    [hourAxis, perfServerHist]
+  );
+
+  const psAligned = useMemo(
+    () =>
+      alignToHourAxis(hourAxis, psHist, [
+        'heap_used_mb',
+        'nonheap_used_mb',
+        'http_catalog_mean',
+        'http_report_mean',
+        'gc_young_time',
+        'gc_old_time',
+        'process_cpu_load',
+        'open_fds',
+      ], { timeField: 'time' }),
+    [hourAxis, psHist]
+  );
+
+  const pdbAligned = useMemo(
+    () =>
+      alignToHourAxis(hourAxis, pdbHist, [
+        'used_mb',
+        'queue_depth',
+        'catalog_save_mean',
+        'report_process_mean',
+      ], { timeField: 'time' }),
+    [hourAxis, pdbHist]
+  );
+
+  const axisRangeLabel =
+    hourAxis.length > 0
+      ? `${tickTime(hourAxis[0])} → ${tickTime(hourAxis[hourAxis.length - 1])} UTC (${windowHours}h, ${hourAxis.length} buckets)`
+      : `${windowHours}h`;
 
   const multiSelectData = GRAPH_CATALOG.map((g) => ({
     value: g.id,
@@ -475,15 +731,9 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={nodeTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="timestamp" type="category" tick={{ fontSize: 9 }} tickFormatter={tickTime} />
+            <XAxis {...xAxis} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
-            <ReTooltip
-              {...TT}
-              labelFormatter={(v) => {
-                const s = String(v || '');
-                return s.length >= 13 ? `${s.slice(0, 10)} ${tickTime(s)}` : tickTime(s) || s;
-              }}
-            />
+            <ReTooltip {...TT} labelFormatter={sharedLabelFormatter} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Area type="monotone" dataKey="unchanged" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.12} strokeWidth={1.5} name="Unchanged" />
             <Area type="monotone" dataKey="changed" stroke="#f39c12" fill="#f39c12" fillOpacity={0.1} strokeWidth={1.5} name="Changed" />
@@ -495,20 +745,9 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={complianceTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis
-              dataKey="timestamp"
-              type="category"
-              tick={{ fontSize: 9 }}
-              tickFormatter={tickTime}
-            />
+            <XAxis {...xAxis} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
-            <ReTooltip
-              {...TT}
-              labelFormatter={(v) => {
-                const s = String(v || '');
-                return s.length >= 13 ? `${s.slice(0, 10)} ${tickTime(s)}` : tickTime(s) || s;
-              }}
-            />
+            <ReTooltip {...TT} labelFormatter={sharedLabelFormatter} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Area type="monotone" dataKey="compliant" stroke="#28a745" fill="#28a745" fillOpacity={0.12} name="Compliant" />
             <Area type="monotone" dataKey="failed" stroke="#dc3545" fill="#dc3545" fillOpacity={0.1} name="Failed" />
@@ -533,7 +772,7 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={runTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} tickFormatter={tickTime} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36} />
             <ReTooltip {...TT} formatter={(v: number) => [formatSeconds(v), 'Total']} />
             <Area type="natural" dataKey="total" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Total" />
@@ -543,7 +782,7 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={runTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} tickFormatter={tickTime} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
             <Legend wrapperStyle={{ fontSize: 9 }} />
@@ -557,7 +796,7 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={top10Data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} tickFormatter={tickTime} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
             <Legend wrapperStyle={{ fontSize: 8 }} />
@@ -577,9 +816,9 @@ export function MonitoringDashboardPage() {
         );
       case 'cmd_processing':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -590,9 +829,9 @@ export function MonitoringDashboardPage() {
         );
       case 'storage_timing':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -603,9 +842,9 @@ export function MonitoringDashboardPage() {
         );
       case 'db_pool':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
             <ReTooltip {...TT} />
             <Legend wrapperStyle={{ fontSize: 9 }} />
@@ -617,9 +856,9 @@ export function MonitoringDashboardPage() {
         );
       case 'http_latency':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -629,9 +868,9 @@ export function MonitoringDashboardPage() {
         );
       case 'catalog_dedup':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -641,9 +880,9 @@ export function MonitoringDashboardPage() {
         );
       case 'gc_pressure_pdb':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} width={28} />
             <ReTooltip {...TT} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -653,9 +892,9 @@ export function MonitoringDashboardPage() {
         );
       case 'fleet_population':
         return (
-          <AreaChart data={perfServerHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} width={36} />
             <ReTooltip {...TT} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -665,9 +904,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_heap':
         return (
-          <AreaChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44} />
             <ReTooltip {...TT} />
             <Area type="natural" dataKey="heap_used_mb" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Heap used MB" />
@@ -675,9 +914,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_nonheap':
         return (
-          <AreaChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44} />
             <ReTooltip {...TT} />
             <Area type="natural" dataKey="nonheap_used_mb" stroke="#8e44ad" fill="#8e44ad" fillOpacity={0.12} strokeWidth={2} name="Non-heap MB" />
@@ -685,9 +924,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_catalog_route':
         return (
-          <LineChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="http_catalog_mean" stroke="#2980b9" strokeWidth={2} dot={false} name="Catalog route" />
@@ -695,9 +934,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_report_route':
         return (
-          <LineChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="http_report_mean" stroke="#16a085" strokeWidth={2} dot={false} name="Report route" />
@@ -705,9 +944,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_gc_young':
         return (
-          <AreaChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
             <ReTooltip {...TT} />
             <Area type="natural" dataKey="gc_young_time" stroke="#3498db" fill="#3498db" fillOpacity={0.12} strokeWidth={2} name="Young GC ms" />
@@ -715,9 +954,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_gc_old':
         return (
-          <AreaChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
             <ReTooltip {...TT} />
             <Area type="natural" dataKey="gc_old_time" stroke="#e67e22" fill="#e67e22" fillOpacity={0.12} strokeWidth={2} name="Old GC ms" />
@@ -725,9 +964,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_cpu':
         return (
-          <LineChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} width={36} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="process_cpu_load" stroke="#e74c3c" strokeWidth={2} dot={false} name="CPU load" />
@@ -735,9 +974,9 @@ export function MonitoringDashboardPage() {
         );
       case 'ps_fds':
         return (
-          <LineChart data={psHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} width={40} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="open_fds" stroke="#9b59b6" strokeWidth={2} dot={false} name="Open FDs" />
@@ -745,9 +984,9 @@ export function MonitoringDashboardPage() {
         );
       case 'pdb_heap':
         return (
-          <AreaChart data={pdbHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44} />
             <ReTooltip {...TT} />
             <Area type="natural" dataKey="used_mb" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Heap used MB" />
@@ -755,9 +994,9 @@ export function MonitoringDashboardPage() {
         );
       case 'pdb_queue':
         return (
-          <LineChart data={pdbHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} width={28} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="queue_depth" stroke="#e67e22" strokeWidth={2} dot={false} name="Queue depth" />
@@ -765,9 +1004,9 @@ export function MonitoringDashboardPage() {
         );
       case 'pdb_catalog_save':
         return (
-          <LineChart data={pdbHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="catalog_save_mean" stroke="#2980b9" strokeWidth={2} dot={false} name="catalog_save" />
@@ -775,9 +1014,9 @@ export function MonitoringDashboardPage() {
         );
       case 'pdb_report_process':
         return (
-          <LineChart data={pdbHist} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="time" tick={{ fontSize: 9 }} />
+            <XAxis {...xAxis} />
             <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
             <ReTooltip {...TT} />
             <Line type="natural" dataKey="report_process_mean" stroke="#16a085" strokeWidth={2} dot={false} name="report_process" />
@@ -809,9 +1048,9 @@ export function MonitoringDashboardPage() {
             </Badge>
           </Group>
           <Text c="dimmed" size="sm" mt={4} maw={720}>
-            NOC wallboard of <strong>real charts</strong> (Recharts) — same series as Run Performance, Server Health,
-            OpenVoxDB Health, fleet status, and compliance. Choose which graphs stay on this page; scroll for as many
-            as you need. Click a graph to expand full width; external link opens the full Insights page.
+            NOC wallboard of <strong>real charts</strong> on one shared timeline. Every time-series graph uses the
+            same UTC hour buckets (window control below) so spikes line up across panels. Choose graphs; scroll for
+            many; click to expand. Client-polled JMX series carry forward within an hour until the next sample.
           </Text>
         </div>
         <Group gap="xs">
@@ -820,7 +1059,23 @@ export function MonitoringDashboardPage() {
           </Text>
           <Select
             size="xs"
+            w={100}
+            label="Window"
+            data={[
+              { value: '12', label: '12h' },
+              { value: '24', label: '24h' },
+              { value: '48', label: '48h' },
+              { value: '72', label: '72h' },
+              { value: '168', label: '7d' },
+            ]}
+            value={String(windowHours)}
+            onChange={(v) => setWindowHours(parseInt(v || '24', 10))}
+            allowDeselect={false}
+          />
+          <Select
+            size="xs"
             w={90}
+            label="Refresh"
             data={[
               { value: '5', label: '5s' },
               { value: '10', label: '10s' },
@@ -891,6 +1146,13 @@ export function MonitoringDashboardPage() {
           </Group>
         </Card>
       )}
+
+      
+      <Alert variant="light" color="blue" title="Synchronized X-axis">
+        All trend graphs share this period: <strong>{axisRangeLabel}</strong>. Change <em>Window</em> to resync
+        every chart (12h–7d). Compliance distribution is a current snapshot (not a time series). Sparse live metrics
+        (Server/DB/JMX) use carry-forward within each hour so empty polls do not shift the timeline.
+      </Alert>
 
       {error && (
         <Alert color="red" title="Monitoring error" withCloseButton onClose={() => setError(null)}>
