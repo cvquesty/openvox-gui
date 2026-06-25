@@ -16,6 +16,7 @@ import {
 import { useApi } from '../hooks/useApi';
 import { dashboard } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { LoadingState, ErrorState } from '../components/StateComponents';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
 
@@ -225,8 +226,8 @@ export function DashboardPage() {
     return () => clearInterval(iv);
   }, [autoRefresh, refreshInterval]);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (loading) return <LoadingState label="Loading dashboard…" />;
+  if (error) return <ErrorState title="Dashboard failed to load" message={error} />;
   if (!dashData) return null;
 
   const ringData = [

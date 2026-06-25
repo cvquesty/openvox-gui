@@ -513,6 +513,7 @@ function RunTaskTab() {
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
   const [runPrivileged, setRunPrivileged] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -528,32 +529,45 @@ function RunTaskTab() {
     });
   }, []);
 
+  const targetSelectData = useMemo(
+    () => [
+      {
+        group: 'Groups',
+        items: [
+          { value: 'all', label: '🌐 All nodes' },
+          ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
+        ],
+      },
+      { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
+    ],
+    [encGroups, puppetNodes]
+  );
+
   const handleRun = async () => {
     if (!selectedTask || targets.length === 0) return;
-    setRunning(true); 
+    setConfirmOpen(false);
+    setRunning(true);
     setResults(null);
-    
+
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
-    
+
     const taskPayload: any = { task: selectedTask, targets: targets.join(','), params: paramDict, format: 'human' };
     if (runPrivileged) taskPayload.run_as = 'root';
 
     try {
-      // Fetch all three formats in parallel
       const [humanResult, jsonResult, rainbowResult] = await Promise.all([
         bolt.runTask(taskPayload),
         bolt.runTask({ ...taskPayload, format: 'json' }),
         bolt.runTask({ ...taskPayload, format: 'rainbow' }),
       ]);
-      
+
       setResults({
         human: humanResult,
         json: jsonResult,
         rainbow: rainbowResult,
       });
     } catch (e: any) {
-      // If any request fails, store error in all formats
       const errorResult = { returncode: -1, output: '', error: e.message };
       setResults({
         human: errorResult,
@@ -578,22 +592,17 @@ function RunTaskTab() {
             value={selectedTask} onChange={(v) => setSelectedTask(v || '')}
             placeholder={tasks.length > 0 ? 'Select a task' : 'No tasks available'}
             nothingFoundMessage="No matching tasks" />
-          <MultiSelect 
-            label="Targets" 
-            required 
-            searchable 
-            clearable
-            data={[
-              { group: 'Groups', items: [
-                { value: 'all', label: '🌐 All nodes' },
-                ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
-              ]},
-              { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
-            ]}
-            value={targets} 
+          <TargetSelector
+            data={targetSelectData}
+            value={targets}
             onChange={setTargets}
-            placeholder="Select one or more groups or nodes"
-            description="Multi-select supported: pick several groups and/or individual ad-hoc nodes. Unioned when executing the task." 
+            required
+            description="Multi-select: groups and/or nodes are unioned when executing the task."
+            resolvedPreview={
+              targets.includes('all')
+                ? puppetNodes
+                : targets.filter((t) => puppetNodes.includes(t))
+            }
           />
 
           <Checkbox
@@ -618,10 +627,26 @@ function RunTaskTab() {
               </Group>
             ))}
           </div>
-          <Button onClick={handleRun} loading={running} disabled={!selectedTask || targets.length === 0}
+          <Button onClick={() => setConfirmOpen(true)} loading={running} disabled={!selectedTask || targets.length === 0}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Task</Button>
         </Stack>
       </Card>
+      <ConfirmModal
+        opened={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleRun}
+        title="Confirm Bolt task"
+        body={
+          runPrivileged
+            ? `Run task "${selectedTask}" as root via sudo on ${targets.length} target selection(s)?`
+            : `Run task "${selectedTask}" on ${targets.length} target selection(s) as the bolt SSH user?`
+        }
+        details={[`Task: ${selectedTask}`, ...targets.slice(0, 15)]}
+        confirmLabel="Run task"
+        confirmColor="green"
+        loading={running}
+        danger={runPrivileged}
+      />
       <ErrorBoundary>
         <ResultPane results={results} />
       </ErrorBoundary>
@@ -639,6 +664,7 @@ function RunPlanTab() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     bolt.getPlans().then((p) => setPlans(p.plans || [])).catch(() => {}).finally(() => setLoading(false));
@@ -646,27 +672,26 @@ function RunPlanTab() {
 
   const handleRun = async () => {
     if (!selectedPlan) return;
-    setRunning(true); 
+    setConfirmOpen(false);
+    setRunning(true);
     setResults(null);
-    
+
     const paramDict: Record<string, string> = {};
     params.forEach((p) => { if (p.key.trim()) paramDict[p.key.trim()] = p.val; });
-    
+
     try {
-      // Fetch all three formats in parallel
       const [humanResult, jsonResult, rainbowResult] = await Promise.all([
         bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'human' }),
         bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'json' }),
         bolt.runPlan({ plan: selectedPlan, params: paramDict, format: 'rainbow' }),
       ]);
-      
+
       setResults({
         human: humanResult,
         json: jsonResult,
         rainbow: rainbowResult,
       });
     } catch (e: any) {
-      // If any request fails, store error in all formats
       const errorResult = { returncode: -1, output: '', error: e.message };
       setResults({
         human: errorResult,
@@ -690,7 +715,8 @@ function RunPlanTab() {
           <Select label="Plan" required searchable
             data={plans.map((p: any) => ({ value: p.name || p, label: p.name || p }))}
             value={selectedPlan} onChange={(v) => setSelectedPlan(v || '')}
-            placeholder={plans.length > 0 ? 'Select a plan' : 'No plans available'} />
+            placeholder={plans.length > 0 ? 'Select a plan' : 'No plans available'}
+            nothingFoundMessage="No matching plans" />
           <div>
             <Group justify="space-between" mb={4}>
               <Text size="sm" fw={500}>Plan Parameters</Text>
@@ -706,10 +732,21 @@ function RunPlanTab() {
               </Group>
             ))}
           </div>
-          <Button onClick={handleRun} loading={running} disabled={!selectedPlan}
+          <Button onClick={() => setConfirmOpen(true)} loading={running} disabled={!selectedPlan}
             leftSection={<IconPlayerPlay size={16} />} color="green">Run Plan</Button>
         </Stack>
       </Card>
+      <ConfirmModal
+        opened={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleRun}
+        title="Confirm Bolt plan"
+        body={`Run plan "${selectedPlan}"? Plans may affect many nodes depending on parameters.`}
+        details={[`Plan: ${selectedPlan}`, ...params.filter((p) => p.key.trim()).map((p) => `${p.key}=${p.val}`).slice(0, 10)]}
+        confirmLabel="Run plan"
+        confirmColor="green"
+        loading={running}
+      />
       <ErrorBoundary>
         <ResultPane results={results} />
       </ErrorBoundary>

@@ -13,6 +13,7 @@ import { IconSearch, IconEye, IconChevronDown, IconChevronRight } from '@tabler/
 import { useApi } from '../hooks/useApi';
 import { nodes, enc } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { LoadingState, ErrorState } from '../components/StateComponents';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
 
@@ -295,8 +296,8 @@ export function NodesPage() {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (loading) return <LoadingState label="Loading nodes…" />;
+  if (error) return <ErrorState title="Failed to load nodes" message={error} />;
 
   const groupNames = Object.keys(filteredGroups);
   const classifiedCount = Object.values(filteredGroups).reduce((sum, g) => sum + g.nodes.length, 0);

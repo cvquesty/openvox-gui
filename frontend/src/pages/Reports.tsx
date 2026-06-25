@@ -15,6 +15,7 @@ import { reports, enc, nodes as nodesApi } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { ExportActions } from '../components/ExportActions';
+import { LoadingState, ErrorState } from '../components/StateComponents';
 
 
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
@@ -547,8 +548,8 @@ export function ReportsPage() {
     loadExecutiveRecipients();
   }, []);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (loading) return <LoadingState label="Loading reports…" />;
+  if (error) return <ErrorState title="Failed to load reports" message={error} />;
 
   // Sort group names alphabetically for consistent ordering (like other lists in the app).
   // Note: filteredGroups may have fewer groups due to search, so we sort what's visible.

@@ -21,6 +21,7 @@ import { config, users, ldap } from '../services/api';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { ConfigSSLPage } from './ConfigSSL';
 
 /* ────────────────────── Types ────────────────────── */
@@ -643,6 +644,8 @@ function UserManagerTab() {
   const [authSrcUser, setAuthSrcUser] = useState('');
   const [authSrcValue, setAuthSrcValue] = useState<string>('ldap');
   const [authSrcLoading, setAuthSrcLoading] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true); setError(null);
@@ -668,11 +671,16 @@ function UserManagerTab() {
   };
 
   const handleDeleteUser = async (username: string) => {
-    if (!confirm(`Delete user '${username}'? This cannot be undone.`)) return;
+    setDeleteLoading(true);
     try {
       await users.remove(username);
-      notifications.show({ title: 'User Deleted', message: `User '${username}' removed`, color: 'green' }); loadUsers();
-    } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
+      notifications.show({ title: 'User Deleted', message: `User '${username}' removed`, color: 'green' });
+      setDeleteUser(null);
+      loadUsers();
+    } catch (err: any) {
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    }
+    setDeleteLoading(false);
   };
 
   const handleChangePassword = async () => {
@@ -791,7 +799,7 @@ function UserManagerTab() {
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Change role"><ActionIcon variant="subtle" color="orange" onClick={() => { setRoleUser(u.username); setRoleValue(u.role); setRoleOpen(true); }}><IconShield size={16} /></ActionIcon></Tooltip>
-                    {u.username !== currentUser?.username && (<Tooltip label="Delete user"><ActionIcon variant="subtle" color="red" onClick={() => handleDeleteUser(u.username)}><IconTrash size={16} /></ActionIcon></Tooltip>)}
+                    {u.username !== currentUser?.username && (<Tooltip label="Delete user"><ActionIcon variant="subtle" color="red" onClick={() => setDeleteUser(u.username)}><IconTrash size={16} /></ActionIcon></Tooltip>)}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -832,6 +840,17 @@ function UserManagerTab() {
           <Button onClick={handleChangeAuthSource} loading={authSrcLoading} fullWidth>Update Auth Source</Button>
         </Stack>
       </Modal>
+      <ConfirmModal
+        opened={!!deleteUser}
+        onClose={() => !deleteLoading && setDeleteUser(null)}
+        onConfirm={() => deleteUser && handleDeleteUser(deleteUser)}
+        title="Delete user?"
+        body={`Delete user '${deleteUser}'? This cannot be undone.`}
+        details={deleteUser ? [deleteUser] : undefined}
+        confirmLabel="Delete user"
+        danger
+        loading={deleteLoading}
+      />
     </Stack>
   );
 }

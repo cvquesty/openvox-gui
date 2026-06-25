@@ -18,6 +18,8 @@ import {
   IconChevronDown, IconChevronRight, IconCheck,
 } from '@tabler/icons-react';
 import { certificates } from '../services/api';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { LoadingState, ErrorState } from '../components/StateComponents';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; description: string }> = {
   orphaned_never_reported: {
@@ -47,6 +49,7 @@ export function CertAuditPage() {
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkCleaning, setBulkCleaning] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pendingClean, setPendingClean] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,11 +85,11 @@ export function CertAuditPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleClean = async (certname: string) => {
-    if (!confirm(`Clean certificate for "${certname}"? This removes the cert from the CA, deactivates the node in PuppetDB, and removes it from the ENC.`)) return;
     setCleaning(prev => ({ ...prev, [certname]: true }));
     try {
       await certificates.clean(certname);
       notifications.show({ title: 'Cleaned', message: `Certificate for "${certname}" has been removed`, color: 'green' });
+      setPendingClean(null);
       load();
     } catch (e: any) {
       notifications.show({ title: 'Error', message: e.message, color: 'red' });
@@ -121,7 +124,8 @@ export function CertAuditPage() {
     load();
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading) return <LoadingState label="Auditing certificates…" />;
+  if (error && !data) return <ErrorState title="Certificate audit failed" message={error} onRetry={load} />;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
 
   const orphaned = data?.orphaned || [];
@@ -233,7 +237,7 @@ export function CertAuditPage() {
                           <Tooltip label="Clean this certificate">
                             <Button size="compact-xs" color="red" variant="light"
                               loading={cleaning[cert.certname]}
-                              onClick={() => handleClean(cert.certname)}
+                              onClick={() => setPendingClean(cert.certname)}
                               leftSection={<IconTrash size={12} />}>
                               Clean
                             </Button>
@@ -326,6 +330,18 @@ export function CertAuditPage() {
           );
         })()}
       </Modal>
+
+      <ConfirmModal
+        opened={!!pendingClean}
+        onClose={() => setPendingClean(null)}
+        onConfirm={() => pendingClean && handleClean(pendingClean)}
+        title="Clean certificate?"
+        body={`Clean certificate for "${pendingClean}"? This removes the cert from the CA, deactivates the node in PuppetDB, and removes it from the ENC.`}
+        details={pendingClean ? [pendingClean] : undefined}
+        confirmLabel="Clean"
+        danger
+        loading={!!(pendingClean && cleaning[pendingClean])}
+      />
     </Stack>
   );
 }

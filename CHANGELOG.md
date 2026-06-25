@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.03.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 confirms + orch breadth + states)
+
+### UI/UX (sruiux1 continuation)
+- **Zero `window.confirm` in FE:** Certificates revoke/clean, CertAudit single clean, Installer sign/reject CSR, ENC env/group/node deletes, ConfigApp user delete — all use shared `ConfirmModal`.
+- **Orchestration:** Run **Task** uses `TargetSelector` + pre-flight confirm (privileged danger tone); Run **Plan** pre-flight confirm; plans Select gains `nothingFoundMessage`.
+- **State components rollout:** Dashboard, Nodes, Reports, Certificates, CertAudit (+ ENC env/group loaders) use `LoadingState` / `ErrorState`.
+
+### Versioning
+- **3.10.03.a2** on **3.10.a_r_alpha.6** (alpha / lab only). Remaining sruiux1: URL filters, Insights launcher, palette dynamics, deploy live tail, P1 ENC/tables/theme.
+
 ## [3.10.03.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 UI/UX P0 foundations)
 
 ### UI/UX (sruiux1 designer-1 P0 slice 1)
