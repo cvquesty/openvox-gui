@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.02.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture)
+
+### Architecture (srdev2 A1 / A3 / A4 progress)
+- **`services/bolt_orchestration.py`:** command normalize, privilege heuristic, escalation, execution-history start/finish, `BoltRunResultModel` + `sanitize_bolt_result` (strip_ansi).
+- **`routers/bolt.py`:** `/run/command|task|plan` delegate history + result shaping to orchestration service; `response_model=BoltRunResultModel`; thin compat wrappers for legacy helpers.
+- **Tests:** `backend/tests/test_bolt_orchestration.py`.
+
+### Versioning
+- **3.10.02.a2** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`).
+
 ## [3.10.02.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture train marker)
 
 Closes active **srdev1** implementation push; starts **srdev2** app-architecture Phase 1 foundation. **Alpha + lab only** (`openvox.questy.org` / `10.0.100.225`). **Not merged to `main`.**

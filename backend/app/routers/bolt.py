@@ -39,6 +39,9 @@ from ..services.enc import enc_service
 from ..services.puppetdb import puppetdb_service
 from ..middleware.security import rate_limit_heavy, concurrency_heavy
 from ..services.execution import resolve_targets as execution_resolve_targets
+from ..services import bolt_orchestration as bolt_orch
+from ..services.bolt_orchestration import BoltRunResultModel
+from ..utils.audit import audit_event
 
 router = APIRouter(prefix="/api/bolt", tags=["bolt"])
 logger = logging.getLogger(__name__)
@@ -51,107 +54,13 @@ async def resolve_targets(targets: str, db: AsyncSession) -> str:
 
 
 def _normalize_command_for_gui(command: str) -> str:
-    """
-    Make common commands more reliable when invoked from the GUI (both the
-    free-form Orchestration "Run Command" box *and* special buttons like the
-    per-node "Run OpenVox" button).
-
-    Guarantees for any Puppet agent invocation:
-    - The binary is the full system path.
-    - The three critical environment variables (PUPPET_CONFDIR, PUPPET_SSLDIR,
-      PUPPET_VARDIR) are set so the agent uses the system directories even when
-      the process runs under the `bolt` user (via sudo or directly).
-    - The corresponding --config/--ssldir/--vardir flags are present as a belt-and-
-      suspenders measure.
-
-    This must be a foregone conclusion for any GUI-driven `puppet agent` run.
-    Without it, the agent falls back to per-user paths under ~bolt/.puppetlabs
-    and resolves the server as the short name "puppet".
-    """
-    cmd = command.strip()
-    if not cmd:
-        return cmd
-
-    # Normalize binary name first
-    is_puppet_command = False
-    if cmd.startswith("puppet ") or cmd == "puppet":
-        cmd = cmd.replace("puppet", "/opt/puppetlabs/bin/puppet", 1)
-        is_puppet_command = True
-    elif cmd.startswith("puppet-agent ") or cmd == "puppet-agent":
-        cmd = cmd.replace("puppet-agent", "/opt/puppetlabs/bin/puppet", 1)
-        is_puppet_command = True
-
-    # Also treat full-path puppet agent invocations (sent by the per-node
-    # "Run OpenVox" button and similar) as puppet commands that need system
-    # configuration. This must be a foregone conclusion for any GUI-driven
-    # Puppet agent run.
-    cmd_lower = cmd.lower()
-    if "puppet agent" in cmd_lower or "puppet-agent" in cmd_lower:
-        is_puppet_command = True
-
-    # For any puppet invocation, but especially agent runs, force system paths
-    # using environment variables (most reliable when sudo is involved) + flags.
-    if is_puppet_command:
-        env_prefix = (
-            "env PUPPET_CONFDIR=/etc/puppetlabs/puppet "
-            "PUPPET_SSLDIR=/etc/puppetlabs/puppet/ssl "
-            "PUPPET_VARDIR=/opt/puppetlabs/puppet/cache "
-        )
-
-        system_flags = (
-            " --config /etc/puppetlabs/puppet/puppet.conf"
-            " --ssldir /etc/puppetlabs/puppet/ssl"
-            " --vardir /opt/puppetlabs/puppet/cache"
-        )
-
-        # Prepend the env vars
-        if not cmd.startswith("env "):
-            cmd = env_prefix + cmd
-
-        # Also ensure the flags are present (belt + suspenders)
-        if "puppet agent" in cmd or "puppet-agent" in cmd:
-            if "--ssldir" not in cmd:
-                if "--config" not in cmd:
-                    cmd += system_flags
-                else:
-                    cmd += " --ssldir /etc/puppetlabs/puppet/ssl --vardir /opt/puppetlabs/puppet/cache"
-
-    return cmd
+    """Compat — logic in services.bolt_orchestration (srdev2)."""
+    return bolt_orch.normalize_command_for_gui(command)
 
 
 def _command_needs_root(command: str) -> bool:
-    """
-    Heuristic to decide if a command typed in the GUI Orchestration page
-    typically needs to run as root on the target.
-    """
-    cmd_lower = command.lower().strip()
-
-    # Common privileged commands
-    privileged_patterns = [
-        "puppet agent",
-        "puppet apply",
-        "systemctl restart",
-        "systemctl stop",
-        "systemctl start",
-        "service ",
-        "yum ",
-        "dnf ",
-        "apt-get ",
-        "apt ",
-        "rpm ",
-        "dpkg ",
-        "mount ",
-        "umount ",
-        "reboot",
-        "shutdown",
-        "init ",
-    ]
-
-    for pattern in privileged_patterns:
-        if cmd_lower.startswith(pattern) or f" {pattern}" in cmd_lower:
-            return True
-
-    return False
+    """Compat — logic in services.bolt_orchestration (srdev2)."""
+    return bolt_orch.command_needs_root(command)
 
 
 # Explicit allow-list of common safe "puppet agent" invocations (P0 hardening
@@ -384,7 +293,7 @@ class FileDownloadRequest(BaseModel):
 UPLOAD_STAGING_DIR = Path("/opt/openvox-gui/data/bolt-uploads")
 
 
-@router.post("/run/command")
+@router.post("/run/command", response_model=BoltRunResultModel)
 @rate_limit_heavy()
 async def run_command(
     request: Request,
@@ -393,105 +302,54 @@ async def run_command(
     current_user: str = Depends(require_role("admin", "operator")),
     _ = Depends(concurrency_heavy),
 ):
-    """Run an ad-hoc command on targets.
-
-    The command string is validated through the centralised command
-    validator which rejects dangerous shell patterns (fork bombs,
-    device writes, chained downloads, etc.) before execution.
-    """
-    # Validate the command for dangerous shell patterns before allowing
-    # it to be executed on target nodes via Bolt.
+    """Run an ad-hoc command on targets (orchestration via bolt_orchestration service)."""
     try:
         validate_command(req.command)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
-
-    # Resolve ENC group names to actual certnames. When the user selects
-    # a group like 'puppetservers' in the UI, we need to expand it to the
-    # comma-separated list of certnames that Bolt expects.
     resolved_targets = await resolve_targets(req.targets, db)
 
-    # Create execution history entry (logic referenced from main branch)
-    history_entry = ExecutionHistory(
+    history_entry = await bolt_orch.start_execution_history(
+        db,
         execution_type="command",
         node_name=req.targets,
         command_name=req.command,
         result_format=fmt,
-        status="running",
         executed_by=current_user,
-        parameters={"run_as": req.run_as} if req.run_as else None
+        parameters={"run_as": req.run_as} if req.run_as else None,
     )
-    db.add(history_entry)
-    await db.commit()
-    await db.refresh(history_entry)
-    
-    # Execute command
-    start_time = time.time()
-    normalized = _normalize_command_for_gui(req.command)
 
-    # Determine escalation for the target.
-    # - Default: run the command literally as the SSH user configured in inventory
-    #   (the 'bolt' service account). This makes GUI diagnostics like `whoami`
-    #   produce the same result as a direct `bolt command run "whoami" -t ...`
-    #   executed from a shell while logged in as the bolt user on the controller.
-    # - When req.run_as is explicitly provided (frontend checkbox) or the command
-    #   matches the privileged heuristic (puppet agent, systemctl, package ops, etc.),
-    #   we prepend "sudo " to the command string. Bolt then executes `sudo <cmd>`
-    #   on the target *as the SSH user (bolt)*, which exercises the bolt user's
-    #   sudoers entry on the target. This is transparent to the operator.
-    #
-    # We deliberately use the literal sudo prefix (instead of Bolt's --run-as flag)
-    # for the common root-via-sudoers path. This avoids "arguments might be
-    # overridden by Inventory" warnings and works regardless of whether the
-    # inventory.yaml or openvox_enc plugin injects a global run-as setting.
-    #
-    # Only advanced/non-root run_as values result in an explicit --run-as flag.
-    #
-    # P0 hardening: explicit APPROVED_SAFE_PREFIXES for the common "puppet agent -t"
-    # case (vs. arbitrary free-form). Approved prefixes are treated as safe+privileged.
-    # Logic referenced exactly from main branch (to restore proven Orchestration behavior
-    # for default 'bolt' user vs privileged root on targets). Do not alter without matching main.
-    escalate = bool(req.run_as) or _command_needs_root(normalized)
-    command = ("sudo " + normalized) if escalate else normalized
+    start_time = time.time()
+    normalized = bolt_orch.normalize_command_for_gui(req.command)
+    # Approved safe prefixes always escalate (P0); else heuristic / explicit run_as.
+    if _is_approved_safe_command(req.command) or _is_approved_safe_command(normalized):
+        command, escalate = "sudo " + normalized, True
+    else:
+        command, escalate = bolt_orch.apply_escalation(normalized, req.run_as)
 
     args = ["command", "run", command, "--targets", resolved_targets, "--format", fmt]
-
-    # For non-root explicit run_as (rare/advanced), pass --run-as so Bolt uses
-    # the configured run-as-command. The primary privileged path (root via the
-    # bolt user's existing sudoers) uses the sudo prefix above and omits --run-as.
     if req.run_as and req.run_as != "root":
         args.extend(["--run-as", req.run_as])
 
     result = await run_bolt_command(args, timeout=300)
-    duration_ms = int((time.time() - start_time) * 1000)
-    
-    # Update history entry with results
-    history_entry.status = "success" if result["returncode"] == 0 else "failure"
-    history_entry.duration_ms = duration_ms
-    if result["returncode"] != 0:
-        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
-    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
-    await db.commit()
-    
-    stdout = strip_ansi(result.get("stdout", ""))
-    stderr = strip_ansi(result.get("stderr", ""))
-    from ..utils.audit import audit_event
+    await bolt_orch.finish_execution_history(db, history_entry, result, start_time)
+
     audit_event(
         "bolt_command",
         user=current_user,
         targets=resolved_targets,
         detail=req.command[:120],
-        rc=result["returncode"],
-        success=result["returncode"] == 0,
+        rc=result.get("returncode"),
+        success=result.get("returncode") == 0,
         format=fmt,
         escalate=escalate,
     )
-    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
+    return bolt_orch.sanitize_bolt_result(result)
 
 
-@router.post("/run/task")
+@router.post("/run/task", response_model=BoltRunResultModel)
 @rate_limit_heavy()
 async def run_task(
     request: Request,
@@ -502,70 +360,37 @@ async def run_task(
 ):
     """Run a Bolt task on targets."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
-
-    # Resolve ENC group names to actual certnames for Bolt.
     resolved_targets = await resolve_targets(req.targets, db)
-
-    # Create execution history entry
-    history_entry = ExecutionHistory(
+    history_entry = await bolt_orch.start_execution_history(
+        db,
         execution_type="task",
         node_name=req.targets,
         task_name=req.task,
         result_format=fmt,
-        status="running",
         executed_by=current_user,
-        parameters={"params": req.params, "run_as": req.run_as} if req.params or req.run_as else None
+        parameters={"params": req.params, "run_as": req.run_as} if req.params or req.run_as else None,
     )
-    db.add(history_entry)
-    await db.commit()
-    await db.refresh(history_entry)
-    
-    # Execute task
     start_time = time.time()
-
-    # For Bolt *tasks*, the "sudo " prefix trick does not apply (task names are not
-    # shell command strings). Escalation is controlled exclusively via Bolt's
-    # --run-as flag, which uses the run-as-command configured in inventory or
-    # the target's sudoers if the SSH user (bolt) is allowed to sudo.
-    #
-    # Default (no run_as in request): task runs as the SSH user (bolt) on the target.
-    # This matches direct `bolt task run ...` from a shell as the bolt user.
-    # When the frontend sends run_as (e.g. 'root'), we pass --run-as so Bolt
-    # escalates using the target's configured mechanism (typically sudo).
     args = ["task", "run", req.task, "--targets", resolved_targets, "--format", fmt]
     if req.run_as:
         args.extend(["--run-as", req.run_as])
-
     for k, v in req.params.items():
         args.append(f"{k}={v}")
-
     result = await run_bolt_command(args, timeout=300)
-    duration_ms = int((time.time() - start_time) * 1000)
-    
-    # Update history entry with results
-    history_entry.status = "success" if result["returncode"] == 0 else "failure"
-    history_entry.duration_ms = duration_ms
-    if result["returncode"] != 0:
-        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
-    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
-    await db.commit()
-    
-    stdout = strip_ansi(result.get("stdout", ""))
-    stderr = strip_ansi(result.get("stderr", ""))
-    from ..utils.audit import audit_event
+    await bolt_orch.finish_execution_history(db, history_entry, result, start_time)
     audit_event(
         "bolt_task",
         user=current_user,
         targets=resolved_targets,
         detail=req.task,
-        rc=result["returncode"],
-        success=result["returncode"] == 0,
+        rc=result.get("returncode"),
+        success=result.get("returncode") == 0,
         run_as=req.run_as or "",
     )
-    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
+    return bolt_orch.sanitize_bolt_result(result)
 
 
-@router.post("/run/plan")
+@router.post("/run/plan", response_model=BoltRunResultModel)
 @rate_limit_heavy()
 async def run_plan(
     request: Request,
@@ -576,49 +401,30 @@ async def run_plan(
 ):
     """Run a Bolt plan."""
     fmt = req.format if req.format in ("human", "json", "rainbow") else "human"
-    
-    # Create execution history entry
-    history_entry = ExecutionHistory(
+    history_entry = await bolt_orch.start_execution_history(
+        db,
         execution_type="plan",
-        node_name="all",  # Plans typically run on multiple nodes
+        node_name="all",
         plan_name=req.plan,
         result_format=fmt,
-        status="running",
         executed_by=current_user,
-        parameters=req.params if req.params else None
+        parameters=req.params if req.params else None,
     )
-    db.add(history_entry)
-    await db.commit()
-    await db.refresh(history_entry)
-    
-    # Execute plan
     start_time = time.time()
     args = ["plan", "run", req.plan, "--format", fmt]
     for k, v in req.params.items():
         args.append(f"{k}={v}")
     result = await run_bolt_command(args, timeout=600)
-    duration_ms = int((time.time() - start_time) * 1000)
-    
-    # Update history entry with results
-    history_entry.status = "success" if result["returncode"] == 0 else "failure"
-    history_entry.duration_ms = duration_ms
-    if result["returncode"] != 0:
-        history_entry.error_message = result["stderr"][:500] if result["stderr"] else None
-    history_entry.result_preview = result["stdout"][:500] if result["stdout"] else None
-    await db.commit()
-    
-    stdout = strip_ansi(result.get("stdout", ""))
-    stderr = strip_ansi(result.get("stderr", ""))
-    from ..utils.audit import audit_event
+    await bolt_orch.finish_execution_history(db, history_entry, result, start_time)
     audit_event(
         "bolt_plan",
         user=current_user,
         targets="plan",
         detail=req.plan,
-        rc=result["returncode"],
-        success=result["returncode"] == 0,
+        rc=result.get("returncode"),
+        success=result.get("returncode") == 0,
     )
-    return {"returncode": result["returncode"], "output": stdout, "error": stderr}
+    return bolt_orch.sanitize_bolt_result(result)
 
 
 # ─── File Transfer (Upload / Download) ───────────────────
