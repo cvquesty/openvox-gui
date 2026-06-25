@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2] - 2026-06-25 (stable release on main)
+
+### Release
+- **Stable SemVer promotion** of the 3.10 line on **`main`**: **3.10.2** (skips a standalone stable `3.10.1` tag; beta train was **3.10.1.b1** / **3.10.1.b2**).
+- Includes the full `3.10.a_r_alpha.6` merge (Monitoring NOC / sruiux2 ops UI, 3.10 security & architecture trains, Executive Summary From/schedule) plus the Orchestration single-run fix from **3.10.1.b2** ([#38](https://github.com/cvquesty/openvox-gui/issues/38)).
+- GitHub Release **v3.10.2** (latest); announcement kit: `docs/releases/press_3.10.2.md`.
+
+### Highlights (cumulative since 3.9.x on main)
+- Monitoring multi-graph wallboard with shared UTC timeline and live series fixes (seconds vs ms).
+- Shared **OpsTable** / **FilterBar**; Insights hub (`/insights/all`).
+- Orchestration Run Command / Task / Plan: **one** Bolt invocation per click (was three for format tabs).
+- Prior 3.10 alpha platform work merged via PR #39 / direct sole-dev merge.
+
 ## [3.10.1.b2] - 2026-06-25 (fix Orchestration triple Bolt run — GitHub #38)
 
 ### Fixed
