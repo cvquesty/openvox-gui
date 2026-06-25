@@ -45,6 +45,7 @@ const NodeDetailPage = lazyWithRetry(() => import('./pages/NodeDetail').then(m =
 const ReportsPage = lazyWithRetry(() => import('./pages/Reports').then(m => ({ default: m.ReportsPage })));
 const ReportDetailPage = lazyWithRetry(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetailPage })));
 const InsightsHubPage = lazyWithRetry(() => import('./pages/InsightsHub').then(m => ({ default: m.InsightsHubPage })));
+const MonitoringDashboardPage = lazyWithRetry(() => import('./pages/MonitoringDashboard').then(m => ({ default: m.MonitoringDashboardPage })));
 const CodeDeploymentPage = lazyWithRetry(() => import('./pages/CodeDeployment').then(m => ({ default: m.CodeDeploymentPage })));
 const NodeClassifierPage = lazyWithRetry(() => import('./pages/NodeClassifier').then(m => ({ default: m.NodeClassifierPage })));
 const ConfigPuppetPage = lazyWithRetry(() => import('./pages/ConfigPuppet').then(m => ({ default: m.ConfigPuppetPage })));
@@ -143,8 +144,10 @@ function AppRoutes() {
           {/* Certificate Audit */}
           <Route path="/cert-audit" element={<CertAuditPage />} />
 
-          {/* Metrics / Insights */}
-          <Route path="/insights" element={<InsightsHubPage />} />
+          {/* Metrics / Insights — /insights is NOC Monitoring; catalog at /insights/all */}
+          <Route path="/insights" element={<MonitoringDashboardPage />} />
+          <Route path="/insights/all" element={<InsightsHubPage />} />
+          <Route path="/insights/monitor" element={<MonitoringDashboardPage />} />
           <Route path="/insights/compliance" element={<MetricsCompliancePage />} />
           <Route path="/insights/performance" element={<MetricsPerformancePage />} />
           <Route path="/insights/timeline" element={<MetricsTimelinePage />} />

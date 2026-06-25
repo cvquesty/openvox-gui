@@ -102,9 +102,10 @@ const exploreNav: NavItem[] = [
   { label: 'Package Inventory', icon: IconPackage, path: '/packages' },
 ];
 
-/** Analytics + history surfaces together (sruiux2 Insights group) */
+/** Analytics + history — Monitoring is the NOC single-pane; catalog lists full pages */
 const insightsNav: NavItem[] = [
-  { label: 'Insights hub', icon: IconChartBar, path: '/insights' },
+  { label: 'Monitoring', icon: IconChartBar, path: '/insights' },
+  { label: 'Insights catalog', icon: IconChartBar, path: '/insights/all' },
   { label: 'Reports', icon: IconFileReport, path: '/reports' },
   { label: 'Inventory', icon: IconListDetails, path: '/inventory' },
   { label: 'Log Viewer', icon: IconFileText, path: '/logs' },

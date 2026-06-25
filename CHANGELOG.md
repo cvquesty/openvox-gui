@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — configurable NOC Monitoring dash)
+
+### UI/UX (sruiux2 — monitoring single pane)
+- **Monitoring dashboard** (`/insights`, alias `/insights/monitor`): NOC-style single pane of glass with **configurable panels** (MultiSelect + localStorage). Defaults: node status ring + trends, compliance dist/trend, failed nodes, node health snapshot, OpenVox Server / OpenVoxDB health gauges. Optional environments chart.
+- **Auto-refresh** (15s–5m) + manual refresh; each panel has **open full view** deep link.
+- **Insights catalog** moved to **`/insights/all`** (card launcher for full metric pages). Nav: **Monitoring** first, **Insights catalog** second. Command palette entries updated.
+
+### Versioning
+- **3.10.04.a4** continues sruiux2 (alpha / lab only).
+
 ## [3.10.04.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 FilterBar + viz lite)
 
 ### UI/UX (sruiux2 designer-2 P1 slice)

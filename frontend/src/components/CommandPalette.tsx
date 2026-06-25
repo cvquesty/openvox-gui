@@ -33,7 +33,8 @@ const DEFAULT_ACTIONS: PaletteAction[] = [
   { id: 'lookup', label: 'Hiera Lookup', path: '/data/lookup', keywords: 'explain' },
   { id: 'config-puppet', label: 'OpenVox Configuration', path: '/config/puppet', keywords: 'puppet.conf hiera' },
   { id: 'config-app', label: 'Application Configuration', path: '/config/app', keywords: 'settings users ldap' },
-  { id: 'insights-hub', label: 'Insights hub', path: '/insights', keywords: 'metrics catalog launcher health' },
+  { id: 'insights-monitor', label: 'Monitoring dashboard', path: '/insights', keywords: 'noc wallboard trends metrics health pane' },
+  { id: 'insights-catalog', label: 'Insights catalog', path: '/insights/all', keywords: 'metrics catalog launcher health' },
   { id: 'insights-compliance', label: 'Fleet Compliance', path: '/insights/compliance', keywords: 'metrics health' },
   { id: 'insights-node-health', label: 'Node Health', path: '/insights/node-health', keywords: 'metrics' },
 ];

@@ -1,7 +1,8 @@
 /**
- * Insights launcher — collapses Metrics nav overload (sruiux1 P0 #2).
+ * Insights catalog — deep links to full metric pages (not the NOC wallboard).
+ * Primary continuous monitoring lives on MonitoringDashboard (/insights).
  */
-import { Title, Text, SimpleGrid, Card, Stack, ThemeIcon, Group, Badge } from '@mantine/core';
+import { Title, Text, SimpleGrid, Card, Stack, ThemeIcon, Group, Badge, Button, Alert } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import {
   IconHeartRateMonitor,
@@ -16,6 +17,8 @@ import {
   IconWorld,
   IconStack2,
   IconChartBar,
+  IconLayoutDashboard,
+  IconArrowLeft,
 } from '@tabler/icons-react';
 
 const CARDS: { path: string; title: string; description: string; icon: any; color: string }[] = [
@@ -41,17 +44,35 @@ export function InsightsHubPage() {
       <Group justify="space-between" align="flex-start">
         <div>
           <Group gap="sm">
-            <ThemeIcon size="lg" variant="light" color="teal">
+            <ThemeIcon size="lg" variant="light" color="gray">
               <IconChartBar size={22} />
             </ThemeIcon>
-            <Title order={2}>Insights</Title>
+            <Title order={2}>Insights catalog</Title>
             <Badge variant="light">{CARDS.length} views</Badge>
           </Group>
           <Text c="dimmed" size="sm" mt={4}>
-            Fleet metrics and health dashboards. Deep links stay on the individual routes; this hub is the entry point from Metrics in the nav.
+            Full-page analytics and health tools. For a NOC-style single pane with live trends, use{' '}
+            <Text span fw={600} component="span">Monitoring</Text> (configurable wallboard).
           </Text>
         </div>
+        <Button
+          leftSection={<IconLayoutDashboard size={16} />}
+          onClick={() => navigate('/insights')}
+        >
+          Open Monitoring dash
+        </Button>
       </Group>
+
+      <Alert variant="light" color="teal" title="Continual monitoring">
+        The Monitoring dashboard keeps selected graphs on one screen with auto-refresh. Pin compliance,
+        node trends, server/DB health, and failed nodes for ops/NOC walls — then open any panel&apos;s
+        full page when you need drill-down.
+        <Group mt="sm">
+          <Button size="xs" variant="light" leftSection={<IconArrowLeft size={14} />} onClick={() => navigate('/insights')}>
+            Back to Monitoring
+          </Button>
+        </Group>
+      </Alert>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
         {CARDS.map((c) => {
