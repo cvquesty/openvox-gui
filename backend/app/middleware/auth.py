@@ -158,11 +158,6 @@ async def _track_session(request: Request, user: Dict[str, Any]):
 _SKIP_AUTH_PATHS = (
     "/static", "/assets", "/health",
     "/api/enc/classify",
-    # Bolt inventory plugin endpoints — these must be reachable by the
-    # local 'bolt' user on the control node without a GUI session/JWT,
-    # similar to how agents use /classify via SSL cert auth.
-    "/api/enc/inventory/bolt",
-    "/api/enc/inventory/bolt/yaml",
     "/api/auth/login", "/api/auth/status",
     "/api/config/app/name",
     "/api/deploy/webhook",
@@ -176,6 +171,84 @@ _SKIP_AUTH_PATHS = (
     "/packages",
     "/api/installer/script",
 )
+
+
+def _client_is_localhost(request: Request) -> bool:
+    """True when the TCP peer is loopback."""
+    client_host = ""
+    if request.client:
+        client_host = request.client.host or ""
+    return (
+        client_host in ("127.0.0.1", "::1", "localhost")
+        or client_host.startswith("127.")
+    )
+
+
+def _host_local_addresses() -> set:
+    """IPs/hostnames that refer to this control node (cached per process)."""
+    cached = getattr(_host_local_addresses, "_cache", None)
+    if cached is not None:
+        return cached
+    import socket
+
+    ips = {"127.0.0.1", "::1", "localhost", "0.0.0.0"}
+    try:
+        ips.add(socket.gethostname())
+        ips.add(socket.getfqdn())
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            addr = info[4][0]
+            if addr:
+                ips.add(addr)
+    except OSError:
+        pass
+    try:
+        # Primary outbound IPv4 (often the address used when inventory
+        # points at the public FQDN that resolves to this host).
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            ips.add(s.getsockname()[0])
+        finally:
+            s.close()
+    except OSError:
+        pass
+    _host_local_addresses._cache = ips  # type: ignore[attr-defined]
+    return ips
+
+
+def _client_is_local_control_node(request: Request) -> bool:
+    """True when the peer is this host (loopback or own interface IP).
+
+    openvox_enc often uses api_url https://<fqdn>:4567 rather than
+    127.0.0.1, so the TCP peer is the server's LAN/public address, not
+    loopback. Treat those as local for inventory only.
+    """
+    if _client_is_localhost(request):
+        return True
+    client_host = ""
+    if request.client:
+        client_host = (request.client.host or "").strip()
+    if not client_host:
+        return False
+    return client_host in _host_local_addresses()
+
+
+def _bolt_inventory_local_user() -> dict:
+    """Synthetic principal for local openvox_enc plugin (no GUI session).
+
+    Role is scoped to inventory read only; routes still enforce
+    _BOLT_INVENTORY allow-list (bolt / bolt-inventory-readonly / operator / …).
+    """
+    return {
+        "user_id": "bolt-inventory-local",
+        "username": "bolt-inventory-local",
+        "role": "bolt-inventory-readonly",
+        "token_type": "local-loopback",
+        "name": "Bolt inventory (localhost)",
+    }
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -210,16 +283,41 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _SKIP_AUTH_PATHS):
             return await call_next(request)
 
+        # Try long-lived service/API tokens first (used by the local
+        # 'bolt' user and other automation). These are looked up by
+        # hash in the api_tokens table and can be very long-lived or
+        # permanent. Must run *before* bolt-inventory localhost trust so a
+        # real token is preferred when present (audit / least privilege).
+        from .service_tokens import verify_service_token
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            service_user = await verify_service_token(token)
+            if service_user:
+                request.state.user = service_user
+                return await call_next(request)
+
+        # openvox_enc resolve_reference runs on the control node as the
+        # `bolt` OS user (GUI orchestration uses sudo -u bolt). It calls
+        # /api/enc/inventory/bolt with an optional Bearer from
+        # /etc/puppetlabs/bolt/.bolt_token. Routes still use require_role
+        # and need request.state.user — so we never fully skip auth here.
+        # Prefer verified service token (above); else trust loopback only
+        # with a scoped bolt-inventory-readonly principal. Remote callers
+        # without a valid token fall through to JWT (or 401).
+        # Prefix match covers /bolt and /bolt/yaml (and future subpaths).
+        if path.startswith("/api/enc/inventory/bolt") and _client_is_local_control_node(request):
+            request.state.user = _bolt_inventory_local_user()
+            return await call_next(request)
+
         # Special-case: fleet health snapshot allows unauthenticated access from
         # localhost only. This lets the on-server PDF generator (run as 'puppet')
         # hit http://127.0.0.1:8000/... without a token or JWT. Remote callers
         # still require a valid service token (OPENVOX_REPORT_TOKEN) or session.
         # The handler performs the final IP + user check.
         if path == "/api/reports/fleet-health-snapshot":
-            client_host = ""
-            if request.client:
-                client_host = request.client.host or ""
-            if client_host in ("127.0.0.1", "::1", "localhost") or client_host.startswith("127."):
+            if _client_is_localhost(request):
                 # Grant a minimal internal viewer identity. Handler will still
                 # validate but we avoid 401 here so local generator works.
                 request.state.user = {"user_id": "internal-report-generator", "role": "viewer", "name": "Report Generator (local)"}
@@ -230,25 +328,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # running via the systemd timer or ad-hoc can read the GUI-managed list
         # without requiring a token when executed on the OpenVox server itself).
         if path == "/api/reports/executive-summary/recipients":
-            client_host = ""
-            if request.client:
-                client_host = request.client.host or ""
-            if client_host in ("127.0.0.1", "::1", "localhost") or client_host.startswith("127."):
+            if _client_is_localhost(request):
                 request.state.user = {"user_id": "internal-report-generator", "role": "viewer", "name": "Report Generator (local)"}
-                return await call_next(request)
-
-        # Try long-lived service/API tokens first (used by the local
-        # 'bolt' user and other automation). These are looked up by
-        # hash in the api_tokens table and can be very long-lived or
-        # permanent.
-        from .service_tokens import verify_service_token
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            service_user = await verify_service_token(token)
-            if service_user:
-                request.state.user = service_user
                 return await call_next(request)
 
         # Fall back to normal authentication (JWT via local or LDAP backend).

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a38] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix openvox_enc inventory HTTP 401 on Orchestration Run Command
+- **Symptom:** `Error executing plugin openvox_enc from resolve_reference` → `API returned HTTP 401: {"detail":"Not authenticated"}`.
+- **Root cause:** `/api/enc/inventory/bolt*` was in middleware `_SKIP_AUTH_PATHS` (no `request.state.user`), while the route still used `Depends(require_role(...))` → always **401 Not authenticated**. Bearer service-token verification never ran for those paths. Lab inventory also calls the public FQDN (`https://host:4567`), so the TCP peer is often the host LAN IP, not `127.0.0.1`.
+- **Fix:** Remove inventory paths from full auth skip. Prefer verified `api_tokens` Bearer; else grant scoped `bolt-inventory-readonly` for **local control-node** peers (loopback **or** this host's own addresses). Remote callers still need JWT or a real service token. GUI admin/operator Bolt runs use `sudo -u bolt` on the control node, so inventory resolves without tying the OS plugin to the browser session JWT.
+
+### Versioning
+- **3.10.0a38** on **3.10.a_r_alpha.6**.
+
 ## [3.10.0a37] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Fix Orchestration "Installed: No" despite Bolt on disk
