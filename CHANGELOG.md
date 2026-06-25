@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.03.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — hotfix)
+
+### Fixed
+- **Code Deployment:** restore `ScrollArea` / `Loader` imports (runtime `ScrollArea is not defined` after a3 OutputPane refactor).
+
 ## [3.10.03.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 remaining P0)
 
 ### UI/UX (sruiux1 P0 completion slice)

@@ -6,8 +6,7 @@
 import { useState, useEffect } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Button, Select, Alert, Table,
-  Code, Paper, ThemeIcon, Grid,
-  Divider,
+  Code, Paper, ThemeIcon, Grid, ScrollArea, Loader, Divider,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
