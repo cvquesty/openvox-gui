@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.02.a3] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture)
+
+### Architecture (srdev2 A4 — physical bolt router split)
+- Split monolith `routers/bolt.py` into modules **without changing `/api/bolt/*` URLs** or inventory architecture (ENC groups + PDB `all` in `resolve_targets`; optional ENC→`inventory.yaml` sync; live Bolt still uses inventory plugins / PuppetDB as configured):
+  - `bolt_runtime.py` — `find_bolt`, `run_bolt_command`, `resolve_targets` (re-exported from `bolt` for `metrics` etc.)
+  - `bolt_execution.py` — status, tasks/plans/inventory show, run command|task|plan
+  - `bolt_files.py` — file upload/download, script run
+  - `bolt_config_routes.py` — bolt-project/inventory file I/O, ENC inventory sync
+  - `bolt.py` — thin `APIRouter` aggregator + public re-exports
+
+### Versioning
+- **3.10.02.a3** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`).
+
 ## [3.10.02.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture)
 
 ### Architecture (srdev2 A1 / A3 / A4 progress)
