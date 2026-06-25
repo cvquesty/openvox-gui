@@ -100,7 +100,8 @@ class CreateApiTokenRequest(BaseModel):
     username: str
     name: str
     expires_in_days: Optional[int] = None   # None or 0 = never expires
-    role: Optional[str] = "operator"  # e.g. "bolt", "service", "operator" for scoping
+    # Scope/role: admin|operator|viewer|bolt|bolt-inventory-readonly|service
+    role: Optional[str] = "operator"
 
 
 class ApiTokenResponse(BaseModel):
@@ -111,6 +112,9 @@ class ApiTokenResponse(BaseModel):
     expires_at: Optional[str] = None
     token: Optional[str] = None   # Only returned on creation
     role: Optional[str] = None
+    active: Optional[bool] = None
+    last_used_at: Optional[str] = None
+    created_by: Optional[str] = None
 
 
 @router.get("/status")
@@ -427,6 +431,56 @@ async def test_ldap(data: LdapTestRequest, request: Request):
 
 # ─── Long-lived Service / API Token Management ─────────────────
 
+@router.get("/tokens/scopes")
+async def list_token_scopes(request: Request):
+    """Document allowed service-token roles/scopes (admin)."""
+    user = getattr(request.state, "user", None)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from ..services.command_execution import TOKEN_SCOPES
+    from ..middleware.service_tokens import ALLOWED_TOKEN_ROLES
+    return {
+        "scopes": [
+            {"role": k, "description": TOKEN_SCOPES.get(k, "")}
+            for k in sorted(ALLOWED_TOKEN_ROLES)
+        ],
+        "rotation": "Revoke the old token (DELETE) then POST a new one; raw secret is shown once.",
+    }
+
+
+@router.get("/tokens")
+async def list_all_api_tokens(request: Request):
+    """List all API/service tokens (metadata only; admin). Supports rotation workflows."""
+    user = getattr(request.state, "user", None)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from ..middleware.service_tokens import list_service_tokens
+    return {"tokens": await list_service_tokens()}
+
+
+@router.get("/users/{username}/tokens")
+async def list_user_api_tokens(username: str, request: Request):
+    """List tokens for one username (admin)."""
+    user = getattr(request.state, "user", None)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from ..middleware.service_tokens import list_service_tokens
+    return {"tokens": await list_service_tokens(username=username)}
+
+
+@router.delete("/tokens/{token_id}")
+async def revoke_api_token(token_id: int, request: Request):
+    """Soft-revoke a service token (admin). Create a new token to rotate."""
+    user = getattr(request.state, "user", None)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from ..middleware.service_tokens import revoke_service_token
+    ok = await revoke_service_token(token_id, revoked_by=user.get("user_id") or user.get("username") or "admin")
+    if not ok:
+        raise HTTPException(status_code=404, detail="Token not found")
+    return {"status": "revoked", "id": token_id}
+
+
 @router.post("/users/{username}/tokens", response_model=ApiTokenResponse)
 async def create_user_api_token(username: str, data: CreateApiTokenRequest, request: Request):
     """Create a long-lived API token for a user (admin only). Used for service accounts like the bolt user."""
@@ -467,6 +521,10 @@ async def create_user_api_token(username: str, data: CreateApiTokenRequest, requ
                 "expires_at": token_record.expires_at.isoformat() if token_record.expires_at else None,
                 "token": raw_token,   # Only returned on creation
                 "role": token_record.role,
+                "active": True,
+                "created_by": token_record.created_by,
             }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a34] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### srsysarch1 alpha-train final backlog (lab only)
+Closes remaining **practical** items from `srsysarch1-openvox-gui-domain-security-issues-systems-architect.md` on the alpha train without full remote-host HA.
+
+#### Added / completed
+- **Rate + concurrency limits** on certificate sign/revoke/clean and Hiera + service-restart config writes (`rate_limit_heavy` + `concurrency_heavy`).
+- **Service token scopes + rotation API**: validated roles (`admin`, `operator`, `viewer`, `bolt`, `bolt-inventory-readonly`, `service`); `GET /api/auth/tokens`, `GET /api/auth/tokens/scopes`, `GET /api/auth/users/{user}/tokens`, `DELETE /api/auth/tokens/{id}` (soft revoke); create path rejects unknown scopes.
+- **ENC Bolt inventory RBAC** allows scoped tokens (`bolt`, `bolt-inventory-readonly`, `service`) alongside UI roles.
+- **Optional installer IP allowlist** (`OPENVOX_GUI_INSTALLER_IP_ALLOWLIST` or `/opt/openvox-gui/etc/installer-ip-allowlist.txt`) for unauthenticated install scripts; example + `etc/README.md` deployed.
+- **CommandExecutionService**: active-job gauge, `SSHRemoteTransport` stub (fails loud), documented transport protocol; `/metrics` exposes `openvox_gui_active_heavy_jobs`.
+- Settings: `bootstrap_token`, `installer_ip_allowlist` fields for env-driven config.
+
+#### Explicitly still deferred (not alpha blockers)
+- Full migration of every subprocess site through CES (Orchestration keeps proven `run_bolt_command`; non-sudo `systemctl is-active` / version probes remain local subprocess).
+- Distributed multi-worker job queue (Celery/Redis); process-local job counter only.
+- Dedicated non-root package-sync OS user (document + network controls instead).
+- Full remote-host SSH execution plane implementation.
+- Rich Users UI for token management (API is complete; ovox/CLI can rotate).
+
+### Versioning
+- Incremented pre-release to **3.10.0a34** on branch **3.10.a_r_alpha.6**.
+
 ## [3.10.0a33] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Fix Log Viewer empty panes (sudoers argv mismatch)

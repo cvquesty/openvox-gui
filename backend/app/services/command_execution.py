@@ -10,20 +10,48 @@ Goals:
 - Use run_sudo uniformly.
 - Support dry_run / simulate mode (for future UI preview).
 - Pluggable transport (today LocalSudoTransport; stub for SSH/remote).
+- Best-effort in-process job counter for /metrics (not a full Celery queue).
 
-This is an initial implementation to address "scattered command execution" and
-make remote-host support tractable later. Not all paths refactored in this alpha
-train (see TODOs); callers should migrate over time.
+Orchestration Run Command still uses routers/bolt.run_bolt_command for lab-proven
+behavior; other callers should migrate to default_service.execute(...).
 """
 import time
 import asyncio
-from typing import Dict, Any, List, Optional
+import threading
+from typing import Dict, Any, List, Optional, Protocol
 from datetime import datetime, timezone
 
-from ..database import get_db  # type: ignore
 from ..models import ExecutionHistory
 from ..utils.sudo import run_sudo
 from ..utils.validation import validate_command
+
+# Best-effort active job gauge for Prometheus (process-local).
+_active_jobs_lock = threading.Lock()
+_active_jobs = 0
+
+
+def get_active_job_count() -> int:
+    with _active_jobs_lock:
+        return _active_jobs
+
+
+def _job_enter() -> None:
+    global _active_jobs
+    with _active_jobs_lock:
+        _active_jobs += 1
+
+
+def _job_leave() -> None:
+    global _active_jobs
+    with _active_jobs_lock:
+        _active_jobs = max(0, _active_jobs - 1)
+
+
+class ExecutionTransport(Protocol):
+    """Transport abstraction for local sudo today / SSH remote-host later."""
+
+    async def run(self, args: List[str], timeout: int = 300, rainbow: bool = False) -> Dict[str, Any]:
+        ...
 
 
 class LocalSudoTransport:
@@ -31,20 +59,52 @@ class LocalSudoTransport:
 
     async def run(self, args: List[str], timeout: int = 300, rainbow: bool = False) -> Dict[str, Any]:
         if rainbow:
-            # Rainbow still needs the script wrapper (PTY + color); keep string for that path only.
-            # In future transport this would be abstracted.
-            import shlex
             from shlex import quote as shlex_quote
-            bolt = args[0] if args else "bolt"
-            # simplistic; real callers build
             cmd_str = " ".join(shlex_quote(a) for a in args)
             full = ["script", "-qc", cmd_str, "/dev/null"]
             return await run_sudo(full, timeout=timeout)
         return await run_sudo(args, timeout=timeout)
 
 
+class SSHRemoteTransport:
+    """
+    Stub for future remote-host support (srsysarch1 P2 / remote-host prep).
+
+    Not wired to production callers yet. Raises NotImplementedError so any
+    accidental use fails loudly rather than silently running local sudo.
+    """
+
+    def __init__(self, host: str, user: str = "root", identity_file: Optional[str] = None):
+        self.host = host
+        self.user = user
+        self.identity_file = identity_file
+
+    async def run(self, args: List[str], timeout: int = 300, rainbow: bool = False) -> Dict[str, Any]:
+        raise NotImplementedError(
+            "SSHRemoteTransport is a stub for remote-host v2; configure LocalSudoTransport "
+            f"(attempted host={self.host!r} user={self.user!r})."
+        )
+
+
+# Known service-token roles / scopes (stored in api_tokens.role).
+# Narrower roles limit what middleware treats the principal as for RBAC.
+TOKEN_SCOPES = {
+    "admin": "Full admin RBAC (equivalent to admin user).",
+    "operator": "Operator RBAC (orchestration, CA ops, deploy).",
+    "viewer": "Read-only RBAC.",
+    "bolt": "Bolt inventory + operator-class automation (ENC inventory endpoints).",
+    "bolt-inventory-readonly": "ENC /api/enc/inventory/bolt* only; no general operator UI powers.",
+    "service": "Generic machine account (operator-class unless restricted by caller).",
+}
+
+# Roles that may call bolt inventory endpoints (service tokens or users).
+BOLT_INVENTORY_ROLES = frozenset({
+    "admin", "operator", "bolt", "bolt-inventory-readonly", "service",
+})
+
+
 class CommandExecutionService:
-    def __init__(self, transport: Optional[LocalSudoTransport] = None, dry_run: bool = False):
+    def __init__(self, transport: Optional[ExecutionTransport] = None, dry_run: bool = False):
         self.transport = transport or LocalSudoTransport()
         self.dry_run = dry_run
 
@@ -58,6 +118,7 @@ class CommandExecutionService:
         timeout: int = 300,
         rainbow: bool = False,
         db=None,
+        track_job: bool = True,
     ) -> Dict[str, Any]:
         """
         Central execution entrypoint.
@@ -74,13 +135,12 @@ class CommandExecutionService:
                 "dry_run": True,
             }
 
-        # Basic validation for command strings if present
         for a in args:
             if isinstance(a, str) and any(x in a.lower() for x in ["; rm ", "&& rm", "curl | bash"]):
                 try:
                     validate_command(a)
                 except Exception:
-                    pass  # let downstream
+                    pass
 
         start = time.time()
         history = None
@@ -96,14 +156,24 @@ class CommandExecutionService:
             await db.commit()
             await db.refresh(history)
 
-        # P0: enforce timeout to prevent long ops from starving server
+        if track_job:
+            _job_enter()
         try:
-            result = await asyncio.wait_for(
-                self.transport.run(args, timeout=timeout, rainbow=rainbow),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            result = {"returncode": -1, "stdout": "", "stderr": f"Command timed out after {timeout}s"}
+            try:
+                result = await asyncio.wait_for(
+                    self.transport.run(args, timeout=timeout, rainbow=rainbow),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                result = {
+                    "returncode": -1,
+                    "stdout": "",
+                    "stderr": f"Command timed out after {timeout}s",
+                }
+        finally:
+            if track_job:
+                _job_leave()
+
         duration = int((time.time() - start) * 1000)
 
         if history is not None:
@@ -113,17 +183,7 @@ class CommandExecutionService:
             history.error_message = (result.get("stderr") or "")[:500]
             await db.commit()
 
-        # Include original args for better debugging / error surfacing (P1 item).
         return {**result, "duration_ms": duration, "executed_args": args}
 
 
-# Convenience singleton style for current callers during transition.
 default_service = CommandExecutionService()
-
-
-# TODOs for full refactor (per report):
-# - Update all bolt run_*, deploy, certificates sign/revoke/clean, nodes purge,
-#   infra restarts, puppetserver_service to go through service.execute(...)
-# - Add per-user rate/concurrency inside service.
-# - Dry-run support surfaced to UI.
-# - SSH transport impl for remote-host v2.

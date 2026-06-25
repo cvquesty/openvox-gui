@@ -373,6 +373,16 @@ async def prometheus_metrics():
     lines.append("# TYPE openvox_gui_ps_health_ring_samples gauge")
     lines.append(f"openvox_gui_ps_health_ring_samples {ring_len}")
 
+    # Best-effort active CommandExecutionService jobs (process-local; not multi-worker)
+    try:
+        from .services.command_execution import get_active_job_count
+        active_jobs = get_active_job_count()
+    except Exception:
+        active_jobs = 0
+    lines.append("# HELP openvox_gui_active_heavy_jobs In-process CommandExecutionService jobs currently running")
+    lines.append("# TYPE openvox_gui_active_heavy_jobs gauge")
+    lines.append(f"openvox_gui_active_heavy_jobs {active_jobs}")
+
     body = "\n".join(lines) + "\n"
     return PlainTextResponse(content=body, media_type="text/plain; version=0.0.4; charset=utf-8")
 

@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     data_dir: str = "/opt/openvox-gui/data"
     log_dir: str = "/opt/openvox-gui/logs"
 
+    # Optional bootstrap token for unauthenticated installer script routes
+    # (OPENVOX_GUI_BOOTSTRAP_TOKEN). Empty = no token required.
+    bootstrap_token: Optional[str] = None
+
+    # Optional comma-separated IP/CIDR allowlist for installer script routes
+    # (OPENVOX_GUI_INSTALLER_IP_ALLOWLIST). Empty = allow all (or use etc file).
+    installer_ip_allowlist: Optional[str] = None
+
     # ── Proxy settings ────────────────────────────────────────
     # These are auto-detected during installation and used for
     # outbound API calls (e.g., to PuppetDB, external services)

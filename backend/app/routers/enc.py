@@ -24,6 +24,11 @@ router = APIRouter(prefix="/api/enc", tags=["enc"])
 # admins do everything operators do plus group/environment lifecycle.
 _ENC_WRITE = require_role("admin", "operator")
 
+# Bolt inventory: UI operators + scoped service tokens (bolt / bolt-inventory-readonly).
+_BOLT_INVENTORY = require_role(
+    "admin", "operator", "viewer", "bolt", "bolt-inventory-readonly", "service",
+)
+
 
 # ─── Pydantic models ───────────────────────────────────────
 
@@ -406,7 +411,10 @@ async def delete_node(certname: str, db: AsyncSession = Depends(get_db), _user: 
 # ─── Bolt Inventory Generation (3.x feature) ─────────────
 
 @router.get("/inventory/bolt")
-async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
+async def get_bolt_inventory(
+    db: AsyncSession = Depends(get_db),
+    _user: str = Depends(_BOLT_INVENTORY),
+):
     """
     Generate a Bolt-compatible inventory from the ENC hierarchy.
 
@@ -417,6 +425,7 @@ async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
 
     This endpoint powers the Orchestration page's group-based target
     selection and can also be written to disk as inventory.yaml.
+    Scoped service tokens with role bolt / bolt-inventory-readonly are allowed.
     """
     from ..config import settings
 
@@ -503,7 +512,10 @@ async def get_bolt_inventory(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/inventory/bolt/yaml", response_class=PlainTextResponse)
-async def get_bolt_inventory_yaml(db: AsyncSession = Depends(get_db)):
+async def get_bolt_inventory_yaml(
+    db: AsyncSession = Depends(get_db),
+    _user: str = Depends(_BOLT_INVENTORY),
+):
     """Return the Bolt inventory as deployable YAML."""
-    inventory = await get_bolt_inventory(db)
+    inventory = await get_bolt_inventory(db, _user)
     return yaml.dump(inventory, default_flow_style=False, sort_keys=False)

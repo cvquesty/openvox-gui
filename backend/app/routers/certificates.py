@@ -16,10 +16,11 @@ import asyncio
 import logging
 import re
 import time
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..dependencies import require_role
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
 from ..services.puppetdb import puppetdb_service
 from ..utils.sudo import run_sudo
 from typing import Optional, List
@@ -174,15 +175,19 @@ class CertActionRequest(BaseModel):
 
 
 @router.post("/sign")
+@rate_limit_heavy()
 async def sign_certificate(
     request: CertActionRequest,
+    _req: Request,
     current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Sign a pending certificate request.
 
     Validates the certname to prevent command injection before passing
     it to the puppetserver ca subprocess. Operator/admin only since
     signing a CSR adds a node to the trusted fleet.
+    Rate/concurrency limited (srsysarch1 P1).
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["sign", "--certname", request.certname], timeout=120)
@@ -194,15 +199,19 @@ async def sign_certificate(
 
 
 @router.post("/revoke")
+@rate_limit_heavy()
 async def revoke_certificate(
     request: CertActionRequest,
+    _req: Request,
     current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Revoke a signed certificate.
 
     Validates the certname before passing it to the puppetserver ca
     subprocess to prevent command injection. Operator/admin only --
     revoking a cert immediately stops a node from getting catalogs.
+    Rate/concurrency limited (srsysarch1 P1).
     """
     _validate_certname(request.certname)
     result = await _run_ca_command(["revoke", "--certname", request.certname], timeout=120)
@@ -214,9 +223,12 @@ async def revoke_certificate(
 
 
 @router.post("/clean")
+@rate_limit_heavy()
 async def clean_certificate(
     request: CertActionRequest,
+    _req: Request,
     current_user: str = Depends(require_role("admin", "operator")),
+    _ = Depends(concurrency_heavy),
 ):
     """Clean (remove) a certificate and all associated key material.
 
@@ -226,6 +238,7 @@ async def clean_certificate(
 
     After cleaning the certificate, also deactivates the node in
     PuppetDB and removes it from the ENC so it disappears everywhere.
+    Rate/concurrency limited (srsysarch1 P1).
     """
     from ..services.puppetdb import puppetdb_service
     from ..services.enc import enc_service

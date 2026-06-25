@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List
 from ..services.puppetserver import puppetserver_service
 from ..config import settings
 from ..dependencies import require_role
+from ..middleware.security import rate_limit_heavy, concurrency_heavy
 
 # All mutating endpoints in this router are admin-only (3.3.5-26).
 # These edit puppet.conf, hiera, ssl, .env, restart the puppet stack,
@@ -120,11 +121,16 @@ async def get_hiera_config():
 
 
 @router.put("/hiera")
+@rate_limit_heavy()
 async def update_hiera_config(
     request: HieraUpdateRequest,
+    _req: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
-    """Update hiera.yaml content. Creates a backup of the existing file."""
+    """Update hiera.yaml content. Creates a backup of the existing file.
+    Rate/concurrency limited (srsysarch1 P1 dangerous writes).
+    """
     try:
         success = puppetserver_service.write_hiera_config(request.content)
         if not success:
@@ -172,11 +178,14 @@ async def get_hiera_data_file(environment: str, path: str):
 
 
 @router.put("/hiera/data/{environment}/file")
+@rate_limit_heavy()
 async def update_hiera_data_file(
     environment: str,
     path: str,
     request: HieraDataFileRequest,
+    _req: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Update a specific Hiera data file. Pass the full_path as a query param ?path=..."""
     try:
@@ -192,10 +201,13 @@ async def update_hiera_data_file(
 
 
 @router.post("/hiera/data/{environment}/file")
+@rate_limit_heavy()
 async def create_hiera_data_file(
     environment: str,
     request: HieraDataFileCreateRequest,
+    _req: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Create a new Hiera data file in an environment's data directory."""
     from pathlib import Path
@@ -225,10 +237,13 @@ async def create_hiera_data_file(
 
 
 @router.delete("/hiera/data/{environment}/file")
+@rate_limit_heavy()
 async def delete_hiera_data_file(
     environment: str,
     path: str,
+    _req: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Delete a Hiera data file. Pass the full_path as a query param ?path=..."""
     from pathlib import Path
@@ -279,11 +294,14 @@ async def get_services_status():
 
 
 @router.post("/services/restart")
+@rate_limit_heavy()
 async def restart_service(
     request: ServiceActionRequest,
+    _req: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
-    """Restart a Puppet service."""
+    """Restart a Puppet service. Rate/concurrency limited (srsysarch1 P1)."""
     if request.action != "restart":
         raise HTTPException(status_code=400, detail="Only 'restart' action is supported")
     result = puppetserver_service.restart_service(request.service)
@@ -293,8 +311,11 @@ async def restart_service(
 
 
 @router.post("/services/restart-puppet-stack")
+@rate_limit_heavy()
 async def restart_puppet_stack(
+    _req: Request,
     _user: str = Depends(_ADMIN_ONLY),
+    _ = Depends(concurrency_heavy),
 ):
     """Restart PuppetServer, PuppetDB, and Puppet agent in the correct order."""
     results = []

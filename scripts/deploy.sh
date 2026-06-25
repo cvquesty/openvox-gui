@@ -155,6 +155,14 @@ if [ -f "${REPO_DIR}/etc/allowed-environments.txt.example" ]; then
     cp -f "${REPO_DIR}/etc/allowed-environments.txt.example" \
         "${INSTALL_DIR}/etc/allowed-environments.txt.example"
 fi
+# Installer script IP allowlist example (operator copies to installer-ip-allowlist.txt)
+if [ -f "${REPO_DIR}/etc/installer-ip-allowlist.txt.example" ]; then
+    cp -f "${REPO_DIR}/etc/installer-ip-allowlist.txt.example" \
+        "${INSTALL_DIR}/etc/installer-ip-allowlist.txt.example"
+fi
+if [ -f "${REPO_DIR}/etc/README.md" ]; then
+    cp -f "${REPO_DIR}/etc/README.md" "${INSTALL_DIR}/etc/README.md"
+fi
 
 # Write a precise build version (base + git sha + timestamp) so every deploy
 # produces a unique, traceable version without requiring a manual bump.
