@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a31] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Version / lab redeploy
+- Incremented pre-release to **3.10.0a31** on branch **3.10.a_r_alpha.6** (no feature delta vs a30; carries HEAD `253581f` systems-architect remainder for a clean lab redeploy and dashboard version visibility).
+- Standing rule: every meaningful alpha-train push increments the `3.10.0aN` counter even when the git branch name stays `3.10.a_r_alpha.6`.
+
 ## [3.10.0a30] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### Systems architect (srsysarch1) remainder — alpha train / lab only
