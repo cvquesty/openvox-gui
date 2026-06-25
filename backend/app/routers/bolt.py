@@ -179,8 +179,18 @@ def _is_approved_safe_command(command: str) -> bool:
     return False
 
 
+# Standard bolt binary locations (OpenBolt / Puppet Bolt packages).
+# Must stay defined for find_bolt / status / orchestration (was dropped during
+# HP1 resolve_targets extraction and caused NameError → UI "Installed: No").
+BOLT_PATHS = [
+    "/opt/puppetlabs/bolt/bin/bolt",
+    "/opt/puppetlabs/bin/bolt",
+    "/usr/local/bin/bolt",
+]
+
+
 def find_bolt() -> Optional[str]:
-    """Find the bolt binary."""
+    """Find the bolt binary on disk (does not require sudo)."""
     for p in BOLT_PATHS:
         if Path(p).exists():
             return p
@@ -249,18 +259,44 @@ async def run_bolt_command(args: List[str], timeout: int = 120) -> Dict[str, Any
 
 @router.get("/status")
 async def bolt_status():
-    """Check if Bolt is installed and get version."""
+    """Check if Bolt is installed and get version.
+
+    installed=True when the binary exists on disk. Version is best-effort via
+    sudo -E -u bolt (may be null if sudoers/SETENV fails, without lying about install).
+    """
+    import os
     from ..utils.sudo import run_sudo
 
     bolt = find_bolt()
     if not bolt:
-        return {"installed": False, "path": None, "version": None}
+        return {"installed": False, "path": None, "version": None, "error": None}
+    version = None
+    err = None
     try:
-        result = await run_sudo(["sudo", "-E", "-u", "bolt", bolt, "--version"], timeout=10, env=os.environ.copy())
-        version = result["stdout"].strip() if result["returncode"] == 0 else None
-    except Exception:
-        version = None
-    return {"installed": True, "path": bolt, "version": version}
+        result = await run_sudo(
+            ["sudo", "-E", "-u", "bolt", bolt, "--version"],
+            timeout=10,
+            env=os.environ.copy(),
+        )
+        if result.get("returncode") == 0:
+            version = (result.get("stdout") or "").strip() or None
+        else:
+            err = (result.get("stderr") or result.get("stdout") or "bolt --version failed").strip()
+            # Fallback: run binary directly as service user (path-only check already passed)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    bolt, "--version",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+                if proc.returncode == 0:
+                    version = out.decode("utf-8", errors="replace").strip() or version
+            except Exception:
+                pass
+    except Exception as exc:
+        err = str(exc)
+    return {"installed": True, "path": bolt, "version": version, "error": err}
 
 
 # ─── Task & Plan Discovery ────────────────────────────────

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a37] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Fix Orchestration "Installed: No" despite Bolt on disk
+- **Root cause:** HP1 `resolve_targets` extraction accidentally removed `BOLT_PATHS` from `routers/bolt.py`, so `find_bolt()` raised `NameError` and `GET /api/bolt/status` returned **500**. Frontend treats failed status as not installed.
+- **Fix:** Restore `BOLT_PATHS`; harden `bolt_status` with direct `--version` fallback and optional `error` field when sudo version probe fails but the binary exists.
+
+### Versioning
+- **3.10.0a37** on **3.10.a_r_alpha.6**.
+
 ## [3.10.0a36] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### srdevarch1 HIGH + MP1–MP3 architecture slice (alpha / lab)
