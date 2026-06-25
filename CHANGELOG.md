@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a6] - 2026-06-25 (on 3.10.a_r_alpha.6 — compliance trend axis fix)
+
+### Fixed
+- **Compliance Trend X-axis:** API timestamps are hour buckets (`YYYY-MM-DDTHH`), not full ISO dates. Stopped calling `new Date()` on them (produced **Invalid Date** on Monitoring and Compliance pages). Use category axis + `tickFormatter` (`HH:00`) matching the original Metrics Compliance chart.
+
+### Versioning
+- **3.10.04.a6** continues sruiux2 (alpha / lab only).
+
 ## [3.10.04.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — multi-GRAPH monitoring wallboard)
 
 ### UI/UX (sruiux2 — real charts, not KPI tiles)

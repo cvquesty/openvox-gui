@@ -165,8 +165,14 @@ function formatMs(v: number) {
 
 function tickTime(v: string) {
   const s = String(v || '');
+  if (!s || s.length < 4) return s;
+  // Hour buckets from API: "2026-06-25T16" or full ISO "2026-06-25T16:30:00Z"
+  const hourOnly = s.match(/T(\d{2})$/);
+  if (hourOnly) return `${hourOnly[1]}:00`;
+  const hm = s.match(/T(\d{2}:\d{2})/);
+  if (hm) return hm[1];
   if (s.includes('T')) return s.split('T')[1]?.substring(0, 5) || s;
-  return s.slice(11, 16) || s;
+  return s.length > 10 ? s.substring(11, 16) : s;
 }
 
 function shortName(cn: string) {
@@ -410,12 +416,8 @@ export function MonitoringDashboardPage() {
     unreported: trend.unreported || 0,
   }));
 
-  const complianceTrend = (compliance?.trend || []).map((t: any) => ({
-    ...t,
-    label: t.timestamp
-      ? new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '',
-  }));
+  // Trend timestamps are hour buckets like "2026-06-25T16" (not full ISO) — never Date.parse.
+  const complianceTrend = compliance?.trend || [];
 
   const complianceDist = compliance
     ? [
@@ -473,9 +475,15 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={nodeTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="timestamp" tick={{ fontSize: 9 }} tickFormatter={tickTime} />
+            <XAxis dataKey="timestamp" type="category" tick={{ fontSize: 9 }} tickFormatter={tickTime} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
-            <ReTooltip {...TT} />
+            <ReTooltip
+              {...TT}
+              labelFormatter={(v) => {
+                const s = String(v || '');
+                return s.length >= 13 ? `${s.slice(0, 10)} ${tickTime(s)}` : tickTime(s) || s;
+              }}
+            />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Area type="monotone" dataKey="unchanged" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.12} strokeWidth={1.5} name="Unchanged" />
             <Area type="monotone" dataKey="changed" stroke="#f39c12" fill="#f39c12" fillOpacity={0.1} strokeWidth={1.5} name="Changed" />
@@ -487,9 +495,20 @@ export function MonitoringDashboardPage() {
         return (
           <AreaChart data={complianceTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-            <XAxis dataKey="label" tick={{ fontSize: 9 }} />
+            <XAxis
+              dataKey="timestamp"
+              type="category"
+              tick={{ fontSize: 9 }}
+              tickFormatter={tickTime}
+            />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
-            <ReTooltip {...TT} />
+            <ReTooltip
+              {...TT}
+              labelFormatter={(v) => {
+                const s = String(v || '');
+                return s.length >= 13 ? `${s.slice(0, 10)} ${tickTime(s)}` : tickTime(s) || s;
+              }}
+            />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Area type="monotone" dataKey="compliant" stroke="#28a745" fill="#28a745" fillOpacity={0.12} name="Compliant" />
             <Area type="monotone" dataKey="failed" stroke="#dc3545" fill="#dc3545" fillOpacity={0.1} name="Failed" />
