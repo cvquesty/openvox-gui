@@ -4,8 +4,6 @@
  */
 import { useState, useEffect } from 'react';
 import { 
-  Table, 
-  ScrollArea, 
   Badge, 
   Text, 
   ActionIcon,
@@ -24,9 +22,10 @@ import {
   Flex,
   Paper,
   Divider,
-  Box
+  Box,
 } from '@mantine/core';
 import { ExportActions } from './ExportActions';
+import { OpsTable, OpsColumn } from './OpsTable';
 import { 
   IconRefresh, 
   IconTrash, 
@@ -252,96 +251,122 @@ export function ExecutionHistory() {
           </Group>
         </Paper>
 
-        {/* Table */}
-        <Box style={{ maxHeight: 720, minHeight: 0, overflow: 'hidden' }}>
-          <ScrollArea h="100%" offsetScrollbars scrollbarSize={8}>
-            {loading && !history.length ? (
-              <Flex align="center" justify="center" h={200}>
-                <Loader size="lg" />
-              </Flex>
-            ) : error ? (
-              <Alert icon={<IconAlertCircle />} color="red">
-                {error}
-              </Alert>
-            ) : history.length === 0 ? (
-              <Alert icon={<IconHistory />} color="gray">
-                No execution history found for the selected filters
-              </Alert>
-            ) : (
-              <Table highlightOnHover striped>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Time</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Name</Table.Th>
-                    <Table.Th>Node/Target</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Duration</Table.Th>
-                    <Table.Th>User</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {history.map((entry) => (
-                    <Table.Tr key={entry.id}>
-                      <Table.Td>
-                        <Tooltip label={new Date(entry.executed_at).toLocaleString()}>
-                          <Text size="sm">{formatDate(entry.executed_at)}</Text>
-                        </Tooltip>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge size="sm" variant="light">
-                          {entry.execution_type}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={500}>
-                          {getExecutionName(entry)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" c="dimmed">
-                          {entry.node_name}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>{getStatusBadge(entry.status)}</Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{formatDuration(entry.duration_ms)}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" c="dimmed">
-                          {entry.executed_by}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap={4}>
-                          <Tooltip label="View details">
-                            <ActionIcon 
-                              size="sm" 
-                              variant="subtle"
-                              onClick={() => setSelectedEntry(entry)}
-                            >
-                              <IconEye size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Delete">
-                            <ActionIcon 
-                              size="sm" 
-                              variant="subtle" 
-                              color="red"
-                              onClick={() => handleDelete(entry.id)}
-                            >
-                              <IconTrash size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            )}
-          </ScrollArea>
+        {/* Table — OpsTable (sruiux2 P0-2) */}
+        <Box style={{ overflow: 'hidden' }}>
+          {loading && !history.length ? (
+            <Flex align="center" justify="center" h={200}>
+              <Loader size="lg" />
+            </Flex>
+          ) : error ? (
+            <Alert icon={<IconAlertCircle />} color="red">
+              {error}
+            </Alert>
+          ) : (
+            <OpsTable<ExecutionHistoryEntry>
+              data={history}
+              rowKey={(e) => String(e.id)}
+              defaultPageSize={50}
+              maxHeight={560}
+              emptyTitle="No execution history"
+              emptyDescription="No execution history found for the selected filters"
+              columns={[
+                {
+                  key: 'executed_at',
+                  header: 'Time',
+                  sortType: 'date',
+                  sortValue: (e) => e.executed_at,
+                  render: (entry) => (
+                    <Tooltip label={new Date(entry.executed_at).toLocaleString()}>
+                      <Text size="sm">{formatDate(entry.executed_at)}</Text>
+                    </Tooltip>
+                  ),
+                },
+                {
+                  key: 'execution_type',
+                  header: 'Type',
+                  sortValue: (e) => e.execution_type,
+                  render: (entry) => (
+                    <Badge size="sm" variant="light">
+                      {entry.execution_type}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: 'name',
+                  header: 'Name',
+                  sortValue: (e) => getExecutionName(e),
+                  render: (entry) => (
+                    <Text size="sm" fw={500}>
+                      {getExecutionName(entry)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'node_name',
+                  header: 'Node/Target',
+                  sortValue: (e) => e.node_name || '',
+                  render: (entry) => (
+                    <Text size="sm" c="dimmed">
+                      {entry.node_name}
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  sortValue: (e) => e.status,
+                  render: (entry) => getStatusBadge(entry.status),
+                },
+                {
+                  key: 'duration_ms',
+                  header: 'Duration',
+                  sortType: 'number',
+                  sortValue: (e) => e.duration_ms ?? 0,
+                  render: (entry) => (
+                    <Text size="sm">{formatDuration(entry.duration_ms)}</Text>
+                  ),
+                },
+                {
+                  key: 'executed_by',
+                  header: 'User',
+                  sortValue: (e) => e.executed_by || '',
+                  render: (entry) => (
+                    <Text size="sm" c="dimmed">
+                      {entry.executed_by}
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'actions',
+                  header: 'Actions',
+                  sortable: false,
+                  render: (entry) => (
+                    <Group gap={4} onClick={(ev) => ev.stopPropagation()}>
+                      <Tooltip label="View details">
+                        <ActionIcon
+                          size="sm"
+                          variant="subtle"
+                          onClick={() => setSelectedEntry(entry)}
+                        >
+                          <IconEye size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Delete">
+                        <ActionIcon
+                          size="sm"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => handleDelete(entry.id)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  ),
+                },
+              ] as OpsColumn<ExecutionHistoryEntry>[]}
+            />
+          )}
         </Box>
       </Stack>
 

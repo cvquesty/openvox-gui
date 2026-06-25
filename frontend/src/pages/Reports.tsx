@@ -7,7 +7,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Table, Card, Loader, Center, Alert, TextInput, Stack, Group, Text, Grid,
-  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch, Tooltip,
+  Select, Badge, Collapse, ActionIcon, ScrollArea, Button, Divider, Switch, Tooltip, Box,
 } from '@mantine/core';
 import { IconSearch, IconChevronDown, IconChevronRight, IconSend, IconTrash, IconPlus, IconLink } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
@@ -18,6 +18,12 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ExportActions } from '../components/ExportActions';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { useUrlFilters } from '../hooks/useUrlFilters';
+import { OpsTable, OpsColumn } from '../components/OpsTable';
+
+type ReportNodeRow = {
+  certname: string;
+  report?: any;
+};
 
 
 /* ── REPORT-O-SCOPE 9000 — report analysis machine ──────── */
@@ -312,6 +318,8 @@ export function ReportsPage() {
   const [schedEnabled, setSchedEnabled] = useState(true);
   const [schedDay, setSchedDay] = useState(0); // 0=Mon ... 6=Sun
   const [schedTime, setSchedTime] = useState('08:00');
+  // sruiux2 P0-3 — visible server limit for reports list
+  const [reportLimit, setReportLimit] = useState(200);
 
   // Fetch hierarchy (groups and nodes)
   const { data: hierarchy, loading: hierarchyLoading } = useApi(
@@ -321,8 +329,8 @@ export function ReportsPage() {
 
   // Fetch reports
   const { data: reportList, loading: reportsLoading, error } = useApi(
-    () => reports.list({ status: statusFilter || undefined, limit: 200 }),
-    [statusFilter]
+    () => reports.list({ status: statusFilter || undefined, limit: reportLimit }),
+    [statusFilter, reportLimit]
   );
 
   const loading = hierarchyLoading || reportsLoading;
@@ -579,6 +587,15 @@ export function ReportsPage() {
             clearable
             style={{ width: 160 }}
           />
+          <Select
+            label="Fetch limit"
+            size="xs"
+            w={110}
+            data={['50', '100', '200', '500', '1000']}
+            value={String(reportLimit)}
+            onChange={(v) => setReportLimit(parseInt(v || '200', 10))}
+            allowDeselect={false}
+          />
           <TextInput
             placeholder="Search by certname..."
             leftSection={<IconSearch size={16} />}
@@ -609,6 +626,12 @@ export function ReportsPage() {
         </Group>
       </Group>
 
+      {reportList && reportList.length >= reportLimit && (
+        <Alert color="yellow" variant="light">
+          Showing up to {reportLimit} latest reports from the API (limit control above). Increase limit or filter by status for large fleets.
+        </Alert>
+      )}
+
       {/* Report-O-Scope illustration (casual only) */}
       {isRobots && (
         <Card withBorder shadow="sm" padding={0} style={{ overflow: 'hidden', background: 'linear-gradient(to bottom, #1a1b2e, #252540)' }}>
@@ -616,7 +639,7 @@ export function ReportsPage() {
         </Card>
       )}
 
-      {/* Grouped reports */}
+      {/* Grouped reports — OpsTable inside each group (sruiux2 P0-2) */}
       {groupNames.length === 0 ? (
         <Card withBorder shadow="sm">
           <Text c="dimmed" ta="center">No reports found</Text>
@@ -628,9 +651,13 @@ export function ReportsPage() {
             const { status, reports: groupReports, nodes, latestReportByNode = {} } = groupData;
             const badgeProps = getStatusBadgeProps(status);
             const isExpanded = expandedGroups[groupName] ?? false;
+            const nodeRows: ReportNodeRow[] = nodes.map((certname: string) => ({
+              certname,
+              report: latestReportByNode[certname],
+            }));
 
             return (
-              <Card key={groupName} withBorder shadow="sm">
+              <Card key={groupName} withBorder shadow="sm" style={{ overflow: 'hidden' }}>
                 <Group justify="space-between" style={{ cursor: 'pointer' }} onClick={() => toggleGroup(groupName)}>
                   <Group>
                     <ActionIcon variant="subtle" size="sm">
@@ -644,58 +671,73 @@ export function ReportsPage() {
                   </Badge>
                 </Group>
                 <Collapse in={isExpanded}>
-                  <ScrollArea mah={480} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
-                    <Table striped highlightOnHover withTableBorder>
-                          <Table.Thead>
-                            <Table.Tr>
-                              <Table.Th>Certname</Table.Th>
-                              <Table.Th>Status</Table.Th>
-                              <Table.Th>Type</Table.Th>
-                              <Table.Th>Environment</Table.Th>
-                              <Table.Th>Start Time</Table.Th>
-                              <Table.Th>OpenVox Version</Table.Th>
-                            </Table.Tr>
-                          </Table.Thead>
-                          <Table.Tbody>
-                            {nodes.length === 0 ? (
-                              <Table.Tr>
-                                <Table.Td colSpan={6}><Text c="dimmed" ta="center">No nodes for this group</Text></Table.Td>
-                              </Table.Tr>
+                  <Box mt="sm">
+                    <OpsTable<ReportNodeRow>
+                      data={nodeRows}
+                      rowKey={(r) => r.certname}
+                      defaultPageSize={50}
+                      maxHeight={420}
+                      emptyTitle="No nodes for this group"
+                      onRowClick={(r) => {
+                        if (r.report) navigate(`/reports/${r.report.hash}`);
+                        else navigate(`/nodes/${r.certname}`);
+                      }}
+                      columns={[
+                        {
+                          key: 'certname',
+                          header: 'Certname',
+                          sortValue: (r) => r.certname,
+                          render: (r) => <Text fw={500}>{r.certname}</Text>,
+                        },
+                        {
+                          key: 'status',
+                          header: 'Status',
+                          sortValue: (r) => r.report?.status || '',
+                          render: (r) =>
+                            r.report ? <StatusBadge status={r.report.status} /> : <Text c="dimmed">—</Text>,
+                        },
+                        {
+                          key: 'type',
+                          header: 'Type',
+                          sortable: false,
+                          render: (r) =>
+                            r.report ? (
+                              r.report.corrective_change ? (
+                                <Badge color="orange" variant="light" size="sm">Corrective</Badge>
+                              ) : r.report.noop ? (
+                                <Badge color="blue" variant="light" size="sm">Noop</Badge>
+                              ) : (
+                                <Badge color="gray" variant="light" size="sm">Intentional</Badge>
+                              )
                             ) : (
-                              nodes.map((certname: string) => {
-                                const report = latestReportByNode[certname];
-                                return (
-                                  <Table.Tr
-                                    key={certname}
-                                    style={{ cursor: report ? 'pointer' : 'default' }}
-                                    onClick={() => {
-                                      if (report) navigate(`/reports/${report.hash}`);
-                                      else navigate(`/nodes/${certname}`);
-                                    }}
-                                  >
-                                    <Table.Td><Text fw={500}>{certname}</Text></Table.Td>
-                                    <Table.Td>{report ? <StatusBadge status={report.status} /> : <Text c="dimmed">—</Text>}</Table.Td>
-                                    <Table.Td>
-                                      {report ? (
-                                        report.corrective_change ? (
-                                          <Badge color="orange" variant="light" size="sm">Corrective</Badge>
-                                        ) : report.noop ? (
-                                          <Badge color="blue" variant="light" size="sm">Noop</Badge>
-                                        ) : (
-                                          <Badge color="gray" variant="light" size="sm">Intentional</Badge>
-                                        )
-                                      ) : <Text c="dimmed">—</Text>}
-                                    </Table.Td>
-                                    <Table.Td>{report ? report.environment || '—' : '—'}</Table.Td>
-                                    <Table.Td>{report && report.start_time ? new Date(report.start_time).toLocaleString() : '—'}</Table.Td>
-                                    <Table.Td>{report ? report.puppet_version || '—' : '—'}</Table.Td>
-                                  </Table.Tr>
-                                );
-                              })
-                            )}
-                          </Table.Tbody>
-                        </Table>
-                  </ScrollArea>
+                              <Text c="dimmed">—</Text>
+                            ),
+                        },
+                        {
+                          key: 'environment',
+                          header: 'Environment',
+                          sortValue: (r) => r.report?.environment || '',
+                          render: (r) => (r.report ? r.report.environment || '—' : '—'),
+                        },
+                        {
+                          key: 'start_time',
+                          header: 'Start Time',
+                          sortType: 'date',
+                          sortValue: (r) => r.report?.start_time || '',
+                          render: (r) =>
+                            r.report?.start_time
+                              ? new Date(r.report.start_time).toLocaleString()
+                              : '—',
+                        },
+                        {
+                          key: 'puppet_version',
+                          header: 'OpenVox Version',
+                          sortValue: (r) => r.report?.puppet_version || '',
+                          render: (r) => (r.report ? r.report.puppet_version || '—' : '—'),
+                        },
+                      ] as OpsColumn<ReportNodeRow>[]}
+                    />
+                  </Box>
                 </Collapse>
               </Card>
             );

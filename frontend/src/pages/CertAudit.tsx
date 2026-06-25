@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Alert, Loader, Center,
   Table, Badge, Button, ActionIcon, Tooltip, Collapse, Paper,
-  Modal, Checkbox, ScrollArea,
+  Modal, Checkbox,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -20,6 +20,7 @@ import {
 import { certificates } from '../services/api';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { LoadingState, ErrorState } from '../components/StateComponents';
+import { OpsTable, OpsColumn } from '../components/OpsTable';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; description: string }> = {
   orphaned_never_reported: {
@@ -192,70 +193,114 @@ export function CertAuditPage() {
               signed but never completed a Puppet run. Cleaning removes the certificate from
               the CA, deactivates the node in PuppetDB, and removes it from the ENC.
             </Alert>
-            <ScrollArea mah={500} type="auto" offsetScrollbars scrollbarSize={6}>
-              <Table striped highlightOnHover withTableBorder>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th style={{ width: 40 }}>
-                        <Checkbox
-                          checked={selected.size === orphaned.length && orphaned.length > 0}
-                          indeterminate={selected.size > 0 && selected.size < orphaned.length}
-                          onChange={toggleSelectAll}
-                        />
-                      </Table.Th>
-                      <Table.Th>Certname</Table.Th>
-                      <Table.Th>Status</Table.Th>
-                      <Table.Th>Reason</Table.Th>
-                      <Table.Th>Fingerprint</Table.Th>
-                      <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                {orphaned.map((cert: any) => {
-                  const cfg = STATUS_CONFIG[cert.status] || { label: cert.status, color: 'gray', description: '' };
-                  return (
-                    <Table.Tr key={cert.certname}>
-                      <Table.Td>
-                        <Checkbox
-                          checked={selected.has(cert.certname)}
-                          onChange={() => toggleSelect(cert.certname)}
-                        />
-                      </Table.Td>
-                      <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                        onClick={() => navigate(`/nodes/${cert.certname}`)}>{cert.certname}</Text></Table.Td>
-                      <Table.Td>
-                        <Tooltip label={cfg.description} multiline maw={300}>
-                          <Badge color={cfg.color} variant="filled" size="sm" style={{ cursor: 'help' }}>
-                            {cfg.label}
-                          </Badge>
-                        </Tooltip>
-                      </Table.Td>
-                      <Table.Td><Text size="xs" c="dimmed">{cert.reason}</Text></Table.Td>
-                      <Table.Td><Text size="xs" ff="monospace" c="dimmed">{cert.fingerprint?.substring(0, 20)}...</Text></Table.Td>
-                      <Table.Td>
-                        <Group gap="xs" justify="flex-end">
-                          <Tooltip label="Clean this certificate">
-                            <Button size="compact-xs" color="red" variant="light"
-                              loading={cleaning[cert.certname]}
-                              onClick={() => setPendingClean(cert.certname)}
-                              leftSection={<IconTrash size={12} />}>
-                              Clean
-                            </Button>
-                          </Tooltip>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
+            <Group mb="xs" gap="sm">
+              <Checkbox
+                label="Select all on page (use OpsTable pages)"
+                checked={selected.size === orphaned.length && orphaned.length > 0}
+                indeterminate={selected.size > 0 && selected.size < orphaned.length}
+                onChange={toggleSelectAll}
+              />
+              <Text size="xs" c="dimmed">{selected.size} selected · {orphaned.length} orphaned</Text>
+            </Group>
+            <OpsTable<any>
+              data={orphaned}
+              rowKey={(c) => c.certname}
+              defaultPageSize={50}
+              maxHeight={480}
+              emptyTitle="No orphaned certificates"
+              columns={[
+                {
+                  key: 'select',
+                  header: '',
+                  sortable: false,
+                  width: 40,
+                  render: (cert) => (
+                    <Checkbox
+                      checked={selected.has(cert.certname)}
+                      onChange={() => toggleSelect(cert.certname)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ),
+                },
+                {
+                  key: 'certname',
+                  header: 'Certname',
+                  sortValue: (c) => c.certname,
+                  render: (cert) => (
+                    <Text
+                      fw={500}
+                      size="sm"
+                      c="blue"
+                      style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/nodes/${cert.certname}`);
+                      }}
+                    >
+                      {cert.certname}
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  sortValue: (c) => c.status || '',
+                  render: (cert) => {
+                    const cfg = STATUS_CONFIG[cert.status] || { label: cert.status, color: 'gray', description: '' };
+                    return (
+                      <Tooltip label={cfg.description} multiline maw={300}>
+                        <Badge color={cfg.color} variant="filled" size="sm" style={{ cursor: 'help' }}>
+                          {cfg.label}
+                        </Badge>
+                      </Tooltip>
+                    );
+                  },
+                },
+                {
+                  key: 'reason',
+                  header: 'Reason',
+                  sortValue: (c) => c.reason || '',
+                  render: (cert) => <Text size="xs" c="dimmed">{cert.reason}</Text>,
+                },
+                {
+                  key: 'fingerprint',
+                  header: 'Fingerprint',
+                  sortable: false,
+                  render: (cert) => (
+                    <Text size="xs" ff="monospace" c="dimmed">
+                      {cert.fingerprint?.substring(0, 20)}...
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'actions',
+                  header: 'Actions',
+                  sortable: false,
+                  render: (cert) => (
+                    <Group gap="xs" justify="flex-end" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip label="Clean this certificate">
+                        <Button
+                          size="compact-xs"
+                          color="red"
+                          variant="light"
+                          loading={cleaning[cert.certname]}
+                          onClick={() => setPendingClean(cert.certname)}
+                          leftSection={<IconTrash size={12} />}
+                        >
+                          Clean
+                        </Button>
+                      </Tooltip>
+                    </Group>
+                  ),
+                },
+              ] as OpsColumn<any>[]}
+            />
           </>
         )}
       </Card>
 
-      {/* Healthy Certificates (collapsible) */}
-      <Card withBorder shadow="sm" padding="md">
+      {/* Healthy Certificates (collapsible) — OpsTable */}
+      <Card withBorder shadow="sm" padding="md" style={{ overflow: 'hidden' }}>
         <Group style={{ cursor: 'pointer' }} onClick={() => setShowHealthy(!showHealthy)}>
           <ActionIcon variant="subtle" size="sm">
             {showHealthy ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
@@ -264,33 +309,67 @@ export function CertAuditPage() {
           <Text size="sm" c="dimmed">Signed certs with matching active PuppetDB nodes</Text>
         </Group>
         <Collapse in={showHealthy}>
-          <ScrollArea mah={480} mt="md" type="auto" offsetScrollbars scrollbarSize={6}>
-            <Table striped highlightOnHover withTableBorder>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Certname</Table.Th>
-                    <Table.Th>Node Status</Table.Th>
-                    <Table.Th>Last Report</Table.Th>
-                    <Table.Th>Fingerprint</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {active.map((cert: any) => (
-                <Table.Tr key={cert.certname}>
-                  <Table.Td><Text fw={500} size="sm" c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => navigate(`/nodes/${cert.certname}`)}>{cert.certname}</Text></Table.Td>
-                  <Table.Td>
-                    <Badge color={cert.latest_report_status === 'changed' ? 'blue' : cert.latest_report_status === 'failed' ? 'red' : 'green'} variant="light" size="sm">
-                      {cert.latest_report_status || 'unknown'}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td><Text size="xs" c="dimmed">{cert.report_timestamp ? new Date(cert.report_timestamp).toLocaleString() : 'Never'}</Text></Table.Td>
-                  <Table.Td><Text size="xs" ff="monospace" c="dimmed">{cert.fingerprint?.substring(0, 20)}...</Text></Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-              </Table>
-            </ScrollArea>
+          <OpsTable<any>
+            data={active}
+            rowKey={(c) => c.certname}
+            defaultPageSize={100}
+            maxHeight={420}
+            emptyTitle="No healthy certificates"
+            onRowClick={(cert) => navigate(`/nodes/${cert.certname}`)}
+            columns={[
+              {
+                key: 'certname',
+                header: 'Certname',
+                sortValue: (c) => c.certname,
+                render: (cert) => (
+                  <Text fw={500} size="sm" c="blue" style={{ textDecoration: 'underline' }}>
+                    {cert.certname}
+                  </Text>
+                ),
+              },
+              {
+                key: 'latest_report_status',
+                header: 'Node Status',
+                sortValue: (c) => c.latest_report_status || '',
+                render: (cert) => (
+                  <Badge
+                    color={
+                      cert.latest_report_status === 'changed'
+                        ? 'blue'
+                        : cert.latest_report_status === 'failed'
+                          ? 'red'
+                          : 'green'
+                    }
+                    variant="light"
+                    size="sm"
+                  >
+                    {cert.latest_report_status || 'unknown'}
+                  </Badge>
+                ),
+              },
+              {
+                key: 'report_timestamp',
+                header: 'Last Report',
+                sortType: 'date',
+                sortValue: (c) => c.report_timestamp || '',
+                render: (cert) => (
+                  <Text size="xs" c="dimmed">
+                    {cert.report_timestamp ? new Date(cert.report_timestamp).toLocaleString() : 'Never'}
+                  </Text>
+                ),
+              },
+              {
+                key: 'fingerprint',
+                header: 'Fingerprint',
+                sortable: false,
+                render: (cert) => (
+                  <Text size="xs" ff="monospace" c="dimmed">
+                    {cert.fingerprint?.substring(0, 20)}...
+                  </Text>
+                ),
+              },
+            ] as OpsColumn<any>[]}
+          />
         </Collapse>
       </Card>
 

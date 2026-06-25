@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a2] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 OpsTable rollout)
+
+### UI/UX (sruiux2 designer-2 P0 slice 2)
+- **P0-2 OpsTable adoption:** **Reports** (per-group node tables), **Inventory**, **Cert Audit** (orphaned + healthy), **ExecutionHistory** — sortable headers + client pagination.
+- **P0-3 lite:** Reports **fetch limit** selector (50–1000) drives `reports.list(?limit=)`; yellow banner when results hit the limit. Inventory large-fleet notice when &gt;200 rows.
+- Fixed **Nodes** missing `Alert` import (large-fleet warning).
+
+### Versioning
+- **3.10.04.a2** continues sruiux2 (alpha / lab only). Next: FilterBar, viz click-through, virtualization, remaining Metrics node lists.
+
 ## [3.10.04.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux2 IA + OpsTable start)
 
 ### UI/UX (sruiux2 designer-2 P0 slice 1)
@@ -17,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **P1-3 lite:** Dashboard **Power tools** card grid (PQL, Facts, Resources, Cert Audit, Hiera Lookup).
 
 ### Versioning
-- **3.10.04.a1** opens sruiux2 train (alpha / lab only). Next: OpsTable on Reports/Inventory/CertAudit, limit controls, more Insights nav polish.
+- **3.10.04.a1** opens sruiux2 train (alpha / lab only).
 
 ## [3.10.03.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — ad-hoc confirm toggle)
 
