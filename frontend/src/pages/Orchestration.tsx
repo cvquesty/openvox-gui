@@ -10,6 +10,9 @@ import {
   Paper, ThemeIcon, Box, SegmentedControl, ScrollArea, Checkbox,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { TargetSelector } from '../components/TargetSelector';
+import { OutputPane } from '../components/OutputPane';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 /* Simple Error Boundary to prevent result rendering crashes from bubbling to the page bottom */
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
@@ -93,12 +96,20 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
     }
     
     // Safe plain-text rendering for human + rainbow (ANSI stripped on backend)
-    const style = format === 'rainbow' 
-      ? { backgroundColor: '#1e1e1e' as const }
-      : {};
-    
+    // Prefer OutputPane (filter + copy) for human/rainbow tabs.
+    if (format === 'human' || format === 'rainbow') {
+      return (
+        <OutputPane
+          output={result.output}
+          error={result.error}
+          maxHeight="60vh"
+          title={format === 'rainbow' ? 'Rainbow (plain text)' : 'Human'}
+        />
+      );
+    }
+
     return (
-      <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap', ...style }}>
+      <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
         {outputText}
       </Code>
     );
@@ -126,15 +137,8 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
           </Tabs.Tab>
         </Tabs.List>
         
-        <Tabs.Panel value="human" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
-          <ScrollArea style={{ height: '100%' }}>
-            {results.human && renderOutput(results.human, 'human')}
-            {results.human?.error && (
-              <Alert color="red" mt="sm">
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.human.error}</Text>
-              </Alert>
-            )}
-          </ScrollArea>
+        <Tabs.Panel value="human" pt="sm">
+          {results.human && renderOutput(results.human, 'human')}
         </Tabs.Panel>
         
         <Tabs.Panel value="json" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
@@ -148,15 +152,8 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
           </ScrollArea>
         </Tabs.Panel>
         
-        <Tabs.Panel value="rainbow" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
-          <ScrollArea style={{ height: '100%' }}>
-            {results.rainbow && renderOutput(results.rainbow, 'rainbow')}
-            {results.rainbow?.error && (
-              <Alert color="red" mt="sm">
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.rainbow.error}</Text>
-              </Alert>
-            )}
-          </ScrollArea>
+        <Tabs.Panel value="rainbow" pt="sm">
+          {results.rainbow && renderOutput(results.rainbow, 'rainbow')}
         </Tabs.Panel>
       </Tabs>
     </Card>
@@ -379,6 +376,7 @@ function RunCommandTab() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<{ human?: any; json?: any; rainbow?: any } | null>(null);
   const [runPrivileged, setRunPrivileged] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     nodesApi.list()
@@ -390,11 +388,26 @@ function RunCommandTab() {
     enc.listGroups().then(setEncGroups).catch(() => {});
   }, []);
 
+  const targetSelectData = useMemo(
+    () => [
+      {
+        group: 'Groups',
+        items: [
+          { value: 'all', label: '🌐 All nodes' },
+          ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
+        ],
+      },
+      { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
+    ],
+    [encGroups, puppetNodes]
+  );
+
   const handleRun = async () => {
     if (!command || targets.length === 0) return;
-    setRunning(true); 
+    setConfirmOpen(false);
+    setRunning(true);
     setResults(null);
-    
+
     const payload: any = { command, targets: targets.join(','), format: 'human' };
     if (runPrivileged) payload.run_as = 'root';
 
@@ -405,7 +418,7 @@ function RunCommandTab() {
         bolt.runCommand({ ...payload, format: 'json' }),
         bolt.runCommand({ ...payload, format: 'rainbow' }),
       ]);
-      
+
       setResults({
         human: humanResult,
         json: jsonResult,
@@ -432,22 +445,17 @@ function RunCommandTab() {
         <Stack>
           <TextInput label="Command" required value={command} onChange={(e) => setCommand(e.currentTarget.value)}
             placeholder="e.g. uptime, df -h, systemctl status puppet" />
-          <MultiSelect 
-            label="Targets" 
-            required 
-            searchable 
-            clearable
-            data={[
-              { group: 'Groups', items: [
-                { value: 'all', label: '🌐 All nodes' },
-                ...encGroups.map((g) => ({ value: g.name, label: `📁 ${g.name}` })),
-              ]},
-              { group: 'Nodes', items: puppetNodes.map((n) => ({ value: n, label: n })) },
-            ]}
-            value={targets} 
+          <TargetSelector
+            data={targetSelectData}
+            value={targets}
             onChange={setTargets}
-            placeholder="Select one or more groups or nodes"
-            description="Multi-select supported: pick several groups and/or individual ad-hoc nodes. They are unioned (duplicates removed) when sent to Bolt." 
+            required
+            description="Multi-select: groups and/or individual nodes are unioned (duplicates removed) when sent to Bolt."
+            resolvedPreview={
+              targets.includes('all')
+                ? puppetNodes
+                : targets.filter((t) => puppetNodes.includes(t))
+            }
           />
 
           <Checkbox
@@ -457,12 +465,33 @@ function RunCommandTab() {
             onChange={(e) => setRunPrivileged(e.currentTarget.checked)}
           />
 
-          <Button onClick={handleRun} loading={running} disabled={!command || targets.length === 0}
-            leftSection={<IconPlayerPlay size={16} />} color="green">
+          <Button
+            onClick={() => setConfirmOpen(true)}
+            loading={running}
+            disabled={!command || targets.length === 0}
+            leftSection={<IconPlayerPlay size={16} />}
+            color="green"
+          >
             Run Command
           </Button>
         </Stack>
       </Card>
+      <ConfirmModal
+        opened={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleRun}
+        title="Confirm Bolt command"
+        body={
+          runPrivileged
+            ? `This will run as root via sudo on ${targets.length} target selection(s). Continue?`
+            : `Run this command on ${targets.length} target selection(s) as the bolt SSH user?`
+        }
+        details={[`Command: ${command}`, ...targets.slice(0, 15)]}
+        confirmLabel="Run command"
+        confirmColor="green"
+        loading={running}
+        danger={runPrivileged}
+      />
       <ErrorBoundary>
         <ResultPane results={results} />
       </ErrorBoundary>

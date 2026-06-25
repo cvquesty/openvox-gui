@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.03.a1] - 2026-06-25 (on 3.10.a_r_alpha.6 — sruiux1 UI/UX P0 foundations)
+
+### UI/UX (sruiux1 designer-1 P0 slice 1)
+- **Command palette (P0 #2):** `CommandPalette` + header keyboard affordance; **⌘K / Ctrl+K** via `useHotkeys` in `AppShell` (nav actions aligned to real routes).
+- **ConfirmModal (P0 #1 safety):** Mantine modal replaces `window.confirm` on NodeDetail **Purge** and gates **Run OpenVox**; Orchestration **Run Command** pre-flight with target summary (privileged = danger tone).
+- **TargetSelector (P0 #1):** Shared multi-select with selected/resolved count badge; wired on Orchestration Run Command.
+- **OutputPane (P0 #1/#6):** Filter lines + copy full output; used for NodeDetail agent output and Orchestration ResultPane human/rainbow tabs.
+- **StateComponents (P0 #3):** `LoadingState` / `EmptyState` / `ErrorState` / `SkeletonTable`; NodeDetail adopts loading/error/empty.
+
+### Versioning
+- **3.10.03.a1** on **3.10.a_r_alpha.6** (alpha / lab only; not `main`). First slice of sruiux1 P0; more pages (certs/installer confirms, URL filters, Insights launcher) follow in later **03.aN** tags.
+
 ## [3.10.02.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — srdev2 architecture close-out slice)
 
 ### Architecture (remaining srdev2 A1 / A2 / A3 / A6)

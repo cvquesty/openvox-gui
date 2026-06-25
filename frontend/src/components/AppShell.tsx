@@ -19,7 +19,10 @@ import {
   Tooltip,
   HoverCard,
   Stack,
+  Kbd,
 } from '@mantine/core';
+import { useHotkeys } from '@mantine/hooks';
+import { CommandPalette } from './CommandPalette';
 import {
   IconDashboard,
   IconServer,
@@ -51,6 +54,7 @@ import {
   IconStack2,
   IconListDetails,
   IconHeartbeat,
+  IconKeyboard,
 } from '@tabler/icons-react';
 import { useAuth } from '../hooks/AuthContext';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -125,6 +129,7 @@ const configNav: NavItem[] = [
 
 export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -133,6 +138,10 @@ export function AppShellLayout() {
   const [appName, setAppName] = useState('OpenVox GUI');
   // Track which nav groups are expanded (keyed by label)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useHotkeys([
+    ['mod+K', () => setPaletteOpen((v) => !v)],
+  ]);
 
   useEffect(() => {
     config.getAppName().then((data: any) => {
@@ -279,6 +288,24 @@ export function AppShellLayout() {
           </Group>
           {user && (
             <Group gap="sm">
+              <Tooltip
+                label={
+                  <Group gap={4}>
+                    <Text size="xs">Command palette</Text>
+                    <Kbd size="xs">⌘</Kbd>
+                    <Kbd size="xs">K</Kbd>
+                  </Group>
+                }
+              >
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setPaletteOpen(true)}
+                  aria-label="Open command palette"
+                >
+                  <IconKeyboard size={18} />
+                </ActionIcon>
+              </Tooltip>
               <Badge variant="outline" color="gray" size="sm">
                 <Group gap={4}>
                   <IconUser size={12} />
@@ -337,6 +364,8 @@ export function AppShellLayout() {
       <MantineAppShell.Main>
         <Outlet />
       </MantineAppShell.Main>
+
+      <CommandPalette opened={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </MantineAppShell>
   );
 }
