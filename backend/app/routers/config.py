@@ -123,8 +123,8 @@ async def get_hiera_config():
 @router.put("/hiera")
 @rate_limit_heavy()
 async def update_hiera_config(
-    request: HieraUpdateRequest,
-    _req: Request,
+    body: HieraUpdateRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
     _ = Depends(concurrency_heavy),
 ):
@@ -132,7 +132,7 @@ async def update_hiera_config(
     Rate/concurrency limited (srsysarch1 P1 dangerous writes).
     """
     try:
-        success = puppetserver_service.write_hiera_config(request.content)
+        success = puppetserver_service.write_hiera_config(body.content)
         if not success:
             raise HTTPException(status_code=500,
                                 detail="Failed to write hiera.yaml (permission denied?)")
@@ -182,14 +182,14 @@ async def get_hiera_data_file(environment: str, path: str):
 async def update_hiera_data_file(
     environment: str,
     path: str,
-    request: HieraDataFileRequest,
-    _req: Request,
+    body: HieraDataFileRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
     _ = Depends(concurrency_heavy),
 ):
     """Update a specific Hiera data file. Pass the full_path as a query param ?path=..."""
     try:
-        success = puppetserver_service.write_hiera_data_file(path, request.content)
+        success = puppetserver_service.write_hiera_data_file(path, body.content)
         if not success:
             raise HTTPException(status_code=500,
                                 detail="Failed to write data file (permission denied?)")
@@ -204,8 +204,8 @@ async def update_hiera_data_file(
 @rate_limit_heavy()
 async def create_hiera_data_file(
     environment: str,
-    request: HieraDataFileCreateRequest,
-    _req: Request,
+    body: HieraDataFileCreateRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
     _ = Depends(concurrency_heavy),
 ):
@@ -216,18 +216,18 @@ async def create_hiera_data_file(
         data_dir = Path(puppetserver_service.codedir) / "environments" / environment / "data"
         if not data_dir.exists():
             data_dir.mkdir(parents=True, exist_ok=True)
-        full_path = data_dir / request.file_path
+        full_path = data_dir / body.file_path
         # Security: ensure path is within data_dir
         if not str(full_path.resolve()).startswith(str(data_dir.resolve())):
             raise HTTPException(status_code=400, detail="Path traversal not allowed")
         if full_path.exists():
-            raise HTTPException(status_code=409, detail=f"File already exists: {request.file_path}")
+            raise HTTPException(status_code=409, detail=f"File already exists: {body.file_path}")
         # Create parent dirs
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        success = puppetserver_service.write_hiera_data_file(str(full_path), request.content or "---\n")
+        success = puppetserver_service.write_hiera_data_file(str(full_path), body.content or "---\n")
         if not success:
             raise HTTPException(status_code=500, detail="Failed to create data file")
-        return {"status": "success", "message": f"Created: {request.file_path}", "full_path": str(full_path)}
+        return {"status": "success", "message": f"Created: {body.file_path}", "full_path": str(full_path)}
     except HTTPException:
         raise
     except ValueError as e:
@@ -241,7 +241,7 @@ async def create_hiera_data_file(
 async def delete_hiera_data_file(
     environment: str,
     path: str,
-    _req: Request,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
     _ = Depends(concurrency_heavy),
 ):
@@ -296,15 +296,15 @@ async def get_services_status():
 @router.post("/services/restart")
 @rate_limit_heavy()
 async def restart_service(
-    request: ServiceActionRequest,
-    _req: Request,
+    body: ServiceActionRequest,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
     _ = Depends(concurrency_heavy),
 ):
     """Restart a Puppet service. Rate/concurrency limited (srsysarch1 P1)."""
-    if request.action != "restart":
+    if body.action != "restart":
         raise HTTPException(status_code=400, detail="Only 'restart' action is supported")
-    result = puppetserver_service.restart_service(request.service)
+    result = puppetserver_service.restart_service(body.service)
     if result["status"] == "error":
         raise HTTPException(status_code=500, detail=result["message"])
     return result
@@ -313,7 +313,7 @@ async def restart_service(
 @router.post("/services/restart-puppet-stack")
 @rate_limit_heavy()
 async def restart_puppet_stack(
-    _req: Request,
+    request: Request,
     _user: str = Depends(_ADMIN_ONLY),
     _ = Depends(concurrency_heavy),
 ):

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.0a35] - 2026-06-25 (on 3.10.a_r_alpha.6)
+
+### Hotfix: slowapi requires parameter named `request`
+- Renamed FastAPI `Request` params from `_req` to `request` and body models to `body` on rate-limited cert/config routes so the service imports cleanly (lab deploy was crash-looping).
+
 ## [3.10.0a34] - 2026-06-25 (on 3.10.a_r_alpha.6)
 
 ### srsysarch1 alpha-train final backlog (lab only)

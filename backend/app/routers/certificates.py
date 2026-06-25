@@ -177,8 +177,8 @@ class CertActionRequest(BaseModel):
 @router.post("/sign")
 @rate_limit_heavy()
 async def sign_certificate(
-    request: CertActionRequest,
-    _req: Request,
+    body: CertActionRequest,
+    request: Request,
     current_user: str = Depends(require_role("admin", "operator")),
     _ = Depends(concurrency_heavy),
 ):
@@ -189,20 +189,20 @@ async def sign_certificate(
     signing a CSR adds a node to the trusted fleet.
     Rate/concurrency limited (srsysarch1 P1).
     """
-    _validate_certname(request.certname)
-    result = await _run_ca_command(["sign", "--certname", request.certname], timeout=120)
+    _validate_certname(body.certname)
+    result = await _run_ca_command(["sign", "--certname", body.certname], timeout=120)
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
-    return {"status": "success", "message": f"Certificate signed for {request.certname}",
+    return {"status": "success", "message": f"Certificate signed for {body.certname}",
             "output": result["stdout"]}
 
 
 @router.post("/revoke")
 @rate_limit_heavy()
 async def revoke_certificate(
-    request: CertActionRequest,
-    _req: Request,
+    body: CertActionRequest,
+    request: Request,
     current_user: str = Depends(require_role("admin", "operator")),
     _ = Depends(concurrency_heavy),
 ):
@@ -213,20 +213,20 @@ async def revoke_certificate(
     revoking a cert immediately stops a node from getting catalogs.
     Rate/concurrency limited (srsysarch1 P1).
     """
-    _validate_certname(request.certname)
-    result = await _run_ca_command(["revoke", "--certname", request.certname], timeout=120)
+    _validate_certname(body.certname)
+    result = await _run_ca_command(["revoke", "--certname", body.certname], timeout=120)
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
-    return {"status": "success", "message": f"Certificate revoked for {request.certname}",
+    return {"status": "success", "message": f"Certificate revoked for {body.certname}",
             "output": result["stdout"]}
 
 
 @router.post("/clean")
 @rate_limit_heavy()
 async def clean_certificate(
-    request: CertActionRequest,
-    _req: Request,
+    body: CertActionRequest,
+    request: Request,
     current_user: str = Depends(require_role("admin", "operator")),
     _ = Depends(concurrency_heavy),
 ):
@@ -244,27 +244,27 @@ async def clean_certificate(
     from ..services.enc import enc_service
     from ..database import get_db as _get_db
 
-    _validate_certname(request.certname)
-    result = await _run_ca_command(["clean", "--certname", request.certname], timeout=120)
+    _validate_certname(body.certname)
+    result = await _run_ca_command(["clean", "--certname", body.certname], timeout=120)
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=result["stderr"])
 
     # Deactivate from PuppetDB
-    pdb_deactivated = await puppetdb_service.deactivate_node(request.certname)
+    pdb_deactivated = await puppetdb_service.deactivate_node(body.certname)
 
     # Remove from ENC SQLite
     enc_removed = False
     try:
         from ..database import async_session
         async with async_session() as db:
-            enc_removed = await enc_service.delete_node(db, request.certname)
+            enc_removed = await enc_service.delete_node(db, body.certname)
             if enc_removed:
                 await db.commit()
     except Exception as e:
-        logger.warning(f"Could not remove '{request.certname}' from ENC: {e}")
+        logger.warning(f"Could not remove '{body.certname}' from ENC: {e}")
 
-    parts = [f"Certificate cleaned for {request.certname}"]
+    parts = [f"Certificate cleaned for {body.certname}"]
     if pdb_deactivated:
         parts.append("deactivated from PuppetDB")
     if enc_removed:
