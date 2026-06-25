@@ -9,12 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.04.a5] - 2026-06-25 (on 3.10.a_r_alpha.6 — multi-GRAPH monitoring wallboard)
+
+### UI/UX (sruiux2 — real charts, not KPI tiles)
+- **Monitoring** rewritten as a **scrollable multi-graph wallboard**: MultiSelect chooses **Recharts graphs** (25+ catalog entries) from Fleet status trends, Compliance trend/dist, full **Run Performance** series (run duration, phases, top-10, PDB command/storage/pool/HTTP/dedup/GC/population), **OpenVox Server** (heap, routes, GC, CPU, FDs), **OpenVoxDB** (heap, queue, catalog_save, report_process).
+- Same data sources + client history keys as the dedicated Insights pages; **click graph to expand** full width; external link opens full page. Auto-refresh accumulates JMX histories while the wallboard is open.
+- Preferences key **`openvox-gui-monitor-graphs-v2`** (replaces tile-only v1).
+
+### Versioning
+- **3.10.04.a5** continues sruiux2 (alpha / lab only).
+
 ## [3.10.04.a4] - 2026-06-25 (on 3.10.a_r_alpha.6 — configurable NOC Monitoring dash)
 
 ### UI/UX (sruiux2 — monitoring single pane)
-- **Monitoring dashboard** (`/insights`, alias `/insights/monitor`): NOC-style single pane of glass with **configurable panels** (MultiSelect + localStorage). Defaults: node status ring + trends, compliance dist/trend, failed nodes, node health snapshot, OpenVox Server / OpenVoxDB health gauges. Optional environments chart.
-- **Auto-refresh** (15s–5m) + manual refresh; each panel has **open full view** deep link.
-- **Insights catalog** moved to **`/insights/all`** (card launcher for full metric pages). Nav: **Monitoring** first, **Insights catalog** second. Command palette entries updated.
+- First Monitoring pass (later superseded by a5 graph wallboard). Insights catalog at `/insights/all`.
 
 ### Versioning
 - **3.10.04.a4** continues sruiux2 (alpha / lab only).
