@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2-2] - 2026-06-26 (nav: section headers selectable + highlighted)
+
+### Fixed
+- **Insights (and other) section headers:** Parent rows were expand-only and never `active`, so after opening a submenu you could not “select” or highlight **Insights**. Section headers now **highlight when any child is current** and **click navigates to the section landing page** (first child — Monitoring `/insights` under Insights) while staying expanded.
+
 ## [3.10.2-1] - 2026-06-26 (bugfix release on 3.10.2)
 
 ### Release

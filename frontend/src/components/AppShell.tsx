@@ -327,11 +327,14 @@ export function AppShellLayout() {
 
     // Stay open for the active section (or user preference from localStorage)
     const isOpen = openGroups[label] ?? groupHasActive;
+    // Parent row is a normal section header: highlight when any child route is current
+    // (not a separate route — children remain the real pages)
+    const parentActive = groupHasActive;
 
     const handleParentClick = () => {
-      // Expand only — do not toggle closed while working in this section's sub-pages
       setOpenGroups((prev) => ({ ...prev, [label]: true }));
-      if (!groupHasActive && items.length > 0) {
+      // Always navigate to the section landing page (first child) so the header is selectable
+      if (items.length > 0) {
         navigate(items[0].path);
       }
       setOpened(false);
@@ -343,6 +346,7 @@ export function AppShellLayout() {
         leftSection={<GroupIcon size={18} color={iconColor} />}
         childrenOffset={24}
         opened={isOpen}
+        active={parentActive}
         onChange={(o) => {
           // Block collapse while a child of this group is the current page
           if (!o && groupHasActive) {
