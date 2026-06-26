@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.10.2+bugfix5**
+**OpenVox GUI Version 3.10.2+bugfix6**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -127,7 +127,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.10.2+bugfix5"}
+   # Should return: {"status":"ok","version":"3.10.2+bugfix6"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -666,6 +666,107 @@ sudo systemctl status puppet   # or puppet.service / openvox-agent — name vari
 Retry Orchestration after the lock clears. Prefer **Nodes → Run OpenVox** per node if you need serial runs.
 
 **Fixed/improved in 3.10.2+bugfix** (GitHub **v3.10.2-bugfix**): GUI-normalized `puppet agent` commands include **`--waitforlock 300`**, longer Bolt timeout for agent runs, clearer lock hints in stderr, and success semantics for exit **0/2**. (Briefly labeled **3.10.3** on one commit; prefer this bugfix line.)
+
+---
+
+### Problem: Executive Summary Report “sends” but email never arrives (mailq empty)
+
+**Symptom:** You configured Postfix on the OpenVox GUI host. From the GUI you add a recipient and click **Send**. The UI reports success / queued. `mailq` is **empty**. The message **never** shows up in Gmail (or other external inbox). Local tests with `mail` “work” in the sense that the command exits 0.
+
+**How the GUI sends mail (important):**
+
+1. Backend runs `scripts/generate_fleet_health_report.py --live --email …` (optional `--from-email`).
+2. That script builds a PDF, then invokes **`mail` / `mailx`** with `-a` attachment — **not** Python SMTP, **not** Postfix’s HTTP API.
+3. `mail` only hands the message to the **local MTA (Postfix)**. Exit code **0** means “Postfix accepted it,” **not** “Gmail delivered it.”
+4. The GUI updates `last_sent_at` when the job is **queued**, even before delivery is proven.
+
+So an empty `mailq` is **consistent with both**:
+
+- Fast **failure** (bounce / deferral expired / removed), or  
+- Fast **local** delivery (wrong domain treated as local), or  
+- Message already **left** the queue toward a remote MX that then timed out and was later discarded.
+
+**What we saw on a typical lab host (`openvox.questy.org`):**
+
+| Check | Result | Meaning |
+|--------|--------|--------|
+| `postfix` active, `inet_interfaces=all`, `myorigin=$mydomain` | OK | MTA is up |
+| Outbound **TCP/25** to `gmail-smtp-in.l.google.com` | **Timeout / fail** | ISP or firewall **blocks client SMTP on 25** (very common on residential / many cloud defaults) |
+| Historical `maillog` to Gmail | `status=deferred` … `Connection timed out` on port 25 | Remote delivery never completes |
+| Mail to `user@questy.org` with `mydestination` including `$mydomain` | **Local** delivery; unknown local user → **bounce** | Not the same as sending to Gmail |
+| GUI `config/.env` | No SMTP relay settings | GUI does not implement its own SMTP; Postfix must be able to **relay** |
+
+**Root cause (most likely for “never arrives at Gmail”):** Postfix tries **direct MX delivery on port 25**. That path is **blocked**, so external recipients never get mail. The GUI still “succeeds” because submission to Postfix succeeded.
+
+**Secondary causes to rule out:**
+
+1. **From: address** — set **From email** in Executive Summary config to a real address your domain is allowed to send as (SPF/DKIM). Spoofed From increases spam rejection **after** Postfix sends successfully (won’t show in mailq).
+2. **Recipient is `@your-local-domain`** — Postfix may deliver **locally** (`relay=local`) instead of to Google Workspace MX if `mydestination` includes that domain.
+3. **Service user** — generator runs as the GUI process user (`puppet`); ensure that user can run `mail`/`mailx` and read the PDF path (usually fine if Postfix is local).
+
+**Fix patterns (pick one):**
+
+**A. Smarthost / relay on submission (recommended for lab + most sites)**
+
+Send through your provider’s authenticated SMTP (Gmail, Microsoft 365, SendGrid, SES, company relay) on **587** (STARTTLS) or **465** (SMTPS) — **not** port 25 to the public MX:
+
+```bash
+# Example shape only — use your real provider host/user; protect passwords in sasl_passwd (mode 0600)
+sudo postconf -e 'relayhost = [smtp.gmail.com]:587'
+sudo postconf -e 'smtp_sasl_auth_enable = yes'
+sudo postconf -e 'smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd'
+sudo postconf -e 'smtp_sasl_security_options = noanonymous'
+sudo postconf -e 'smtp_tls_security_level = encrypt'
+# /etc/postfix/sasl_passwd:
+# [smtp.gmail.com]:587    you@gmail.com:app-password
+sudo postmap /etc/postfix/sasl_passwd
+sudo chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+sudo systemctl reload postfix
+```
+
+Gmail requires an **App Password** (or OAuth relay), not your normal login, when 2FA is on.
+
+**B. Corporate internal relay**
+
+```bash
+sudo postconf -e 'relayhost = [smtp.corp.example.com]:25'   # or 587 with SASL as above
+# Ensure mynetworks allows the GUI host; often already on LAN
+sudo systemctl reload postfix
+```
+
+**C. Allow outbound TCP/25** (rarely possible on home ISPs)
+
+If policy allows, open **egress TCP/25** from the GUI host and ensure PTR/SPF/DKIM for the sending IP. Still prefer a smarthost for reputation.
+
+**Verify after changing Postfix:**
+
+```bash
+# Hand-test the same path the GUI uses
+echo "test body" | mail -s "openvox-gui MTA test" -r 'reports@yourdomain' you@gmail.com
+# or with attachment like the report script:
+# mail -r '…' -s '…' -a /tmp/some.pdf you@gmail.com < /dev/null
+
+mailq
+sudo tail -50 /var/log/maillog          # RHEL/Rocky
+# or: sudo journalctl -u postfix -n 50
+
+# GUI path end-to-end (as service user if possible)
+sudo -u puppet /opt/openvox-gui/venv/bin/python \
+  /opt/openvox-gui/scripts/generate_fleet_health_report.py --live \
+  --email you@gmail.com --from-email reports@yourdomain
+sudo journalctl -u openvox-gui -n 40 --no-pager | grep -i executive
+```
+
+You want `status=sent` with a **real remote relay** (e.g. `relay=smtp.gmail.com[…]:587`), not endless `connect to …:25: Connection timed out`.
+
+**GUI checklist:**
+
+1. Recipients under Executive Summary are the real external addresses (not only `@questy.org` unless that domain’s MX is external **and** not in `mydestination`).
+2. **From email** set to an address aligned with SPF for the **relay** you use.
+3. After **Send**, read `journalctl -u openvox-gui` for generator stdout (`handed to local MTA` vs `mail/mailx rc=`).
+4. Do **not** assume empty `mailq` means success at Gmail — confirm with maillog `status=sent` and the inbox (and spam folder).
+
+**Code note:** OpenVox GUI does not embed Postfix “configuration” beyond optional From + recipients; “I configured Postfix” must include a **working egress path** (relay or open port 25 + good reputation). The GUI cannot fix a blocked port 25 by itself.
 
 ---
 

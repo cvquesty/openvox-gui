@@ -771,25 +771,46 @@ def main():
     out = os.path.expanduser(args.output)
     build_pdf(raw, out, source_label=src)
 
-    # Email support (designed to be invoked directly on prod server node)
+    # Email support (designed to be invoked directly on prod server node).
+    # Uses local MTA (Postfix) via mail/mailx — NOT direct SMTP from Python.
+    # Success here only means the MTA accepted the message; remote delivery can
+    # still fail (port 25 blocked, no relayhost, SPF/DMARC, bad From:). Check
+    # mailq / maillog / journalctl -u postfix after sends that "succeed" in GUI.
     if emails and os.path.exists(out):
         subject = f"OpenVox Fleet Health Report - {datetime.now().strftime('%Y-%m-%d')}"
-        body = f"See attached one-page Fleet Health PDF.\n\nGenerated directly on the OpenVox server.\nSource: {src}\n\n(This report was generated automatically every Monday at 08:00 America/New_York.)"
+        body = (
+            f"See attached one-page Fleet Health PDF.\n\n"
+            f"Generated on the OpenVox GUI host.\nSource: {src}\n"
+        )
         try:
             import subprocess
-            # Use -r for From: if provided (supported by many mail/mailx impls)
+            # Prefer mailx/mail with explicit From when set (strict environments)
             if from_email:
                 cmd = ["mail", "-r", from_email, "-s", subject, "-a", out] + emails
             else:
                 cmd = ["mail", "-s", subject, "-a", out] + emails
-            res = subprocess.run(cmd, input=body.encode(), capture_output=True, timeout=20)
+            res = subprocess.run(cmd, input=body.encode(), capture_output=True, timeout=60)
             if res.returncode != 0:
                 if from_email:
                     cmd2 = ["mailx", "-r", from_email, "-s", subject, "-a", out] + emails
                 else:
                     cmd2 = ["mailx", "-s", subject, "-a", out] + emails
-                res = subprocess.run(cmd2, input=body.encode(), capture_output=True, timeout=20)
-            print(f"[ok] Report emailed to {', '.join(emails)}" if res.returncode == 0 else f"[warn] mail/mailx rc={res.returncode}. PDF ready: {out}")
+                res = subprocess.run(cmd2, input=body.encode(), capture_output=True, timeout=60)
+            err_txt = (res.stderr or b"").decode(errors="replace").strip()
+            out_txt = (res.stdout or b"").decode(errors="replace").strip()
+            if res.returncode == 0:
+                print(
+                    f"[ok] Report handed to local MTA for {', '.join(emails)}"
+                    + (f" (From: {from_email})" if from_email else "")
+                    + f". PDF also at {out}. "
+                    "If recipients never receive mail, inspect Postfix (mailq, maillog) — "
+                    "outbound port 25 is often blocked without a smarthost/relay on 587/465."
+                )
+            else:
+                print(
+                    f"[warn] mail/mailx rc={res.returncode}. PDF ready: {out}. "
+                    f"stderr={err_txt[:800]!r} stdout={out_txt[:400]!r}"
+                )
         except Exception as ee:
             print(f"[warn] Email error: {ee}. PDF at {out}")
 

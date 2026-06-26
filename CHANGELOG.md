@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix6] - 2026-06-26 (Executive Summary email delivery diagnostics)
+
+### Fixed / Docs
+- **Executive Summary email never arrives but mailq empty:** Documented that GUI uses `mail`/`mailx` → local Postfix only; success ≠ remote delivery. Lab evidence: outbound **TCP/25** to Gmail MX times out. TROUBLESHOOTING: smarthost on 587/465, From/SPF, local vs remote domain. Generator logs MTA handoff caveat; send API message warns operators; richer openvox-gui journal logging of generator stdout/stderr.
+
 ## [3.10.2+bugfix5] - 2026-06-26 (sidebar stays expanded on sub-pages)
 
 ### Fixed

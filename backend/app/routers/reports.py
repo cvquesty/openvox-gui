@@ -563,17 +563,29 @@ async def send_executive_report(
                 text=True,
                 timeout=120,
             )
-            logger.info(f"Ad-hoc executive report sent to {emails_list}. rc={result.returncode}")
+            logger.info(
+                "Ad-hoc executive report generator finished for %s rc=%s from=%s",
+                emails_list,
+                result.returncode,
+                from_email,
+            )
             if result.stdout:
-                logger.info(result.stdout[-500:])
+                # Full tail — includes MTA handoff notes / mail errors from the script
+                logger.info("executive report stdout (tail): %s", result.stdout[-2000:])
             if result.stderr:
-                logger.warning(result.stderr[-500:])
+                logger.warning("executive report stderr (tail): %s", result.stderr[-2000:])
+            if result.returncode != 0:
+                logger.error(
+                    "Executive report generator failed (rc=%s). PDF may exist under /tmp; "
+                    "mail was likely not accepted by the MTA.",
+                    result.returncode,
+                )
         except Exception as exc:
             logger.exception(f"Failed to send ad-hoc executive report: {exc}")
 
     background_tasks.add_task(_run_generator, emails, effective_from)
 
-    # Update last_sent_at for the affected recipients (best effort)
+    # Update last_sent_at for the affected recipients (best effort — means "send attempted")
     now = datetime.now(timezone.utc)
     for email in emails:
         rec_result = await db.execute(
@@ -587,7 +599,14 @@ async def send_executive_report(
     return {
         "status": "queued",
         "emails": emails,
-        "message": "Report generation and delivery started in background.",
+        "from_email": effective_from,
+        "message": (
+            "Report generation and local MTA handoff started in the background. "
+            "GUI success only means Postfix (or mail/mailx) accepted the message — "
+            "not that Gmail/etc. received it. If mail never arrives: check mailq, "
+            "journalctl -u postfix /var/log/maillog, outbound TCP/25, and relayhost "
+            "(submission 587/465). See TROUBLESHOOTING.md (Executive Summary email)."
+        ),
     }
 
 
