@@ -18,7 +18,7 @@ Maintenance release on **3.10.2** — **not** a feature train. Collects fixes va
 - **Sidebar:** section for the current page **stays expanded** so you always see context on sub-pages.
 - **PQL Console:** long result values **scroll horizontally** instead of truncating.
 - **Inventory export:** multi-column filter works; **Export CSV** (and copy) use the selected columns — main download is no longer “always full table only.”
-- **Executive Summary mail:** clearer ops guidance when Postfix accepts mail but remote delivery fails (empty `mailq`, blocked :25 / Starlink, smarthost or own relay on :587).
+- **Executive Summary mail:** clearer ops guidance when the local MTA accepts mail but remote delivery fails (empty `mailq`, direct MX vs authenticated submission / operator relay).
 
 ## Upgrade
 

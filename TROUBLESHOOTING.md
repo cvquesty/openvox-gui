@@ -686,111 +686,88 @@ So an empty `mailq` is **consistent with both**:
 - Fast **local** delivery (wrong domain treated as local), or  
 - Message already **left** the queue toward a remote MX that then timed out and was later discarded.
 
-**What we measured on the lab host (`openvox.questy.org` / `10.0.100.225`) when “direct send should work”:**
+**Typical causes when “Postfix is configured” but remote mail never arrives:**
 
-| Check | Result | Meaning |
-|--------|--------|--------|
-| `postfix` active, **no `relayhost`** | OK | Intended **direct-to-MX** on port **25** |
-| Host **nftables** `default_out` | **`accept`** (OUTPUT not a port allowlist) | **Not** blocked on the GUI host itself |
-| `tcpdump` while `nc` to Gmail MX:25 | **SYN leaves** `10.0.100.225 → <google>:25`, **no SYN-ACK** | Packets exit the NIC; **nothing answers** — drop/filter is **upstream** (LAN gateway `10.0.100.1` and/or **ISP** on public IP, e.g. `153.66.103.71`) |
-| Historical `maillog` | `connect to …gmail…:25: Connection timed out` → `deferred` | Postfix is doing direct send; path never completes |
-| Mail to `user@questy.org` with `mydestination` including `$mydomain` | **Local** delivery; unknown user → **bounce** | Not the same as sending to Gmail |
-| GUI | `mail`/`mailx` only | Success = local MTA accepted the message |
+| Check | What it tells you |
+|--------|-------------------|
+| `postfix` active, no or wrong `relayhost` | Direct-to-MX uses **TCP/25** to the recipient’s MX |
+| Host firewall allows egress | Problem may still be **upstream** of the GUI host |
+| `tcpdump` / `nc` to a public MX on port **25** | **SYN with no SYN-ACK** ⇒ path blocked before SMTP speaks (network policy, not the GUI) |
+| `maillog`: `Connection timed out` on **:25** | Direct delivery never completes |
+| Recipient domain is also in `mydestination` | Postfix may deliver **locally** instead of to an external MX |
+| GUI / `mail` exit 0 | Only proves **local MTA accepted** the message |
 
-**Root cause on this lab (direct send *intended* but not completing):** Outbound **SMTP to the public Internet on TCP/25 is filtered between the host and the MX** (router egress policy and/or ISP “consumer SMTP block”). That is **outside** OpenVox GUI and usually **outside** Postfix config when `relayhost` is empty. The GUI still “succeeds” because submission to Postfix succeeded.
-
-**Lab WAN identity:** public IP for `openvox.questy.org` resolved as **Starlink** (`customer.…isp.starlink.com`). Starlink (and most residential/satellite links) **does not allow customer-originated port 25 to the Internet**, so **direct MX delivery cannot work** on that path no matter how Postfix is tuned—there is no relayhost *and* no usable direct SMTP egress. Options: send from a host/VPS with open 25 + proper PTR/SPF, or use provider submission (**587/465**) as the only practical “it actually arrives” path on Starlink.
-
-**If you believe direct should work**, verify the **path**, not only Postfix:
+**If you intend direct MX delivery**, confirm the **path** (not only Postfix application config):
 
 ```bash
-# 1) SYNs leave the host? (run as root)
+# SYNs leave the host? (run with sufficient privileges)
 sudo tcpdump -ni any 'tcp port 25' -c 5 &
-nc -4 -vz gmail-smtp-in.l.google.com 25
-# Expect: SYN from your LAN IP. If you never see SYN-ACK, problem is not the GUI.
+nc -4 -vz mx.example.com 25
+# If you see SYN but no handshake, the GUI is not the fault.
 
-# 2) Gateway / ISP
-# - On the LAN router (10.0.100.1): allow LAN → WAN TCP/25 (and related ESTABLISHED).
-# - Many residential ISPs silently drop customer :25 egress even if the router allows it.
-#   Ask ISP for “outbound SMTP” / static business class, or test from a VPS with open 25.
-
-# 3) Prefer IPv4 for MX (optional; avoids blackholed IPv6 delaying delivery)
+# Optional: prefer IPv4 for MX lookups
 sudo postconf -e 'inet_protocols = ipv4'
 sudo postconf -e 'smtp_address_preference = ipv4'
 sudo systemctl reload postfix
 ```
 
-**Only if you cannot open egress 25** (policy or ISP): use a **smarthost on 587/465** (see below). That is not “GUI misconfiguration”; it is the usual workaround when direct MX is blocked on the WAN.
+**If egress TCP/25 is blocked or unreliable** (common on many networks): use a **smarthost on 587/465** (authenticated submission) or another MTA you control that *can* deliver. That is an **MTA/network** concern; OpenVox GUI only hands mail to the local MTA.
 
-**Secondary causes to rule out:**
+**Secondary causes:**
 
-1. **From: address** — set **From email** in Executive Summary config to a real address your domain is allowed to send as (SPF/DKIM). Spoofed From increases spam rejection **after** Postfix sends successfully (won’t show in mailq).
-2. **Recipient is `@your-local-domain`** — Postfix may deliver **locally** (`relay=local`) instead of to Google Workspace MX if `mydestination` includes that domain.
-3. **Service user** — generator runs as the GUI process user (`puppet`); ensure that user can run `mail`/`mailx` and read the PDF path (usually fine if Postfix is local).
+1. **From: address** — set **From email** in Executive Summary to an address allowed by SPF/DKIM for your sending path.
+2. **Local domain collision** — recipient domain listed in `mydestination` may force local delivery.
+3. **Service user** — generator runs as the GUI service user; that account must be able to run `mail`/`mailx`.
 
-**Fix patterns (pick one):**
+**Fix patterns (operator MTA — examples only):**
 
-**A. Smarthost / relay on submission (recommended for lab + most sites)**
-
-Send through your provider’s authenticated SMTP (Gmail, Microsoft 365, SendGrid, SES, company relay) on **587** (STARTTLS) or **465** (SMTPS) — **not** port 25 to the public MX:
+**A. Authenticated smarthost (submission)**
 
 ```bash
-# Example shape only — use your real provider host/user; protect passwords in sasl_passwd (mode 0600)
-sudo postconf -e 'relayhost = [smtp.gmail.com]:587'
+# Replace host/user with your provider; protect secrets (mode 0600)
+sudo postconf -e 'relayhost = [smtp.example.com]:587'
 sudo postconf -e 'smtp_sasl_auth_enable = yes'
 sudo postconf -e 'smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd'
 sudo postconf -e 'smtp_sasl_security_options = noanonymous'
 sudo postconf -e 'smtp_tls_security_level = encrypt'
 # /etc/postfix/sasl_passwd:
-# [smtp.gmail.com]:587    you@gmail.com:app-password
+# [smtp.example.com]:587    user@example.com:secret
 sudo postmap /etc/postfix/sasl_passwd
 sudo chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
 sudo systemctl reload postfix
 ```
 
-Gmail requires an **App Password** (or OAuth relay), not your normal login, when 2FA is on.
-
-**B. Corporate internal relay**
+**B. Internal mail relay you operate**
 
 ```bash
-sudo postconf -e 'relayhost = [smtp.corp.example.com]:25'   # or 587 with SASL as above
-# Ensure mynetworks allows the GUI host; often already on LAN
+sudo postconf -e 'relayhost = [mail.example.com]:587'   # or :25 if your network allows
+# Trust GUI host via mynetworks and/or SMTP AUTH on the relay
 sudo systemctl reload postfix
 ```
 
-**C. Allow outbound TCP/25** (rarely possible on home ISPs)
+**C. Direct MX**
 
-If policy allows, open **egress TCP/25** from the GUI host and ensure PTR/SPF/DKIM for the sending IP. Still prefer a smarthost for reputation.
+Only where **outbound TCP/25** to the public Internet works end-to-end and sending IP reputation/SPF/DKIM are correct.
 
-**Verify after changing Postfix:**
+**Verify:**
 
 ```bash
-# Hand-test the same path the GUI uses
-echo "test body" | mail -s "openvox-gui MTA test" -r 'reports@yourdomain' you@gmail.com
-# or with attachment like the report script:
-# mail -r '…' -s '…' -a /tmp/some.pdf you@gmail.com < /dev/null
-
+echo "test body" | mail -s "openvox-gui MTA test" -r 'reports@example.com' you@example.com
 mailq
-sudo tail -50 /var/log/maillog          # RHEL/Rocky
+sudo tail -50 /var/log/maillog          # RHEL-family
 # or: sudo journalctl -u postfix -n 50
 
-# GUI path end-to-end (as service user if possible)
 sudo -u puppet /opt/openvox-gui/venv/bin/python \
   /opt/openvox-gui/scripts/generate_fleet_health_report.py --live \
-  --email you@gmail.com --from-email reports@yourdomain
+  --email you@example.com --from-email reports@example.com
 sudo journalctl -u openvox-gui -n 40 --no-pager | grep -i executive
 ```
 
-You want `status=sent` with a **real remote relay** (e.g. `relay=smtp.gmail.com[…]:587`), not endless `connect to …:25: Connection timed out`.
+Prefer `status=sent` via your intended **relay or MX**, not repeated `connect …:25: Connection timed out`.
 
-**GUI checklist:**
+**GUI checklist:** real external recipients; **From** aligned with the sending path; after **Send**, check `journalctl -u openvox-gui` and MTA logs—not only an empty `mailq`.
 
-1. Recipients under Executive Summary are the real external addresses (not only `@questy.org` unless that domain’s MX is external **and** not in `mydestination`).
-2. **From email** set to an address aligned with SPF for the **relay** you use.
-3. After **Send**, read `journalctl -u openvox-gui` for generator stdout (`handed to local MTA` vs `mail/mailx rc=`).
-4. Do **not** assume empty `mailq` means success at Gmail — confirm with maillog `status=sent` and the inbox (and spam folder).
-
-**Code note:** OpenVox GUI does not embed Postfix “configuration” beyond optional From + recipients; “I configured Postfix” must include a **working egress path** (relay or open port 25 + good reputation). The GUI cannot fix a blocked port 25 by itself.
+**Code note:** OpenVox GUI does not ship site-specific MTA credentials; operators configure Postfix (or another MTA) on the host. The GUI cannot fix a blocked outbound SMTP path by itself.
 
 ---
 

@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | **Insights \| PQL** | Results **Value** truncated, no horizontal scroll | ScrollArea + nowrap full cells |
 | **Insights \| Inventory** | Export column picker single-select only | Checkbox multi-select |
 | **Insights \| Inventory** | Filter didn’t export; main download = full table | **Export CSV** / copy in panel; toolbar CSV honors selection |
-| **Executive Summary email** | “Sent” but never arrived; empty `mailq` | Documented MTA vs remote delivery; Starlink/:25; smarthost / own relay guidance (ops on host, not GUI SMTP) |
+| **Executive Summary email** | “Sent” but never arrived; empty `mailq` | Documented MTA accept vs remote delivery; direct MX vs submission smarthost / operator-owned relay (ops on host, not GUI SMTP) |
 
 ### Prior interim labels (superseded by **3.10.2-1**)
 `3.10.2+bugfix` … `3.10.2+bugfix9`, brief `3.10.3`, `3.10.2+tabs1` (renamed), `3.10.2+bugfix` PEP440 local train.
