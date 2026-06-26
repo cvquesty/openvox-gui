@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.10.2+bugfix6**
+**OpenVox GUI Version 3.10.2+bugfix7**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -127,7 +127,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.10.2+bugfix6"}
+   # Should return: {"status":"ok","version":"3.10.2+bugfix7"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -686,17 +686,41 @@ So an empty `mailq` is **consistent with both**:
 - Fast **local** delivery (wrong domain treated as local), or  
 - Message already **left** the queue toward a remote MX that then timed out and was later discarded.
 
-**What we saw on a typical lab host (`openvox.questy.org`):**
+**What we measured on the lab host (`openvox.questy.org` / `10.0.100.225`) when “direct send should work”:**
 
 | Check | Result | Meaning |
 |--------|--------|--------|
-| `postfix` active, `inet_interfaces=all`, `myorigin=$mydomain` | OK | MTA is up |
-| Outbound **TCP/25** to `gmail-smtp-in.l.google.com` | **Timeout / fail** | ISP or firewall **blocks client SMTP on 25** (very common on residential / many cloud defaults) |
-| Historical `maillog` to Gmail | `status=deferred` … `Connection timed out` on port 25 | Remote delivery never completes |
-| Mail to `user@questy.org` with `mydestination` including `$mydomain` | **Local** delivery; unknown local user → **bounce** | Not the same as sending to Gmail |
-| GUI `config/.env` | No SMTP relay settings | GUI does not implement its own SMTP; Postfix must be able to **relay** |
+| `postfix` active, **no `relayhost`** | OK | Intended **direct-to-MX** on port **25** |
+| Host **nftables** `default_out` | **`accept`** (OUTPUT not a port allowlist) | **Not** blocked on the GUI host itself |
+| `tcpdump` while `nc` to Gmail MX:25 | **SYN leaves** `10.0.100.225 → <google>:25`, **no SYN-ACK** | Packets exit the NIC; **nothing answers** — drop/filter is **upstream** (LAN gateway `10.0.100.1` and/or **ISP** on public IP, e.g. `153.66.103.71`) |
+| Historical `maillog` | `connect to …gmail…:25: Connection timed out` → `deferred` | Postfix is doing direct send; path never completes |
+| Mail to `user@questy.org` with `mydestination` including `$mydomain` | **Local** delivery; unknown user → **bounce** | Not the same as sending to Gmail |
+| GUI | `mail`/`mailx` only | Success = local MTA accepted the message |
 
-**Root cause (most likely for “never arrives at Gmail”):** Postfix tries **direct MX delivery on port 25**. That path is **blocked**, so external recipients never get mail. The GUI still “succeeds” because submission to Postfix succeeded.
+**Root cause on this lab (direct send *intended* but not completing):** Outbound **SMTP to the public Internet on TCP/25 is filtered between the host and the MX** (router egress policy and/or ISP “consumer SMTP block”). That is **outside** OpenVox GUI and usually **outside** Postfix config when `relayhost` is empty. The GUI still “succeeds” because submission to Postfix succeeded.
+
+**Lab WAN identity:** public IP for `openvox.questy.org` resolved as **Starlink** (`customer.…isp.starlink.com`). Starlink (and most residential/satellite links) **does not allow customer-originated port 25 to the Internet**, so **direct MX delivery cannot work** on that path no matter how Postfix is tuned—there is no relayhost *and* no usable direct SMTP egress. Options: send from a host/VPS with open 25 + proper PTR/SPF, or use provider submission (**587/465**) as the only practical “it actually arrives” path on Starlink.
+
+**If you believe direct should work**, verify the **path**, not only Postfix:
+
+```bash
+# 1) SYNs leave the host? (run as root)
+sudo tcpdump -ni any 'tcp port 25' -c 5 &
+nc -4 -vz gmail-smtp-in.l.google.com 25
+# Expect: SYN from your LAN IP. If you never see SYN-ACK, problem is not the GUI.
+
+# 2) Gateway / ISP
+# - On the LAN router (10.0.100.1): allow LAN → WAN TCP/25 (and related ESTABLISHED).
+# - Many residential ISPs silently drop customer :25 egress even if the router allows it.
+#   Ask ISP for “outbound SMTP” / static business class, or test from a VPS with open 25.
+
+# 3) Prefer IPv4 for MX (optional; avoids blackholed IPv6 delaying delivery)
+sudo postconf -e 'inet_protocols = ipv4'
+sudo postconf -e 'smtp_address_preference = ipv4'
+sudo systemctl reload postfix
+```
+
+**Only if you cannot open egress 25** (policy or ISP): use a **smarthost on 587/465** (see below). That is not “GUI misconfiguration”; it is the usual workaround when direct MX is blocked on the WAN.
 
 **Secondary causes to rule out:**
 

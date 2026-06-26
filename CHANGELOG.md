@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix7] - 2026-06-26 (Executive Summary: direct SMTP path facts)
+
+### Docs
+- Corrected lab diagnosis: host nft **does not** block SMTP egress (`default_out` accept); **SYN leaves NIC**, no SYN-ACK — filter is **upstream**. Lab WAN is **Starlink** (port **25** egress typically blocked), so **direct MX without relayhost cannot succeed** there; document gateway/ISP checks, IPv4 preference, Starlink limitation.
+
 ## [3.10.2+bugfix6] - 2026-06-26 (Executive Summary email delivery diagnostics)
 
 ### Fixed / Docs
