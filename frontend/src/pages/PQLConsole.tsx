@@ -312,25 +312,78 @@ export function PQLConsolePage() {
           </Group>
 
           {columns.length > 0 ? (
-            <ScrollArea h="calc(100vh - 350px)" mih={300} mah={800}>
-              <Table striped highlightOnHover withTableBorder>
+            <ScrollArea
+              h="calc(100vh - 350px)"
+              mih={300}
+              mah={800}
+              type="auto"
+              offsetScrollbars
+              scrollbarSize={10}
+            >
+              {/* minWidth max-content + nowrap cells: horizontal scroll for long Value/certname lines (no ellipsis truncation) */}
+              <Table
+                striped
+                highlightOnHover
+                withTableBorder
+                style={{ minWidth: 'max-content', width: '100%' }}
+              >
                 <Table.Thead>
                   <Table.Tr>
                     {columns.map((col) => (
-                      <Table.Th key={col} style={{ whiteSpace: 'nowrap' }}>{col}</Table.Th>
+                      <Table.Th
+                        key={col}
+                        style={{
+                          whiteSpace: 'nowrap',
+                          position: 'sticky',
+                          top: 0,
+                          background: 'var(--mantine-color-body)',
+                          zIndex: 1,
+                        }}
+                      >
+                        {col}
+                      </Table.Th>
                     ))}
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {results.results.map((row: any, i: number) => (
                     <Table.Tr key={i}>
-                      {columns.map((col) => (
-                        <Table.Td key={col}>
-                          <Text size="xs" style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col] ?? '')}
-                          </Text>
-                        </Table.Td>
-                      ))}
+                      {columns.map((col) => {
+                        const cell =
+                          typeof row[col] === 'object'
+                            ? JSON.stringify(row[col])
+                            : String(row[col] ?? '');
+                        return (
+                          <Table.Td
+                            key={col}
+                            style={{
+                              whiteSpace: 'nowrap',
+                              verticalAlign: 'top',
+                              maxWidth: 'none',
+                            }}
+                          >
+                            <Tooltip
+                              label={cell.length > 80 ? cell : undefined}
+                              multiline
+                              maw={480}
+                              disabled={cell.length <= 80}
+                              openDelay={400}
+                            >
+                              <Text
+                                size="xs"
+                                ff="monospace"
+                                style={{
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-block',
+                                  minWidth: 'max-content',
+                                }}
+                              >
+                                {cell}
+                              </Text>
+                            </Tooltip>
+                          </Table.Td>
+                        );
+                      })}
                     </Table.Tr>
                   ))}
                 </Table.Tbody>

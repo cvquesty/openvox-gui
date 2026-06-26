@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix3] - 2026-06-26 (PQL Console results horizontal scroll)
+
+### Fixed
+- **PQL Console Results:** Value (and other) columns no longer ellipsis-truncate at ~300px. Results table uses horizontal + vertical **ScrollArea** so long lines can be scrolled to the end; sticky headers; optional tooltip for long cells.
+
 ## [3.10.2+bugfix2] - 2026-06-26 (Human tab: strip embedded ANSI)
 
 ### Fixed
