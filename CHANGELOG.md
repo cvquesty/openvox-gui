@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2-1] - 2026-06-26 (bugfix release on 3.10.2)
+
+### Release
+- **Bugfix line on stable 3.10.2** — version **`3.10.2-1`** (PEP 440 normalizes to `3.10.2.post1` for packaging; tag **`v3.10.2-1`**). Consolidates the post-3.10.2 **`+bugfix` … `+bugfix9`** train into one shippable artifact for operators.
+- **Bill of materials:** prioritizes **remediated defects** reported while validating 3.10.2 (Orchestration, Monitoring, nav, Inventory export, PQL results, mail delivery diagnostics). Feature work from 3.10.2 proper is unchanged; this is a **maintenance / bugfix** cut.
+
+### Bugs remediated (highlights)
+
+| Area | Issue | Fix |
+|------|--------|-----|
+| **Orchestration** | One **Run Command** ran Bolt **3×** (human/json/rainbow API) | Single Bolt run; tabs are **views** ([#38](https://github.com/cvquesty/openvox-gui/issues/38), in 3.10.2 baseline + tab UX) |
+| **Orchestration** | Human/JSON/Rainbow all showed JSON / wrong semantics | Human = CLI-style from `items[]`; JSON = PrettyJson; Rainbow = safe UI colors |
+| **Orchestration** | Human tab showed `[0;32m` control junk | Strip embedded ANSI / orphan CSI from nested Bolt stdout |
+| **Orchestration** | `puppet agent -t` “failed” vs SSH; lock / exit **2** | `--waitforlock`, longer timeout, treat Puppet **0/2** as success; lock hints |
+| **Insights \| Monitoring** | Server JVM heap / catalog route / CPU lost history on refresh | Merge API ring + **localStorage** by timestamp (`ps_hist_v3` / `pdb_hist_v3`) |
+| **Insights \| Monitoring** | Series drew **below** X-axis (queue, DB heap, …) | `monotone` curves, Y domain `[0,auto]`, clip container |
+| **Left nav** | Section collapsed on sub-pages; lost context | Force-open active group; persist expand; block collapse in-section; `/insights` hub exact match |
+| **Insights \| PQL** | Results **Value** truncated, no horizontal scroll | ScrollArea + nowrap full cells |
+| **Insights \| Inventory** | Export column picker single-select only | Checkbox multi-select |
+| **Insights \| Inventory** | Filter didn’t export; main download = full table | **Export CSV** / copy in panel; toolbar CSV honors selection |
+| **Executive Summary email** | “Sent” but never arrived; empty `mailq` | Documented MTA vs remote delivery; Starlink/:25; smarthost / own relay guidance (ops on host, not GUI SMTP) |
+
+### Prior interim labels (superseded by **3.10.2-1**)
+`3.10.2+bugfix` … `3.10.2+bugfix9`, brief `3.10.3`, `3.10.2+tabs1` (renamed), `3.10.2+bugfix` PEP440 local train.
+
+### Upgrade
+```bash
+sudo /opt/openvox-gui/scripts/update_local.sh
+# or remote:
+OPENVOX_DEPLOY_HOST=<host> OPENVOX_DEPLOY_USER=<user> scripts/update_remote.sh --yes
+```
+Health / UI version should report **`3.10.2-1`**.
+
 ## [3.10.2+bugfix9] - 2026-06-26 (export panel: Export CSV honors column filter)
 
 ### Fixed
