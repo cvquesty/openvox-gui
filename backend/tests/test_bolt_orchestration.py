@@ -1,6 +1,7 @@
 """bolt_orchestration service unit tests (srdev2 A1/A4)."""
 from pathlib import Path
 import importlib.util
+import json
 
 # Load without SQLAlchemy models — import functions by exec of selected defs fails;
 # use pydantic-only model + pure functions via importlib skipping model imports is hard.
@@ -43,6 +44,7 @@ def test_normalize_puppet_agent_adds_env():
     out = normalize_command_for_gui("puppet agent -t")
     assert "/opt/puppetlabs/bin/puppet" in out
     assert "PUPPET_CONFDIR" in out
+    assert "--waitforlock" in out
     assert command_needs_root("systemctl restart foo")
     assert not command_needs_root("whoami")
     cmd, esc = apply_escalation("whoami", None)
@@ -53,3 +55,38 @@ def test_normalize_puppet_agent_adds_env():
     assert m.returncode == 0
     assert m.output == "hi"
     assert "\x1b" not in m.output
+
+    from app.services.bolt_orchestration import (
+        reinterpret_puppet_agent_bolt_result,
+        puppet_agent_run_succeeded,
+    )
+
+    # Exit 2 = changes applied → still success for GUI
+    r2 = reinterpret_puppet_agent_bolt_result(
+        {"returncode": 2, "stdout": "Notice: Applied catalog", "stderr": ""},
+        original_command="puppet agent -t",
+    )
+    assert puppet_agent_run_succeeded(r2, "puppet agent -t")
+
+    lock_json = {
+        "returncode": 1,
+        "stdout": json.dumps({
+            "items": [{
+                "target": "agent1.example.com",
+                "status": "failure",
+                "value": {
+                    "exit_code": 1,
+                    "stdout": "Notice: Run of Puppet configuration client already in progress; "
+                              "skipping  (/opt/puppetlabs/puppet/cache/state/agent_catalog_run.lock exists)",
+                    "stderr": "",
+                },
+            }],
+        }),
+        "stderr": "",
+    }
+    r_lock = reinterpret_puppet_agent_bolt_result(
+        lock_json, original_command="puppet agent -t"
+    )
+    assert "agent_catalog_run.lock" in (r_lock.get("stderr") or "") or "lock" in (
+        r_lock.get("stderr") or ""
+    ).lower()

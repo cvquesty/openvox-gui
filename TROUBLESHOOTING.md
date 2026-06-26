@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.10.2**
+**OpenVox GUI Version 3.10.3**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -127,7 +127,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.10.2"}
+   # Should return: {"status":"ok","version":"3.10.3"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -634,6 +634,38 @@ To use a real certificate, see the Configuration documentation.
 **Cause (fixed in 3.10.1.b2 / 3.10.2):** Older GUIs requested **human**, **json**, and **rainbow** Bolt formats in **parallel**, so each click executed Bolt **three times**. Not a React double-mount alone.
 
 **Fix:** Upgrade to **3.10.2** (or at least **3.10.1.b2**). After upgrade you should see **one** Network POST per confirm/click; result tabs share that single run. See [GitHub #38](https://github.com/cvquesty/openvox-gui/issues/38).
+
+### Problem: Orchestration `puppet agent -t` fails on some nodes but works over SSH
+
+**Symptom:** Infrastructure → Orchestration → Run Command with `puppet agent -t` (privileged) shows Bolt **failure** for one or more targets. SSH as yourself and `sudo puppet agent -t` works. JSON result may include:
+
+```text
+Notice: Run of Puppet configuration client already in progress; skipping
+(/opt/puppetlabs/puppet/cache/state/agent_catalog_run.lock exists)
+```
+
+with `"exit_code": 1` and `puppetlabs.tasks/command-error`. Other targets in the same run may show `"status":"success"` and a full catalog apply.
+
+**What is going on (usually not “Bolt is broken”):**
+
+1. **Lock contention** — the OpenVox **agent service** (or another GUI/cron run) is already applying a catalog on that node. Puppet refuses a second run and exits **1**. Your interactive SSH session often runs when no lock is held, so it succeeds.
+2. **Partial fleet** — Bolt runs in **parallel** across targets. One locked node fails; others succeed. The overall Bolt return code is non-zero if **any** target fails, so the GUI can look “all red” even when two of three nodes applied fine. Read the **items** array (JSON tab), not only the top-level failure styling.
+3. **Exit code 2** — a full apply **with changes** exits **2**. That is success for Puppet; older GUI/history paths treated only `0` as success. **3.10.3+** treats Puppet agent **0** and **2** as success and adds `--waitforlock` on GUI agent runs.
+
+**What to do now (lab / any version):**
+
+```bash
+# On the failing agent — is a run in progress or a stale lock?
+sudo ls -la /opt/puppetlabs/puppet/cache/state/agent_catalog_run.lock
+sudo systemctl status puppet   # or puppet.service / openvox-agent — name varies
+
+# Wait for the daemon, or if you are sure no agent is running (stale lock only):
+# sudo rm -f /opt/puppetlabs/puppet/cache/state/agent_catalog_run.lock   # only if process is dead
+```
+
+Retry Orchestration after the lock clears. Prefer **Nodes → Run OpenVox** per node if you need serial runs.
+
+**Fixed/improved in 3.10.3:** GUI-normalized `puppet agent` commands include **`--waitforlock 300`**, longer Bolt timeout for agent runs, clearer lock hints in stderr, and success semantics for exit **0/2**.
 
 ---
 

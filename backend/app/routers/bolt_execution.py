@@ -197,16 +197,29 @@ async def run_command(
     if req.run_as and req.run_as != "root":
         args.extend(["--run-as", req.run_as])
 
-    result = await run_bolt_command(args, timeout=300)
-    await bolt_orch.finish_execution_history(db, history_entry, result, start_time)
+    # Puppet agent may wait on lock; allow full waitforlock window + apply time
+    cmd_timeout = 600 if bolt_orch._is_puppet_agent_invocation(command) else 300
+    result = await run_bolt_command(args, timeout=cmd_timeout)
+    result = bolt_orch.reinterpret_puppet_agent_bolt_result(
+        result, original_command=req.command
+    )
+    await bolt_orch.finish_execution_history(
+        db, history_entry, result, start_time, original_command=req.command
+    )
 
+    ok = bolt_orch.puppet_agent_run_succeeded(result, req.command)
+    if not ok:
+        try:
+            ok = int(result.get("returncode") if result.get("returncode") is not None else -1) == 0
+        except (TypeError, ValueError):
+            ok = False
     audit_event(
         "bolt_command",
         user=current_user,
         targets=resolved_targets,
         detail=req.command[:120],
         rc=result.get("returncode"),
-        success=result.get("returncode") == 0,
+        success=ok,
         format=fmt,
         escalate=escalate,
     )

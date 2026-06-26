@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.3] - 2026-06-26 (Orchestration puppet agent lock + exit codes)
+
+### Fixed
+- **Orchestration `puppet agent -t` vs SSH:** GUI runs often failed on nodes where interactive `sudo puppet agent -t` worked because the **agent service** held `agent_catalog_run.lock` (exit 1, “already in progress”). Other targets in the same multi-node Bolt run could still succeed — overall Bolt failure made the fleet look fully broken.
+- **GUI agent normalization:** append **`--waitforlock 300`** on `puppet agent` invocations (unless already set); extend Bolt command timeout to **600s** for agent runs so wait + apply can finish.
+- **Exit code 2:** Puppet “changes applied” is success; history/audit/`puppet_agent_run_succeeded` treat **0** and **2** as success (aligned with Nodes “Run OpenVox”).
+- **Operator guidance:** lock / partial-fleet notes appended when JSON items show lock contention; TROUBLESHOOTING documents the scenario.
+
+### Docs
+- TROUBLESHOOTING: Orchestration agent lock vs SSH success.
+
 ## [3.10.2] - 2026-06-25 (stable release on main)
 
 ### Release
