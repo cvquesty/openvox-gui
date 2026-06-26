@@ -8,7 +8,7 @@
 
 The 2026-06 evaluation-driven alpha effort (**`3.10.a_r_alpha.N`**, trains `3.10.01`–`3.10.04` / srdev1–sruiux2) was **merged into `main`** and promoted through beta **`3.10.1.b1`** / **`3.10.1.b2`** to stable **`3.10.2`**. Day-to-day development and releases go through **`main`** again.
 
-- **Current stable:** **3.10.2** (`VERSION` file, GitHub Release `v3.10.2`). Do **not** invent a parallel version for docs-only commits unless the user asks for a release bump.
+- **Current stable baseline:** **3.10.2** (`v3.10.2`). On-line bugfix train uses PEP 440 locals **`3.10.2+bugfix`**, **`3.10.2+bugfix1`**, **`3.10.2+bugfix2`**, … — increment the **numeric suffix** only; do **not** invent alternate local labels (`+tabs1`, etc.).
 - **Historical alpha branch** `3.10.a_r_alpha.6` may still exist on the remote for reference; **prune only when explicitly requested** after lab verification. Do not treat it as the active develop branch unless a new alpha effort is opened.
 - **Train markers (archive / archaeology):** `3.10.01.aN` security, `3.10.02.aN` architecture, `3.10.03.aN` sruiux1, `3.10.04.aN` sruiux2 — useful when reading old commits/CHANGELOG, not for new work on `main`.
 - **New large spike / risky refactor:** optionally open a **new** `3.10.a_r_alpha.N` (or next minor alpha) with the same lab-only rules below; otherwise commit on `main` with SemVer pre-releases (`3.10.3-dev.N` or `3.10.3.bN` style per team preference) via `/commit`.

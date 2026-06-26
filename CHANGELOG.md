@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.10.2+tabs1] - 2026-06-26 (Orchestration Human / JSON / Rainbow views)
+## [3.10.2+bugfix1] - 2026-06-26 (Orchestration Human / JSON / Rainbow views)
+
+### Versioning
+- Continues the **3.10.2 bugfix train**: PEP 440 local segments **`3.10.2+bugfix`**, **`3.10.2+bugfix1`**, **`3.10.2+bugfix2`**, … (not ad-hoc names like `+tabs1`). Brief mis-label **`3.10.2+tabs1`** on one commit is superseded by **`3.10.2+bugfix1`** (same UI tab work).
 
 ### Fixed
 - **Result tabs after single-run fix (#38):** All three tabs had been fed the same Bolt **JSON** payload, so Human looked like raw JSON and Rainbow duplicated Human. Tabs are now **views** over **one** `--format json` execution:
@@ -21,7 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Versioning
 - **Bugfix on the 3.10.2 line** (not a new minor). Display/install version is **`3.10.2+bugfix`** (PEP 440 **local** segment — required so `ovox` / pip metadata install cleanly; a literal `3.10.2-bugfix` is **not** valid PEP 440 and broke remote deploy).
-- Git tag / GitHub Release title: **`v3.10.2-bugfix`** (friendly name). Supersedes the brief **`3.10.3`** label on the same change set (tag/release removed where possible).
+- Subsequent fixes on this line: **`3.10.2+bugfix1`**, **`+bugfix2`**, … Git tag / friendly GH name may still use **`v3.10.2-bugfix`** for the first cut; numbered tags prefer **`v3.10.2+bugfixN`**.
+- Supersedes the brief **`3.10.3`** label on the same change set (tag/release removed where possible).
 
 ### Fixed
 - **Orchestration `puppet agent -t` vs SSH:** GUI runs often failed on nodes where interactive `sudo puppet agent -t` worked because the **agent service** held `agent_catalog_run.lock` (exit 1, “already in progress”). Other targets in the same multi-node Bolt run could still succeed — overall Bolt failure made the fleet look fully broken.
