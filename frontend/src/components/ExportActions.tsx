@@ -6,9 +6,10 @@
  * Features:
  * - JSON export (full objects or selected columns)
  * - Formatted Text export (aligned table or simple vertical list when 1 column)
- * - Optional column picker (MultiSelect) so you can export just certnames, etc.
+ * - Optional column picker so you can export certname + disks, etc.
  *
- * Designed to be obvious and powerful for operational use.
+ * Column picker uses checkboxes (not MultiSelect-in-Popover) so multiple
+ * fields can be toggled without the popover/combobox eating the second click.
  */
 
 import { useState } from 'react';
@@ -17,8 +18,11 @@ import {
   ActionIcon,
   Tooltip,
   Popover,
-  MultiSelect,
   Text,
+  Stack,
+  Checkbox,
+  ScrollArea,
+  Button,
 } from '@mantine/core';
 import { IconCode, IconAlignLeft, IconCheck, IconFilter } from '@tabler/icons-react';
 import {
@@ -44,10 +48,11 @@ export function ExportActions({
   filenameBase = 'openvox-results',
   variant = 'compact',
   onCopied,
-  showDownload: _showDownload, // accepted for compatibility but not currently rendered separately
+  showDownload: _showDownload,
 }: ExportActionsProps) {
   const [copied, setCopied] = useState<'json' | 'text' | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const hasResults = Array.isArray(results) && results.length > 0;
 
@@ -77,10 +82,20 @@ export function ExportActions({
     });
   };
 
-  const columnSelectData = availableColumns.map((col) => ({
-    value: col,
-    label: col,
-  }));
+  const toggleColumn = (col: string, checked: boolean) => {
+    setSelectedColumns((prev) => {
+      if (checked) {
+        if (prev.includes(col)) return prev;
+        // Preserve catalog order when adding
+        const next = [...prev, col];
+        return availableColumns.filter((c) => next.includes(c));
+      }
+      return prev.filter((c) => c !== col);
+    });
+  };
+
+  const selectAll = () => setSelectedColumns([...availableColumns]);
+  const selectNone = () => setSelectedColumns([]);
 
   if (!hasResults) return null;
 
@@ -89,37 +104,71 @@ export function ExportActions({
 
   return (
     <Group gap={variant === 'compact' ? 4 : 'xs'}>
-      {/* Column selector */}
-      <Popover width={280} position="bottom" withArrow shadow="md">
+      <Popover
+        width={300}
+        position="bottom-end"
+        withArrow
+        shadow="md"
+        opened={pickerOpen}
+        onChange={setPickerOpen}
+        closeOnClickOutside
+        trapFocus={false}
+      >
         <Popover.Target>
-          <Tooltip label={isFiltered ? "Columns filtered" : "Select columns to export"} withArrow>
+          <Tooltip
+            label={
+              isFiltered
+                ? `Export columns: ${selectedColumns.join(', ')}`
+                : 'Select columns to export (multi-select)'
+            }
+            withArrow
+          >
             <ActionIcon
               variant="subtle"
               color={isFiltered ? 'orange' : 'gray'}
-              aria-label="Select columns"
+              aria-label="Select columns to export"
+              onClick={() => setPickerOpen((o) => !o)}
             >
               <IconFilter size={iconSize} />
             </ActionIcon>
           </Tooltip>
         </Popover.Target>
         <Popover.Dropdown>
-          <Text size="xs" fw={500} mb={4}>Export only these columns:</Text>
-          <MultiSelect
-            data={columnSelectData}
-            value={selectedColumns}
-            onChange={setSelectedColumns}
-            placeholder="All columns"
-            searchable
-            clearable
-            size="xs"
-          />
-          <Text size="xs" c="dimmed" mt={4}>
-            Leave empty to export all columns. Single column = nice vertical list for certnames etc.
+          <Text size="xs" fw={600} mb={6}>
+            Export only these columns
           </Text>
+          <Text size="xs" c="dimmed" mb={8}>
+            Check one or more (e.g. certname + disks). Leave all unchecked to export every column.
+          </Text>
+          <Group gap={6} mb={8}>
+            <Button size="compact-xs" variant="light" onClick={selectAll}>
+              All
+            </Button>
+            <Button size="compact-xs" variant="subtle" color="gray" onClick={selectNone}>
+              None (all cols)
+            </Button>
+          </Group>
+          <ScrollArea.Autosize mah={240} type="auto" offsetScrollbars>
+            <Stack gap={6}>
+              {availableColumns.map((col) => (
+                <Checkbox
+                  key={col}
+                  size="xs"
+                  label={col}
+                  checked={selectedColumns.includes(col)}
+                  onChange={(e) => toggleColumn(col, e.currentTarget.checked)}
+                />
+              ))}
+            </Stack>
+          </ScrollArea.Autosize>
+          {selectedColumns.length > 0 && (
+            <Text size="xs" c="orange" mt={8}>
+              {selectedColumns.length} column{selectedColumns.length === 1 ? '' : 's'} selected
+            </Text>
+          )}
         </Popover.Dropdown>
       </Popover>
 
-      {/* JSON */}
       <Tooltip label="Copy as JSON" withArrow>
         <ActionIcon
           variant="subtle"
@@ -135,7 +184,6 @@ export function ExportActions({
         </ActionIcon>
       </Tooltip>
 
-      {/* Formatted Text */}
       <Tooltip label="Copy as formatted text (table or list)" withArrow>
         <ActionIcon
           variant="subtle"

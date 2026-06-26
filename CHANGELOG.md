@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix8] - 2026-06-26 (Inventory export multi-column picker)
+
+### Fixed
+- **Insights | Inventory (and all ExportActions users):** Column filter for export only kept a **single** selection because Mantine **MultiSelect inside Popover** closed/stole the second click. Replaced with **checkbox multi-select** (All / None helpers) so certname + disks (etc.) can be selected together before Copy JSON/text.
+
 ## [3.10.2+bugfix7] - 2026-06-26 (Executive Summary: direct SMTP path facts)
 
 ### Docs
