@@ -9,45 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [3.10.2-4] - 2026-06-26 (nav: really allow section collapse)
-
-### Fixed
-- **Insights stuck open (complete fix):** Removed remaining force-open on parent `onChange` / always-navigate-open click. Header **toggles** collapse; chevron works; child click expands; section can stay highlighted but **closed**.
-
-## [3.10.2-3] - 2026-06-26 (nav: section headers can collapse again)
-
-### Fixed
-- **Insights (and other sections) stuck open:** Parent click and chevron could not collapse while a child page was active (force-open lock). Sections **expand/collapse normally** again; header still highlights when a child is current; click header toggles open (navigate to landing) / closed; choosing a child expands the section.
-
-## [3.10.2-2] - 2026-06-26 (nav: section headers selectable + highlighted)
-
-### Fixed
-- **Insights (and other) section headers:** Parent rows were expand-only and never `active`, so after opening a submenu you could not “select” or highlight **Insights**. Section headers now **highlight when any child is current** and **click navigates to the section landing page** (first child — Monitoring `/insights` under Insights) while staying expanded.
-
-## [3.10.2-1] - 2026-06-26 (bugfix release on 3.10.2)
+## [3.10.2-1] - 2026-06-26 (bugfix release on 3.10.2 — single shippable cut)
 
 ### Release
-- **Bugfix line on stable 3.10.2** — version **`3.10.2-1`** (PEP 440 normalizes to `3.10.2.post1` for packaging; tag **`v3.10.2-1`**). Consolidates the post-3.10.2 **`+bugfix` … `+bugfix9`** train into one shippable artifact for operators.
-- **Bill of materials:** prioritizes **remediated defects** reported while validating 3.10.2 (Orchestration, Monitoring, nav, Inventory export, PQL results, mail delivery diagnostics). Feature work from 3.10.2 proper is unchanged; this is a **maintenance / bugfix** cut.
+- **One bugfix artifact on stable 3.10.2:** version **`3.10.2-1`** (PEP 440 normalizes to `3.10.2.post1` for packaging; tag **`v3.10.2-1`** points at current `main` code).
+- **Supersedes interim tags/releases** `v3.10.2-2` … `v3.10.2-4` and the earlier `v3.10.2-1` pointer — those were development churn while validating 3.10.2; operators should use **only `3.10.2-1` / `v3.10.2-1`**.
+- Also consolidates post-3.10.2 **`+bugfix` … `+bugfix9`** work. Feature baseline remains **3.10.2**; this cut is **maintenance / bugfix only**.
 
 ### Bugs remediated (highlights)
 
 | Area | Issue | Fix |
 |------|--------|-----|
-| **Orchestration** | One **Run Command** ran Bolt **3×** (human/json/rainbow API) | Single Bolt run; tabs are **views** ([#38](https://github.com/cvquesty/openvox-gui/issues/38), in 3.10.2 baseline + tab UX) |
-| **Orchestration** | Human/JSON/Rainbow all showed JSON / wrong semantics | Human = CLI-style from `items[]`; JSON = PrettyJson; Rainbow = safe UI colors |
-| **Orchestration** | Human tab showed `[0;32m` control junk | Strip embedded ANSI / orphan CSI from nested Bolt stdout |
-| **Orchestration** | `puppet agent -t` “failed” vs SSH; lock / exit **2** | `--waitforlock`, longer timeout, treat Puppet **0/2** as success; lock hints |
-| **Insights \| Monitoring** | Server JVM heap / catalog route / CPU lost history on refresh | Merge API ring + **localStorage** by timestamp (`ps_hist_v3` / `pdb_hist_v3`) |
-| **Insights \| Monitoring** | Series drew **below** X-axis (queue, DB heap, …) | `monotone` curves, Y domain `[0,auto]`, clip container |
-| **Left nav** | Section collapsed on sub-pages; lost context | Force-open active group; persist expand; block collapse in-section; `/insights` hub exact match |
+| **Orchestration** | One **Run Command** ran Bolt **3×** (human/json/rainbow API) | Single Bolt run; tabs are **views** ([#38](https://github.com/cvquesty/openvox-gui/issues/38)) |
+| **Orchestration** | Human/JSON/Rainbow wrong / all JSON | Human = CLI-style from `items[]`; JSON = PrettyJson; Rainbow = safe UI colors |
+| **Orchestration** | Human tab showed terminal control junk | Strip embedded ANSI / orphan CSI from nested Bolt stdout |
+| **Orchestration** | `puppet agent -t` vs interactive agent; lock / exit **2** | `--waitforlock`, longer timeout, treat Puppet **0/2** as success; lock hints |
+| **Insights \| Monitoring** | Server JVM heap / catalog route / CPU lost history on refresh | Merge API ring + **localStorage** by timestamp |
+| **Insights \| Monitoring** | Series drew **outside** the plot (e.g. under X-axis) | `monotone` curves, Y domain `[0,auto]`, clip container |
+| **Left nav** | Section headers hard to select; or stuck open / wouldn’t collapse | Headers **highlight** when a child is current; **click toggles** expand/collapse (landing nav when opening); chevron works; child click expands; preference in `localStorage` |
 | **Insights \| PQL** | Results **Value** truncated, no horizontal scroll | ScrollArea + nowrap full cells |
 | **Insights \| Inventory** | Export column picker single-select only | Checkbox multi-select |
 | **Insights \| Inventory** | Filter didn’t export; main download = full table | **Export CSV** / copy in panel; toolbar CSV honors selection |
-| **Executive Summary email** | “Sent” but never arrived; empty `mailq` | Documented MTA accept vs remote delivery; direct MX vs submission smarthost / operator-owned relay (ops on host, not GUI SMTP) |
+| **Executive Summary email** | “Sent” but never arrived; empty `mailq` | Documented MTA accept vs remote delivery; direct MX vs submission smarthost / operator-owned relay (host MTA; not GUI SMTP credentials) |
 
-### Prior interim labels (superseded by **3.10.2-1**)
-`3.10.2+bugfix` … `3.10.2+bugfix9`, brief `3.10.3`, `3.10.2+tabs1` (renamed), `3.10.2+bugfix` PEP440 local train.
+### Prior interim labels (do not ship / ignore)
+`3.10.2-2`, `3.10.2-3`, `3.10.2-4` (retagged into **3.10.2-1**), `3.10.2+bugfix` … `+bugfix9`, brief `3.10.3`, `3.10.2+tabs1`.
 
 ### Upgrade
 ```bash
