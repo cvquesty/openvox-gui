@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
 ## [3.10.2+bugfix1] - 2026-06-26 (Orchestration Human / JSON / Rainbow views)
+## [3.10.2+bugfix2] - 2026-06-26 (Human tab: strip embedded ANSI)
+
+### Fixed
+- **Human/Rainbow control codes:** Nested Bolt JSON `items[].value.stdout` still carried Puppet/agent ANSI; server `strip_ansi` only cleaned outer API fields, so Human showed `[0;32mInfo:...[0m`. Client now strips full ESC sequences **and** orphan CSI fragments before building Human text; Rainbow uses that clean text with UI colors.
+
+
 
 ### Versioning
 - Continues the **3.10.2 bugfix train**: PEP 440 local segments **`3.10.2+bugfix`**, **`3.10.2+bugfix1`**, **`3.10.2+bugfix2`**, … (not ad-hoc names like `+tabs1`). Brief mis-label **`3.10.2+tabs1`** on one commit is superseded by **`3.10.2+bugfix1`** (same UI tab work).

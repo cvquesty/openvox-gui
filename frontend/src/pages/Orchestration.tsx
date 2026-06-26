@@ -65,8 +65,8 @@ const ansiConverter = new AnsiToHtml({
  * Tabs are *views* over that single payload:
  * - JSON: PrettyJson of Bolt's structured result (true --format json)
  * - Human: CLI-style text synthesized from items[] (stdout/stderr per target)
- * - Rainbow: same content with safe React colorization (not a second Bolt run;
- *   ANSI from agents is stripped server-side #26 — we color structure + keywords)
+ * - Rainbow: same Human text with safe React line colors (keywords / status),
+ *   not embedded terminal ANSI (stripped in Human path for readability + #26)
  */
 function resultsFromSingleRun(result: any) {
   return { human: result, json: result, rainbow: result };
@@ -108,10 +108,34 @@ function parseBoltJsonPayload(outputText: string): { items: BoltItem[]; meta?: a
   return null;
 }
 
+/**
+ * Strip terminal control sequences for Human tab (plain readable text).
+ * Bolt JSON embeds full ANSI in items[].value.stdout; server strip_ansi only
+ * hits the outer API fields, so nested agent output still has ESC codes.
+ * Also removes "orphaned" CSI fragments like [0;32m when ESC was lost in transit.
+ */
+function stripAnsiForDisplay(text: string): string {
+  if (!text) return '';
+  let s = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '');
+  // OSC (operating system command) sequences
+  s = s.replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '');
+  // CSI / standard ESC sequences (ESC [ ... letter)
+  s = s.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
+  // Lone ESC
+  s = s.replace(/\x1B/g, '');
+  // Orphan CSI without ESC (what you were seeing: [0;32mInfo...[0m)
+  s = s.replace(/\[[\d;?]*[ -/]*[@A-Za-z-~]/g, '');
+  // Other C0 controls except tab/newline
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  return s;
+}
+
 /** Mimic `bolt command run --format human` multi-target layout from JSON items. */
 function formatBoltItemsAsHuman(items: BoltItem[], meta?: any, fallbackText?: string): string {
   if (!items.length) {
-    return (fallbackText || '').trim();
+    return stripAnsiForDisplay(fallbackText || '').trim();
   }
   const blocks: string[] = [];
   for (const item of items) {
@@ -119,9 +143,9 @@ function formatBoltItemsAsHuman(items: BoltItem[], meta?: any, fallbackText?: st
     const status = (item.status || 'unknown').toLowerCase();
     const val = item.value || {};
     const exitCode = val.exit_code;
-    const stdout = (val.stdout || val.merged_output || '').replace(/\r\n/g, '\n').replace(/\r/g, '');
-    const stderr = (val.stderr || '').replace(/\r\n/g, '\n').replace(/\r/g, '');
-    const errMsg = val._error?.msg ? String(val._error.msg) : '';
+    const stdout = stripAnsiForDisplay(val.stdout || val.merged_output || '');
+    const stderr = stripAnsiForDisplay(val.stderr || '');
+    const errMsg = val._error?.msg ? stripAnsiForDisplay(String(val._error.msg)) : '';
 
     const header = [
       `Started on ${target}...`,
@@ -218,21 +242,29 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
 
     if (format === 'human') {
       return (
-        <OutputPane
-          output={humanText}
-          error={parsed ? undefined : errorText}
-          maxHeight="60vh"
-          title="Human (CLI-style from single Bolt JSON run)"
-        />
+        <Stack gap="xs">
+          <Text size="xs" c="dimmed">
+            Plain CLI-style text (control codes removed). Use Rainbow for a colorized reading of the same content; JSON for the structured Bolt result.
+          </Text>
+          <OutputPane
+            output={humanText}
+            error={parsed ? undefined : stripAnsiForDisplay(errorText)}
+            maxHeight="60vh"
+            title="Human"
+          />
+        </Stack>
       );
     }
 
     if (format === 'rainbow') {
-      const rainbowBody = [humanText, !parsed && errorText ? errorText : ''].filter(Boolean).join('\n');
+      const rainbowBody = [
+        humanText,
+        !parsed && errorText ? stripAnsiForDisplay(errorText) : '',
+      ].filter(Boolean).join('\n');
       return (
         <Stack gap="xs">
           <Text size="xs" c="dimmed">
-            Colorized view of the Human/CLI layout (one Bolt execution — not a second run). Agent ANSI is stripped for safety; colors are applied in the UI.
+            Same layout as Human, with UI colors on Info/Notice/Error lines (one Bolt run — not terminal ANSI replay).
           </Text>
           <RainbowOutput text={rainbowBody || '(no output)'} />
         </Stack>
