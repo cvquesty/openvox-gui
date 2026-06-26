@@ -22,7 +22,7 @@ import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Button,
   Badge, ActionIcon, Tooltip,
 } from '@mantine/core';
-import { IconListDetails, IconRefresh, IconDownload } from '@tabler/icons-react';
+import { IconListDetails, IconRefresh } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { reports } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
@@ -86,49 +86,17 @@ function InventoryOMatic() {
   );
 }
 
-/* CSV helper — handles embedded newlines (disks column), quotes, commas */
-function rowsToCSV(rows: any[]): string {
-  if (!rows || rows.length === 0) return '';
-  const headers = [
-    'certname',
-    'os_name',
-    'os_full_release',
-    'physical_processors',
-    'location',
-    'memory',
-    'disks',
-    'virtual_physical',
-    'uptime',
-  ];
-  const esc = (val: unknown): string => {
-    if (val === null || val === undefined) return '';
-    let s = String(val);
-    // Always quote if contains comma, quote, newline, or carriage return
-    if (/[",\n\r]/.test(s)) {
-      s = '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  };
-  const out: string[] = [];
-  out.push(headers.map(esc).join(','));
-  for (const r of rows) {
-    out.push(headers.map((h) => esc(r?.[h])).join(','));
-  }
-  return out.join('\r\n');
-}
-
-function triggerCSVDownload(rows: any[], filename = 'inventory-report.csv') {
-  const csv = rowsToCSV(rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+const INVENTORY_EXPORT_COLS = [
+  'certname',
+  'os_name',
+  'os_full_release',
+  'physical_processors',
+  'location',
+  'memory',
+  'disks',
+  'virtual_physical',
+  'uptime',
+];
 
 export function InventoryPage() {
   const { isRobots } = useAppTheme();
@@ -142,11 +110,6 @@ export function InventoryPage() {
   const count = rows.length;
 
   const lastUpdated = useMemo(() => new Date().toLocaleTimeString(), [data]);
-
-  const handleCSV = () => {
-    if (rows.length === 0) return;
-    triggerCSVDownload(rows, `inventory-${new Date().toISOString().slice(0,10)}.csv`);
-  };
 
   return (
     <Stack>
@@ -168,25 +131,13 @@ export function InventoryPage() {
               Refresh
             </Button>
           </Tooltip>
-          <Tooltip label="Download as CSV (quoted, multi-line disks preserved)">
-            <ActionIcon
-              size="lg"
-              variant="light"
-              onClick={handleCSV}
-              disabled={rows.length === 0}
-              aria-label="Export CSV"
-            >
-              <IconDownload size={18} />
-            </ActionIcon>
-          </Tooltip>
+          {/* Filter icon: pick columns + Export CSV / Copy; download icon uses same selection */}
           <ExportActions
             results={rows}
             filenameBase="inventory"
             variant="compact"
-            columns={[
-              'certname', 'os_name', 'os_full_release', 'physical_processors',
-              'location', 'memory', 'disks', 'virtual_physical', 'uptime'
-            ]}
+            showDownload
+            columns={INVENTORY_EXPORT_COLS}
           />
         </Group>
       </Group>

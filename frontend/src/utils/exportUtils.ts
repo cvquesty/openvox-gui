@@ -150,3 +150,42 @@ export function filterResultsToColumns(results: any[], selectedColumns: string[]
     return filtered;
   });
 }
+
+/**
+ * CSV with RFC-style quoting (commas, quotes, newlines in cells — e.g. inventory disks).
+ * When columns is omitted/empty, derives headers from the data.
+ */
+export function arrayToCSV(rows: any[], columns?: string[]): string {
+  if (!rows || rows.length === 0) return '';
+  const headers =
+    columns && columns.length > 0 ? columns : deriveColumns(rows);
+  if (headers.length === 0) return '';
+
+  const esc = (val: unknown): string => {
+    if (val === null || val === undefined) return '';
+    let s = typeof val === 'object' ? JSON.stringify(val) : String(val);
+    if (/[",\n\r]/.test(s)) {
+      s = `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const lines: string[] = [headers.map(esc).join(',')];
+  for (const r of rows) {
+    lines.push(headers.map((h) => esc(r?.[h])).join(','));
+  }
+  return lines.join('\r\n');
+}
+
+/** Trigger a browser file download for a text/CSV blob. */
+export function downloadTextFile(content: string, filename: string, mime = 'text/csv;charset=utf-8;') {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

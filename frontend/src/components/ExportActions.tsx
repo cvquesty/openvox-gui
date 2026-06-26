@@ -1,15 +1,9 @@
 /**
  * ExportActions
  *
- * Simple export/copy component with column selection support.
- *
- * Features:
- * - JSON export (full objects or selected columns)
- * - Formatted Text export (aligned table or simple vertical list when 1 column)
- * - Optional column picker so you can export certname + disks, etc.
- *
- * Column picker uses checkboxes (not MultiSelect-in-Popover) so multiple
- * fields can be toggled without the popover/combobox eating the second click.
+ * Copy / download with optional column selection.
+ * Column picker uses checkboxes; exports (CSV download, copy JSON/text) honor the selection.
+ * Empty selection = all columns.
  */
 
 import { useState } from 'react';
@@ -23,11 +17,21 @@ import {
   Checkbox,
   ScrollArea,
   Button,
+  Divider,
 } from '@mantine/core';
-import { IconCode, IconAlignLeft, IconCheck, IconFilter } from '@tabler/icons-react';
+import {
+  IconCode,
+  IconAlignLeft,
+  IconCheck,
+  IconFilter,
+  IconDownload,
+  IconClipboard,
+} from '@tabler/icons-react';
 import {
   arrayToPrettyJSON,
   arrayToFormattedText,
+  arrayToCSV,
+  downloadTextFile,
   deriveColumns,
   filterResultsToColumns,
 } from '../utils/exportUtils';
@@ -38,7 +42,8 @@ export interface ExportActionsProps {
   queryContext?: string;
   filenameBase?: string;
   variant?: 'compact' | 'buttons';
-  onCopied?: (format: 'json' | 'text') => void;
+  onCopied?: (format: 'json' | 'text' | 'csv') => void;
+  /** Show toolbar CSV download (uses same column filter as the picker). Default true. */
   showDownload?: boolean;
 }
 
@@ -48,9 +53,9 @@ export function ExportActions({
   filenameBase = 'openvox-results',
   variant = 'compact',
   onCopied,
-  showDownload: _showDownload,
+  showDownload = true,
 }: ExportActionsProps) {
-  const [copied, setCopied] = useState<'json' | 'text' | null>(null);
+  const [copied, setCopied] = useState<'json' | 'text' | 'csv' | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -60,33 +65,43 @@ export function ExportActions({
     ? propColumns
     : deriveColumns(results);
 
+  /** Columns used for export: explicit picks, or all. */
   const effectiveColumns = selectedColumns.length > 0 ? selectedColumns : availableColumns;
 
   const filteredResults = filterResultsToColumns(results, effectiveColumns);
 
+  const flash = (kind: 'json' | 'text' | 'csv') => {
+    setCopied(kind);
+    onCopied?.(kind);
+    setTimeout(() => setCopied(null), 1800);
+  };
+
   const handleCopy = (format: 'json' | 'text') => {
     if (!hasResults) return;
+    const text =
+      format === 'json'
+        ? arrayToPrettyJSON(filteredResults)
+        : arrayToFormattedText(filteredResults, effectiveColumns);
+    navigator.clipboard.writeText(text).then(() => flash(format));
+  };
 
-    let text = '';
-
-    if (format === 'json') {
-      text = arrayToPrettyJSON(filteredResults);
-    } else {
-      text = arrayToFormattedText(filteredResults, effectiveColumns);
-    }
-
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(format);
-      onCopied?.(format);
-      setTimeout(() => setCopied(null), 1800);
-    });
+  const handleDownloadCsv = () => {
+    if (!hasResults) return;
+    const csv = arrayToCSV(results, effectiveColumns);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const suffix =
+      selectedColumns.length > 0 && selectedColumns.length < availableColumns.length
+        ? `-${selectedColumns.length}cols`
+        : '';
+    downloadTextFile(csv, `${filenameBase}${suffix}-${stamp}.csv`);
+    flash('csv');
+    setPickerOpen(false);
   };
 
   const toggleColumn = (col: string, checked: boolean) => {
     setSelectedColumns((prev) => {
       if (checked) {
         if (prev.includes(col)) return prev;
-        // Preserve catalog order when adding
         const next = [...prev, col];
         return availableColumns.filter((c) => next.includes(c));
       }
@@ -101,11 +116,15 @@ export function ExportActions({
 
   const iconSize = variant === 'compact' ? 16 : 14;
   const isFiltered = selectedColumns.length > 0 && selectedColumns.length < availableColumns.length;
+  const selectionLabel =
+    selectedColumns.length === 0
+      ? `All ${availableColumns.length} columns`
+      : `${selectedColumns.length} column${selectedColumns.length === 1 ? '' : 's'}: ${selectedColumns.join(', ')}`;
 
   return (
     <Group gap={variant === 'compact' ? 4 : 'xs'}>
       <Popover
-        width={300}
+        width={320}
         position="bottom-end"
         withArrow
         shadow="md"
@@ -118,15 +137,15 @@ export function ExportActions({
           <Tooltip
             label={
               isFiltered
-                ? `Export columns: ${selectedColumns.join(', ')}`
-                : 'Select columns to export (multi-select)'
+                ? `Filtered export: ${selectedColumns.join(', ')} — open to export`
+                : 'Choose columns, then Export CSV / Copy in the panel'
             }
             withArrow
           >
             <ActionIcon
               variant="subtle"
               color={isFiltered ? 'orange' : 'gray'}
-              aria-label="Select columns to export"
+              aria-label="Select columns and export"
               onClick={() => setPickerOpen((o) => !o)}
             >
               <IconFilter size={iconSize} />
@@ -134,21 +153,22 @@ export function ExportActions({
           </Tooltip>
         </Popover.Target>
         <Popover.Dropdown>
-          <Text size="xs" fw={600} mb={6}>
-            Export only these columns
+          <Text size="xs" fw={600} mb={4}>
+            Columns to export
           </Text>
           <Text size="xs" c="dimmed" mb={8}>
-            Check one or more (e.g. certname + disks). Leave all unchecked to export every column.
+            Check fields (e.g. certname + disks), then use <strong>Export CSV</strong> or Copy below.
+            Uncheck all = every column.
           </Text>
           <Group gap={6} mb={8}>
             <Button size="compact-xs" variant="light" onClick={selectAll}>
               All
             </Button>
             <Button size="compact-xs" variant="subtle" color="gray" onClick={selectNone}>
-              None (all cols)
+              Clear (all cols)
             </Button>
           </Group>
-          <ScrollArea.Autosize mah={240} type="auto" offsetScrollbars>
+          <ScrollArea.Autosize mah={220} type="auto" offsetScrollbars>
             <Stack gap={6}>
               {availableColumns.map((col) => (
                 <Checkbox
@@ -161,15 +181,71 @@ export function ExportActions({
               ))}
             </Stack>
           </ScrollArea.Autosize>
-          {selectedColumns.length > 0 && (
-            <Text size="xs" c="orange" mt={8}>
-              {selectedColumns.length} column{selectedColumns.length === 1 ? '' : 's'} selected
-            </Text>
-          )}
+          <Text size="xs" c={isFiltered ? 'orange' : 'dimmed'} mt={8} mb={8}>
+            {selectionLabel}
+          </Text>
+          <Divider mb={8} />
+          <Stack gap={6}>
+            <Button
+              size="xs"
+              leftSection={<IconDownload size={14} />}
+              onClick={handleDownloadCsv}
+              fullWidth
+            >
+              Export CSV
+              {isFiltered ? ` (${selectedColumns.length} cols)` : ' (all columns)'}
+            </Button>
+            <Group grow gap={6}>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconClipboard size={14} />}
+                onClick={() => {
+                  handleCopy('text');
+                }}
+              >
+                Copy text
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconCode size={14} />}
+                onClick={() => {
+                  handleCopy('json');
+                }}
+              >
+                Copy JSON
+              </Button>
+            </Group>
+          </Stack>
         </Popover.Dropdown>
       </Popover>
 
-      <Tooltip label="Copy as JSON" withArrow>
+      {showDownload && (
+        <Tooltip
+          label={
+            isFiltered
+              ? `Download CSV (${selectedColumns.length} selected columns)`
+              : 'Download CSV (all columns — open filter to limit fields)'
+          }
+          withArrow
+        >
+          <ActionIcon
+            variant="subtle"
+            color={copied === 'csv' ? 'teal' : isFiltered ? 'orange' : 'gray'}
+            onClick={handleDownloadCsv}
+            aria-label="Download CSV"
+          >
+            {copied === 'csv' ? (
+              <IconCheck size={iconSize} />
+            ) : (
+              <IconDownload size={iconSize} />
+            )}
+          </ActionIcon>
+        </Tooltip>
+      )}
+
+      <Tooltip label="Copy as JSON (respects column filter)" withArrow>
         <ActionIcon
           variant="subtle"
           color={copied === 'json' ? 'teal' : 'gray'}
@@ -184,7 +260,7 @@ export function ExportActions({
         </ActionIcon>
       </Tooltip>
 
-      <Tooltip label="Copy as formatted text (table or list)" withArrow>
+      <Tooltip label="Copy as formatted text (respects column filter)" withArrow>
         <ActionIcon
           variant="subtle"
           color={copied === 'text' ? 'teal' : 'gray'}

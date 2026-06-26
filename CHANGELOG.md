@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix9] - 2026-06-26 (export panel: Export CSV honors column filter)
+
+### Fixed
+- **Inventory / ExportActions:** Column checkboxes did not drive a real export — only clipboard icons, while a separate download always dumped **all** columns. Filter popover now has **Export CSV**, **Copy text**, and **Copy JSON** using the selection; toolbar download uses the **same** filter (orange when subset selected). Shared `arrayToCSV` / `downloadTextFile` in exportUtils.
+
 ## [3.10.2+bugfix8] - 2026-06-26 (Inventory export multi-column picker)
 
 ### Fixed
