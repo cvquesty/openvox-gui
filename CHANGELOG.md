@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix5] - 2026-06-26 (sidebar stays expanded on sub-pages)
+
+### Fixed
+- **Left nav collapses on sub-pages:** Section groups defaulted closed and parent clicks **toggled** shut; Insights **Monitoring** (`/insights`) also stole active state from every `/insights/*` route. Active section is now **force-kept open** on route change, preferences persist in `localStorage`, collapse is blocked while you are on a page in that section, and Monitoring highlights only the NOC hub path.
+
 ## [3.10.2+bugfix4] - 2026-06-26 (Monitoring trends persist + chart clipping)
 
 ### Fixed

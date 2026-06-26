@@ -119,6 +119,51 @@ const configNav: NavItem[] = [
   { label: 'Application Configuration', icon: IconSettings, path: '/config/app' },
 ];
 
+/** Top-level sidebar groups — route→expand mapping and persistence. */
+const NAV_GROUP_DEFS: { label: string; items: NavItem[] }[] = [
+  { label: 'Overview', items: overviewNav },
+  { label: 'Infrastructure', items: infrastructureNav },
+  { label: 'Classification & Code', items: classificationCodeNav },
+  { label: 'Data', items: dataNav },
+  { label: 'Explore', items: exploreNav },
+  { label: 'Insights', items: insightsNav },
+  { label: 'Settings', items: configNav },
+];
+
+const NAV_GROUPS_STORAGE_KEY = 'openvox-gui-nav-groups-v1';
+
+/** Active leaf — Monitoring is exact `/insights` only so sub-routes don't all highlight it. */
+function navItemMatchesPath(pathname: string, itemPath: string): boolean {
+  if (itemPath === '/') return pathname === '/' || pathname === '';
+  if (itemPath === '/insights') {
+    return pathname === '/insights' || pathname === '/insights/';
+  }
+  return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+}
+
+function pathBelongsToGroup(pathname: string, items: NavItem[]): boolean {
+  return items.some((item) => navItemMatchesPath(pathname, item.path));
+}
+
+function groupsForPathname(pathname: string): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const g of NAV_GROUP_DEFS) {
+    if (pathBelongsToGroup(pathname, g.items)) out[g.label] = true;
+  }
+  return out;
+}
+
+function loadStoredNavGroups(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(NAV_GROUPS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export function AppShellLayout() {
   const [opened, setOpened] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -129,14 +174,41 @@ export function AppShellLayout() {
   const [activeSessions, setActiveSessions] = useState<any>(null);
   const [appName, setAppName] = useState('OpenVox GUI');
   const [nodeNames, setNodeNames] = useState<string[]>([]);
-  // Track which nav groups are expanded (keyed by label)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  // Sidebar sections: persist + always force-open the active route's group
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => ({
+    ...loadStoredNavGroups(),
+    ...groupsForPathname(typeof window !== 'undefined' ? window.location.pathname : '/'),
+  }));
   const { items: activityItems } = useActivity();
   const runningCount = activityItems.filter((i) => i.status === 'running').length;
 
   useHotkeys([
     ['mod+K', () => setPaletteOpen((v) => !v)],
   ]);
+
+  // Keep the section containing the current page expanded (sub-pages / deep links)
+  useEffect(() => {
+    const mustOpen = groupsForPathname(location.pathname);
+    setOpenGroups((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [label, on] of Object.entries(mustOpen)) {
+        if (on && !next[label]) {
+          next[label] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [location.pathname]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NAV_GROUPS_STORAGE_KEY, JSON.stringify(openGroups));
+    } catch {
+      /* ignore quota */
+    }
+  }, [openGroups]);
 
   useEffect(() => {
     config.getAppName().then((data: any) => {
@@ -184,7 +256,7 @@ export function AppShellLayout() {
   // Recursive navigation renderer — supports nested children
   const renderNavItem = (item: NavItem, depth: number = 0): ReactNode => {
     const ItemIcon = item.icon;
-    const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
+    const isActive = navItemMatchesPath(location.pathname, item.path);
     const hasChildren = item.children && item.children.length > 0;
     const indent = depth * 20;
 
@@ -204,7 +276,7 @@ export function AppShellLayout() {
           leftSection={<ItemIcon size={18} />}
           childrenOffset={24}
           opened={isOpen}
-          onChange={(opened) => setOpenGroups((prev) => ({ ...prev, [item.label]: opened }))}
+          onChange={(o) => setOpenGroups((prev) => ({ ...prev, [item.label]: o }))}
           onClick={handleClick}
           variant="filled"
           mb={1}
@@ -234,6 +306,7 @@ export function AppShellLayout() {
   const renderNavGroup = (label: string, icon: any, items: NavItem[], color?: string) => {
     const GroupIcon = icon;
     const iconColor = color || undefined;
+    const groupHasActive = pathBelongsToGroup(location.pathname, items);
 
     // Single-item group without children — render directly
     if (items.length === 1 && !items[0].children) {
@@ -244,7 +317,7 @@ export function AppShellLayout() {
           key={item.path}
           label={label}
           leftSection={<ItemIcon size={18} color={iconColor} />}
-          active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
+          active={navItemMatchesPath(location.pathname, item.path)}
           onClick={() => { navigate(item.path); setOpened(false); }}
           variant="filled"
           mb={2}
@@ -252,15 +325,15 @@ export function AppShellLayout() {
       );
     }
 
-    // Multi-item or nested groups — collapsed by default
-    const isOpen = openGroups[label] ?? false;
+    // Stay open for the active section (or user preference from localStorage)
+    const isOpen = openGroups[label] ?? groupHasActive;
 
     const handleParentClick = () => {
-      // Navigate to first child item (e.g., Dashboard for Monitoring) and toggle expand
-      if (items.length > 0) {
+      // Expand only — do not toggle closed while working in this section's sub-pages
+      setOpenGroups((prev) => ({ ...prev, [label]: true }));
+      if (!groupHasActive && items.length > 0) {
         navigate(items[0].path);
       }
-      setOpenGroups((prev) => ({ ...prev, [label]: !isOpen }));
       setOpened(false);
     };
 
@@ -270,7 +343,14 @@ export function AppShellLayout() {
         leftSection={<GroupIcon size={18} color={iconColor} />}
         childrenOffset={24}
         opened={isOpen}
-        onChange={(opened) => setOpenGroups((prev) => ({ ...prev, [label]: opened }))}
+        onChange={(o) => {
+          // Block collapse while a child of this group is the current page
+          if (!o && groupHasActive) {
+            setOpenGroups((prev) => ({ ...prev, [label]: true }));
+            return;
+          }
+          setOpenGroups((prev) => ({ ...prev, [label]: o }));
+        }}
         onClick={handleParentClick}
         variant="filled"
         mb={2}
