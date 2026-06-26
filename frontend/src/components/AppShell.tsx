@@ -174,7 +174,7 @@ export function AppShellLayout() {
   const [activeSessions, setActiveSessions] = useState<any>(null);
   const [appName, setAppName] = useState('OpenVox GUI');
   const [nodeNames, setNodeNames] = useState<string[]>([]);
-  // Sidebar sections: persist + always force-open the active route's group
+  // Sidebar sections: persist expand/collapse; not locked open while on a child page
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => ({
     ...loadStoredNavGroups(),
     ...groupsForPathname(typeof window !== 'undefined' ? window.location.pathname : '/'),
@@ -328,17 +328,24 @@ export function AppShellLayout() {
       );
     }
 
-    // Stay open for the active section (or user preference from localStorage)
+    // User-controlled expand; default open when on a child and no preference stored yet
     const isOpen = openGroups[label] ?? groupHasActive;
-    // Parent row is a normal section header: highlight when any child route is current
-    // (not a separate route — children remain the real pages)
     const parentActive = groupHasActive;
 
+    const setGroupOpen = (open: boolean) => {
+      setOpenGroups((prev) => ({ ...prev, [label]: open }));
+    };
+
     const handleParentClick = () => {
-      setOpenGroups((prev) => ({ ...prev, [label]: true }));
-      // Always navigate to the section landing page (first child) so the header is selectable
-      if (items.length > 0) {
-        navigate(items[0].path);
+      const currentlyOpen = openGroups[label] ?? groupHasActive;
+      if (currentlyOpen) {
+        // Collapse child list (accordion-style)
+        setGroupOpen(false);
+      } else {
+        setGroupOpen(true);
+        if (items.length > 0) {
+          navigate(items[0].path);
+        }
       }
       setOpened(false);
     };
@@ -351,18 +358,18 @@ export function AppShellLayout() {
         opened={isOpen}
         active={parentActive}
         onChange={(o) => {
-          // Block collapse while a child of this group is the current page
-          if (!o && groupHasActive) {
-            setOpenGroups((prev) => ({ ...prev, [label]: true }));
-            return;
-          }
-          setOpenGroups((prev) => ({ ...prev, [label]: o }));
+          // Chevron: allow expand and collapse freely
+          setGroupOpen(o);
         }}
         onClick={handleParentClick}
         variant="filled"
         mb={2}
       >
-        {items.map((item) => renderNavItem(item, 0))}
+        {items.map((item) => (
+          <div key={item.path} onClickCapture={() => setGroupOpen(true)}>
+            {renderNavItem(item, 0)}
+          </div>
+        ))}
       </NavLink>
     );
   };
