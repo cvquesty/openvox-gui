@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2-3] - 2026-06-26 (nav: section headers can collapse again)
+
+### Fixed
+- **Insights (and other sections) stuck open:** Parent click and chevron could not collapse while a child page was active (force-open lock). Sections **expand/collapse normally** again; header still highlights when a child is current; click header toggles open (navigate to landing) / closed; choosing a child expands the section.
+
 ## [3.10.2-2] - 2026-06-26 (nav: section headers selectable + highlighted)
 
 ### Fixed

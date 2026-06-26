@@ -186,14 +186,17 @@ export function AppShellLayout() {
     ['mod+K', () => setPaletteOpen((v) => !v)],
   ]);
 
-  // Keep the section containing the current page expanded (sub-pages / deep links)
+  // On route change into a section, expand that section once (deep links / child clicks).
+  // Do not re-lock open: user may collapse the header while staying on a child page.
   useEffect(() => {
     const mustOpen = groupsForPathname(location.pathname);
+    if (Object.keys(mustOpen).length === 0) return;
     setOpenGroups((prev) => {
       let changed = false;
       const next = { ...prev };
-      for (const [label, on] of Object.entries(mustOpen)) {
-        if (on && !next[label]) {
+      for (const label of Object.keys(mustOpen)) {
+        // Only auto-expand if we have no explicit preference yet (undefined)
+        if (next[label] === undefined) {
           next[label] = true;
           changed = true;
         }
