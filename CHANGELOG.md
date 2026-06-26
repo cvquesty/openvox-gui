@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+tabs1] - 2026-06-26 (Orchestration Human / JSON / Rainbow views)
+
+### Fixed
+- **Result tabs after single-run fix (#38):** All three tabs had been fed the same Bolt **JSON** payload, so Human looked like raw JSON and Rainbow duplicated Human. Tabs are now **views** over **one** `--format json` execution:
+  - **JSON** — structured PrettyJson (true Bolt JSON)
+  - **Human** — CLI-style text synthesized from `items[]` (per-target stdout/stderr, Started/Finished, success counts) approximating `bolt command run` human output
+  - **Rainbow** — same Human layout with **safe UI colorization** (React, not a second Bolt `--format rainbow` run; agent ANSI stays stripped for #26)
+
 ## [3.10.2+bugfix] / 3.10.2-bugfix - 2026-06-26 (Orchestration puppet agent lock + exit codes)
 
 ### Versioning

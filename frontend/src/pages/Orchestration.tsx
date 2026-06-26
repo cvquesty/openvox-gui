@@ -61,62 +61,181 @@ const ansiConverter = new AnsiToHtml({
 });
 
 /**
- * GitHub #38: UI format tabs (human / json / rainbow) must NOT each trigger a
- * separate Bolt run — that executed the ad-hoc command (or task/plan) three
- * times on targets. Run Bolt once (prefer --format json for PrettyJson) and
- * reuse the same API payload for all tabs. Rainbow is already plain text
- * server-side (#26 ANSI strip), so a second bolt run bought nothing.
+ * GitHub #38: run Bolt once (--format json) so targets are not hit 3×.
+ * Tabs are *views* over that single payload:
+ * - JSON: PrettyJson of Bolt's structured result (true --format json)
+ * - Human: CLI-style text synthesized from items[] (stdout/stderr per target)
+ * - Rainbow: same content with safe React colorization (not a second Bolt run;
+ *   ANSI from agents is stripped server-side #26 — we color structure + keywords)
  */
 function resultsFromSingleRun(result: any) {
   return { human: result, json: result, rainbow: result };
 }
 
-/* ── Shared result pane with ANSI color support ────────────── */
+type BoltItem = {
+  target?: string;
+  action?: string;
+  object?: string;
+  status?: string;
+  value?: {
+    stdout?: string;
+    stderr?: string;
+    merged_output?: string;
+    exit_code?: number;
+    _error?: { msg?: string; kind?: string };
+  };
+};
+
+function parseBoltJsonPayload(outputText: string): { items: BoltItem[]; meta?: any } | null {
+  const text = (outputText || '').trim();
+  if (!text) return null;
+  try {
+    const data = JSON.parse(text);
+    if (data && Array.isArray(data.items)) return { items: data.items, meta: data };
+    if (Array.isArray(data)) return { items: data, meta: { items: data } };
+    return { items: [], meta: data };
+  } catch {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    try {
+      const data = JSON.parse(text.slice(start, end + 1));
+      if (data && Array.isArray(data.items)) return { items: data.items, meta: data };
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+/** Mimic `bolt command run --format human` multi-target layout from JSON items. */
+function formatBoltItemsAsHuman(items: BoltItem[], meta?: any, fallbackText?: string): string {
+  if (!items.length) {
+    return (fallbackText || '').trim();
+  }
+  const blocks: string[] = [];
+  for (const item of items) {
+    const target = item.target || '(unknown target)';
+    const status = (item.status || 'unknown').toLowerCase();
+    const val = item.value || {};
+    const exitCode = val.exit_code;
+    const stdout = (val.stdout || val.merged_output || '').replace(/\r\n/g, '\n').replace(/\r/g, '');
+    const stderr = (val.stderr || '').replace(/\r\n/g, '\n').replace(/\r/g, '');
+    const errMsg = val._error?.msg ? String(val._error.msg) : '';
+
+    const header = [
+      `Started on ${target}...`,
+      status === 'success' ? `Finished on ${target}:` : `Failed on ${target}:`,
+    ];
+    const body: string[] = [];
+    if (stdout.trim()) body.push(stdout.trimEnd());
+    if (stderr.trim()) body.push(stderr.trimEnd());
+    if (errMsg && !stdout.includes(errMsg) && !stderr.includes(errMsg)) {
+      body.push(errMsg);
+    }
+    if (exitCode !== undefined && exitCode !== null) {
+      body.push(`\n[${target}] exit code: ${exitCode}`);
+    }
+    blocks.push([...header, ...body].join('\n'));
+  }
+  const footer: string[] = [];
+  const ok = items.filter((i) => (i.status || '').toLowerCase() === 'success').length;
+  const fail = items.length - ok;
+  footer.push('');
+  footer.push(
+    `Successful on ${ok} / ${items.length} target(s)` +
+      (fail ? `, failed on ${fail}` : '') +
+      (meta?.elapsed_time != null ? ` (${meta.elapsed_time}s elapsed)` : '')
+  );
+  return blocks.join('\n\n') + '\n' + footer.join('\n');
+}
+
+function lineColorForRainbow(line: string): string {
+  const l = line.toLowerCase();
+  if (/failed on |error:|err:|_error|command-error|exit code: [1-9]/.test(l)) return 'red.4';
+  if (/successful on |finished on |notice:|info:|applied catalog|exit code: 0/.test(l)) return 'green.4';
+  if (/warning:|started on /.test(l)) return 'yellow.4';
+  if (/^\[.*\] exit code: 2/.test(l) || /exit code: 2/.test(l)) return 'teal.4'; // changes applied
+  return 'gray.3';
+}
+
+function RainbowOutput({ text }: { text: string }) {
+  const lines = (text || '').split('\n');
+  return (
+    <ScrollArea h="60vh" offsetScrollbars type="auto">
+      <Paper
+        p="sm"
+        withBorder
+        style={{
+          background: '#1e1e1e',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontSize: 12,
+          lineHeight: 1.45,
+        }}
+      >
+        {lines.map((line, i) => (
+          <Text key={i} component="div" size="xs" c={lineColorForRainbow(line)} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {line || ' '}
+          </Text>
+        ))}
+      </Paper>
+    </ScrollArea>
+  );
+}
+
+/* ── Shared result pane: Human / JSON / Rainbow views ───────── */
 function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?: any } | null }) {
   const [activeTab, setActiveTab] = useState<string>('human');
   
   if (!results) return null;
   
-  // Get the first available result to check status
-  const firstResult = results.human || results.json || results.rainbow;
+  // Single Bolt payload (json format) is the source of truth for all tabs
+  const firstResult = results.json || results.human || results.rainbow;
   if (!firstResult) return null;
 
-  const renderOutput = (result: any, format: string) => {
-    if (!result) {
-      return <Text c="dimmed" size="sm">No output available for this format.</Text>;
-    }
+  const outputText = firstResult.output || '';
+  const errorText = firstResult.error || '';
+  const parsed = parseBoltJsonPayload(outputText);
+  const humanText = parsed
+    ? formatBoltItemsAsHuman(parsed.items, parsed.meta, outputText)
+    : (outputText || errorText || '');
+  const rc = firstResult.returncode;
+  const rcOk = rc === 0 || rc === 2;
 
-    const outputText = result.output || result.error || '';
-    
-    // SECURITY FIX (GitHub #26): ANSI escapes are now stripped server-side
-    // (see strip_ansi in backend/utils/validation.py) before returning output.
-    // This prevents ANSI/terminal injection XSS via dangerouslySetInnerHTML.
-    // We no longer use dangerouslySetInnerHTML or ansi-to-html for command
-    // output (rainbow mode is now plain text for safety; colors not rendered).
-    // All output rendered safely in <Code block> (pre/code).
+  const renderOutput = (format: string) => {
     if (format === 'json') {
       try {
-        const parsed = JSON.parse(outputText);
-        return <PrettyJson data={parsed} withBorder={false} />;
+        const data = parsed?.meta ?? JSON.parse(outputText);
+        return <PrettyJson data={data} withBorder={false} />;
       } catch {
         return (
           <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-            {outputText}
+            {outputText || errorText || 'No output'}
           </Code>
         );
       }
     }
-    
-    // Safe plain-text rendering for human + rainbow (ANSI stripped on backend)
-    // Prefer OutputPane (filter + copy) for human/rainbow tabs.
-    if (format === 'human' || format === 'rainbow') {
+
+    if (format === 'human') {
       return (
         <OutputPane
-          output={result.output}
-          error={result.error}
+          output={humanText}
+          error={parsed ? undefined : errorText}
           maxHeight="60vh"
-          title={format === 'rainbow' ? 'Rainbow (plain text)' : 'Human'}
+          title="Human (CLI-style from single Bolt JSON run)"
         />
+      );
+    }
+
+    if (format === 'rainbow') {
+      const rainbowBody = [humanText, !parsed && errorText ? errorText : ''].filter(Boolean).join('\n');
+      return (
+        <Stack gap="xs">
+          <Text size="xs" c="dimmed">
+            Colorized view of the Human/CLI layout (one Bolt execution — not a second run). Agent ANSI is stripped for safety; colors are applied in the UI.
+          </Text>
+          <RainbowOutput text={rainbowBody || '(no output)'} />
+        </Stack>
       );
     }
 
@@ -131,41 +250,46 @@ function ResultPane({ results }: { results: { human?: any; json?: any; rainbow?:
     <Card withBorder shadow="sm">
       <Group mb="sm">
         <Text fw={700}>Result</Text>
-        <Badge color={firstResult.returncode === 0 ? 'green' : 'red'}>
-          {firstResult.returncode === 0 ? 'Success' : `Exit ${firstResult.returncode}`}
+        <Badge color={rcOk ? 'green' : 'red'}>
+          {rc === 0 ? 'Success' : rc === 2 ? 'Success (changes)' : `Exit ${rc}`}
         </Badge>
+        {parsed?.items?.length ? (
+          <Badge variant="light" color="gray">
+            {parsed.items.length} target(s) · 1 Bolt run
+          </Badge>
+        ) : null}
       </Group>
       
       <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'human')}>
         <Tabs.List>
-          <Tabs.Tab value="human" disabled={!results.human}>
+          <Tabs.Tab value="human" disabled={!results.human && !results.json}>
             📄 Human
           </Tabs.Tab>
-          <Tabs.Tab value="json" disabled={!results.json}>
+          <Tabs.Tab value="json" disabled={!results.json && !results.human}>
             🔣 JSON
           </Tabs.Tab>
-          <Tabs.Tab value="rainbow" disabled={!results.rainbow}>
+          <Tabs.Tab value="rainbow" disabled={!results.rainbow && !results.json}>
             🌈 Rainbow
           </Tabs.Tab>
         </Tabs.List>
         
         <Tabs.Panel value="human" pt="sm">
-          {results.human && renderOutput(results.human, 'human')}
+          {renderOutput('human')}
         </Tabs.Panel>
         
         <Tabs.Panel value="json" pt="sm" style={{ height: '65vh', overflow: 'hidden' }}>
           <ScrollArea style={{ height: '100%' }}>
-            {results.json && renderOutput(results.json, 'json')}
-            {results.json?.error && (
+            {renderOutput('json')}
+            {errorText && parsed && (
               <Alert color="red" mt="sm">
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{results.json.error}</Text>
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{errorText}</Text>
               </Alert>
             )}
           </ScrollArea>
         </Tabs.Panel>
         
         <Tabs.Panel value="rainbow" pt="sm">
-          {results.rainbow && renderOutput(results.rainbow, 'rainbow')}
+          {renderOutput('rainbow')}
         </Tabs.Panel>
       </Tabs>
     </Card>
