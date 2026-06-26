@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.10.2+bugfix4] - 2026-06-26 (Monitoring trends persist + chart clipping)
+
+### Fixed
+- **Insights | Monitoring — Server JVM heap / catalog route / process CPU:** Client history was **replaced** by the server in-memory ring on every poll (wiped on GUI reload / short API history). Now **merges** API ring + localStorage (`ps_hist_v3` / `pdb_hist_v3`) by timestamp and always appends the current snapshot; migrates v2 keys.
+- **Charts drawing outside the panel:** Recharts `type="natural"` splines overshot below the X-axis (queue depth, DB heap, etc.). Switched to **`monotone`**, non-negative **Y domain** `[0, auto]`, tighter margins, plot container `overflow: hidden`.
+
 ## [3.10.2+bugfix3] - 2026-06-26 (PQL Console results horizontal scroll)
 
 ### Fixed

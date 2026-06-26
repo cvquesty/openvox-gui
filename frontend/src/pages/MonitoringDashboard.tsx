@@ -24,9 +24,19 @@ const GRAPHS_KEY = 'openvox-gui-monitor-graphs-v2';
 const REFRESH_KEY = 'openvox-gui-monitor-refresh-v2';
 const WINDOW_KEY = 'openvox-gui-monitor-window-hours-v1';
 const PERF_HIST_KEY = 'openvox_monitor_perf_hist_v2';
-const PS_HIST_KEY = 'openvox_monitor_ps_hist_v2';
-const PDB_HIST_KEY = 'openvox_monitor_pdb_hist_v2';
+/** v3: merge API ring + localStorage points (v2 wiped client trend on each server history replace). */
+const PS_HIST_KEY = 'openvox_monitor_ps_hist_v3';
+const PDB_HIST_KEY = 'openvox_monitor_pdb_hist_v3';
 const MAX_HIST = 2000;
+
+/** Keep curves inside the plot (natural splines overshoot below 0 / past axes). */
+const CHART_MARGIN = { top: 8, right: 12, left: 4, bottom: 4 };
+const CURVE = 'monotone' as const;
+/** Non-negative metrics (heap MB, queue depth, CPU load, ms timings). */
+const Y_NONNEG = {
+  domain: [0, 'auto'] as [number, string],
+  allowDataOverflow: false,
+};
 
 const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db'];
 
@@ -355,6 +365,40 @@ function sharedXAxisProps(startMs: number, endMs: number, windowHours: number) {
   };
 }
 
+/** Merge ring-buffer / poll points by timestamp; prefer newer field values; persist-friendly. */
+function mergeHistByTs(prev: any[], incoming: any[], max = MAX_HIST): any[] {
+  const byTs = new Map<number, any>();
+  for (const p of [...(prev || []), ...(incoming || [])]) {
+    if (!p || typeof p !== 'object') continue;
+    let ts =
+      typeof p.ts === 'number'
+        ? toEpochMs(p.ts)
+        : typeof p.t === 'number'
+          ? toEpochMs(p.t)
+          : pointEpochMs(p, 'time');
+    if (ts == null || !Number.isFinite(ts) || Number.isNaN(ts)) continue;
+    const prevPt = byTs.get(ts) || { ts, time: hourKeyFromMs(ts) };
+    const next = { ...prevPt, ...p, ts, time: p.time || hourKeyFromMs(ts) };
+    byTs.set(ts, next);
+  }
+  return Array.from(byTs.values())
+    .sort((a, b) => a.ts - b.ts)
+    .slice(-max);
+}
+
+function extractHttpRouteMeans(result: any): { catalog?: number; report?: number } {
+  let catalog = result?.http_catalog_mean ?? result?.http?.catalog_mean;
+  let report = result?.http_report_mean ?? result?.http?.report_mean;
+  for (const hm of result?.http_metrics || []) {
+    const r = String(hm?.route || hm?.name || '').toLowerCase();
+    const mean = hm?.mean ?? hm?.Mean;
+    if (mean == null || Number.isNaN(Number(mean))) continue;
+    if (r.includes('catalog')) catalog = Number(mean);
+    else if (r.includes('report')) report = Number(mean);
+  }
+  return { catalog: catalog != null ? Number(catalog) : undefined, report: report != null ? Number(report) : undefined };
+}
+
 function sharedLabelFormatter(v: unknown) {
   const ms = typeof v === 'number' ? v : Number(v);
   if (!Number.isFinite(ms)) return String(v ?? '');
@@ -426,7 +470,7 @@ function GraphFrame({
           </ActionIcon>
         </Group>
       </Group>
-      <div onClick={onToggle}>
+      <div onClick={onToggle} style={{ overflow: 'hidden', width: '100%' }}>
         <ResponsiveContainer width="100%" height={height}>
           {children as any}
         </ResponsiveContainer>
@@ -461,14 +505,20 @@ export function MonitoringDashboardPage() {
   });
   const [psHist, setPsHist] = useState<any[]>(() => {
     const cur = loadJson<any[]>(PS_HIST_KEY, []);
-    if (cur.length) return cur.map((p) => (typeof p.ts === 'number' ? { ...p, ts: toEpochMs(p.ts) } : p));
-    const legacy = loadJson<any[]>('openvox_ps_health_history', []);
-    return legacy.map((p) => (typeof p.ts === 'number' ? { ...p, ts: toEpochMs(p.ts) } : p));
+    const legacyMonitor = loadJson<any[]>('openvox_monitor_ps_hist_v2', []);
+    const legacyPage = loadJson<any[]>('openvox_ps_health_history', []);
+    const merged = mergeHistByTs(mergeHistByTs(cur, legacyMonitor), legacyPage);
+    return merged.map((p) => ({
+      ...p,
+      ts: typeof p.ts === 'number' ? toEpochMs(p.ts) : p.ts,
+      time: p.time || (typeof p.ts === 'number' ? hourKeyFromMs(toEpochMs(p.ts)) : p.time),
+    }));
   });
   const [pdbHist, setPdbHist] = useState<any[]>(() => {
     const cur = loadJson<any[]>(PDB_HIST_KEY, []);
-    if (cur.length) return cur;
-    return loadJson<any[]>('openvox_pdb_heap_history', []);
+    const legacyMonitor = loadJson<any[]>('openvox_monitor_pdb_hist_v2', []);
+    const legacyPage = loadJson<any[]>('openvox_pdb_heap_history', []);
+    return mergeHistByTs(mergeHistByTs(cur, legacyMonitor), legacyPage);
   });
 
   const { startMs, endMs } = useMemo(
@@ -547,69 +597,43 @@ export function MonitoringDashboardPage() {
       if (neededSources.has('ps')) {
         tasks.push(
           metrics.puppetserverHealth().then((result) => {
-            if (result?.history?.length) {
-              const mapped = result.history.map((p: any, idx: number) => {
-                // Backend stores ts as Unix seconds (time.time()); normalize to ms.
-                let ms =
-                  typeof p.ts === 'number'
-                    ? toEpochMs(p.ts)
-                    : Date.parse(p.time);
-                if (!Number.isFinite(ms) || Number.isNaN(ms)) {
-                  ms = tsNow - (result.history.length - idx) * 10_000;
-                }
-                return {
-                  ts: ms,
-                  time: hourKeyFromMs(ms),
-                  heap_used_mb: p.heap_used_mb,
-                  nonheap_used_mb: p.nonheap_used_mb,
-                  http_catalog_mean: p.http_catalog_mean,
-                  http_report_mean: p.http_report_mean,
-                  gc_young_time: p.gc_young_time,
-                  gc_old_time: p.gc_old_time,
-                  process_cpu_load: p.process_cpu_load,
-                  open_fds: p.open_fds,
-                };
-              });
-              // Also append current snapshot so gauges appear even if history is stale
-              const snapMs = tsNow;
-              mapped.push({
-                ts: snapMs,
-                time: hourKeyFromMs(snapMs),
-                heap_used_mb: result?.jvm_heap?.used_mb,
-                nonheap_used_mb: result?.jvm_nonheap?.used_mb,
-                http_catalog_mean: result?.http_catalog_mean ?? result?.http?.catalog_mean,
-                http_report_mean: result?.http_report_mean ?? result?.http?.report_mean,
-                gc_young_time: result?.gc_young?.time_ms,
-                gc_old_time: result?.gc_old?.time_ms,
-                process_cpu_load: result?.os?.process_cpu_load,
-                open_fds: result?.os?.open_file_descriptors,
-              });
-              const trimmed = mapped.slice(-MAX_HIST);
-              setPsHist(trimmed);
-              saveJson(PS_HIST_KEY, trimmed);
-              return;
-            }
-            let http_catalog_mean = result?.http_catalog_mean ?? result?.http?.catalog_mean;
-            let http_report_mean = result?.http_report_mean ?? result?.http?.report_mean;
-            for (const hm of result?.http_metrics || []) {
-              const r = String(hm?.route || '').toLowerCase();
-              if (r.includes('catalog')) http_catalog_mean = hm?.mean;
-              else if (r.includes('report')) http_report_mean = hm?.mean;
-            }
-            const point = {
+            const routes = extractHttpRouteMeans(result);
+            const fromApi: any[] = (result?.history || []).map((p: any, idx: number) => {
+              let ms =
+                typeof p.ts === 'number'
+                  ? toEpochMs(p.ts)
+                  : Date.parse(p.time);
+              if (!Number.isFinite(ms) || Number.isNaN(ms)) {
+                ms = tsNow - ((result.history?.length || 1) - idx) * 10_000;
+              }
+              const pr = extractHttpRouteMeans(p);
+              return {
+                ts: ms,
+                time: hourKeyFromMs(ms),
+                heap_used_mb: p.heap_used_mb ?? p.jvm_heap?.used_mb,
+                nonheap_used_mb: p.nonheap_used_mb ?? p.jvm_nonheap?.used_mb,
+                http_catalog_mean: p.http_catalog_mean ?? pr.catalog,
+                http_report_mean: p.http_report_mean ?? pr.report,
+                gc_young_time: p.gc_young_time ?? p.gc_young?.time_ms,
+                gc_old_time: p.gc_old_time ?? p.gc_old?.time_ms,
+                process_cpu_load: p.process_cpu_load ?? p.os?.process_cpu_load,
+                open_fds: p.open_fds ?? p.os?.open_file_descriptors,
+              };
+            });
+            const snap = {
               ts: tsNow,
               time: hourKeyFromMs(tsNow),
               heap_used_mb: result?.jvm_heap?.used_mb,
               nonheap_used_mb: result?.jvm_nonheap?.used_mb,
-              http_catalog_mean,
-              http_report_mean,
+              http_catalog_mean: routes.catalog,
+              http_report_mean: routes.report,
               gc_young_time: result?.gc_young?.time_ms,
               gc_old_time: result?.gc_old?.time_ms,
               process_cpu_load: result?.os?.process_cpu_load,
               open_fds: result?.os?.open_file_descriptors,
             };
             setPsHist((prev) => {
-              const updated = [...prev, point].slice(-MAX_HIST);
+              const updated = mergeHistByTs(prev, [...fromApi, snap]);
               saveJson(PS_HIST_KEY, updated);
               return updated;
             });
@@ -627,12 +651,12 @@ export function MonitoringDashboardPage() {
               ts: tsNow,
               time: hourKeyFromMs(tsNow),
               used_mb: jvm.used_mb ?? 0,
-              queue_depth: result.queue_depth ?? 0,
+              queue_depth: Math.max(0, Number(result.queue_depth) || 0),
               catalog_save_mean: findMean(pdbm, 'catalog_save'),
               report_process_mean: findMean(pdbm, 'report_process'),
             };
             setPdbHist((prev) => {
-              const updated = [...prev, point].slice(-MAX_HIST);
+              const updated = mergeHistByTs(prev, [point]);
               saveJson(PDB_HIST_KEY, updated);
               return updated;
             });
@@ -813,7 +837,7 @@ export function MonitoringDashboardPage() {
     switch (id) {
       case 'fleet_status_trends':
         return (
-          <AreaChart data={nodeTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={nodeTrends} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
@@ -827,7 +851,7 @@ export function MonitoringDashboardPage() {
         );
       case 'compliance_trend':
         return (
-          <AreaChart data={complianceTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={complianceTrend} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
@@ -854,40 +878,40 @@ export function MonitoringDashboardPage() {
         );
       case 'run_duration_trends':
         return (
-          <AreaChart data={runTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={runTrends} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number) => [formatSeconds(v), 'Total']} />
-            <Area type="natural" dataKey="total" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Total" />
+            <Area type="monotone" dataKey="total" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Total" />
           </AreaChart>
         );
       case 'timing_phase_breakdown':
         return (
-          <AreaChart data={runTrends} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={runTrends} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
             <Legend wrapperStyle={{ fontSize: 9 }} />
-            <Area type="natural" dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} name="Fact Gen" />
-            <Area type="natural" dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} name="Plugin Sync" />
-            <Area type="natural" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} name="Config Retrieval" />
-            <Area type="natural" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} name="Catalog Apply" />
+            <Area type="monotone" dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} name="Fact Gen" />
+            <Area type="monotone" dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} name="Plugin Sync" />
+            <Area type="monotone" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} name="Config Retrieval" />
+            <Area type="monotone" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} name="Catalog Apply" />
           </AreaChart>
         );
       case 'top10_slowest':
         return (
-          <AreaChart data={top10Data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={top10Data} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatSeconds} width={36}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
             <Legend wrapperStyle={{ fontSize: 8 }} />
             {nodeComparison.map((n: any, i: number) => (
               <Area
                 key={n.certname}
-                type="natural"
+                type="monotone"
                 dataKey={n.certname}
                 stroke={COLORS[i % COLORS.length]}
                 fill="none"
@@ -900,210 +924,210 @@ export function MonitoringDashboardPage() {
         );
       case 'cmd_processing':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Catalog" />
-            <Area type="natural" dataKey="facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} name="Facts" />
-            <Area type="natural" dataKey="report_ms" stroke="#e67e22" fill="none" strokeWidth={2} name="Report" />
+            <Area type="monotone" dataKey="catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Catalog" />
+            <Area type="monotone" dataKey="facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} name="Facts" />
+            <Area type="monotone" dataKey="report_ms" stroke="#e67e22" fill="none" strokeWidth={2} name="Report" />
           </AreaChart>
         );
       case 'storage_timing':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Catalog" />
-            <Area type="natural" dataKey="store_facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} name="Facts" />
-            <Area type="natural" dataKey="store_report_ms" stroke="#e67e22" fill="none" strokeWidth={2} name="Report" />
+            <Area type="monotone" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Catalog" />
+            <Area type="monotone" dataKey="store_facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} name="Facts" />
+            <Area type="monotone" dataKey="store_report_ms" stroke="#e67e22" fill="none" strokeWidth={2} name="Report" />
           </AreaChart>
         );
       case 'db_pool':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
             <YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} />
             <ReTooltip {...TT} />
             <Legend wrapperStyle={{ fontSize: 9 }} />
-            <Area type="natural" dataKey="write_active" stroke="#e74c3c" fill="none" strokeWidth={2} name="Write Active" />
-            <Area type="natural" dataKey="write_idle" stroke="#2ecc71" fill="none" strokeWidth={1.5} name="Write Idle" />
-            <Area type="natural" dataKey="read_active" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Read Active" />
-            <Area type="natural" dataKey="read_idle" stroke="#1abc9c" fill="none" strokeWidth={1.5} name="Read Idle" />
+            <Area type="monotone" dataKey="write_active" stroke="#e74c3c" fill="none" strokeWidth={2} name="Write Active" />
+            <Area type="monotone" dataKey="write_idle" stroke="#2ecc71" fill="none" strokeWidth={1.5} name="Write Idle" />
+            <Area type="monotone" dataKey="read_active" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Read Active" />
+            <Area type="monotone" dataKey="read_idle" stroke="#1abc9c" fill="none" strokeWidth={1.5} name="Read Idle" />
           </AreaChart>
         );
       case 'http_latency':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="http_query_ms" stroke="#3498db" fill="none" strokeWidth={2} name="Query API" />
-            <Area type="natural" dataKey="http_cmd_ms" stroke="#e74c3c" fill="none" strokeWidth={2} name="Command API" />
+            <Area type="monotone" dataKey="http_query_ms" stroke="#3498db" fill="none" strokeWidth={2} name="Query API" />
+            <Area type="monotone" dataKey="http_cmd_ms" stroke="#e74c3c" fill="none" strokeWidth={2} name="Command API" />
           </AreaChart>
         );
       case 'catalog_dedup':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40} />
+            <YAxis tick={{ fontSize: 9 }} tickFormatter={formatMs} width={40}  {...Y_NONNEG} />
             <ReTooltip {...TT} formatter={(v: number, n: string) => [formatMs(v), n]} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="hash_match_ms" stroke="#2ecc71" fill="none" strokeWidth={2} name="Hash Match" />
-            <Area type="natural" dataKey="hash_miss_ms" stroke="#e74c3c" fill="none" strokeWidth={2} name="Hash Miss" />
+            <Area type="monotone" dataKey="hash_match_ms" stroke="#2ecc71" fill="none" strokeWidth={2} name="Hash Match" />
+            <Area type="monotone" dataKey="hash_miss_ms" stroke="#e74c3c" fill="none" strokeWidth={2} name="Hash Miss" />
           </AreaChart>
         );
       case 'gc_pressure_pdb':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} width={28} />
+            <YAxis tick={{ fontSize: 9 }} width={28}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="gc_young_count" stroke="#3498db" fill="none" strokeWidth={2} name="Young GC" />
-            <Area type="natural" dataKey="gc_old_count" stroke="#e67e22" fill="none" strokeWidth={2} name="Old GC" />
+            <Area type="monotone" dataKey="gc_young_count" stroke="#3498db" fill="none" strokeWidth={2} name="Young GC" />
+            <Area type="monotone" dataKey="gc_old_count" stroke="#e67e22" fill="none" strokeWidth={2} name="Old GC" />
           </AreaChart>
         );
       case 'fleet_population':
         return (
-          <AreaChart data={perfAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={perfAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} width={36} />
+            <YAxis tick={{ fontSize: 9 }} width={36}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Area type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Nodes" />
-            <Area type="natural" dataKey="avg_resources" stroke="#2ecc71" fill="none" strokeWidth={1.5} name="Avg resources/node" />
+            <Area type="monotone" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} name="Nodes" />
+            <Area type="monotone" dataKey="avg_resources" stroke="#2ecc71" fill="none" strokeWidth={1.5} name="Avg resources/node" />
           </AreaChart>
         );
       case 'ps_heap':
         return (
-          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Area type="natural" dataKey="heap_used_mb" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Heap used MB" />
+            <Area type="monotone" dataKey="heap_used_mb" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Heap used MB" />
           </AreaChart>
         );
       case 'ps_nonheap':
         return (
-          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Area type="natural" dataKey="nonheap_used_mb" stroke="#8e44ad" fill="#8e44ad" fillOpacity={0.12} strokeWidth={2} name="Non-heap MB" />
+            <Area type="monotone" dataKey="nonheap_used_mb" stroke="#8e44ad" fill="#8e44ad" fillOpacity={0.12} strokeWidth={2} name="Non-heap MB" />
           </AreaChart>
         );
       case 'ps_catalog_route':
         return (
-          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="http_catalog_mean" stroke="#2980b9" strokeWidth={2} dot={false} name="Catalog route" />
+            <Line type="monotone" dataKey="http_catalog_mean" stroke="#2980b9" strokeWidth={2} dot={false} name="Catalog route" />
           </LineChart>
         );
       case 'ps_report_route':
         return (
-          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="http_report_mean" stroke="#16a085" strokeWidth={2} dot={false} name="Report route" />
+            <Line type="monotone" dataKey="http_report_mean" stroke="#16a085" strokeWidth={2} dot={false} name="Report route" />
           </LineChart>
         );
       case 'ps_gc_young':
         return (
-          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Area type="natural" dataKey="gc_young_time" stroke="#3498db" fill="#3498db" fillOpacity={0.12} strokeWidth={2} name="Young GC ms" />
+            <Area type="monotone" dataKey="gc_young_time" stroke="#3498db" fill="#3498db" fillOpacity={0.12} strokeWidth={2} name="Young GC ms" />
           </AreaChart>
         );
       case 'ps_gc_old':
         return (
-          <AreaChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Area type="natural" dataKey="gc_old_time" stroke="#e67e22" fill="#e67e22" fillOpacity={0.12} strokeWidth={2} name="Old GC ms" />
+            <Area type="monotone" dataKey="gc_old_time" stroke="#e67e22" fill="#e67e22" fillOpacity={0.12} strokeWidth={2} name="Old GC ms" />
           </AreaChart>
         );
       case 'ps_cpu':
         return (
-          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} width={36} />
+            <YAxis tick={{ fontSize: 9 }} width={36}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="process_cpu_load" stroke="#e74c3c" strokeWidth={2} dot={false} name="CPU load" />
+            <Line type="monotone" dataKey="process_cpu_load" stroke="#e74c3c" strokeWidth={2} dot={false} name="CPU load" />
           </LineChart>
         );
       case 'ps_fds':
         return (
-          <LineChart data={psAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={psAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} width={40} />
+            <YAxis tick={{ fontSize: 9 }} width={40}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="open_fds" stroke="#9b59b6" strokeWidth={2} dot={false} name="Open FDs" />
+            <Line type="monotone" dataKey="open_fds" stroke="#9b59b6" strokeWidth={2} dot={false} name="Open FDs" />
           </LineChart>
         );
       case 'pdb_heap':
         return (
-          <AreaChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={pdbAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" MB" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Area type="natural" dataKey="used_mb" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Heap used MB" />
+            <Area type="monotone" dataKey="used_mb" stroke="#0D6EFD" fill="#0D6EFD" fillOpacity={0.15} strokeWidth={2} name="Heap used MB" />
           </AreaChart>
         );
       case 'pdb_queue':
         return (
-          <LineChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={pdbAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} width={28} />
+            <YAxis tick={{ fontSize: 9 }} width={28}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="queue_depth" stroke="#e67e22" strokeWidth={2} dot={false} name="Queue depth" />
+            <Line type="monotone" dataKey="queue_depth" stroke="#e67e22" strokeWidth={2} dot={false} name="Queue depth" />
           </LineChart>
         );
       case 'pdb_catalog_save':
         return (
-          <LineChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={pdbAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="catalog_save_mean" stroke="#2980b9" strokeWidth={2} dot={false} name="catalog_save" />
+            <Line type="monotone" dataKey="catalog_save_mean" stroke="#2980b9" strokeWidth={2} dot={false} name="catalog_save" />
           </LineChart>
         );
       case 'pdb_report_process':
         return (
-          <LineChart data={pdbAligned} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={pdbAligned} margin={CHART_MARGIN}>
             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
             <XAxis {...xAxis} />
-            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44} />
+            <YAxis tick={{ fontSize: 9 }} unit=" ms" width={44}  {...Y_NONNEG} />
             <ReTooltip {...TT} />
-            <Line type="natural" dataKey="report_process_mean" stroke="#16a085" strokeWidth={2} dot={false} name="report_process" />
+            <Line type="monotone" dataKey="report_process_mean" stroke="#16a085" strokeWidth={2} dot={false} name="report_process" />
           </LineChart>
         );
       default:
