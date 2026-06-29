@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Multiple space-separated terms are OR-matched by default on certname or environment.
   - Works on the main All Nodes list, classified group lists, and Unclassified Nodes.
   - Example: search `-atlc -pdxc` to quickly get a clean production fleet view without lab nodes.
+- **Insights | Monitoring | Fleet Node Status Trends has zero data.** The trend data (node status over time) was often empty in the 24h (or small) window because the reports query used for building `compute_trends` was limited to 5000 reports. For active fleets this truncated recent reports, so recent hourly buckets were missing, and after client window filtering the graph showed no points.
+  - Raised report limit to 20000 in the three places that build time-series trends from recent reports (dashboard data, node status trends, report trends).
+  - This ensures recent report activity is included so the status trends graph (and similar) have data in the selected window.
 - **Insights | Monitoring: graphs do not persist/continue when not focused.** The high-resolution trend histories (heap, CPU load, queue depth, route timings, GC, storage, etc.) for the live wallboard charts were accumulated only inside `MonitoringDashboardPage`'s own polling and component state. Navigating to other Insights pages, other routes, or losing browser tab focus would stop collection. On return, graphs showed stale or reset history instead of full tracked trends + current data.
   - New `MonitoringHistoryProvider` (mounted at app root) owns the shared history buffers (`perfServerHist`, `psHist`, `pdbHist`) and runs an independent background collector.
   - Collector polls key endpoints on ~15s cadence (slows to 60s when tab hidden), merges points with existing buffer + localStorage using the established `mergeHistByTs` logic, and does immediate catch-up on `visibilitychange`.

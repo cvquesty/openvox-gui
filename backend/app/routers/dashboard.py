@@ -45,7 +45,7 @@ async def get_dashboard_data():
                 "reports",
                 query=f'[">" , "receive_time", "{cutoff}"]',
                 params={
-                    "limit": "5000",
+                    "limit": "20000",
                     "order_by": '[{"field": "receive_time", "order": "asc"}]'
                 }
             ),
