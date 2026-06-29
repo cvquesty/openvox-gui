@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Philosophy: ENC is a *thin classification overlay*, not a duplicate inventory. Periodic (on-load + explicit) normalization is the right tool; we do not mirror full PDB data into SQLite.
 
 ### Fixed
+- **Overview | Nodes: add boolean search operators.** The search box now supports simple boolean-style filtering:
+  - `-term` or `!term` to exclude nodes (e.g. `-atlc -pdxc` gives all nodes except those with "atlc" or "pdxc" in the certname or environment).
+  - Multiple space-separated terms are OR-matched by default on certname or environment.
+  - Works on the main All Nodes list, classified group lists, and Unclassified Nodes.
+  - Example: search `-atlc -pdxc` to quickly get a clean production fleet view without lab nodes.
 - **Insights | Monitoring: graphs do not persist/continue when not focused.** The high-resolution trend histories (heap, CPU load, queue depth, route timings, GC, storage, etc.) for the live wallboard charts were accumulated only inside `MonitoringDashboardPage`'s own polling and component state. Navigating to other Insights pages, other routes, or losing browser tab focus would stop collection. On return, graphs showed stale or reset history instead of full tracked trends + current data.
   - New `MonitoringHistoryProvider` (mounted at app root) owns the shared history buffers (`perfServerHist`, `psHist`, `pdbHist`) and runs an independent background collector.
   - Collector polls key endpoints on ~15s cadence (slows to 60s when tab hidden), merges points with existing buffer + localStorage using the established `mergeHistByTs` logic, and does immediate catch-up on `visibilitychange`.

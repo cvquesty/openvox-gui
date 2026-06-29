@@ -171,12 +171,62 @@ export function NodesPage() {
   const statusFilter = values.status || null;
   const setStatusFilter = (v: string | null) => setFilter('status', v || '');
 
+  /**
+   * Advanced client-side search supporting boolean-style exclusion.
+   *
+   * Syntax (space-separated):
+   *   foo bar         → certname or env contains "foo" OR "bar"
+   *   -atlc -pdxc     → exclude nodes containing "atlc" OR "pdxc" (i.e. everything except those)
+   *   web prod -test  → (web OR prod) AND not "test"
+   *   !foo            → also supported as negation
+   *
+   * This runs entirely client-side on the already-loaded fleet list so you
+   * can create arbitrary filtered views (e.g. "all production nodes except
+   * the ones in the atlc/pdxc labs").
+   */
   const matchesNodeFilters = (n: NodeSummary) => {
-    if (search && !n.certname.toLowerCase().includes(search.toLowerCase())) return false;
+    const cert = (n.certname || '').toLowerCase();
+    const env = (n.report_environment || '').toLowerCase();
+    const fields = [cert, env].filter(Boolean);
+
     if (statusFilter) {
       const st = (n.latest_report_status || '').toLowerCase();
       if (st !== statusFilter.toLowerCase()) return false;
     }
+
+    if (!search) return true;
+
+    const tokens = search.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return true;
+
+    const positives: string[] = [];
+    const negatives: string[] = [];
+
+    for (const t of tokens) {
+      const lower = t.toLowerCase();
+      if (lower.startsWith('-') || lower.startsWith('!')) {
+        negatives.push(lower.replace(/^[-!]+/, ''));
+      } else {
+        positives.push(lower);
+      }
+    }
+
+    // Any negative match → exclude this node
+    for (const neg of negatives) {
+      if (fields.some(f => f.includes(neg))) {
+        return false;
+      }
+    }
+
+    // Positives: match ANY (OR). This feels natural for certname fragments.
+    // Negatives always act as "exclude if it matches any of these".
+    if (positives.length > 0) {
+      const matchesAnyPositive = positives.some(pos =>
+        fields.some(f => f.includes(pos))
+      );
+      if (!matchesAnyPositive) return false;
+    }
+
     return true;
   };
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -375,10 +425,10 @@ export function NodesPage() {
       <FilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search nodes by certname…"
+        searchPlaceholder="Search certname/env (-foo to exclude)…"
         status={statusFilter}
         onStatusChange={setStatusFilter}
-        hint="Status chips filter All Nodes / groups / unclassified. Shareable via URL (?q=&status=)."
+        hint="Advanced search: space = OR match on certname or environment. Prefix with - or ! to exclude (e.g. -atlc -pdxc). Shareable via URL (?q=&status=)."
         rightSection={
           <Tooltip label="Copy link to this filtered view">
             <ActionIcon
@@ -497,7 +547,7 @@ export function NodesPage() {
           defaultPageSize={100}
           maxHeight="calc(100vh - 320px)"
           emptyTitle="No nodes found"
-          emptyDescription={search ? 'Try a different search.' : 'No nodes reported to PuppetDB yet.'}
+          emptyDescription={search ? 'No nodes match the current search.' : 'No nodes reported to PuppetDB yet.'}
           onRowClick={(n) => navigate(`/nodes/${n.certname}`)}
           columns={[
             {
@@ -547,7 +597,7 @@ export function NodesPage() {
           defaultPageSize={50}
           maxHeight={480}
           emptyTitle="All known nodes are classified"
-          emptyDescription={search || statusFilter ? 'No unclassified nodes match filters.' : undefined}
+          emptyDescription={search || statusFilter ? 'No unclassified nodes match the current search/filters.' : undefined}
           onRowClick={(n) => navigate(`/nodes/${n.certname}`)}
           columns={[
             {
