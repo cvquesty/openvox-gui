@@ -47,7 +47,7 @@ async def resolve_targets(targets: str, db: AsyncSession) -> str:
 
     try:
         groups = await enc_service.list_groups(db)
-        all_nodes_list = await enc_service.list_nodes(db)
+        all_nodes_list = await enc_service.get_reconciled_classified_nodes(db)
     except Exception:
         groups = []
         all_nodes_list = []
@@ -56,11 +56,15 @@ async def resolve_targets(targets: str, db: AsyncSession) -> str:
 
     all_certnames: list[str] = []
     if any(p.lower() == "all" for p in raw_parts):
+        # Prefer the canonical fleet (CA signed certs). Fall back to reconciled ENC.
         try:
-            pdb_nodes = await puppetdb_service.get_nodes()
-            all_certnames = [n["certname"] for n in pdb_nodes if n.get("certname")]
+            fleet = await puppetdb_service.get_fleet_nodes()
+            all_certnames = [n.get("certname") for n in fleet if n.get("certname")]
         except Exception:
-            all_certnames = [n.certname for n in all_nodes_list if n.certname]
+            try:
+                all_certnames = [n.certname for n in all_nodes_list if n.certname]
+            except Exception:
+                all_certnames = []
 
     for part in raw_parts:
         part_lower = part.lower()

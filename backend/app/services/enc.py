@@ -178,12 +178,97 @@ class HierarchicalENCService:
     # ─── Nodes (Layer 4) ──────────────────────────────────
 
     async def list_nodes(self, db: AsyncSession) -> List[EncNode]:
+        """Raw ENC nodes from SQLite (no filtering).
+
+        Most consumers should prefer get_reconciled_classified_nodes()
+        which applies fleet reality checks and auto-prunes ghosts.
+        """
         result = await db.execute(
             select(EncNode)
             .options(selectinload(EncNode.groups))
             .order_by(EncNode.certname)
         )
         return list(result.scalars().all())
+
+    async def get_reconciled_classified_nodes(self, db: AsyncSession) -> List[EncNode]:
+        """Return only ENC nodes that correspond to a currently live fleet member.
+
+        Live = has a signed certificate (CA is authoritative for membership)
+               AND is not deactivated/expired in PuppetDB.
+
+        As a side effect, any ENC rows for certs that are no longer in the
+        signed fleet (but were previously known) are pruned from SQLite.
+        This provides ongoing normalization between the utilitarian ENC
+        classification store and the authoritative fleet sources.
+        """
+        from ..services.puppetdb import puppetdb_service
+        from .certificates_service import list_certificates as list_ca_certs
+
+        raw_nodes = await self.list_nodes(db)
+
+        try:
+            # Authoritative live signed certs
+            ca = await list_ca_certs(use_cache=True)
+            signed = {
+                (c.get("name") or "").strip().lower()
+                for c in (ca.get("signed") or [])
+                if (c.get("name") or "").strip()
+            }
+
+            # PDB view for liveness + "was this ever a real node?"
+            active = await puppetdb_service.get_nodes()
+            active_set = {n.get("certname", "").strip().lower() for n in active}
+
+            all_pdb = await puppetdb_service.get_nodes(include_inactive=True)
+            pdb_known = {n.get("certname", "").strip().lower() for n in all_pdb}
+
+            kept: list[EncNode] = []
+            to_prune: list[str] = []
+
+            for node in raw_nodes:
+                cn = node.certname.strip().lower()
+                if cn in signed and cn in active_set:
+                    kept.append(node)
+                else:
+                    # Only prune if this was a former real fleet member
+                    if cn not in signed and cn in pdb_known:
+                        to_prune.append(node.certname)
+
+            if to_prune:
+                pruned_count = 0
+                for cn in to_prune:
+                    if await self.delete_node(db, cn):
+                        pruned_count += 1
+                if pruned_count:
+                    await db.commit()
+                    import logging
+                    logging.getLogger(__name__).info(
+                        f"ENC reconciliation pruned {pruned_count} stale node(s): {to_prune[:5]}"
+                    )
+
+            return kept
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Reconciliation filter failed, returning raw nodes: {e}")
+            return raw_nodes
+
+    async def reconcile(self, db: AsyncSession) -> dict:
+        """Explicitly run normalization and return a summary.
+
+        Safe to call from maintenance endpoints or timers.
+        """
+        before = await self.list_nodes(db)
+        before_count = len(before)
+
+        reconciled = await self.get_reconciled_classified_nodes(db)
+        after_count = len(reconciled)
+
+        return {
+            "before": before_count,
+            "after": after_count,
+            "pruned": before_count - after_count,
+            "pruned_certnames": [n.certname for n in before if n.certname not in {r.certname for r in reconciled}],
+        }
 
     async def get_node(self, db: AsyncSession, certname: str) -> Optional[EncNode]:
         result = await db.execute(

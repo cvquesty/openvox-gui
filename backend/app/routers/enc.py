@@ -112,20 +112,15 @@ async def get_hierarchy(db: AsyncSession = Depends(get_db)):
     common = await enc_service.get_common(db)
     envs = await enc_service.list_environments(db)
     groups = await enc_service.list_groups(db)
-    nodes = await enc_service.list_nodes(db)
 
-    # Filter ENC nodes against PuppetDB — only include active nodes
-    try:
-        active = await puppetdb_service.get_nodes()
-        active_certnames = {n.get("certname", "").strip().lower() for n in active}
-        nodes = [n for n in nodes if n.certname.strip().lower() in active_certnames]
-    except Exception as e:
-        logger.warning(f"Could not filter hierarchy nodes against PuppetDB: {e}")
+    # Use the centralized reconciled view. This applies CA signed + PDB active
+    # filtering and performs auto-pruning of ghosts. All hierarchy consumers
+    # (Reports groups, Nodes classified sections, etc.) now see a consistent,
+    # normalized view of the fleet.
+    nodes = await enc_service.get_reconciled_classified_nodes(db)
 
-    # Deduplicate by certname (defensive). The DB PK guarantees uniqueness and
-    # the listcomp above preserves order, but races, stale queries, or
-    # intermittent PuppetDB weirdness must never leak duplicates into the UI
-    # node lists (Dashboard, Nodes, Reports groups, etc.).
+    # Defensive dedup + sort (the service already does a lot of this, but
+    # guarantee it for the full hierarchy response shape).
     seen_certs: set[str] = set()
     deduped: list = []
     for n in nodes:
@@ -319,62 +314,76 @@ async def delete_group(group_id: int, db: AsyncSession = Depends(get_db), _user:
 
 @router.get("/nodes")
 async def list_nodes(db: AsyncSession = Depends(get_db)):
-    nodes = await enc_service.list_nodes(db)
+    """List classified nodes, reconciled against the live fleet.
 
-    # Filter against PuppetDB — only return nodes that actually exist
-    try:
-        active = await puppetdb_service.get_nodes()
-        active_certnames = {n.get("certname", "").strip().lower() for n in active}
-        nodes = [n for n in nodes if n.certname.strip().lower() in active_certnames]
-    except Exception as e:
-        logger.warning(f"Could not filter ENC nodes against PuppetDB: {e}")
+    Uses the authoritative CA signed cert list + PDB active status.
+    Stale ghosts are pruned as a side effect (see service for details).
+    """
+    nodes = await enc_service.get_reconciled_classified_nodes(db)
 
     result = [{"certname": n.certname, "environment": n.environment,
                "classes": n.classes or {}, "parameters": n.parameters or {},
                "groups": [g.name for g in n.groups]}
               for n in nodes]
 
-    # Deduplicate by certname (defensive). PK + filter should suffice, but
-    # guarantee no duplicate host entries ever reach Node Classifier etc.
+    # Deduplicate (belt-and-suspenders) + stable sort
     seen: set[str] = set()
-    deduped_result = []
+    deduped = []
     for r in result:
         k = (r.get("certname") or "").strip().lower()
         if k and k not in seen:
             seen.add(k)
-            deduped_result.append(r)
-    result = deduped_result
+            deduped.append(r)
+    deduped.sort(key=lambda n: (n.get("certname") or "").lower())
+    return deduped
 
-    # Always return nodes in alphabetical order by certname for consistent
-    # UI behavior in dropdowns and dialogs that list classified hosts.
-    result.sort(key=lambda n: (n.get("certname") or "").lower())
-    return result
+async def _validate_certname_in_fleet(certname: str):
+    """Reject certnames that are not currently part of the live fleet.
 
-async def _validate_certname_in_puppetdb(certname: str):
-    """Reject certnames that don't exist as active nodes in PuppetDB.
+    The authoritative source for fleet membership is the set of signed
+    certificates (via puppetserver ca list). We also require the node to
+    appear as active (non-deactivated) in PuppetDB.
 
-    PuppetDB is the single source of truth for node existence. The ENC
-    only stores classification metadata — it must not create entries
-    for nodes that Puppet doesn't know about.
+    The ENC only stores *classification metadata* on top of real fleet
+    members. We must not allow classification of ghosts or future nodes
+    that have never had a cert.
     """
+    from .certificates_service import list_certificates as list_ca_certs
+
     try:
-        active_nodes = await puppetdb_service.get_nodes()
-        active_certnames = {n.get("certname", "").strip().lower() for n in active_nodes}
-        if certname.strip().lower() not in active_certnames:
+        # Must be currently signed
+        ca = await list_ca_certs(use_cache=True)
+        signed = {
+            (c.get("name") or "").strip().lower()
+            for c in (ca.get("signed") or [])
+            if (c.get("name") or "").strip()
+        }
+        cn = certname.strip().lower()
+        if cn not in signed:
             raise HTTPException(
                 status_code=400,
-                detail=f"Node '{certname}' does not exist in PuppetDB. "
-                       f"Only active PuppetDB nodes can be classified.",
+                detail=f"Node '{certname}' does not have a signed certificate. "
+                       "Only nodes with current signed certs can be classified.",
+            )
+
+        # Should also be active in PDB (prevents classifying something just cleaned)
+        active_nodes = await puppetdb_service.get_nodes()
+        active_certnames = {n.get("certname", "").strip().lower() for n in active_nodes}
+        if cn not in active_certnames:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Node '{certname}' is not active in PuppetDB. "
+                       "Only active nodes can be classified.",
             )
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Could not validate certname against PuppetDB: {e}")
+        logger.warning(f"Could not validate certname against fleet/CA: {e}")
 
 
 @router.post("/nodes", status_code=201)
 async def create_node(data: NodeData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
-    await _validate_certname_in_puppetdb(data.certname)
+    await _validate_certname_in_fleet(data.certname)
     try:
         node = await enc_service.save_node(db, certname=data.certname,
                                             environment=data.environment,
@@ -389,7 +398,7 @@ async def create_node(data: NodeData, db: AsyncSession = Depends(get_db), _user:
 
 @router.put("/nodes/{certname}")
 async def update_node(certname: str, data: NodeData, db: AsyncSession = Depends(get_db), _user: str = Depends(_ENC_WRITE)):
-    await _validate_certname_in_puppetdb(certname)
+    await _validate_certname_in_fleet(certname)
     try:
         node = await enc_service.save_node(db, certname=certname,
                                             environment=data.environment,
@@ -408,6 +417,20 @@ async def delete_node(certname: str, db: AsyncSession = Depends(get_db), _user: 
         raise HTTPException(status_code=404, detail="Node not found")
 
 
+@router.post("/reconcile", dependencies=[Depends(_ENC_WRITE)])
+async def reconcile_enc(db: AsyncSession = Depends(get_db)):
+    """Force a normalization pass between the ENC classification store and the live fleet.
+
+    Removes classification rows for certnames that no longer have signed certificates
+    (and were previously known to PDB). Returns before/after counts.
+
+    This is the explicit "regular normalization check" for secondary pages that
+    rely on the utilitarian SQLite ENC data.
+    """
+    stats = await enc_service.reconcile(db)
+    return {"status": "ok", "reconciliation": stats}
+
+
 # ─── Bolt Inventory Generation (3.x feature) ─────────────
 
 @router.get("/inventory/bolt")
@@ -423,14 +446,13 @@ async def get_bolt_inventory(
     - Ungrouped classified nodes go into an 'ungrouped' group
     - PuppetDB plugin config is included for dynamic node discovery
 
-    This endpoint powers the Orchestration page's group-based target
-    selection and can also be written to disk as inventory.yaml.
-    Scoped service tokens with role bolt / bolt-inventory-readonly are allowed.
+    Only reconciled (currently live, signed-cert) nodes are included.
+    This prevents ghost nodes from appearing in Bolt targets.
     """
     from ..config import settings
 
     groups = await enc_service.list_groups(db)
-    nodes = await enc_service.list_nodes(db)
+    nodes = await enc_service.get_reconciled_classified_nodes(db)
 
     # Build group → members mapping from node memberships
     group_members: dict = {}

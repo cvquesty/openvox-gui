@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## Unreleased
+
+### Fixed
+- **Ghost nodes persisting in Insights | Reports | "Production Nodes" (and all other classified group lists):** Nodes that had their certs cleaned/revoked and were purged could still appear as rows with "no data" (all — fields) in the grouped report views. These were stale ENC SQLite rows that survived because the hierarchy filter only checked PDB "active" (not the CA signed list) and deactivate sometimes left records. 
+  - `/enc/hierarchy` now applies a definitive live-fleet filter: must be in ENC *and* PDB active (not deactivated/expired) *and* present in current `puppetserver ca list --all` signed certs.
+  - Any ENC entries for cleaned certs (or deactivated) are **auto-deleted** from the SQLite DB the first time any UI loads the hierarchy (Reports, Nodes page groups, Node Classifier, Metrics Classification, etc.).
+  - `POST /nodes/{certname}/purge` (and the Purge button) now additionally runs `puppet node deactivate` via the Puppet CLI (sudo) for belt-and-suspenders reliability alongside the PDB command API.
+  - Cert clean path already removed ENC; purge is now even stronger.
+  - Result: once a cert is gone from CA, the ghost vanishes from every "Production Nodes", "Staging Nodes", etc. list and is cleaned from the classifier. If a ghost is still visible, note the exact certname and POST to `/api/nodes/<exact-certname>/purge` (or visit Reports to trigger auto-prune).
+
+### Architecture / Normalization
+- **Centralized ENC ↔ Fleet reconciliation.** Added `enc_service.get_reconciled_classified_nodes()` and `reconcile()`. The utilitarian SQLite (`enc_nodes`) is now consistently filtered/pruned against the authoritative sources (CA signed certs as fleet membership + PDB for liveness) in one place.
+  - Updated: `/enc/nodes`, `/enc/hierarchy`, `/enc/inventory/bolt`, target resolution in Bolt execution, and ENC create/update validation.
+  - Added `POST /api/enc/reconcile` (operator+) that returns before/after stats. Frontend `enc.reconcile()` client method added.
+  - This directly addresses drift on "secondary pages" (Reports, classification UIs, Bolt groups, orchestration targets) that consume the ENC classification store rather than the main CA/PDB fleet list used by the primary Dashboard + Nodes page.
+  - Philosophy: ENC is a *thin classification overlay*, not a duplicate inventory. Periodic (on-load + explicit) normalization is the right tool; we do not mirror full PDB data into SQLite.
+
 ## [3.10.2-1] - 2026-06-26 (bugfix release on 3.10.2 — single shippable cut)
 
 ### Release

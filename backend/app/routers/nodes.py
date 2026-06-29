@@ -345,21 +345,38 @@ async def purge_node(
 
     This is the single operation that administrators should use when
     decommissioning a node. It removes the node from:
-      1. PuppetDB (puppet node deactivate)
+      1. PuppetDB (API deactivate + `puppet node deactivate` CLI)
       2. ENC SQLite database (classification data)
       3. Puppet CA (puppetserver ca clean)
 
     Any individual step that fails is logged but does not prevent the
     other steps from running. The response includes the result of each
     step so the administrator can see exactly what succeeded.
+
+    The puppet CLI deactivate is run in addition to the PDB command API
+    for maximum reliability when cleaning stubborn ghosts.
     """
     from ..utils.sudo import run_sudo
 
     certname = validate_pql_value(certname, "certname")
     results = {}
 
-    # 1. Deactivate from PuppetDB
+    # 1. Deactivate from PuppetDB (command API)
     results["puppetdb_deactivated"] = await puppetdb_service.deactivate_node(certname)
+
+    # Also run the documented `puppet node deactivate` (sudo) — belt-and-suspenders
+    # for cases where the API call alone leaves a stale active record.
+    try:
+        cli = await run_sudo(
+            ["sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname],
+            timeout=30,
+        )
+        results["puppet_node_deactivate_cli"] = cli.get("returncode") == 0
+        if not results["puppet_node_deactivate_cli"]:
+            logger.warning(f"puppet node deactivate CLI stderr for '{certname}': {cli.get('stderr')}")
+    except Exception as e:
+        results["puppet_node_deactivate_cli"] = False
+        logger.warning(f"puppet node deactivate CLI failed for '{certname}': {e}")
 
     # 2. Remove from ENC SQLite
     results["enc_removed"] = await _remove_from_enc(certname, db)

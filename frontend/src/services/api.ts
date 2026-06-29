@@ -223,6 +223,10 @@ export const enc = {
   deleteNode: (certname: string) =>
     fetchJSON<void>(`/enc/nodes/${certname}`, { method: 'DELETE' }),
 
+  // Reconciliation (normalization between SQLite classification and live fleet)
+  reconcile: () =>
+    fetchJSON<any>('/enc/reconcile', { method: 'POST' }),
+
   // Classify (lookup)
   classify: (certname: string) => fetchJSON<any>(`/enc/classify/${certname}`),
 
