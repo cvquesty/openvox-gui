@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This directly addresses drift on "secondary pages" (Reports, classification UIs, Bolt groups, orchestration targets) that consume the ENC classification store rather than the main CA/PDB fleet list used by the primary Dashboard + Nodes page.
   - Philosophy: ENC is a *thin classification overlay*, not a duplicate inventory. Periodic (on-load + explicit) normalization is the right tool; we do not mirror full PDB data into SQLite.
 
+### Fixed
+- **Insights | Monitoring: graphs do not persist/continue when not focused.** The high-resolution trend histories (heap, CPU load, queue depth, route timings, GC, storage, etc.) for the live wallboard charts were accumulated only inside `MonitoringDashboardPage`'s own polling and component state. Navigating to other Insights pages, other routes, or losing browser tab focus would stop collection. On return, graphs showed stale or reset history instead of full tracked trends + current data.
+  - New `MonitoringHistoryProvider` (mounted at app root) owns the shared history buffers (`perfServerHist`, `psHist`, `pdbHist`) and runs an independent background collector.
+  - Collector polls key endpoints on ~15s cadence (slows to 60s when tab hidden), merges points with existing buffer + localStorage using the established `mergeHistByTs` logic, and does immediate catch-up on `visibilitychange`.
+  - Collector runs for the lifetime of the SPA tab, regardless of which route is active ("remains active when I change focus away").
+  - Monitoring wallboard consumes the shared histories (synced via context + local state) so every render shows the complete trend within the chosen window plus the latest points.
+  - Manual Refresh and visibility handling now force catch-ups for both histories and snapshot data.
+  - Result: graphs maintain persistent history at all times; you see all tracked trends, not just current values.
+
+### Process
+- Per governing rules, every code/doc update is now followed by full pre-commit checklist (CHANGELOG, bump, conventional commit with "Assisted By: Grok AI", annotated pre-release tag, push).
+
 ## [3.10.2-1] - 2026-06-26 (bugfix release on 3.10.2 — single shippable cut)
 
 ### Release

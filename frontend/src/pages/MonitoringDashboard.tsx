@@ -19,6 +19,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { dashboard, metrics, performance as perfApi } from '../services/api';
+import { useMonitoringHistory } from '../hooks/MonitoringHistoryContext';
 
 const GRAPHS_KEY = 'openvox-gui-monitor-graphs-v2';
 const REFRESH_KEY = 'openvox-gui-monitor-refresh-v2';
@@ -497,29 +498,30 @@ export function MonitoringDashboardPage() {
   const [dashData, setDashData] = useState<any>(null);
   const [compliance, setCompliance] = useState<any>(null);
   const [perfData, setPerfData] = useState<any>(null);
-  const [perfServerHist, setPerfServerHist] = useState<any[]>(() => {
-    const cur = loadJson<any[]>(PERF_HIST_KEY, []);
-    if (cur.length) return cur;
-    // Prefer prior Run Performance page history if monitor buffer is empty
-    return loadJson<any[]>('openvox_perf_server_history', []);
-  });
-  const [psHist, setPsHist] = useState<any[]>(() => {
-    const cur = loadJson<any[]>(PS_HIST_KEY, []);
-    const legacyMonitor = loadJson<any[]>('openvox_monitor_ps_hist_v2', []);
-    const legacyPage = loadJson<any[]>('openvox_ps_health_history', []);
-    const merged = mergeHistByTs(mergeHistByTs(cur, legacyMonitor), legacyPage);
-    return merged.map((p) => ({
-      ...p,
-      ts: typeof p.ts === 'number' ? toEpochMs(p.ts) : p.ts,
-      time: p.time || (typeof p.ts === 'number' ? hourKeyFromMs(toEpochMs(p.ts)) : p.time),
-    }));
-  });
-  const [pdbHist, setPdbHist] = useState<any[]>(() => {
-    const cur = loadJson<any[]>(PDB_HIST_KEY, []);
-    const legacyMonitor = loadJson<any[]>('openvox_monitor_pdb_hist_v2', []);
-    const legacyPage = loadJson<any[]>('openvox_pdb_heap_history', []);
-    return mergeHistByTs(mergeHistByTs(cur, legacyMonitor), legacyPage);
-  });
+  // Histories now come from the app-level collector so they continue to grow
+  // even when you navigate away from the Monitoring wallboard.
+  const {
+    perfServerHist: perfServerHistFromCtx,
+    psHist: psHistFromCtx,
+    pdbHist: pdbHistFromCtx,
+    refreshHistories,
+  } = useMonitoringHistory();
+
+  // Local copies synced from the shared collector. This keeps all the existing
+  // useMemo / rendering logic working unchanged while the collector runs globally.
+  const [perfServerHist, setPerfServerHist] = useState<any[]>(perfServerHistFromCtx);
+  const [psHist, setPsHist] = useState<any[]>(psHistFromCtx);
+  const [pdbHist, setPdbHist] = useState<any[]>(pdbHistFromCtx);
+
+  // Keep local buffers in sync when the background collector appends new points.
+  useEffect(() => { setPerfServerHist(perfServerHistFromCtx); }, [perfServerHistFromCtx]);
+  useEffect(() => { setPsHist(psHistFromCtx); }, [psHistFromCtx]);
+  useEffect(() => { setPdbHist(pdbHistFromCtx); }, [pdbHistFromCtx]);
+
+  // When the Monitoring view mounts (or regains focus), ask the collector for latest.
+  useEffect(() => {
+    refreshHistories?.();
+  }, [refreshHistories]);
 
   const { startMs, endMs } = useMemo(
     () => windowBounds(windowHours),
@@ -554,113 +556,30 @@ export function MonitoringDashboardPage() {
       }
       if (neededSources.has('perf')) {
         tasks.push(
-          (async () => {
-            const [perf, server] = await Promise.all([
-              perfApi.getOverview(),
-              metrics.puppetdbPerformance().catch(() => null),
-            ]);
+          perfApi.getOverview().then((perf) => {
             setPerfData(perf);
-            if (server) {
-              const point: any = {
-                ts: tsNow,
-                time: hourKeyFromMs(tsNow),
-                catalog_ms: Number(server.catalog_processing?.Mean) || 0,
-                facts_ms: Number(server.facts_processing?.Mean) || 0,
-                report_ms: Number(server.report_processing?.Mean) || 0,
-                store_catalog_ms: Number(server.store_catalog?.Mean) / 1000 || 0,
-                store_facts_ms: Number(server.store_facts?.Mean) / 1000 || 0,
-                store_report_ms: Number(server.store_report?.Mean) / 1000 || 0,
-                http_query_ms: Number(server.http_query_time?.Mean) || 0,
-                http_cmd_ms: Number(server.http_cmd_time?.Mean) || 0,
-                write_active: Number(server.write_pool_active?.Value) || 0,
-                write_idle: Number(server.write_pool_idle?.Value) || 0,
-                read_active: Number(server.read_pool_active?.Value) || 0,
-                read_idle: Number(server.read_pool_idle?.Value) || 0,
-                write_pending: Number(server.write_pool_pending?.Value) || 0,
-                read_pending: Number(server.read_pool_pending?.Value) || 0,
-                hash_match_ms: Number(server.catalog_hash_match?.Mean) / 1000 || 0,
-                hash_miss_ms: Number(server.catalog_hash_miss?.Mean) / 1000 || 0,
-                gc_young_count: Number(server.gc_young?.CollectionCount) || 0,
-                gc_old_count: Number(server.gc_old?.CollectionCount) || 0,
-                nodes: Number(server.population_nodes?.Value) || 0,
-                avg_resources: Number(server.population_avg_resources?.Value) || 0,
-              };
-              setPerfServerHist((prev) => {
-                const updated = [...prev, point].slice(-MAX_HIST);
-                saveJson(PERF_HIST_KEY, updated);
-                return updated;
-              });
-            }
-          })()
+          })
         );
+        // The persistent high-res perf server history is maintained by the
+        // app-level MonitoringHistoryProvider (runs even when this page is not focused).
       }
       if (neededSources.has('ps')) {
+        // We still fetch for fresh current values if this source is enabled,
+        // but the long-term history accumulation for the wallboard is handled
+        // by the global MonitoringHistoryProvider (survives route changes).
         tasks.push(
           metrics.puppetserverHealth().then((result) => {
-            const routes = extractHttpRouteMeans(result);
-            const fromApi: any[] = (result?.history || []).map((p: any, idx: number) => {
-              let ms =
-                typeof p.ts === 'number'
-                  ? toEpochMs(p.ts)
-                  : Date.parse(p.time);
-              if (!Number.isFinite(ms) || Number.isNaN(ms)) {
-                ms = tsNow - ((result.history?.length || 1) - idx) * 10_000;
-              }
-              const pr = extractHttpRouteMeans(p);
-              return {
-                ts: ms,
-                time: hourKeyFromMs(ms),
-                heap_used_mb: p.heap_used_mb ?? p.jvm_heap?.used_mb,
-                nonheap_used_mb: p.nonheap_used_mb ?? p.jvm_nonheap?.used_mb,
-                http_catalog_mean: p.http_catalog_mean ?? pr.catalog,
-                http_report_mean: p.http_report_mean ?? pr.report,
-                gc_young_time: p.gc_young_time ?? p.gc_young?.time_ms,
-                gc_old_time: p.gc_old_time ?? p.gc_old?.time_ms,
-                process_cpu_load: p.process_cpu_load ?? p.os?.process_cpu_load,
-                open_fds: p.open_fds ?? p.os?.open_file_descriptors,
-              };
-            });
-            const snap = {
-              ts: tsNow,
-              time: hourKeyFromMs(tsNow),
-              heap_used_mb: result?.jvm_heap?.used_mb,
-              nonheap_used_mb: result?.jvm_nonheap?.used_mb,
-              http_catalog_mean: routes.catalog,
-              http_report_mean: routes.report,
-              gc_young_time: result?.gc_young?.time_ms,
-              gc_old_time: result?.gc_old?.time_ms,
-              process_cpu_load: result?.os?.process_cpu_load,
-              open_fds: result?.os?.open_file_descriptors,
-            };
-            setPsHist((prev) => {
-              const updated = mergeHistByTs(prev, [...fromApi, snap]);
-              saveJson(PS_HIST_KEY, updated);
-              return updated;
-            });
-          }).catch(() => { /* leave prior history */ })
+            // The context provider will have the rich merged history.
+            // We can optionally nudge it:
+            refreshHistories?.();
+          }).catch(() => {})
         );
       }
       if (neededSources.has('pdb')) {
         tasks.push(
-          metrics.puppetdbHealth().then((result) => {
-            const jvm = result.jvm_heap || {};
-            const pdbm = result.ps_puppetdb_metrics || [];
-            const findMean = (arr: any[], key: string) =>
-              arr.find((x: any) => (x.metric || '').includes(key))?.mean;
-            const point = {
-              ts: tsNow,
-              time: hourKeyFromMs(tsNow),
-              used_mb: jvm.used_mb ?? 0,
-              queue_depth: Math.max(0, Number(result.queue_depth) || 0),
-              catalog_save_mean: findMean(pdbm, 'catalog_save'),
-              report_process_mean: findMean(pdbm, 'report_process'),
-            };
-            setPdbHist((prev) => {
-              const updated = mergeHistByTs(prev, [point]);
-              saveJson(PDB_HIST_KEY, updated);
-              return updated;
-            });
-          }).catch(() => { /* leave prior history */ })
+          metrics.puppetdbHealth().then(() => {
+            refreshHistories?.();
+          }).catch(() => {})
         );
       }
 
@@ -693,6 +612,20 @@ export function MonitoringDashboardPage() {
   useEffect(() => {
     saveJson(WINDOW_KEY, windowHours);
   }, [windowHours]);
+
+  // When this wallboard tab regains browser focus, force a catch-up so graphs
+  // show the very latest points + history that the global collector accumulated.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        refreshHistories?.();
+        // Also refresh the main dashboard/compliance snapshots
+        fetchAll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [refreshHistories, fetchAll]);
 
   const xAxis = sharedXAxisProps(startMs, endMs, windowHours);
 
@@ -1203,6 +1136,7 @@ export function MonitoringDashboardPage() {
             loading={loading && !lastRefresh}
             onClick={() => {
               setLoading(true);
+              refreshHistories?.();
               fetchAll();
             }}
           >
@@ -1228,8 +1162,9 @@ export function MonitoringDashboardPage() {
             Graphs on this monitoring page
           </Text>
           <Text size="xs" c="dimmed" mb="sm">
-            Multi-select any combination. Order follows the catalog (Fleet → Run Performance → Server → OpenVoxDB).
-            History for JMX-backed series accumulates in this browser while Monitoring (or the source page) is open.
+            Multi-select any combination. History for live JMX series (heap, CPU, queue, route timings, etc.)
+            is collected in the background for as long as this browser tab is open — even when you navigate
+            to other pages. The wallboard will show the full trend when you return.
           </Text>
           <MultiSelect
             data={multiSelectData}
@@ -1258,8 +1193,8 @@ export function MonitoringDashboardPage() {
       
       <Alert variant="light" color="blue" title="Synchronized timeline">
         All trend graphs share domain <strong>{axisRangeLabel}</strong> (numeric UTC axis — spikes line up).
-        Live Server/DB/JMX series keep poll resolution; fleet/compliance/run trends use hourly points on the same
-        window. Change <em>Window</em> to resync. Leave Monitoring open with Auto refresh so JMX series fill in.
+        Live Server/DB/JMX series keep poll resolution (background collector keeps them growing even off this page).
+        Fleet/compliance/run trends use hourly points on the same window. Change <em>Window</em> to resync.
         Compliance distribution is a current snapshot only.
       </Alert>
 
