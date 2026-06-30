@@ -897,12 +897,13 @@ function ExecutionHistoryTab() {
 /* ═══════════════════════════════════════════════════════════════
    TAB 6: CONFIGURATION
    ═══════════════════════════════════════════════════════════════ */
-function EditableConfigFile({ label, description, fileKey, path, content, placeholder, onSaved }: {
+function EditableConfigFile({ label, description, fileKey, path, content, error, placeholder, onSaved }: {
   label: string;
   description: string;
   fileKey: string;
-  path: string | null;
-  content: string | null;
+  path: string | null | undefined;
+  content: string | null | undefined;
+  error?: string | null;
   placeholder: string;
   onSaved: () => void;
 }) {
@@ -965,15 +966,19 @@ function EditableConfigFile({ label, description, fileKey, path, content, placeh
           maxRows={24}
           styles={{ input: { fontFamily: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace', fontSize: 12 } }}
         />
-      ) : content ? (
+      ) : (content != null && content !== '') ? (
         <ScrollArea style={{ maxHeight: 400 }}>
           <Code block style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
             {content}
           </Code>
         </ScrollArea>
       ) : (
-        <Alert variant="light" color="yellow">
-          <Text size="sm">No {label} found. Click Edit to create one.</Text>
+        <Alert variant="light" color={error ? 'red' : 'yellow'}>
+          <Text size="sm">
+            {error
+              ? `Could not read ${label}: ${error}`
+              : `No ${label} found under /etc/puppetlabs/bolt/. Click Edit to create one.`}
+          </Text>
         </Alert>
       )}
     </Card>
@@ -983,21 +988,36 @@ function EditableConfigFile({ label, description, fileKey, path, content, placeh
 function ConfigTab() {
   const [cfg, setCfg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadConfig = useCallback(() => {
     setLoading(true);
-    bolt.getConfig().then(setCfg).catch(() => {}).finally(() => setLoading(false));
+    setLoadError(null);
+    bolt
+      .getConfig()
+      .then((data) => setCfg(data))
+      .catch((e: any) => {
+        setCfg(null);
+        setLoadError(e?.message || 'Failed to load Bolt configuration');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { loadConfig(); }, []);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
 
   return (
     <Stack>
       <Alert variant="light" color="blue" mb="xs">
-        Bolt configuration files control transport settings, inventory, and project defaults. Edit the YAML files directly and save.
+        Bolt configuration files under <Code>/etc/puppetlabs/bolt/</Code> control transport settings,
+        inventory, and project defaults. Edit the YAML files directly and save.
       </Alert>
+      {loadError && (
+        <Alert color="red" title="Failed to load configuration" withCloseButton onClose={() => setLoadError(null)}>
+          {loadError}
+        </Alert>
+      )}
 
       <EditableConfigFile
         label="bolt-project.yaml"
@@ -1005,6 +1025,7 @@ function ConfigTab() {
         fileKey="config"
         path={cfg?.config?.path}
         content={cfg?.config?.content}
+        error={cfg?.config?.error}
         onSaved={loadConfig}
         placeholder={`---\n# Bolt project configuration\nname: openvox\nmodulepath:\n  - /etc/puppetlabs/code/modules\n  - /etc/puppetlabs/code/environments/production/modules\n`}
       />
@@ -1015,6 +1036,7 @@ function ConfigTab() {
         fileKey="inventory"
         path={cfg?.inventory?.path}
         content={cfg?.inventory?.content}
+        error={cfg?.inventory?.error}
         onSaved={loadConfig}
         placeholder={`---\n# Bolt inventory\ngroups:\n  - name: local\n    targets:\n      - localhost\n    config:\n      transport: local\n  - name: webservers\n    targets:\n      - web01.example.com\n    config:\n      transport: ssh\n      ssh:\n        user: root\n        host-key-check: false\n`}
       />

@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b3] - 2026-06-30 (beta — functionality testing)
+
+### Fixed
+- **Infrastructure | Orchestration | Configuration — bolt-project.yaml / inventory.yaml not shown:** Prefer canonical `/etc/puppetlabs/bolt/` (no longer influenced by service `$HOME`). Read via direct open then **PTY-aware `sudo cat`** (fixes root:bolt 640 + RHEL `requiretty` where plain `sudo -n cat` failed). Surface load/read errors in the UI instead of a silent “No … found”. Auth on GET `/api/bolt/config` for viewer+; sudoers for cat of bolt debug/rerun + install write fallback.
+
 ## [3.10.3b2] - 2026-06-30 (beta — functionality testing)
 
 ### Fixed

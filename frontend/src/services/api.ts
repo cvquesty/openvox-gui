@@ -44,6 +44,7 @@ function getAuthHeaders(): Record<string, string> {
  */
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
+    credentials: 'same-origin',
     headers: getAuthHeaders(),
     ...options,
   });

@@ -161,6 +161,11 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/puppetdb/conf.
 #            We deliberately do NOT chown that tree to the service user.
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-project.yaml
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/inventory.yaml
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/bolt-debug.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/cat /etc/puppetlabs/bolt/.rerun.json
+# Write Bolt config when files are root:bolt (install from service-writable temp)
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 664 * /etc/puppetlabs/bolt/bolt-project.yaml
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 664 * /etc/puppetlabs/bolt/inventory.yaml
 
 # Service management (explicit services only)
 # Method: systemctl on a hard-coded allowlist of services the GUI controls.
