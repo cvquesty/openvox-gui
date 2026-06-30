@@ -23,6 +23,8 @@ breaks out of the PQL string literal and injects additional clauses.
 """
 import re
 import time
+import json
+import tempfile
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, BackgroundTasks
 from typing import Optional, List, Any, Dict
@@ -30,6 +32,7 @@ import logging
 import subprocess
 import sys
 import os
+import socket
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.puppetdb import puppetdb_service
@@ -270,7 +273,18 @@ async def get_fleet_health_snapshot(
 
     # Viewer-level identity for the sub-calls (they only use it for the dep side-effect; we already authorized)
     _user = (user or {}).get("user_id", "internal-report-generator") if user else "internal-report-generator"
+    return await assemble_fleet_health_snapshot(hours=hours, _user=_user)
 
+
+async def assemble_fleet_health_snapshot(
+    hours: int = 24,
+    _user: str = "internal-report-generator",
+) -> Dict[str, Any]:
+    """Build fleet-health snapshot from *this* host's PuppetDB / Puppet Server services.
+
+    Used by the HTTP snapshot endpoint and by Executive Summary Send (in-process,
+    no HTTP self-call — avoids loopback/auth/port failures that blocked email).
+    """
     cache_key = f"snapshot_{hours}"
     now = time.time()
     if cache_key in _snapshot_cache and (now - _snapshot_cache_ts.get(cache_key, 0)) < _SNAPSHOT_CACHE_TTL:
@@ -286,10 +300,10 @@ async def get_fleet_health_snapshot(
     from .metrics import get_compliance, get_puppetserver_health
     from .performance import performance_overview
 
-    dash = {}
-    comp = {}
-    perf = {}
-    srv = {}
+    dash: Dict[str, Any] = {}
+    comp: Dict[str, Any] = {}
+    perf: Dict[str, Any] = {}
+    srv: Dict[str, Any] = {}
 
     # Fetch each independently so one bad pane doesn't kill the whole report
     try:
@@ -324,6 +338,7 @@ async def get_fleet_health_snapshot(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "_source": "snapshot",
         "_hours": hours,
+        "_live": True,
     }
 
     _snapshot_cache[cache_key] = result
@@ -529,8 +544,49 @@ async def send_executive_report(
         if cfg.from_email:
             effective_from = cfg.from_email
 
-    def _run_generator(emails_list: List[str], from_email: Optional[str]):
-        """Run in background so the HTTP request returns quickly."""
+    # Build live snapshot in-process from *this* host's services (no HTTP self-call).
+    # Loopback --live often fails after deploy (port/auth/bind), which blocked email
+    # when the generator started failing closed on missing live data.
+    try:
+        source_label = socket.getfqdn() or socket.gethostname() or "localhost"
+    except OSError:
+        source_label = "localhost"
+
+    try:
+        snapshot = await assemble_fleet_health_snapshot(hours=24)
+        snapshot = dict(snapshot)
+        snapshot["_live"] = True
+        snapshot["_source"] = source_label
+        if "dashboard" not in snapshot:
+            raise RuntimeError("snapshot missing dashboard key")
+    except Exception as snap_exc:
+        logger.exception("Failed to assemble fleet health snapshot for executive send")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Could not load live fleet data from this OpenVox host: {snap_exc}. "
+                "Email not queued (refusing demo/lab sample data)."
+            ),
+        ) from snap_exc
+
+    data_fd, data_path = tempfile.mkstemp(prefix="openvox-fleet-health-", suffix=".json")
+    try:
+        with os.fdopen(data_fd, "w", encoding="utf-8") as fh:
+            json.dump(snapshot, fh)
+    except Exception:
+        try:
+            os.unlink(data_path)
+        except OSError:
+            pass
+        raise
+
+    def _run_generator(
+        emails_list: List[str],
+        from_email: Optional[str],
+        snapshot_path: str,
+        label: str,
+    ):
+        """Run PDF + mail in background using pre-fetched live snapshot for this host."""
         try:
             # Locate the generator
             install_dir = os.environ.get("INSTALL_DIR") or getattr(settings, "install_dir", None) or "/opt/openvox-gui"
@@ -548,54 +604,47 @@ async def send_executive_report(
                 return
 
             python_bin = sys.executable
-            # Always loopback to *this* GUI instance (PuppetDB for this host only).
-            # Never point at another environment's FQDN.
-            port = getattr(settings, "app_port", None) or os.environ.get("OPENVOX_GUI_APP_PORT") or "4567"
-            base_url = f"http://127.0.0.1:{port}"
-            try:
-                import socket as _socket
-                source_label = _socket.getfqdn() or _socket.gethostname()
-            except OSError:
-                source_label = "localhost"
             cmd = [
                 python_bin,
                 script_path,
-                "--live",
-                "--base-url", base_url,
-                "--source-label", source_label,
+                "--data-file", snapshot_path,
+                "--source-label", label,
                 "--email", ",".join(emails_list),
             ]
             if from_email:
                 cmd.extend(["--from-email", from_email])
-            # Run detached-ish; capture for logs
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=120,
-                env={**os.environ, "OPENVOX_GUI_APP_PORT": str(port)},
             )
             logger.info(
-                "Ad-hoc executive report generator finished for %s rc=%s from=%s",
+                "Ad-hoc executive report generator finished for %s rc=%s from=%s label=%s",
                 emails_list,
                 result.returncode,
                 from_email,
+                label,
             )
             if result.stdout:
-                # Full tail — includes MTA handoff notes / mail errors from the script
                 logger.info("executive report stdout (tail): %s", result.stdout[-2000:])
             if result.stderr:
                 logger.warning("executive report stderr (tail): %s", result.stderr[-2000:])
             if result.returncode != 0:
                 logger.error(
                     "Executive report generator failed (rc=%s). PDF may exist under /tmp; "
-                    "mail was likely not accepted by the MTA.",
+                    "mail was likely not sent.",
                     result.returncode,
                 )
         except Exception as exc:
             logger.exception(f"Failed to send ad-hoc executive report: {exc}")
+        finally:
+            try:
+                os.unlink(snapshot_path)
+            except OSError:
+                pass
 
-    background_tasks.add_task(_run_generator, emails, effective_from)
+    background_tasks.add_task(_run_generator, emails, effective_from, data_path, source_label)
 
     # Update last_sent_at for the affected recipients (best effort — means "send attempted")
     now = datetime.now(timezone.utc)

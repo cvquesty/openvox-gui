@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b9] - 2026-06-30 (beta — executive send in-process snapshot)
+
+### Fixed
+- **Executive Summary email stopped after live-data isolation**: GUI Send used subprocess `--live` over loopback HTTP; when that failed the generator exited 2 and never called `mail`. Send now assembles the fleet snapshot **in-process** from this host’s PuppetDB services, writes a temp JSON file, and invokes the generator with `--data-file` (still never uses demo/lab data). Failures return HTTP 503 instead of queuing a silent no-op.
+
 ## [3.10.3b8] - 2026-06-30 (beta — fleet report live-data isolation)
 
 ### Fixed

@@ -205,8 +205,8 @@ def fetch_live_data(base_url: str) -> Dict[str, Any]:
                         r = client.get(ep)
                         r.raise_for_status()
                         data[key] = r.json()
-            if not data.get("dashboard"):
-                raise RuntimeError("live response missing dashboard payload")
+            if "dashboard" not in data:
+                raise RuntimeError("live response missing dashboard key")
             data["_fetched_at"] = datetime.now(timezone.utc).isoformat()
             data["_source"] = f"{_default_source_label()} via {candidate}"
             data["_live"] = True
@@ -708,6 +708,10 @@ def main():
     parser.add_argument("--live", action="store_true",
                         help="Fetch live data from this host's openvox-gui (loopback). "
                              "Fails hard if fetch fails — never substitutes demo/lab data.")
+    parser.add_argument("--data-file", default=None,
+                        help="JSON snapshot from this host (written by GUI Send in-process). "
+                             "Preferred over --live; must include a dashboard key. Never use "
+                             "a file from another environment.")
     parser.add_argument("--base-url", default=None,
                         help="Base URL when using --live (defaults to http://127.0.0.1:<OPENVOX_GUI_APP_PORT or 4567>).")
     parser.add_argument("--source-label", default=None,
@@ -800,7 +804,26 @@ def main():
         output_dir = os.path.normpath(os.path.join(here, "..", "data", "reports"))
     os.makedirs(output_dir, exist_ok=True)
 
-    if args.live:
+    if args.data_file:
+        # In-process snapshot from GUI on *this* host (Executive Summary Send).
+        try:
+            with open(args.data_file, "r", encoding="utf-8") as dfh:
+                raw = json.load(dfh)
+        except Exception as df_exc:
+            print(f"[error] Cannot read --data-file {args.data_file!r}: {df_exc}", file=sys.stderr)
+            sys.exit(2)
+        if not isinstance(raw, dict) or "dashboard" not in raw:
+            print(
+                "[error] --data-file must be a JSON object with a dashboard key "
+                "(live snapshot from this host only).",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        raw["_live"] = True
+        if not raw.get("_source"):
+            raw["_source"] = _default_source_label()
+        print(f"[ok] Loaded live snapshot from --data-file ({raw.get('_source')})")
+    elif args.live:
         base_url = args.base_url
         if not base_url:
             port = _get_env("APP_PORT") or "4567"
@@ -810,7 +833,7 @@ def main():
         except RuntimeError as live_exc:
             print(f"[error] {live_exc}", file=sys.stderr)
             sys.exit(2)
-        if not raw.get("_live") or not raw.get("dashboard"):
+        if not raw.get("_live") or "dashboard" not in raw:
             print(
                 "[error] --live produced no usable dashboard data; refusing sample fallback.",
                 file=sys.stderr,
@@ -818,7 +841,7 @@ def main():
             sys.exit(2)
     else:
         print(
-            "[info] No --live: using synthetic example.com demo data only "
+            "[info] No --live/--data-file: using synthetic example.com demo data only "
             "(not any real fleet).",
             file=sys.stderr,
         )
