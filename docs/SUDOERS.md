@@ -150,12 +150,19 @@ puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --ou
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso --since *
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso --since *
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet-agent --no-pager -n * --output short-iso
+puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet-agent --no-pager -n * --output short-iso --since *
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso --since *
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso
 puppet ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso --since *
 puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
 puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppet/puppet.log
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppet/agent.log
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/agent/agent.log
+puppet ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppet/puppet_agent.log
+
 
 # SSL Certificate Wizard operations (explicit)
 puppet ALL=(root) NOPASSWD: /usr/bin/tee /etc/systemd/system/openvox-gui.service

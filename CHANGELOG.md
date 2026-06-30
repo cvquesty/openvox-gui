@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b2] - 2026-06-30 (beta — functionality testing)
+
+### Fixed
+- **Insights | Log Viewer — Agent tab empty + stack-aware names:** Agent source now tries journal units `puppet` and `puppet-agent` plus common agent log files under `/var/log/puppetlabs/…`, with clearer empty-state hints. Tab labels follow installed stack: **OpenVox Agent / OpenVox Server / OpenVoxDB** when OpenVox packages are present, otherwise **Puppet Agent / PuppetServer / PuppetDB** (Puppet OSS). Sudoers updated for agent journal unit and agent log file tails.
+
 ## [3.10.3b1] - 2026-06-30 (beta — functionality testing)
 
 Beta cut for Monitoring wallboard quality + window controls. Promote to stable **3.10.3** after functional sign-off (GitHub Release separate / deliberate).

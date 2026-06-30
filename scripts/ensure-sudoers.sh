@@ -241,6 +241,8 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager 
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppetdb --no-pager -n * --output short-iso --since *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet-agent --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet-agent --no-pager -n * --output short-iso --since *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso --since *
 # Host journal (System Log tab) — no -u, still bounded by -n and output format:
@@ -249,6 +251,11 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --outpu
 # Application log files (line count wildcard between -n and path):
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetdb/puppetdb.log
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppetserver/puppetserver.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppet/puppet.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppet/agent.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/agent/agent.log
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/tail -n * /var/log/puppetlabs/puppet/puppet_agent.log
+
 
 # SSL Certificate Wizard operations (explicit)
 # Method: tee for the service unit (during cert install), daemon-reload,

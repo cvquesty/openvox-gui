@@ -15,16 +15,26 @@ import {
 } from '@tabler/icons-react';
 import { logs } from '../services/api';
 
-const LOG_SOURCES = [
+/** Fallback labels when /logs/sources has not loaded yet (OpenVox-oriented defaults). */
+const DEFAULT_LOG_SOURCES = [
   { value: 'openvox-gui', label: 'OpenVox GUI', color: 'blue' },
-  { value: 'puppet', label: 'Puppet Agent', color: 'orange' },
-  { value: 'puppetserver', label: 'PuppetServer', color: 'green' },
-  { value: 'puppetdb', label: 'PuppetDB', color: 'cyan' },
+  { value: 'puppet', label: 'OpenVox Agent', color: 'orange' },
+  { value: 'puppetserver', label: 'OpenVox Server', color: 'green' },
+  { value: 'puppetdb', label: 'OpenVoxDB', color: 'cyan' },
   { value: 'syslog', label: 'System Log', color: 'gray' },
 ];
 
+const SOURCE_COLORS: Record<string, string> = {
+  'openvox-gui': 'blue',
+  puppet: 'orange',
+  puppetserver: 'green',
+  puppetdb: 'cyan',
+  syslog: 'gray',
+};
+
 export function LogsPage() {
   const [activeTab, setActiveTab] = useState<string>('openvox-gui');
+  const [logSources, setLogSources] = useState(DEFAULT_LOG_SOURCES);
   const [logData, setLogData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +44,34 @@ export function LogsPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Stack-aware tab labels (OpenVox vs Puppet OSS) from backend package detection
+  useEffect(() => {
+    logs.getSources()
+      .then((res) => {
+        const labels: Record<string, string> = res?.labels || {};
+        const meta: Array<{ id: string; label: string }> = res?.source_meta || [];
+        if (meta.length) {
+          setLogSources(
+            meta.map((s) => ({
+              value: s.id,
+              label: s.label || labels[s.id] || s.id,
+              color: SOURCE_COLORS[s.id] || 'gray',
+            }))
+          );
+        } else if (labels && Object.keys(labels).length) {
+          setLogSources((prev) =>
+            prev.map((s) => ({
+              ...s,
+              label: labels[s.value] || s.label,
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        /* keep defaults */
+      });
+  }, []);
 
   const fetchLogs = useCallback(async (source?: string) => {
     const src = source || activeTab;
@@ -256,12 +294,12 @@ export function LogsPage() {
       <Card withBorder shadow="sm" padding="md">
         <Tabs value={activeTab} onChange={(v) => v && setActiveTab(v)}>
           <Tabs.List>
-            {LOG_SOURCES.map(src => (
+            {logSources.map(src => (
               <Tabs.Tab key={src.value} value={src.value}>
                 <Group gap={6}>
                   <Text size="sm">{src.label}</Text>
                   {currentData && activeTab === src.value && (
-                    <Badge size="xs" variant="light" color={src.color}>{currentData.count}</Badge>
+                    <Badge size="xs" variant="light" color={src.color}>{currentData.count ?? 0}</Badge>
                   )}
                 </Group>
               </Tabs.Tab>
