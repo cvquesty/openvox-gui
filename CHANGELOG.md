@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b10] - 2026-06-30 (beta — executive send JSON serialize)
+
+### Fixed
+- **Executive Summary Send → API 500**: in-process snapshot `json.dump` failed on non-JSON values from PuppetDB/services (e.g. `datetime`). Serialize with a safe default encoder and return a clear error body if dump still fails.
+
 ## [3.10.3b9] - 2026-06-30 (beta — executive send in-process snapshot)
 
 ### Fixed

@@ -569,16 +569,30 @@ async def send_executive_report(
             ),
         ) from snap_exc
 
+    def _json_default(obj: Any):
+        """PuppetDB / service payloads may include datetimes or other non-JSON types."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, (set, frozenset)):
+            return list(obj)
+        if isinstance(obj, bytes):
+            return obj.decode("utf-8", errors="replace")
+        return str(obj)
+
     data_fd, data_path = tempfile.mkstemp(prefix="openvox-fleet-health-", suffix=".json")
     try:
         with os.fdopen(data_fd, "w", encoding="utf-8") as fh:
-            json.dump(snapshot, fh)
-    except Exception:
+            json.dump(snapshot, fh, default=_json_default)
+    except Exception as dump_exc:
         try:
             os.unlink(data_path)
         except OSError:
             pass
-        raise
+        logger.exception("Failed to serialize fleet health snapshot for executive send")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not serialize live fleet snapshot for email: {dump_exc}",
+        ) from dump_exc
 
     def _run_generator(
         emails_list: List[str],
