@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b8] - 2026-06-30 (beta — fleet report live-data isolation)
+
+### Fixed
+- **Executive Summary used lab sample data (`*.questy.org`) when live fetch failed**: `--live` now fails hard (exit 2, no email of demo charts) instead of substituting embedded sample data. Sample data uses `example.com` only. Source label defaults to this host’s FQDN; GUI Send passes `--base-url http://127.0.0.1:<app_port>` and `--source-label` from `socket.getfqdn()` so PDXC and questy fleets never intermix.
+
 ## [3.10.3b7] - 2026-06-30 (beta — deploy fleet health report script)
 
 ### Fixed

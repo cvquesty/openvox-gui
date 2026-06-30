@@ -548,10 +548,21 @@ async def send_executive_report(
                 return
 
             python_bin = sys.executable
+            # Always loopback to *this* GUI instance (PuppetDB for this host only).
+            # Never point at another environment's FQDN.
+            port = getattr(settings, "app_port", None) or os.environ.get("OPENVOX_GUI_APP_PORT") or "4567"
+            base_url = f"http://127.0.0.1:{port}"
+            try:
+                import socket as _socket
+                source_label = _socket.getfqdn() or _socket.gethostname()
+            except OSError:
+                source_label = "localhost"
             cmd = [
                 python_bin,
                 script_path,
                 "--live",
+                "--base-url", base_url,
+                "--source-label", source_label,
                 "--email", ",".join(emails_list),
             ]
             if from_email:
@@ -562,6 +573,7 @@ async def send_executive_report(
                 capture_output=True,
                 text=True,
                 timeout=120,
+                env={**os.environ, "OPENVOX_GUI_APP_PORT": str(port)},
             )
             logger.info(
                 "Ad-hoc executive report generator finished for %s rc=%s from=%s",

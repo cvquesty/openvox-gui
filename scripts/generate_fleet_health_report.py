@@ -36,8 +36,10 @@ Data sources (PuppetDB-backed, same as UI):
   - /api/performance/overview
   - /api/insights/puppetserver-health
 
-The script degrades gracefully to high-quality synthetic demo data when
-live sources are unavailable (useful for local dev or when run off-server).
+Without --live, the script uses synthetic demo data (example.com hosts only —
+never real lab/prod FQDNs) for layout QA. With --live (GUI Send / timers),
+live fetch is mandatory: failure exits non-zero and does not email demo data.
+Lab and production fleets must never intermingle in a report.
 """
 
 import argparse
@@ -45,6 +47,7 @@ import io
 import json
 import os
 import re
+import socket
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -113,24 +116,35 @@ def _ensure_dir(path: str):
         os.makedirs(d, exist_ok=True)
 
 
-def fetch_live_data(base_url: str = "http://127.0.0.1:4567") -> Dict[str, Any]:
-    """
-    Attempt to fetch the four canonical datasets from a running openvox-gui.
-    Preferred in prod: run on the OpenVox server node itself and call localhost.
-    For auth, prefer a lightweight service token (see middleware/service_tokens)
-    or (recommended for this use-case) add a localhost-only internal snapshot
-    endpoint in reports.py that does not require a full user JWT.
+def _default_source_label() -> str:
+    """Host identity for the PDF header — this node's FQDN only, never a foreign lab/prod name."""
+    try:
+        return socket.getfqdn() or socket.gethostname() or "localhost"
+    except OSError:
+        return "localhost"
 
-    Falls back silently to sample data.
+
+def fetch_live_data(base_url: str) -> Dict[str, Any]:
+    """
+    Fetch the four canonical datasets from the OpenVox GUI on *this* host.
+
+    Preferred: run on the OpenVox server and call loopback (localhost bypass, no JWT).
+    Optional: OPENVOX_REPORT_TOKEN / SERVICE_TOKEN Bearer for non-local clients.
+
+    Raises RuntimeError on failure. Does **not** return sample/demo data — callers
+    that need demo charts must call get_sample_data() only when --live is off.
     """
     try:
         import httpx
-    except ImportError:
-        print("[warn] httpx not available for live fetch; using sample.", file=sys.stderr)
-        return {}
+    except ImportError as exc:
+        raise RuntimeError("httpx not available for live fetch") from exc
 
     headers = {}
-    token = os.environ.get("OPENVOX_REPORT_TOKEN") or os.environ.get("SERVICE_TOKEN")
+    token = (
+        os.environ.get("OPENVOX_REPORT_TOKEN")
+        or os.environ.get("OPENVOX_GUI_OPENVOX_REPORT_TOKEN")
+        or os.environ.get("SERVICE_TOKEN")
+    )
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
@@ -144,49 +158,84 @@ def fetch_live_data(base_url: str = "http://127.0.0.1:4567") -> Dict[str, Any]:
         "server_health": "/api/insights/puppetserver-health",
     }
 
-    try:
-        with httpx.Client(base_url=base_url, timeout=15.0, headers=headers, follow_redirects=True) as client:
-            # Try consolidated snapshot first (best for report stability)
-            try:
-                r = client.get(snapshot_ep)
-                if r.status_code == 200:
-                    snap = r.json()
-                    data = {
-                        "dashboard": snap.get("dashboard", {}),
-                        "compliance": snap.get("compliance", {}),
-                        "performance": snap.get("performance", {}),
-                        "server_health": snap.get("server_health", {}),
-                    }
-                else:
-                    raise RuntimeError("snapshot not available")
-            except Exception:
-                # Fallback to individual endpoints
-                for key, ep in endpoints_fallback.items():
-                    r = client.get(ep)
-                    r.raise_for_status()
-                    data[key] = r.json()
-        data["_fetched_at"] = datetime.now(timezone.utc).isoformat()
-        data["_source"] = base_url
-        return data
-    except Exception as exc:
-        print(f"[warn] Live fetch from {base_url} failed ({type(exc).__name__}); using sample data.", file=sys.stderr)
-        return {}
+    last_exc: Optional[BaseException] = None
+    # Try given base_url first, then alternate loopback family (IPv4 vs IPv6)
+    candidates = [base_url.rstrip("/")]
+    port = "4567"
+    if "://" in base_url:
+        try:
+            # http://127.0.0.1:4567 → 4567
+            hostport = base_url.split("://", 1)[1]
+            if hostport.startswith("["):
+                # [::1]:4567
+                if "]:" in hostport:
+                    port = hostport.rsplit("]:", 1)[-1]
+            elif ":" in hostport:
+                port = hostport.rsplit(":", 1)[-1]
+        except Exception:
+            pass
+    for alt in (f"http://127.0.0.1:{port}", f"http://[::1]:{port}"):
+        if alt.rstrip("/") not in candidates:
+            candidates.append(alt.rstrip("/"))
+
+    for candidate in candidates:
+        try:
+            with httpx.Client(
+                base_url=candidate, timeout=30.0, headers=headers, follow_redirects=True
+            ) as client:
+                # Try consolidated snapshot first (best for report stability)
+                try:
+                    r = client.get(snapshot_ep)
+                    if r.status_code == 200:
+                        snap = r.json()
+                        data = {
+                            "dashboard": snap.get("dashboard", {}),
+                            "compliance": snap.get("compliance", {}),
+                            "performance": snap.get("performance", {}),
+                            "server_health": snap.get("server_health", {}),
+                        }
+                    else:
+                        raise RuntimeError(
+                            f"snapshot HTTP {r.status_code}: {(r.text or '')[:200]}"
+                        )
+                except Exception:
+                    # Fallback to individual endpoints
+                    data = {}
+                    for key, ep in endpoints_fallback.items():
+                        r = client.get(ep)
+                        r.raise_for_status()
+                        data[key] = r.json()
+            if not data.get("dashboard"):
+                raise RuntimeError("live response missing dashboard payload")
+            data["_fetched_at"] = datetime.now(timezone.utc).isoformat()
+            data["_source"] = f"{_default_source_label()} via {candidate}"
+            data["_live"] = True
+            print(f"[ok] Live fleet data from {candidate} (host {_default_source_label()})")
+            return data
+        except Exception as exc:
+            last_exc = exc
+            print(
+                f"[warn] Live fetch from {candidate} failed ({type(exc).__name__}: {exc})",
+                file=sys.stderr,
+            )
+
+    raise RuntimeError(
+        f"Live fetch failed for all candidates {candidates}: {last_exc!r}. "
+        "Refusing to substitute demo/sample data (prevents lab/prod intermix)."
+    )
 
 
 def get_sample_data() -> Dict[str, Any]:
     """
-    Representative data matching the "excellent health, 3 nodes, 100% compliant"
-    state described in prior artifacts + realistic variance for charts.
-    Used for development and when live sources are unreachable.
-    Includes small variance so trends, bars and donut show multiple categories
-    (critical for visual QA of the report generator).
+    Synthetic demo data for layout QA only (no --live).
+    Uses RFC 2606 example.com names only — never real lab or production FQDNs.
     """
     now = datetime.now(timezone.utc)
     # 3 nodes — mostly healthy with one changed for visual interest in donut/legend
     nodes = [
-        {"certname": "openvox.questy.org", "latest_report_status": "unchanged", "report_environment": "production"},
-        {"certname": "agent1.questy.org", "latest_report_status": "unchanged", "report_environment": "production"},
-        {"certname": "agent2.questy.org", "latest_report_status": "changed", "report_environment": "production"},
+        {"certname": "openvox.example.com", "latest_report_status": "unchanged", "report_environment": "production"},
+        {"certname": "agent1.example.com", "latest_report_status": "unchanged", "report_environment": "production"},
+        {"certname": "agent2.example.com", "latest_report_status": "changed", "report_environment": "production"},
     ]
     node_status = {"total": 3, "changed": 1, "unchanged": 2, "failed": 0, "unreported": 0, "noop": 0}
 
@@ -219,9 +268,9 @@ def get_sample_data() -> Dict[str, Any]:
     # Performance: realistic spread, slowest clearly visible in horiz bar
     perf = {
         "node_comparison": [
-            {"certname": "openvox.questy.org", "avg_total": 7.8, "run_count": 44},
-            {"certname": "agent1.questy.org", "avg_total": 9.4, "run_count": 43},
-            {"certname": "agent2.questy.org", "avg_total": 14.2, "run_count": 41},
+            {"certname": "openvox.example.com", "avg_total": 7.8, "run_count": 44},
+            {"certname": "agent1.example.com", "avg_total": 9.4, "run_count": 43},
+            {"certname": "agent2.example.com", "avg_total": 14.2, "run_count": 41},
         ],
         "stats": {"avg_run_time": 10.5, "max_run_time": 14.2},
     }
@@ -241,7 +290,8 @@ def get_sample_data() -> Dict[str, Any]:
         "performance": perf,
         "server_health": {"history": cpu_history, "os": {"process_cpu_load": 0.041}},
         "_fetched_at": now.isoformat(),
-        "_source": "sample (demo)",
+        "_source": "sample (demo — example.com only)",
+        "_live": False,
     }
 
 
@@ -433,9 +483,9 @@ def make_top10_slowest_panel(data: Dict) -> bytes:
     node_comp: List[Dict] = data.get("performance", {}).get("node_comparison", []) or []
     if not node_comp:
         node_comp = [
-            {"certname": "agent2.questy.org", "avg_total": 14.2},
-            {"certname": "agent1.questy.org", "avg_total": 9.4},
-            {"certname": "openvox.questy.org", "avg_total": 7.8},
+            {"certname": "agent2.example.com", "avg_total": 14.2},
+            {"certname": "agent1.example.com", "avg_total": 9.4},
+            {"certname": "openvox.example.com", "avg_total": 7.8},
         ]
 
     sorted_nodes = sorted(node_comp, key=lambda n: n.get("avg_total", 0), reverse=True)[:10]
@@ -498,12 +548,14 @@ def make_cpu_load_panel(data: Dict) -> bytes:
     return buf.getvalue()
 
 
-def build_pdf(data: Dict[str, Any], output_path: str, source_label: str = "openvox.questy.org (test)"):
+def build_pdf(data: Dict[str, Any], output_path: str, source_label: str = ""):
     """Assemble the one-page fixed layout PDF.
     Strong header, compact exec summary, 6 *rigid* fixed-area panels (no reflow/squash).
     Panel titles above boxes (HIG hierarchy + room for viz). Charts use pre-matched aspect.
     """
     _ensure_dir(output_path)
+    if not source_label:
+        source_label = data.get("_source") or _default_source_label()
 
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=False)
@@ -654,11 +706,12 @@ def main():
     parser.add_argument("--output", "-o", default=None,
                         help="Destination path for the PDF (defaults to dated file in FLEET_HEALTH_REPORT_OUTPUT_DIR or ~/Desktop)")
     parser.add_argument("--live", action="store_true",
-                        help="Fetch live data from running openvox-gui (http://127.0.0.1:4567 or OPENVOX_GUI_APP_PORT). Falls back to sample.")
+                        help="Fetch live data from this host's openvox-gui (loopback). "
+                             "Fails hard if fetch fails — never substitutes demo/lab data.")
     parser.add_argument("--base-url", default=None,
                         help="Base URL when using --live (defaults to http://127.0.0.1:<OPENVOX_GUI_APP_PORT or 4567>).")
     parser.add_argument("--source-label", default=None,
-                        help="Override source label (e.g. 'openvox.pdxc-it.twitter.biz (production)')")
+                        help="Override source label (defaults to this host's FQDN).")
     parser.add_argument("--email", default=None,
                         help="Comma/space-separated email address(es) to send the PDF to. Falls back to FLEET_HEALTH_REPORT_EMAILS env.")
     parser.add_argument("--from-email", default=None,
@@ -752,17 +805,27 @@ def main():
         if not base_url:
             port = _get_env("APP_PORT") or "4567"
             base_url = f"http://127.0.0.1:{port}"
-        raw = fetch_live_data(base_url)
+        try:
+            raw = fetch_live_data(base_url)
+        except RuntimeError as live_exc:
+            print(f"[error] {live_exc}", file=sys.stderr)
+            sys.exit(2)
+        if not raw.get("_live") or not raw.get("dashboard"):
+            print(
+                "[error] --live produced no usable dashboard data; refusing sample fallback.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
     else:
-        raw = {}
-
-    if not raw or not raw.get("dashboard"):
+        print(
+            "[info] No --live: using synthetic example.com demo data only "
+            "(not any real fleet).",
+            file=sys.stderr,
+        )
         raw = get_sample_data()
 
-    src = args.source_label or raw.get("_source", "openvox.questy.org (test/lab)")
-    # When we know we are on prod, caller or env can override the label.
-    if "pdxc" in os.uname().nodename.lower() or os.environ.get("OPENVOX_ENV") == "production":
-        src = args.source_label or "openvox.pdxc-it.twitter.biz (production)"
+    # Always label with this host (or explicit override) — never a foreign environment name.
+    src = args.source_label or raw.get("_source") or _default_source_label()
 
     if not args.output:
         dated = datetime.now().strftime("%Y-%m-%d")
