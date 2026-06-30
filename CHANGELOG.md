@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b6] - 2026-06-30 (beta — functionality testing)
+
+### Fixed
+- **Classify unclassified node → 500:** `enc.py` imported `certificates_service` from `app.routers` (`from .certificates_service`) instead of `app.services`, causing `ModuleNotFoundError` on create/classify when validating the CA fleet. Corrected to `from ..services.certificates_service import …`.
+
 ## [3.10.3b5] - 2026-06-30 (beta — functionality testing)
 
 ### Fixed

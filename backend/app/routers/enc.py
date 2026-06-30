@@ -348,7 +348,7 @@ async def _validate_certname_in_fleet(certname: str):
     members. We must not allow classification of ghosts or future nodes
     that have never had a cert.
     """
-    from .certificates_service import list_certificates as list_ca_certs
+    from ..services.certificates_service import list_certificates as list_ca_certs
 
     try:
         # Must be currently signed
