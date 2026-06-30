@@ -721,7 +721,7 @@ echo "$BUILD_ID" > "${INSTALL_DIR}/VERSION.build"
 log_ok "Wrote initial build version: ${BUILD_ID}"
 
 # Copy scripts
-for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sync-openvox-repo.sh; do
+for script in enc.py manage_users.py deploy.sh r10k-deploy.sh update_local.sh sync-openvox-repo.sh generate_fleet_health_report.py; do
     if [ -f "${SCRIPT_DIR}/scripts/${script}" ]; then
         cp "${SCRIPT_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
         chmod +x "${INSTALL_DIR}/scripts/${script}"

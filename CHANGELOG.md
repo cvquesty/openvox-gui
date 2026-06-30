@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b7] - 2026-06-30 (beta — deploy fleet health report script)
+
+### Fixed
+- **Executive Summary / Insights | Reports email never hit mailq**: `install.sh`, `deploy.sh`, and `update_local.sh` did not copy `scripts/generate_fleet_health_report.py` into `INSTALL_DIR/scripts/`. The API still returned `"queued"` while the backend logged that the generator was missing and never invoked `mail`/Postfix. Deploy lists now include the script.
+
 ## [3.10.3b6] - 2026-06-30 (beta — functionality testing)
 
 ### Fixed

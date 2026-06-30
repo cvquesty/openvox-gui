@@ -141,7 +141,7 @@ cp -a "${REPO_DIR}/backend" "${INSTALL_DIR}/"
 cp "${REPO_DIR}/VERSION" "${INSTALL_DIR}/VERSION"
 rm -rf "${INSTALL_DIR}/frontend"
 cp -a "${REPO_DIR}/frontend" "${INSTALL_DIR}/"
-for script in enc.py manage_users.py deploy.sh update_local.sh sync-openvox-repo.sh r10k-deploy.sh ensure-sudoers.sh; do
+for script in enc.py manage_users.py deploy.sh update_local.sh sync-openvox-repo.sh r10k-deploy.sh ensure-sudoers.sh generate_fleet_health_report.py; do
     if [ -f "${REPO_DIR}/scripts/${script}" ]; then
         cp "${REPO_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
         chmod +x "${INSTALL_DIR}/scripts/${script}"

@@ -673,9 +673,21 @@ Retry Orchestration after the lock clears. Prefer **Nodes → Run OpenVox** per 
 
 **Symptom:** You configured Postfix on the OpenVox GUI host. From the GUI you add a recipient and click **Send**. The UI reports success / queued. `mailq` is **empty**. The message **never** shows up in Gmail (or other external inbox). Local tests with `mail` “work” in the sense that the command exits 0.
 
+**First check (common on upgrades before 3.10.3b7):** the generator script may never have been **deployed** to the install tree. Install/update used to copy only a whitelist of scripts (`enc.py`, `manage_users.py`, …) and **omitted** `generate_fleet_health_report.py`. The GUI still returns `"queued"`, then logs `Could not find generate_fleet_health_report.py` and exits — **nothing reaches Postfix**.
+
+```bash
+# Expected path on a normal install
+ls -la /opt/openvox-gui/scripts/generate_fleet_health_report.py
+# If missing: redeploy a build that includes it in deploy.sh / update_local.sh / install.sh,
+# or copy from the release tree, then:
+sudo chown puppet:puppet /opt/openvox-gui/scripts/generate_fleet_health_report.py
+sudo chmod 755 /opt/openvox-gui/scripts/generate_fleet_health_report.py
+sudo journalctl -u openvox-gui --since '10 min ago' | grep -i generate_fleet
+```
+
 **How the GUI sends mail (important):**
 
-1. Backend runs `scripts/generate_fleet_health_report.py --live --email …` (optional `--from-email`).
+1. Backend runs `scripts/generate_fleet_health_report.py --live --email …` (optional `--from-email`) under `INSTALL_DIR` (default `/opt/openvox-gui`).
 2. That script builds a PDF, then invokes **`mail` / `mailx`** with `-a` attachment — **not** Python SMTP, **not** Postfix’s HTTP API.
 3. `mail` only hands the message to the **local MTA (Postfix)**. Exit code **0** means “Postfix accepted it,” **not** “Gmail delivered it.”
 4. The GUI updates `last_sent_at` when the job is **queued**, even before delivery is proven.
