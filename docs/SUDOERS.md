@@ -126,9 +126,13 @@ puppet ALL=(root) NOPASSWD:SETENV: /usr/local/bin/bolt
 # Certificate Authority management (explicit subcommands only)
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list --all
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname
-puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname *
+# Node decommission (Purge on node detail)
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet node deactivate *
+puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet node clean *
+
 
 # Reading specific certificate files (explicit paths)
 puppet ALL=(root) NOPASSWD: /usr/bin/openssl x509 -in /etc/puppetlabs/puppet/ssl/ca/ca_crt.pem -text -noout

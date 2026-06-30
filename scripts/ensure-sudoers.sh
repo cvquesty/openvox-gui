@@ -208,7 +208,11 @@ ${SERVICE_USER} ALL=(root) NOPASSWD:SETENV: /usr/local/bin/bolt
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca list --all
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca sign --certname
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca revoke --certname
-${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname
+# CA clean — certname must be a wildcard arg or sudo never matches and purge fails
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca clean --certname *
+# PuppetDB deactivate + master-side node cache clean (Orchestration / Node Purge)
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet node deactivate *
+${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppet node clean *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca generate --certname
 
 # Reading specific certificate files (explicit paths)

@@ -176,18 +176,32 @@ export function NodeDetailPage() {
     setPurging(true);
     try {
       const r = await nodes.purge(certname);
+      const detailBits = r?.details
+        ? Object.entries(r.details)
+            .filter(([, v]) => v === true || v === false)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(', ')
+        : '';
       notifications.show({
-        title: 'Node Purged',
-        message: r.message,
+        title: r.status === 'success' ? 'Node Purged' : 'Node Partially Purged',
+        message: [r.message, detailBits].filter(Boolean).join(' — '),
         color: r.status === 'success' ? 'green' : 'yellow',
+        autoClose: 8000,
       });
       setPurgeConfirmOpen(false);
-      // Brief delay so PuppetDB processes the async deactivation
-      // before the Nodes page queries for the updated list
-      await new Promise((res) => setTimeout(res, 1500));
+      // PDB deactivate is async; backend also polls — short grace for UI lists
+      await new Promise((res) => setTimeout(res, 2000));
       navigate('/nodes');
     } catch (e: any) {
-      notifications.show({ title: 'Purge Failed', message: e.message, color: 'red' });
+      let msg = e?.message || 'Purge failed';
+      try {
+        const m = msg.match(/\{[\s\S]*\}/);
+        if (m) {
+          const j = JSON.parse(m[0]);
+          msg = j.message || j.detail?.message || msg;
+        }
+      } catch { /* keep msg */ }
+      notifications.show({ title: 'Purge Failed', message: msg, color: 'red', autoClose: 10000 });
     }
     setPurging(false);
   };

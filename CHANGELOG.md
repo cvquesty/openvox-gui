@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b4] - 2026-06-30 (beta — functionality testing)
+
+### Fixed
+- **Node Purge incomplete (STALE ghosts in Insights | Node Health):** Sudoers had `puppetserver ca clean --certname` **without** a certname wildcard — every clean failed with “password required”, so certs and active PDB records could remain. Purge now: PuppetDB deactivate (API + `puppet node deactivate`), **poll until not active**, `puppetserver ca clean --certname <cn>`, `puppet node clean`, and ENC SQLite delete (already-absent = success). Sudoers: `ca clean|revoke|generate --certname *`, `puppet node deactivate *`, `puppet node clean *`. Failed critical steps return HTTP 500 with details; UI shows step results.
+
 ## [3.10.3b3] - 2026-06-30 (beta — functionality testing)
 
 ### Fixed

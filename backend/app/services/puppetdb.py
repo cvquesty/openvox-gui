@@ -228,7 +228,9 @@ class PuppetDBService:
 
         Sends a 'deactivate node' command directly to PuppetDB's
         /pdb/cmd/v1 endpoint using the existing mTLS connection.
-        No sudo or CLI tools needed.
+        No sudo or CLI tools needed. Command is async on the PDB side —
+        use wait_until_not_active() to verify the node drops out of
+        active inventory lists.
         """
         from datetime import datetime, timezone
 
@@ -249,6 +251,42 @@ class PuppetDBService:
         except Exception as e:
             logger.warning(f"Failed to deactivate node '{certname}' via PuppetDB API: {e}", exc_info=True)
             return False
+
+    async def is_node_active(self, certname: str) -> Optional[bool]:
+        """
+        Return True if certname is present as an *active* PuppetDB node,
+        False if missing or deactivated/expired, None on query error.
+        """
+        try:
+            key = (certname or "").strip().lower()
+            if not key:
+                return False
+            nodes = await self.get_nodes(include_inactive=True)
+            for n in nodes:
+                if str(n.get("certname", "")).strip().lower() != key:
+                    continue
+                if n.get("deactivated") or n.get("expired"):
+                    return False
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"is_node_active({certname}): {e}")
+            return None
+
+    async def wait_until_not_active(
+        self, certname: str, timeout_s: float = 20.0, interval_s: float = 0.75
+    ) -> bool:
+        """Poll until the node is not in the active PuppetDB set (or timeout)."""
+        import time
+
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            active = await self.is_node_active(certname)
+            if active is False:
+                return True
+            await asyncio.sleep(interval_s)
+        # Final check
+        return (await self.is_node_active(certname)) is False
 
     # ─── Reports ────────────────────────────────────────────
 

@@ -301,17 +301,49 @@ async def get_node_reports(certname: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _remove_from_enc(certname: str, db: AsyncSession):
-    """Remove a node from the ENC SQLite database if it exists."""
+async def _remove_from_enc(certname: str, db: AsyncSession) -> bool:
+    """
+    Remove a node from ENC SQLite (and legacy classification tables if present).
+    Returns True if the certname is gone from ENC afterward (deleted or never there).
+    """
+    from sqlalchemy import text
+
     try:
         deleted = await enc_service.delete_node(db, certname)
         if deleted:
-            await db.commit()
-            logger.info(f"Removed node '{certname}' from ENC")
-        return deleted
+            logger.info(f"Removed node '{certname}' from ENC (enc_nodes)")
+        # Legacy table (migration compatibility) — best effort
+        try:
+            await db.execute(
+                text("DELETE FROM node_classifications WHERE certname = :cn"),
+                {"cn": certname},
+            )
+        except Exception:
+            pass
+        await db.commit()
+        # Confirm absence
+        still = await enc_service.get_node(db, certname)
+        return still is None
     except Exception as e:
         logger.warning(f"Could not remove '{certname}' from ENC: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         return False
+
+
+async def _sudo_ok(cmd: list, timeout: int = 60) -> tuple[bool, str]:
+    """Run privileged command; return (success, stderr_or_stdout_hint)."""
+    from ..utils.sudo import run_sudo
+
+    try:
+        r = await run_sudo(cmd, timeout=timeout)
+        ok = r.get("returncode") == 0
+        hint = (r.get("stderr") or r.get("stdout") or "").strip()
+        return ok, hint
+    except Exception as e:
+        return False, str(e)
 
 
 @router.post("/{certname}/deactivate")
@@ -325,9 +357,16 @@ async def deactivate_node(
 
     results = {}
     results["puppetdb"] = await puppetdb_service.deactivate_node(certname)
+    cli_ok, cli_err = await _sudo_ok(
+        ["sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname],
+        timeout=30,
+    )
+    results["puppet_node_deactivate_cli"] = cli_ok
+    if not cli_ok and cli_err:
+        logger.warning("puppet node deactivate: %s", cli_err)
     results["enc"] = await _remove_from_enc(certname, db)
 
-    if not results["puppetdb"]:
+    if not results["puppetdb"] and not results["puppet_node_deactivate_cli"]:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to deactivate node '{certname}' from PuppetDB",
@@ -341,58 +380,114 @@ async def purge_node(
     db: AsyncSession = Depends(get_db),
     _user: str = Depends(require_role("admin", "operator")),
 ):
-    """Completely remove a node from everywhere: PuppetDB, ENC, and CA.
-
-    This is the single operation that administrators should use when
-    decommissioning a node. It removes the node from:
-      1. PuppetDB (API deactivate + `puppet node deactivate` CLI)
-      2. ENC SQLite database (classification data)
-      3. Puppet CA (puppetserver ca clean)
-
-    Any individual step that fails is logged but does not prevent the
-    other steps from running. The response includes the result of each
-    step so the administrator can see exactly what succeeded.
-
-    The puppet CLI deactivate is run in addition to the PDB command API
-    for maximum reliability when cleaning stubborn ghosts.
     """
-    from ..utils.sudo import run_sudo
+    Fully decommission a node — no half-removed ghosts in PDB, CA, or ENC.
 
+    Steps (best-effort all run; details reported per step):
+      1. Deactivate in PuppetDB (command API + `puppet node deactivate`)
+      2. Wait until the node is no longer *active* in PuppetDB (so Node Health /
+         fleet lists stop showing it as STALE)
+      3. `puppetserver ca clean --certname` — remove signed cert from CA
+      4. `puppet node clean` — clear master-side node/facts/report caches
+      5. Delete ENC SQLite row(s) for the certname (already-absent = success)
+
+    Deactivated PDB records may linger until PuppetDB GC (node-purge-ttl) but
+    are excluded from active inventory. CA + ENC removal is immediate.
+    """
     certname = validate_pql_value(certname, "certname")
-    results = {}
+    results: dict = {}
+    errors: dict = {}
 
-    # 1. Deactivate from PuppetDB (command API)
-    results["puppetdb_deactivated"] = await puppetdb_service.deactivate_node(certname)
+    # 1a. PuppetDB command API
+    results["puppetdb_api_deactivate"] = await puppetdb_service.deactivate_node(certname)
 
-    # Also run the documented `puppet node deactivate` (sudo) — belt-and-suspenders
-    # for cases where the API call alone leaves a stale active record.
-    try:
-        cli = await run_sudo(
-            ["sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname],
-            timeout=30,
-        )
-        results["puppet_node_deactivate_cli"] = cli.get("returncode") == 0
-        if not results["puppet_node_deactivate_cli"]:
-            logger.warning(f"puppet node deactivate CLI stderr for '{certname}': {cli.get('stderr')}")
-    except Exception as e:
-        results["puppet_node_deactivate_cli"] = False
-        logger.warning(f"puppet node deactivate CLI failed for '{certname}': {e}")
-
-    # 2. Remove from ENC SQLite
-    results["enc_removed"] = await _remove_from_enc(certname, db)
-
-    # 3. Clean certificate from CA
-    ca_result = await run_sudo(
-        ["sudo", "/opt/puppetlabs/bin/puppetserver", "ca", "clean", "--certname", certname],
-        timeout=30,
+    # 1b. CLI deactivate (requires sudoers: puppet node deactivate *)
+    ok, err = await _sudo_ok(
+        ["sudo", "/opt/puppetlabs/bin/puppet", "node", "deactivate", certname],
+        timeout=45,
     )
-    results["ca_cleaned"] = ca_result["returncode"] == 0
-    if not results["ca_cleaned"]:
-        logger.warning(f"CA clean for '{certname}': {ca_result['stderr']}")
+    results["puppet_node_deactivate"] = ok
+    if not ok:
+        errors["puppet_node_deactivate"] = err or "failed"
+        logger.warning("puppet node deactivate '%s': %s", certname, err)
 
-    all_ok = all(results.values())
-    return {
-        "status": "success" if all_ok else "partial",
-        "message": f"Node '{certname}' purged" if all_ok else f"Node '{certname}' partially purged — check details",
+    # 2. Verify no longer active (filters Node Health / get_nodes)
+    verified = await puppetdb_service.wait_until_not_active(certname, timeout_s=20.0)
+    results["puppetdb_not_active"] = verified
+    if not verified:
+        errors["puppetdb_not_active"] = (
+            "Node still appears active in PuppetDB after deactivate — "
+            "check PDB connectivity and node-ttl / command processing"
+        )
+        logger.warning("Purge: '%s' still active in PuppetDB after deactivate", certname)
+
+    # 3. CA clean (requires sudoers: puppetserver ca clean --certname *)
+    ok, err = await _sudo_ok(
+        ["sudo", "/opt/puppetlabs/bin/puppetserver", "ca", "clean", "--certname", certname],
+        timeout=60,
+    )
+    results["ca_clean"] = ok
+    if not ok:
+        # "No certificates to clean" / not found is acceptable for already-cleaned
+        low = (err or "").lower()
+        if "could not find" in low or "no certificates" in low or "not found" in low:
+            results["ca_clean"] = True
+            results["ca_clean_already_absent"] = True
+        else:
+            errors["ca_clean"] = err or "failed"
+            logger.warning("CA clean '%s': %s", certname, err)
+
+    # 4. Master-side clean (cached facts / reports on server)
+    ok, err = await _sudo_ok(
+        ["sudo", "/opt/puppetlabs/bin/puppet", "node", "clean", certname],
+        timeout=45,
+    )
+    results["puppet_node_clean"] = ok
+    if not ok:
+        low = (err or "").lower()
+        if "could not find" in low or "not found" in low or "no such" in low:
+            results["puppet_node_clean"] = True
+            results["puppet_node_clean_already_absent"] = True
+        else:
+            errors["puppet_node_clean"] = err or "failed"
+            logger.warning("puppet node clean '%s': %s", certname, err)
+
+    # 5. ENC SQLite — must not leave classification ghosts
+    results["enc_removed"] = await _remove_from_enc(certname, db)
+    if not results["enc_removed"]:
+        errors["enc_removed"] = "Failed to remove certname from ENC SQLite"
+
+    # Critical path for "no vestiges" in the GUI: not active in PDB + ENC gone + CA gone
+    critical_ok = (
+        results.get("puppetdb_not_active")
+        and results.get("enc_removed")
+        and results.get("ca_clean")
+    )
+    # At least one deactivate path should have succeeded (or node already gone)
+    if not results.get("puppetdb_api_deactivate") and not results.get("puppet_node_deactivate"):
+        if results.get("puppetdb_not_active"):
+            results["deactivate_already_inactive"] = True
+        else:
+            critical_ok = False
+
+    status = "success" if critical_ok and not errors else ("partial" if critical_ok else "failed")
+    if critical_ok and errors:
+        status = "partial"
+
+    message = {
+        "success": f"Node '{certname}' fully purged (PuppetDB inactive, CA cleaned, ENC removed)",
+        "partial": f"Node '{certname}' mostly purged — review details for failed steps",
+        "failed": f"Node '{certname}' purge incomplete — node may still appear in the UI",
+    }[status]
+
+    payload = {
+        "status": status,
+        "message": message,
         "details": results,
     }
+    if errors:
+        payload["errors"] = errors
+
+    if status == "failed":
+        raise HTTPException(status_code=500, detail=payload)
+    return payload
