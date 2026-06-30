@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **Insights | Monitoring — Window presets + freeform hours:** Wallboard header **Window** dropdown includes **1 hour**, **4 hours**, **8 hours**, plus 12h / 24h / 48h / 72h / 7 days. Adjacent **Hours** number field accepts any lookback (e.g. **6.5**), clamped 0.25–168. Applies to embedded Fleet Compliance and Run Performance; preference persisted in localStorage. Compliance API and performance overview accept fractional hours.
+
 ### Fixed
 - **Insights | Monitoring graphs (NOC wallboard):** Replaced the forked Recharts implementation (shared numeric multi-hour domain + sparse samples → “activity blobs with smooth bridges”) with **embeds of the catalog pages that already look correct**: Fleet Compliance, Run Performance, OpenVox Server Health, and OpenVoxDB Health (`embedded` mode — same data fetches, history, and chart config as `/insights/compliance`, `/insights/performance`, `/insights/openvox-server-health`, `/insights/openvoxdb-health`). Section multi-select + “Full page” deep links remain. Removed the separate `MonitoringHistoryProvider` path that only fed the broken wallboard charts.
 

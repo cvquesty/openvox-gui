@@ -53,11 +53,13 @@ def _set_cached(key: str, value: Any):
 
 @router.get("/compliance")
 async def get_compliance(
-    hours: int = Query(24, ge=1, le=168, description="Lookback window in hours"),
+    hours: float = Query(24, ge=0.25, le=168, description="Lookback window in hours (fractional OK, e.g. 6.5)"),
     _user: str = Depends(_AUTH),
 ):
     """Fleet-wide compliance summary: compliant vs drifted vs failed nodes."""
-    cached = _get_cached(f"compliance_{hours}")
+    # Normalize cache key so 6.5 and 6.50 share a slot
+    hours_key = round(float(hours), 4)
+    cached = _get_cached(f"compliance_{hours_key}")
     if cached is not None:
         return cached
 
@@ -93,7 +95,7 @@ async def get_compliance(
             unreported.append(entry)
 
     # Trend: get recent reports bucketed by hour
-    since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    since = (datetime.now(timezone.utc) - timedelta(hours=float(hours))).isoformat()
     try:
         reports = await puppetdb_service.get_reports(
             query=f'[">" , "receive_time" , "{since}"]',
@@ -130,7 +132,7 @@ async def get_compliance(
         },
         "trend": trend,
     }
-    _set_cached(f"compliance_{hours}", result)
+    _set_cached(f"compliance_{hours_key}", result)
     return result
 
 

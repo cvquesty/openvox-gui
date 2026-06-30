@@ -110,7 +110,7 @@ def _extract_metrics(report: Dict) -> Dict[str, Any]:
 
 @router.get("/overview")
 async def performance_overview(
-    hours: int = Query(48, description="Hours of history to include"),
+    hours: float = Query(48, ge=0.25, le=168, description="Hours of history to include (fractional OK)"),
     limit: int = Query(500, le=2000),
 ):
     """

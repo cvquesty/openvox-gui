@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
-  Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon, Box,
+  Select, Table, Paper, ScrollArea, Grid, Collapse, ActionIcon, Box, NumberInput,
 } from '@mantine/core';
 import {
   IconShieldCheck, IconChevronDown, IconChevronRight,
@@ -30,14 +30,27 @@ const STATUS_COLORS: Record<string, string> = {
   unreported: '#6c757d',
 };
 
-const HOURS_OPTIONS = [
+/** Preset lookback windows (hours). Fractional values are allowed via the Hours field. */
+export const WINDOW_HOUR_PRESETS = [
   { value: '1', label: '1 hour' },
   { value: '4', label: '4 hours' },
+  { value: '8', label: '8 hours' },
   { value: '12', label: '12 hours' },
   { value: '24', label: '24 hours' },
   { value: '48', label: '48 hours' },
+  { value: '72', label: '72 hours' },
   { value: '168', label: '7 days' },
 ];
+
+const HOURS_OPTIONS = WINDOW_HOUR_PRESETS;
+
+const MIN_WINDOW_HOURS = 0.25;
+const MAX_WINDOW_HOURS = 168;
+
+export function clampWindowHours(n: number): number {
+  if (!Number.isFinite(n)) return 24;
+  return Math.min(MAX_WINDOW_HOURS, Math.max(MIN_WINDOW_HOURS, n));
+}
 
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime();
@@ -99,24 +112,31 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
   );
 }
 
-/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
-export function MetricsCompliancePage({ embedded = false }: { embedded?: boolean } = {}) {
+/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page).
+ *  windowHours: when set (e.g. from Monitoring), drives the API lookback; hides local window controls.
+ */
+export function MetricsCompliancePage({
+  embedded = false,
+  windowHours,
+}: { embedded?: boolean; windowHours?: number } = {}) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hours, setHours] = useState('24');
+  const [hoursLocal, setHoursLocal] = useState(24);
+  const controlled = windowHours != null && Number.isFinite(windowHours);
+  const hoursNum = clampWindowHours(controlled ? Number(windowHours) : hoursLocal);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await metrics.compliance(parseInt(hours));
+      const result = await metrics.compliance(hoursNum);
       setData(result);
     } catch (e: any) {
       setError(e.message || 'Failed to load compliance data');
     }
     setLoading(false);
-  }, [hours]);
+  }, [hoursNum]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -154,13 +174,37 @@ export function MetricsCompliancePage({ embedded = false }: { embedded?: boolean
           <IconShieldCheck size={embedded ? 22 : 28} />
           <Title order={embedded ? 3 : 2}>Fleet Compliance &amp; Drift</Title>
         </Group>
-        <Select
-          size="sm"
-          data={HOURS_OPTIONS}
-          value={hours}
-          onChange={(v) => setHours(v || '24')}
-          style={{ width: 130 }}
-        />
+        {!controlled && (
+          <Group gap="xs" align="flex-end">
+            <Select
+              size="sm"
+              label="Window"
+              data={HOURS_OPTIONS}
+              value={HOURS_OPTIONS.some((o) => Number(o.value) === hoursNum) ? String(hoursNum) : null}
+              placeholder="Custom"
+              onChange={(v) => {
+                if (v != null) setHoursLocal(clampWindowHours(Number(v)));
+              }}
+              allowDeselect={false}
+              clearable={false}
+              style={{ width: 130 }}
+            />
+            <NumberInput
+              size="sm"
+              label="Hours"
+              value={hoursNum}
+              onChange={(v) => {
+                const n = typeof v === 'number' ? v : parseFloat(String(v));
+                if (Number.isFinite(n)) setHoursLocal(clampWindowHours(n));
+              }}
+              min={MIN_WINDOW_HOURS}
+              max={MAX_WINDOW_HOURS}
+              step={0.5}
+              decimalScale={2}
+              style={{ width: 100 }}
+            />
+          </Group>
+        )}
       </Group>
 
       {/* Stat cards */}

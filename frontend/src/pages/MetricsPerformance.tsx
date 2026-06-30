@@ -130,8 +130,13 @@ const REFRESH_OPTIONS = [
   { value: '0', label: 'Off' },
 ];
 
-/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
-export function MetricsPerformancePage({ embedded = false }: { embedded?: boolean } = {}) {
+/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page).
+ *  windowHours: lookback for agent run trends (API); live JMX history still accumulates while open.
+ */
+export function MetricsPerformancePage({
+  embedded = false,
+  windowHours,
+}: { embedded?: boolean; windowHours?: number } = {}) {
   const [perfData, setPerfData] = useState<any>(null);
   const [serverData, setServerData] = useState<any>(null);
   const [serverHistory, setServerHistory] = useState<any[]>(loadServerHistory);
@@ -140,12 +145,16 @@ export function MetricsPerformancePage({ embedded = false }: { embedded?: boolea
   const [expanded, setExpanded] = useState<string | null>(null);
   const [refreshRate, setRefreshRate] = useState<string>('15');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const hoursNum =
+    windowHours != null && Number.isFinite(windowHours)
+      ? Math.min(168, Math.max(0.25, Number(windowHours)))
+      : 48;
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [perf, server] = await Promise.all([
-        perfApi.getOverview(),
+        perfApi.getOverview(hoursNum),
         metrics.puppetdbPerformance().catch(() => null),
       ]);
       setPerfData(perf);
@@ -191,7 +200,7 @@ export function MetricsPerformancePage({ embedded = false }: { embedded?: boolea
       setLoading(false);
       setLastRefresh(new Date());
     }
-  }, []);
+  }, [hoursNum]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

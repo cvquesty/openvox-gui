@@ -5,22 +5,34 @@
  * in the Insights catalog (Fleet Compliance, Run Performance, OpenVox Server
  * Health, OpenVoxDB Health) via embedded={true}, so data, history, and Recharts
  * config stay single-source-of-truth with those full pages.
+ *
+ * Window control (presets + freeform hours) applies to sections that support
+ * lookback (Compliance, Run Performance). Server/DB health remain live poll series.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Text, Stack, Group, Card, Badge, Button, MultiSelect,
-  Divider, ThemeIcon,
+  Divider, ThemeIcon, Select, NumberInput,
 } from '@mantine/core';
 import {
   IconLayoutDashboard, IconSettings, IconExternalLink, IconChartBar,
 } from '@tabler/icons-react';
-import { MetricsCompliancePage } from './MetricsCompliance';
+import {
+  MetricsCompliancePage,
+  WINDOW_HOUR_PRESETS,
+  clampWindowHours,
+} from './MetricsCompliance';
 import { MetricsPerformancePage } from './MetricsPerformance';
 import { MetricsPuppetServerHealthPage } from './MetricsPuppetServerHealth';
 import { MetricsPuppetDBHealthPage } from './MetricsPuppetDBHealth';
 
 const SECTIONS_KEY = 'openvox-gui-monitor-sections-v3';
+const WINDOW_KEY = 'openvox-gui-monitor-window-hours-v2';
+
+const MIN_WINDOW_HOURS = 0.25;
+const MAX_WINDOW_HOURS = 168;
+const DEFAULT_WINDOW_HOURS = 24;
 
 type SectionId = 'compliance' | 'performance' | 'server' | 'pdb';
 
@@ -50,6 +62,17 @@ function loadSectionIds(): SectionId[] {
     return ids.length ? ids : [...DEFAULT_SECTION_IDS];
   } catch {
     return [...DEFAULT_SECTION_IDS];
+  }
+}
+
+function loadWindowHours(): number {
+  try {
+    const raw = localStorage.getItem(WINDOW_KEY);
+    if (raw == null || raw === '') return DEFAULT_WINDOW_HOURS;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? clampWindowHours(n) : DEFAULT_WINDOW_HOURS;
+  } catch {
+    return DEFAULT_WINDOW_HOURS;
   }
 }
 
@@ -89,6 +112,7 @@ export function MonitoringDashboardPage() {
   const navigate = useNavigate();
   const [sectionIds, setSectionIds] = useState<SectionId[]>(loadSectionIds);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [windowHours, setWindowHours] = useState<number>(loadWindowHours);
 
   useEffect(() => {
     try {
@@ -97,6 +121,14 @@ export function MonitoringDashboardPage() {
       /* ignore */
     }
   }, [sectionIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WINDOW_KEY, String(windowHours));
+    } catch {
+      /* ignore */
+    }
+  }, [windowHours]);
 
   const selected = useMemo(
     () => SECTION_CATALOG.filter((s) => sectionIds.includes(s.id)),
@@ -108,12 +140,20 @@ export function MonitoringDashboardPage() {
     label: s.label,
   }));
 
+  const presetValue = WINDOW_HOUR_PRESETS.some((o) => Number(o.value) === windowHours)
+    ? String(windowHours)
+    : null;
+
+  const applyWindowHours = (n: number) => {
+    setWindowHours(clampWindowHours(n));
+  };
+
   const renderSection = (id: SectionId) => {
     switch (id) {
       case 'compliance':
-        return <MetricsCompliancePage embedded />;
+        return <MetricsCompliancePage embedded windowHours={windowHours} />;
       case 'performance':
-        return <MetricsPerformancePage embedded />;
+        return <MetricsPerformancePage embedded windowHours={windowHours} />;
       case 'server':
         return <MetricsPuppetServerHealthPage embedded />;
       case 'pdb':
@@ -139,7 +179,36 @@ export function MonitoringDashboardPage() {
           </div>
           <Badge variant="light" color="blue">Live</Badge>
         </Group>
-        <Group gap="xs">
+        <Group gap="xs" align="flex-end">
+          <Select
+            size="xs"
+            label="Window"
+            data={WINDOW_HOUR_PRESETS}
+            value={presetValue}
+            placeholder="Custom"
+            onChange={(v) => {
+              if (v != null) applyWindowHours(Number(v));
+            }}
+            allowDeselect={false}
+            clearable={false}
+            searchable
+            w={120}
+          />
+          <NumberInput
+            size="xs"
+            label="Hours"
+            description="Any value"
+            value={windowHours}
+            onChange={(v) => {
+              const n = typeof v === 'number' ? v : parseFloat(String(v));
+              if (Number.isFinite(n)) applyWindowHours(n);
+            }}
+            min={MIN_WINDOW_HOURS}
+            max={MAX_WINDOW_HOURS}
+            step={0.5}
+            decimalScale={2}
+            w={100}
+          />
           <Button
             size="xs"
             variant={configureOpen ? 'filled' : 'default'}
@@ -158,6 +227,12 @@ export function MonitoringDashboardPage() {
           </Button>
         </Group>
       </Group>
+
+      <Text size="xs" c="dimmed">
+        Window applies to <strong>Fleet Compliance</strong> and <strong>Run Performance</strong> lookbacks
+        (presets: 1h, 4h, 8h, 12h, 24h, 48h, 72h, 7d — or type any hours e.g. <strong>6.5</strong>).
+        Server and OpenVoxDB sections use live poll history while the page is open.
+      </Text>
 
       {configureOpen && (
         <Card withBorder padding="md">
@@ -205,7 +280,7 @@ export function MonitoringDashboardPage() {
         <Stack gap="xl">
           {selected.map((s) => (
             <SectionFrame
-              key={s.id}
+              key={`${s.id}-${windowHours}`}
               title={s.label}
               detailPath={s.detailPath}
               onOpenDetail={(p) => navigate(p)}

@@ -498,14 +498,16 @@ export const ssl = {
 // ─── Performance Metrics ────────────────────────────────────
 
 export const performance = {
-  getOverview: () => fetchJSON<any>('/performance/overview'),
+  getOverview: (hours: number = 48) =>
+    fetchJSON<any>(`/performance/overview?hours=${encodeURIComponent(String(hours))}`),
   getNode: (certname: string) => fetchJSON<any>(`/performance/node/${certname}`),
 };
 
 // ─── Metrics / Visualization ────────────────────────────────
 
 export const metrics = {
-  compliance: (hours: number = 24) => fetchJSON<any>(`/insights/compliance?hours=${hours}`),
+  compliance: (hours: number = 24) =>
+    fetchJSON<any>(`/insights/compliance?hours=${encodeURIComponent(String(hours))}`),
   events: (params?: { limit?: number; status?: string }) => {
     const qs = new URLSearchParams();
     if (params?.limit) qs.set('limit', params.limit.toString());
