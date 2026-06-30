@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
+- **Insights | Monitoring graphs (NOC wallboard):** Replaced the forked Recharts implementation (shared numeric multi-hour domain + sparse samples → “activity blobs with smooth bridges”) with **embeds of the catalog pages that already look correct**: Fleet Compliance, Run Performance, OpenVox Server Health, and OpenVoxDB Health (`embedded` mode — same data fetches, history, and chart config as `/insights/compliance`, `/insights/performance`, `/insights/openvox-server-health`, `/insights/openvoxdb-health`). Section multi-select + “Full page” deep links remain. Removed the separate `MonitoringHistoryProvider` path that only fed the broken wallboard charts.
+
+### Fixed
 - **Ghost nodes persisting in Insights | Reports | "Production Nodes" (and all other classified group lists):** Nodes that had their certs cleaned/revoked and were purged could still appear as rows with "no data" (all — fields) in the grouped report views. These were stale ENC SQLite rows that survived because the hierarchy filter only checked PDB "active" (not the CA signed list) and deactivate sometimes left records. 
   - `/enc/hierarchy` now applies a definitive live-fleet filter: must be in ENC *and* PDB active (not deactivated/expired) *and* present in current `puppetserver ca list --all` signed certs.
   - Any ENC entries for cleaned certs (or deactivated) are **auto-deleted** from the SQLite DB the first time any UI loads the hierarchy (Reports, Nodes page groups, Node Classifier, Metrics Classification, etc.).

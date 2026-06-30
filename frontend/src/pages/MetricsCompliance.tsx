@@ -99,7 +99,8 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
   );
 }
 
-export function MetricsCompliancePage() {
+/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
+export function MetricsCompliancePage({ embedded = false }: { embedded?: boolean } = {}) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +120,7 @@ export function MetricsCompliancePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -147,11 +148,11 @@ export function MetricsCompliancePage() {
   ];
 
   return (
-    <Stack>
+    <Stack gap={embedded ? 'sm' : 'md'}>
       <Group justify="space-between">
         <Group gap="sm">
-          <IconShieldCheck size={28} />
-          <Title order={2}>Fleet Compliance &amp; Drift</Title>
+          <IconShieldCheck size={embedded ? 22 : 28} />
+          <Title order={embedded ? 3 : 2}>Fleet Compliance &amp; Drift</Title>
         </Group>
         <Select
           size="sm"
@@ -234,17 +235,19 @@ export function MetricsCompliancePage() {
         </Grid.Col>
       </Grid>
 
-      {/* Expandable node lists per category */}
-      <Card withBorder shadow="sm" padding="lg">
-        <Title order={4} mb="md">Nodes by Category</Title>
-        <Stack gap="xs">
-          <NodeList title="Compliant" nodes={data.nodes?.compliant} color="green" />
-          <NodeList title="Drifted" nodes={data.nodes?.drifted} color="orange" />
-          <NodeList title="Failed" nodes={data.nodes?.failed} color="red" />
-          <NodeList title="Noop" nodes={data.nodes?.noop} color="yellow" />
-          <NodeList title="Unreported" nodes={data.nodes?.unreported} color="gray" />
-        </Stack>
-      </Card>
+      {/* Expandable node lists — full page only (wallboard stays chart-focused) */}
+      {!embedded && (
+        <Card withBorder shadow="sm" padding="lg">
+          <Title order={4} mb="md">Nodes by Category</Title>
+          <Stack gap="xs">
+            <NodeList title="Compliant" nodes={data.nodes?.compliant} color="green" />
+            <NodeList title="Drifted" nodes={data.nodes?.drifted} color="orange" />
+            <NodeList title="Failed" nodes={data.nodes?.failed} color="red" />
+            <NodeList title="Noop" nodes={data.nodes?.noop} color="yellow" />
+            <NodeList title="Unreported" nodes={data.nodes?.unreported} color="gray" />
+          </Stack>
+        </Card>
+      )}
     </Stack>
   );
 }

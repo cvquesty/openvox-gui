@@ -133,7 +133,8 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
   );
 }
 
-export function MetricsPuppetServerHealthPage() {
+/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
+export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [data, setData] = useState<any>(null);
   // Seed from localStorage so graphs have prior data immediately on page load (persistent collection UX)
   const [history, setHistory] = useState<HistoryPoint[]>(loadPSHealthHistory);
@@ -236,7 +237,7 @@ export function MetricsPuppetServerHealthPage() {
     setExpanded(prev => prev === id ? null : id);
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -476,11 +477,11 @@ export function MetricsPuppetServerHealthPage() {
   ];
 
   return (
-    <Stack>
+    <Stack gap={embedded ? 'sm' : 'md'}>
       <Group justify="space-between">
         <Group gap="sm">
-          <IconServer size={28} />
-          <Title order={2}>OpenVox Server Health</Title>
+          <IconServer size={embedded ? 22 : 28} />
+          <Title order={embedded ? 3 : 2}>OpenVox Server Health</Title>
           <Badge color={statusColor} variant="filled" size="lg">
             {data.status || 'unknown'}
           </Badge>
@@ -532,8 +533,8 @@ export function MetricsPuppetServerHealthPage() {
         </Grid>
       )}
 
-      {/* Additional raw metrics for debugging / Phase 2 */}
-      {data.raw && (
+      {/* Additional raw metrics — full page only */}
+      {!embedded && data.raw && (
         <Card withBorder shadow="sm" padding="lg">
           <Title order={4} mb="sm">Additional Server Metrics (raw)</Title>
           <Text size="xs" c="dimmed">From Puppet Server /status and /metrics/v2. Use the list endpoint for full discovery.</Text>
@@ -543,10 +544,12 @@ export function MetricsPuppetServerHealthPage() {
         </Card>
       )}
 
-      <Text size="xs" c="dimmed">
-        Polls Puppet Server status + metrics/v2 (Jolokia). Server history (shared) + client accumulation.
-        <strong>Full data requires configuration</strong> — see docs/METRICS.md (puppetserver.conf + metrics.conf + auth rules for /metrics and /status). After editing, restart puppetserver. Use the raw section below to see exactly what is being returned.
-      </Text>
+      {!embedded && (
+        <Text size="xs" c="dimmed">
+          Polls Puppet Server status + metrics/v2 (Jolokia). Server history (shared) + client accumulation.
+          <strong>Full data requires configuration</strong> — see docs/METRICS.md (puppetserver.conf + metrics.conf + auth rules for /metrics and /status). After editing, restart puppetserver. Use the raw section below to see exactly what is being returned.
+        </Text>
+      )}
     </Stack>
   );
 }

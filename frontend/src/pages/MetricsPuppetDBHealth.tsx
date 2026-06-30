@@ -104,7 +104,8 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
   );
 }
 
-export function MetricsPuppetDBHealthPage() {
+/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
+export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [data, setData] = useState<any>(null);
   const [heapHistory, setHeapHistory] = useState<HeapDataPoint[]>(loadHistory);
   const [loading, setLoading] = useState(true);
@@ -112,6 +113,9 @@ export function MetricsPuppetDBHealthPage() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => (prev === id ? null : id));
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -167,7 +171,7 @@ export function MetricsPuppetDBHealthPage() {
     };
   }, [fetchData]);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -234,7 +238,7 @@ export function MetricsPuppetDBHealthPage() {
     {
       id: 'catalog-save',
       title: 'PS: catalog_save mean (ms)',
-      stats: [{ label: 'Last', value: (catSaveData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      stats: [{ label: 'Last', value: (catSaveData.slice().reverse().find((d: { mean?: number }) => d.mean != null) || {}).mean?.toFixed?.(0) ?? '—' }],
       render: () => (
         <LineChart data={catSaveData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
@@ -248,7 +252,7 @@ export function MetricsPuppetDBHealthPage() {
     {
       id: 'report-proc',
       title: 'PS: report_process mean (ms)',
-      stats: [{ label: 'Last', value: (reportProcData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      stats: [{ label: 'Last', value: (reportProcData.slice().reverse().find((d: { mean?: number }) => d.mean != null) || {}).mean?.toFixed?.(0) ?? '—' }],
       render: () => (
         <LineChart data={reportProcData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
@@ -262,7 +266,7 @@ export function MetricsPuppetDBHealthPage() {
     {
       id: 'replace-cat',
       title: 'http-client: replace_catalog (ms)',
-      stats: [{ label: 'Last', value: (repCatData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      stats: [{ label: 'Last', value: (repCatData.slice().reverse().find((d: { mean?: number }) => d.mean != null) || {}).mean?.toFixed?.(0) ?? '—' }],
       render: () => (
         <AreaChart data={repCatData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
@@ -276,7 +280,7 @@ export function MetricsPuppetDBHealthPage() {
     {
       id: 'store-report',
       title: 'http-client: store_report (ms)',
-      stats: [{ label: 'Last', value: (storeRepData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      stats: [{ label: 'Last', value: (storeRepData.slice().reverse().find((d: { mean?: number }) => d.mean != null) || {}).mean?.toFixed?.(0) ?? '—' }],
       render: () => (
         <AreaChart data={storeRepData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
@@ -290,7 +294,7 @@ export function MetricsPuppetDBHealthPage() {
     {
       id: 'replace-facts',
       title: 'http-client: replace_facts (ms)',
-      stats: [{ label: 'Last', value: (repFactsData.findLast(d => d.mean) || {}).mean?.toFixed?.(0) ?? '—' }],
+      stats: [{ label: 'Last', value: (repFactsData.slice().reverse().find((d: { mean?: number }) => d.mean != null) || {}).mean?.toFixed?.(0) ?? '—' }],
       render: () => (
         <LineChart data={repFactsData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
@@ -304,11 +308,11 @@ export function MetricsPuppetDBHealthPage() {
   ];
 
   return (
-    <Stack>
+    <Stack gap={embedded ? 'sm' : 'md'}>
       <Group justify="space-between">
         <Group gap="sm">
-          <IconDatabase size={28} />
-          <Title order={2}>OpenVoxDB Health</Title>
+          <IconDatabase size={embedded ? 22 : 28} />
+          <Title order={embedded ? 3 : 2}>OpenVoxDB Health</Title>
           <Badge color={statusColor} variant="filled" size="lg">
             {data.status || 'unknown'}
           </Badge>
@@ -369,11 +373,12 @@ export function MetricsPuppetDBHealthPage() {
         </Grid.Col>
       </Grid>
 
-      {/* Note about full performance data also available in Run Performance */}
-      <Text size="xs" c="dimmed">
-        DB interaction metrics (puppetdb_* and http-client-*) come from Puppet Server experimental status.
-        Additional PDB Jolokia metrics (pools, storage, GC, population) are available in Metrics → Run Performance.
-      </Text>
+      {!embedded && (
+        <Text size="xs" c="dimmed">
+          DB interaction metrics (puppetdb_* and http-client-*) come from Puppet Server experimental status.
+          Additional PDB Jolokia metrics (pools, storage, GC, population) are available in Metrics → Run Performance.
+        </Text>
+      )}
     </Stack>
   );
 }

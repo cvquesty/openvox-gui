@@ -32,7 +32,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader, Center } from '@mantine/core';
 import { AuthProvider, useAuth } from './hooks/AuthContext';
 import { ActivityProvider } from './hooks/ActivityContext';
-import { MonitoringHistoryProvider } from './hooks/MonitoringHistoryContext';
+
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/Login';
 import { AppShellLayout } from './components/AppShell';
@@ -180,9 +180,7 @@ export function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ActivityProvider>
-          <MonitoringHistoryProvider>
-            <AppRoutes />
-          </MonitoringHistoryProvider>
+          <AppRoutes />
         </ActivityProvider>
       </AuthProvider>
     </ErrorBoundary>

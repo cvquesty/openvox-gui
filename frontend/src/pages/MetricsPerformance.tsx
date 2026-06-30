@@ -130,7 +130,8 @@ const REFRESH_OPTIONS = [
   { value: '0', label: 'Off' },
 ];
 
-export function MetricsPerformancePage() {
+/** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
+export function MetricsPerformancePage({ embedded = false }: { embedded?: boolean } = {}) {
   const [perfData, setPerfData] = useState<any>(null);
   const [serverData, setServerData] = useState<any>(null);
   const [serverHistory, setServerHistory] = useState<any[]>(loadServerHistory);
@@ -206,19 +207,19 @@ export function MetricsPerformancePage() {
     setExpanded(prev => prev === id ? null : id);
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error && !perfData) return <Alert color="red" title="Error">{String(error)}</Alert>;
   if (!perfData) return null;
 
   // Catch render errors from bad JMX data
   try {
-    return <MetricsPerformanceContent perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} refreshRate={refreshRate} setRefreshRate={setRefreshRate} lastRefresh={lastRefresh} fetchData={fetchData} clearHistory={() => { setServerHistory([]); saveServerHistory([]); localStorage.setItem(SERVER_HISTORY_KEY + '_v', String(HISTORY_VERSION)); }} />;
+    return <MetricsPerformanceContent embedded={embedded} perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} refreshRate={refreshRate} setRefreshRate={setRefreshRate} lastRefresh={lastRefresh} fetchData={fetchData} clearHistory={() => { setServerHistory([]); saveServerHistory([]); localStorage.setItem(SERVER_HISTORY_KEY + '_v', String(HISTORY_VERSION)); }} />;
   } catch (e: any) {
     return <Alert color="red" title="Render Error">{String(e?.message || e)}</Alert>;
   }
 }
 
-function MetricsPerformanceContent({ perfData, serverData, serverHistory, expanded, toggleExpand, refreshRate, setRefreshRate, lastRefresh, fetchData, clearHistory }: { perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void; refreshRate: string; setRefreshRate: (v: string) => void; lastRefresh: Date; fetchData: () => void; clearHistory: () => void }) {
+function MetricsPerformanceContent({ embedded = false, perfData, serverData, serverHistory, expanded, toggleExpand, refreshRate, setRefreshRate, lastRefresh, fetchData, clearHistory }: { embedded?: boolean; perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void; refreshRate: string; setRefreshRate: (v: string) => void; lastRefresh: Date; fetchData: () => void; clearHistory: () => void }) {
 
   // Agent-side data
   const rawTrends = perfData.run_time_trends || [];
@@ -457,11 +458,11 @@ function MetricsPerformanceContent({ perfData, serverData, serverHistory, expand
   ];
 
   return (
-    <Stack>
+    <Stack gap={embedded ? 'sm' : 'md'}>
       <Group justify="space-between">
         <Group gap="sm">
-          <IconChartLine size={28} />
-          <Title order={2}>Run Performance</Title>
+          <IconChartLine size={embedded ? 22 : 28} />
+          <Title order={embedded ? 3 : 2}>Run Performance</Title>
           <Badge variant="light" color="blue" size="lg">{stats.total_runs || 0} runs / {stats.total_nodes || 0} nodes</Badge>
         </Group>
         <Group gap="xs">
