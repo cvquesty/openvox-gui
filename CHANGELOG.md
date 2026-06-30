@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b5] - 2026-06-30 (beta — functionality testing)
+
+### Fixed
+- **Insights | Node Health vs Overview | Nodes membership drift:** Node Health used active PuppetDB-only `get_nodes()`, so certs cleaned from the CA (and gone from Overview | Nodes / `get_fleet_nodes`) could still appear as **STALE** if PDB had not expired them. Node Health now uses the **same fleet source as Overview | Nodes**, ignores deactivated/expired rows, and only applies agent-disabled facts for certnames on that fleet.
+
 ## [3.10.3b4] - 2026-06-30 (beta — functionality testing)
 
 ### Fixed

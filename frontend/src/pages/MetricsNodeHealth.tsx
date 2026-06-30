@@ -5,6 +5,8 @@
  * Shows Puppet agent enabled/disabled status.
  *
  * Sources:
+ *   - **Same fleet as Overview | Nodes** (signed CA + PuppetDB enrichment) — not a
+ *     separate PDB-only list, so Purge / CA clean cannot leave ghost STALE rows here.
  *   - Custom fact `puppet_agent_disabled` (and optional message) from last successful run.
  *   - Report/fact timestamps for staleness inference.
  *   - Live Bolt checks (recommended for currently disabled nodes, since disabled

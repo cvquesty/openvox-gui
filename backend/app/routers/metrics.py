@@ -917,12 +917,21 @@ async def get_class_coverage(
 async def get_node_health(_user: str = Depends(_AUTH)):
     """Node health overview focused on Puppet agent enabled/disabled status.
 
-    Pulls from PuppetDB facts (if the supporting custom fact is deployed)
-    + node inventory timestamps for staleness.
+    Membership is the **same fleet as Overview | Nodes** (`get_fleet_nodes`):
+    signed CA certs enriched with PuppetDB — not a separate PDB-only query.
+    That keeps Purge (CA clean) and Node Health in lockstep and prevents
+    ghost/STALE rows that still linger as active PDB records after cert clean.
+
+    Facts (agent disabled / message) are applied only for certnames on that fleet.
     """
     try:
-        # Get base nodes (active)
-        nodes = await puppetdb_service.get_nodes()
+        # Same source of truth as GET /api/nodes/ (Overview | Nodes)
+        nodes = await puppetdb_service.get_fleet_nodes()
+        fleet_keys = {
+            str(n.get("certname", "")).strip().lower()
+            for n in nodes
+            if n.get("certname")
+        }
 
         # Get the agent disabled fact values (may be empty if fact not yet deployed)
         disabled_facts: List[Dict] = []
@@ -934,12 +943,16 @@ async def get_node_health(_user: str = Depends(_AUTH)):
         fact_map: Dict[str, Any] = {}
         for f in disabled_facts:
             cn = f.get("certname")
-            if cn:
-                val = f.get("value")
-                # Normalize boolean-ish
-                if isinstance(val, str):
-                    val = val.lower() in ("true", "1", "yes")
-                fact_map[cn] = bool(val) if val is not None else None
+            if not cn:
+                continue
+            # Ignore facts for nodes not on the official fleet (stale PDB ghosts)
+            if str(cn).strip().lower() not in fleet_keys:
+                continue
+            val = f.get("value")
+            # Normalize boolean-ish
+            if isinstance(val, str):
+                val = val.lower() in ("true", "1", "yes")
+            fact_map[cn] = bool(val) if val is not None else None
 
         # Also try to get disable messages if the second fact is present
         msg_facts: List[Dict] = []
@@ -947,7 +960,12 @@ async def get_node_health(_user: str = Depends(_AUTH)):
             msg_facts = await puppetdb_service.get_facts(fact_name="puppet_agent_disable_message")
         except Exception:
             pass
-        msg_map: Dict[str, str] = {f.get("certname"): f.get("value") for f in msg_facts if f.get("certname")}
+        msg_map: Dict[str, str] = {
+            f.get("certname"): f.get("value")
+            for f in msg_facts
+            if f.get("certname")
+            and str(f.get("certname")).strip().lower() in fleet_keys
+        }
 
         result_nodes = []
         now = datetime.now(timezone.utc)
@@ -956,6 +974,14 @@ async def get_node_health(_user: str = Depends(_AUTH)):
 
         for n in nodes:
             cn = n.get("certname")
+            if not cn:
+                continue
+            # Deactivated/expired PDB rows should not appear once CA is cleaned
+            # (they never enter get_fleet_nodes). If a signed cert still maps to
+            # a deactivated PDB record (rare), treat as not part of live health.
+            if n.get("deactivated") or n.get("expired"):
+                continue
+
             disabled = fact_map.get(cn)
             if disabled is True:
                 disabled_count += 1
@@ -974,6 +1000,10 @@ async def get_node_health(_user: str = Depends(_AUTH)):
                         stale_count += 1
                 except Exception:
                     pass
+            elif not report_ts and not facts_ts:
+                # Signed cert with no PDB activity — unreported, count as stale for ops
+                is_stale = True
+                stale_count += 1
 
             entry = {
                 "certname": cn,
@@ -988,7 +1018,7 @@ async def get_node_health(_user: str = Depends(_AUTH)):
             result_nodes.append(entry)
 
         # Alphabetize the node list by certname
-        result_nodes.sort(key=lambda x: x["certname"])
+        result_nodes.sort(key=lambda x: (x.get("certname") or "").lower())
 
         return {
             "nodes": result_nodes,
@@ -998,6 +1028,7 @@ async def get_node_health(_user: str = Depends(_AUTH)):
                 "stale": stale_count,
                 "fact_deployed": len(fact_map) > 0,
             },
+            "source": "fleet",  # same membership as Overview | Nodes
         }
     except Exception as e:
         logger.warning(f"node-health error: {e}")
