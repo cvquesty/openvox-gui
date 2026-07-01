@@ -6,7 +6,7 @@ This document describes the high-level architecture of OpenVox GUI, with special
 
 OpenVox GUI is a full-stack application that provides both a **web interface** and a **command-line interface** (`ovox`) for managing an OpenVox (open-source Puppet) infrastructure.
 
-**Current stable line:** **3.10.2** (see root `VERSION` and [CHANGELOG.md](../CHANGELOG.md)). The 3.10 effort layered security hardening, clearer backend service boundaries, and operator-focused UI (Insights **Monitoring** NOC, shared **OpsTable** / filters, orchestration UX). Installation remains **on the OpenVox Server host** (local filesystem, CA, Bolt, systemd) — remote-host GUI install is not supported yet.
+**Current stable line:** **3.10.4** (see root `VERSION` and [CHANGELOG.md](../CHANGELOG.md)). The 3.10 effort layered security hardening, clearer backend service boundaries, and operator-focused UI (Insights **Monitoring** NOC, shared **OpsTable** / filters, orchestration UX). **3.10.4** adds consistent **live fleet** membership (`get_live_nodes`: active PuppetDB ∩ signed CA) for Nodes, Inventory, ENC, Dashboard, and Node Health. Installation remains **on the OpenVox Server host** (local filesystem, CA, Bolt, systemd) — remote-host GUI install is not supported yet.
 
 The system is deliberately designed with two primary user interfaces that are treated as equals:
 
