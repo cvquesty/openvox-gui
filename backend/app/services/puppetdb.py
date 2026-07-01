@@ -132,9 +132,12 @@ class PuppetDBService:
         return unique
 
     async def get_fleet_nodes(self) -> List[Dict]:
-        """Return the canonical fleet list based on *all signed CA certificates*.
+        """Return signed CA certificates enriched with PuppetDB records.
 
-        This is the single source of truth for "how many nodes are in the fleet".
+        **Not** the membership SSoT for Overview | Nodes or Insights | Inventory
+        — those use active PuppetDB via ``get_nodes()``. This CA union is for
+        certificate-centric views and callers that need every trusted cert
+        (including signed certs that never reported to PuppetDB).
 
         - Starts from `puppetserver ca list --all` (signed certs).
         - Enriches every certname with its full PuppetDB record (if present),
@@ -144,11 +147,6 @@ class PuppetDBService:
           minimal "synthetic" NodeSummary entry with status=None (treated as
           "unreported").
         - Result is always exactly one entry per signed certname, sorted.
-
-        Using this for Dashboard, Nodes list, etc. ensures every total/count
-        across the UI normalizes to the same number (the number of trusted
-        signed certificates), and the previously "lost" nodes become visible
-        (with appropriate unreported/orphan status).
         """
         # Domain service (srdevarch1 HP3) — no router import / cycle.
         from .certificates_service import list_certificates as list_ca_certificates
@@ -584,25 +582,34 @@ class PuppetDBService:
         """
         Live fleet-wide system inventory report.
 
-        Uses a PQL projection against the inventory endpoint to pull only
-        the facts needed for the Inventory page (certname, OS, physical CPU
-        count, location custom fact, memory, disks, virtualization status,
-        uptime). This keeps the payload small while remaining fully "live"
-        (direct from PuppetDB's current fact data).
+        Membership is **active PuppetDB nodes only** (not deactivated / not
+        expired) — the same set as ``get_nodes()`` / Overview | Nodes. PuppetDB
+        retains factsets for deactivated and expired nodes until GC, so the
+        raw ``inventory`` endpoint over-counts vs. the real fleet; we intersect
+        with active nodes so Insights | Inventory matches the Nodes list.
 
-        Returns a list of flat dict rows, one per node (sorted by certname).
-        Missing facts are represented as empty strings for UI robustness.
+        Fact payload still comes from the inventory endpoint (certname + full
+        structured facts). Missing facts are empty strings for UI robustness.
         Disks are pre-formatted as newline-separated "name: size" strings.
         """
-        # Use the inventory endpoint directly (full current facts for nodes that
-        # have reported factsets). This is the most reliable way to get the
-        # structured facts we need without fragile PQL column projections.
-        # The response items contain "certname" + "facts": { full fact hash }.
+        # Active membership (SSoT) — exclude deactivated / expired ghosts.
+        active_nodes = await self.get_nodes(include_inactive=False)
+        active_keys = {
+            str(n.get("certname", "")).strip().lower()
+            for n in active_nodes
+            if n.get("certname")
+        }
+
+        # Full current facts for nodes that have reported factsets.
+        # Response items: "certname" + "facts": { ... }.
         raw = await self._query("inventory") or []
 
         results: List[Dict] = []
         for item in raw:
             certname = item.get("certname", "") or ""
+            key = certname.strip().lower()
+            if not key or key not in active_keys:
+                continue
             facts = item.get("facts") or {}
 
             # OS

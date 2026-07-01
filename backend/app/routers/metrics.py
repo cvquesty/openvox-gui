@@ -917,16 +917,16 @@ async def get_class_coverage(
 async def get_node_health(_user: str = Depends(_AUTH)):
     """Node health overview focused on Puppet agent enabled/disabled status.
 
-    Membership is the **same fleet as Overview | Nodes** (`get_fleet_nodes`):
-    signed CA certs enriched with PuppetDB — not a separate PDB-only query.
-    That keeps Purge (CA clean) and Node Health in lockstep and prevents
-    ghost/STALE rows that still linger as active PDB records after cert clean.
+    Membership is the **same fleet as Overview | Nodes** and Insights |
+    Inventory: **active PuppetDB nodes** only (`get_nodes`, not deactivated /
+    expired). That keeps node totals aligned; CA remains authoritative on the
+    Certificates page. Deactivated PDB ghosts no longer inflate health rows.
 
     Facts (agent disabled / message) are applied only for certnames on that fleet.
     """
     try:
         # Same source of truth as GET /api/nodes/ (Overview | Nodes)
-        nodes = await puppetdb_service.get_fleet_nodes()
+        nodes = await puppetdb_service.get_nodes(include_inactive=False)
         fleet_keys = {
             str(n.get("certname", "")).strip().lower()
             for n in nodes

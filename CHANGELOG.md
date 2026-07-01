@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b11] - 2026-07-01 (beta — inventory membership = active PuppetDB)
+
+### Fixed
+- **Insights | Inventory vs Overview | Nodes count mismatch (e.g. 103 vs 83):** Inventory queried PuppetDB’s full `inventory` endpoint (includes deactivated/expired nodes that still have factsets until GC). Overview | Nodes used CA signed-cert union (`get_fleet_nodes`). Both now use **active PuppetDB nodes only** (`get_nodes(include_inactive=False)`) as the shared membership source of truth; Inventory intersects inventory facts with that set. Dashboard and Node Health use the same membership. CA remains authoritative on the Certificates page (`get_fleet_nodes` retained for cert-centric callers).
+
 ## [3.10.3b10] - 2026-06-30 (beta — executive send JSON serialize)
 
 ### Fixed

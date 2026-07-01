@@ -125,7 +125,10 @@ async def list_reports(
 @router.get("/inventory")
 async def get_inventory_report():
     """
-    Live system inventory report (one row per node).
+    Live system inventory report (one row per **active** PuppetDB node).
+
+    Membership matches Overview | Nodes: active PuppetDB only (excludes
+    deactivated / expired records that still retain factsets until GC).
 
     Pulls current facts directly from PuppetDB for:
       - certname

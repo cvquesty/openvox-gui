@@ -46,19 +46,15 @@ async def list_nodes(
     guard against injection.
     """
     try:
-        # Use the canonical fleet (all signed certs from the CA) as the source
-        # of truth. This normalizes every "total nodes" / "X nodes" count in the
-        # UI (Dashboard, Nodes page, etc.) to the number of trusted signed
-        # certificates (the "absolutely 92" in the user's report).
-        # Previously only active PDB nodes were shown, causing the 5 "lost"
-        # nodes (signed certs with no active PDB record) to be invisible on
-        # the dashboard and causing count mismatches vs. Certs / reality.
-        fleet = await puppetdb_service.get_fleet_nodes()
+        # Active PuppetDB nodes are the membership SSoT for Overview | Nodes
+        # and Insights | Inventory (not CA signed-cert count, not deactivated /
+        # expired PDB ghosts). Aligns fleet totals across those pages.
+        # Certificates remain authoritative on the CA page; get_fleet_nodes()
+        # is still available for callers that need signed-cert union.
+        fleet = await puppetdb_service.get_nodes(include_inactive=False)
 
-        # Apply environment / status filters *after* building the fleet (in
-        # Python). Synthetic (never-reported) nodes have no environment or
-        # status; they are only included when no filter is active, or when
-        # status explicitly matches "unreported".
+        # Apply environment / status filters after fetch (Python), so we never
+        # rely on PQL operator quirks for deactivated filtering.
         if environment or status:
             if environment:
                 environment = validate_pql_value(environment, "environment")
@@ -86,9 +82,7 @@ async def list_nodes(
         else:
             nodes = fleet
 
-        # Fleet construction + the Set logic inside get_fleet_nodes already
-        # guarantees uniqueness and proper casing from the CA list.
-        # Still do a final defensive dedup + sort for belt-and-suspenders.
+        # get_nodes() already dedups; final defensive dedup + sort.
         seen: set[str] = set()
         unique = []
         for node in nodes:

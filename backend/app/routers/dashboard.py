@@ -40,7 +40,7 @@ async def get_dashboard_data():
             "%Y-%m-%dT%H:%M:%S.000Z"
         )
         raw_nodes, reports = await asyncio.gather(
-            puppetdb_service.get_fleet_nodes(),  # canonical signed-cert fleet (92 in the user's example)
+            puppetdb_service.get_nodes(include_inactive=False),  # active PDB membership (SSoT w/ Inventory)
             puppetdb_service._query(
                 "reports",
                 query=f'[">" , "receive_time", "{cutoff}"]',
