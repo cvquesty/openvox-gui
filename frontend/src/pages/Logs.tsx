@@ -129,6 +129,7 @@ export function LogsPage() {
   const currentData = logData[activeTab];
   // Prefer backend-surfaced empty-read hints (sudo/file) over a silent blank pane
   const backendHint = currentData?.error as string | undefined;
+  const backendWarning = currentData?.warning as string | undefined;
 
   /**
    * Render a single log line with visual enhancements:
@@ -367,6 +368,11 @@ export function LogsPage() {
         </Group>
 
         {error && <Alert color="red" mt="sm" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+        {backendWarning && (
+          <Alert color="yellow" mt="sm" title="Since filter relaxed">
+            {backendWarning}
+          </Alert>
+        )}
 
         {/* Log output */}
         <ScrollArea h="calc(100vh - 340px)" mih={300} mah={800} mt="sm" viewportRef={scrollRef}>

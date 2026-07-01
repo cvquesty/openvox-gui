@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b12] - 2026-07-01 (beta — agent Log Viewer journal fallbacks)
+
+### Fixed
+- **Insights | Log Viewer | OpenVox Agent empty pane:** Agent rarely has on-disk logs and unit journal can be empty while lines still exist under SYSLOG_IDENTIFIER (`puppet-agent`) or the host journal. Collection is now **journal-first** for the agent source: units `puppet` / `puppet-agent`, then `journalctl -t puppet-agent|puppet`, then files, then **host journal filtered** for agent markers. A tight **Since** window with `log_level=err` (quiet when healthy) no longer yields a blank pane — we relax Since and show last available lines with a UI warning. Sudoers adds `-t` rules. Optional missing log files no longer spam the empty-state error string.
+
 ## [3.10.3b11] - 2026-07-01 (beta — inventory membership = active PuppetDB)
 
 ### Fixed

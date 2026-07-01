@@ -252,9 +252,14 @@ ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet --no-pager -n * --output short-iso --since *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet-agent --no-pager -n * --output short-iso
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u puppet-agent --no-pager -n * --output short-iso --since *
+# SYSLOG_IDENTIFIER (journalctl -t) — agent often tags lines this way when unit journal is empty
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -t puppet-agent --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -t puppet-agent --no-pager -n * --output short-iso --since *
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -t puppet --no-pager -n * --output short-iso
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -t puppet --no-pager -n * --output short-iso --since *
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl -u openvox-gui --no-pager -n * --output short-iso --since *
-# Host journal (System Log tab) — no -u, still bounded by -n and output format:
+# Host journal (System Log tab + agent host-filter fallback) — no -u, still bounded by -n and output format:
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl --no-pager -n * --output short-iso --since *
 # Application log files (line count wildcard between -n and path):
