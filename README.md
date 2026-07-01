@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.10.2-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.10.4-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -90,7 +90,7 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - **[Security Policy](SECURITY.md)** — Supported versions and how to report vulnerabilities
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to the project
 - **[Contributors](CONTRIBUTORS.md)** — People who helped build this project
-- **[Release announcements](docs/releases/)** — Press kits for stable GitHub Releases (e.g. [3.10.2](docs/releases/press_3.10.2.md))
+- **[Release announcements](docs/releases/)** — Press kits for stable GitHub Releases (e.g. [3.10.4](docs/releases/press_3.10.4.md))
 
 ## ✨ Main Features
 
@@ -306,26 +306,29 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## What's New in Version 3.10.2 (current stable)
+## What's New in Version 3.10.4 (current stable)
 
-**3.10.2** is the current stable release on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.2)). It promotes the 3.10 alpha/beta line (including **3.10.1.b1** / **3.10.1.b2**) after merging the major 3.10 refactor trains into `main`.
+**3.10.4** is the current stable release on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.4)). It promotes the **3.10.3b1–b14** functionality train: consistent **live fleet** membership, Log Viewer / ENC / Inventory fixes, Nodes export, Executive Summary reliability, and related operator polish.
 
 ### Headline for operators
-- **Monitoring NOC** — multi-graph Insights Monitoring with a **shared UTC hour window** across fleet, compliance, performance, Server, and OpenVoxDB panels; live series timeline fixes (seconds vs milliseconds so JMX graphs are not stuck in 1970).
-- **Ops UI consistency** — **OpsTable**, **FilterBar**, Insights hub (`/insights` + `/insights/all`), shared orchestration confirm/target patterns.
-- **Orchestration runs Bolt once per click** — fixes [issue #38](https://github.com/cvquesty/openvox-gui/issues/38) (older builds ran the ad-hoc command three times because the UI fetched human/json/rainbow formats in parallel). **3.10.2** (and **3.10.1.b2**) execute **one** Bolt command/task/plan and share the result across format tabs.
-- **3.10 platform work from alpha** — security hardening, backend architecture layering (services / contracts), UI/UX designer trains (command palette, OutputPane, state components), Executive Summary email From/schedule delivery, and related changes — full list in [CHANGELOG.md](CHANGELOG.md).
+- **Live fleet everywhere that matters** — Overview | Nodes, Dashboard, Insights | Inventory, Node Health, and ENC Unclassified / reconciliation all use **`get_live_nodes()`**: **active PuppetDB ∩ signed CA**. After `puppetserver ca clean` or PDB deactivate/expire, hosts drop from those lists (and stale ENC SQLite rows are pruned). The **Certificates** page remains the CA-authoritative view.
+- **Nodes export** — All Nodes on Overview | Nodes has the same ExportActions as Inventory (CSV / JSON / text, column picker) over the **filtered** result set.
+- **Log Viewer — OpenVox Agent** — journal-first collection with unit / identifier / host-journal fallbacks; stack-aware labels (OpenVox vs Puppet OSS); clearer behavior when `log_level=err` and tight **Since** filters would otherwise show an empty pane.
+- **Purge, Bolt config, Executive Summary** — complete node purge + sudoers; reliable Bolt project/inventory load under `/etc/puppetlabs/bolt/`; fleet health report script deployed; Send uses in-process live snapshot (no lab sample fallback).
+- **Still in 3.10.4 from 3.10.2** — Monitoring NOC, OpsTable / FilterBar, Orchestration single Bolt run per click ([#38](https://github.com/cvquesty/openvox-gui/issues/38)), and the broader 3.10 platform work — see [CHANGELOG.md](CHANGELOG.md).
 
 ### How we version (quick mental model)
-- **Stable:** `MAJOR.MINOR.PATCH` (this release: **3.10.2**).
-- **Dev / beta trains:** pre-releases such as `3.10.1.b1`, `3.9.0-dev.N`, or historical alpha labels like `3.10.04.a8` on feature branches. The **`ovox` CLI** stays in **lockstep** with the GUI via the root `VERSION` file (`scripts/bump-version.sh`).
+- **Stable:** `MAJOR.MINOR.PATCH` (this release: **3.10.4**).
+- **Dev / beta trains:** pre-releases such as `3.10.3b14`, `3.10.1.b1`, `3.9.0-dev.N`, or historical alpha labels like `3.10.04.a8` on feature branches. The **`ovox` CLI** stays in **lockstep** with the GUI via the root `VERSION` file (`scripts/bump-version.sh`).
 - **Default branch:** **`main`** only (the old `staging` branch is gone).
 - GitHub **Releases** are deliberate for shippable stables; pre-release tags may exist for lab testing.
 
 > **Metrics note (unchanged since 3.7):** Full Run Performance / Server Health / PuppetDB Health still need OpenVox Server config — see **[docs/METRICS.md](docs/METRICS.md)**. Without it many Insights charts stay empty or thin.
 
 ### Earlier 3.x highlights (still in the product)
-Everything below shipped in prior minors and remains part of **3.10.2** — see CHANGELOG for the full timeline.
+Everything below shipped in prior minors and remains part of **3.10.4** — see CHANGELOG for the full timeline.
+
+**3.10.2** — Monitoring NOC wallboard, Ops UI consistency, Orchestration single-run fix (#38), 3.10 alpha promotion to stable.
 
 **3.7.x** — Metrics/Insights pages (performance, compliance, fact overview, catalog graph, PuppetDB/Server health, timeline, environments, heatmap, classification, class coverage), Certificate Audit, navigation and chart polish, server-side caching for heavy PuppetDB queries, maintenance program + `ovox maintenance`.
 
@@ -367,12 +370,13 @@ editing paths — the wizard walks you through the entire process:
   the Puppet CA, with expiry countdown, key type, and chain status.
 
 ### Log Viewer
-- **"Logs" section** in the navigation — browse OpenVox GUI, Puppet Agent,
-  PuppetServer, PuppetDB, and System Log (full `journalctl` with no unit filter)
-  without shell access. Reads from journalctl with automatic fallback to on-disk
-  log files (`/var/log/puppetlabs/...`) for services that write there. Controls
-  for line count, time range (`--since`), text filter (`grep`), auto-refresh
-  every 5 seconds, and download as `.log` file.
+- **Insights | Log Viewer** — browse OpenVox GUI, **OpenVox Agent** (or Puppet Agent
+  on Puppet OSS stacks), OpenVox Server / PuppetServer, OpenVoxDB / PuppetDB, and
+  System Log (full `journalctl` with no unit filter) without shell access. Agent
+  tab is **journal-first** (units + `journalctl -t` identifiers + host-journal
+  filter) with on-disk file fallback under `/var/log/puppetlabs/…`. Controls for
+  line count, time range (`--since`), text filter (`grep`), auto-refresh every
+  5 seconds, and download as `.log` file.
 - **Enhanced log line rendering** (dark monospace container for contrast):
   - FQDNs/certnames (e.g., `agent1.example.com`) highlighted in **bright blue bold**.
   - Executed commands (Orchestration "Run Command", `puppet agent -t`, `bolt ...`,
@@ -383,8 +387,8 @@ editing paths — the wizard walks you through the entire process:
 
 ### Classification & Fact Explorer
 - **Node Scope filter** on the Fact Explorer — chip bar to filter fact results by ENC classification group (Production, Canaries, Staging, etc.) with multi-select and "All Nodes" toggle.
-- **Unclassified Nodes pane** on the Classification page (Code > Classification > Nodes tab) now always visible, showing "All PuppetDB nodes are classified" when empty. Nodes not yet classified appear as clickable badges for quick classification.
-- **Unclassified Nodes panel** on the Monitoring > Nodes page — nodes active in PuppetDB but not yet classified in the ENC are shown separately.
+- **Unclassified Nodes pane** on Classification (ENC) — always visible; lists **live-fleet** hosts (active PuppetDB ∩ signed CA) not yet classified. Empty state: all live-fleet nodes are classified. Click a badge to classify. Stale ENC rows for cleaned hosts are pruned on hierarchy/list load.
+- **Unclassified Nodes** on Overview | Nodes — hosts on the live fleet but not yet classified in the ENC.
 - **Purge Node button** on Node Detail — one-click removal from PuppetDB, ENC, and CA with confirmation dialog.
 - **Sorting, operator filtering, and row limiting** on the Fact Explorer.
 

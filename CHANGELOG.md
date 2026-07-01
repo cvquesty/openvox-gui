@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.4] - 2026-07-01 (stable — live fleet consistency + operator polish)
+
+Stable promotion of the **3.10.3b1–b14** functionality train on `main`. Full per-commit detail remains in the beta entries below; this section is the operator-facing summary for GitHub Release **v3.10.4**.
+
+### Added
+- **Overview | Nodes — All Nodes export** (from 3.10.3b13): same compact ExportActions as Insights | Inventory (column picker, CSV download, copy JSON / formatted text) over the **current search/status-filtered** list.
+
+### Fixed / improved (highlights)
+- **Live fleet membership** (`get_live_nodes()`): **active PuppetDB ∩ signed CA** is the shared source of truth for Overview | Nodes, Dashboard, Insights | Inventory, Node Health, and ENC Unclassified / reconciliation. Hosts removed with `puppetserver ca clean` or deactivated/expired in PuppetDB no longer linger as ghosts in those UIs. ENC SQLite rows not on the live set are always pruned. Certificates page remains CA-authoritative (`get_fleet_nodes` for cert-centric callers).
+- **Insights | Inventory vs Nodes count mismatch** (e.g. 103 vs 83): inventory facts intersected with the live fleet; no more deactivated/expired factset inflation.
+- **ENC Unclassified after CA clean**: only live-fleet certnames; case-insensitive matching; classify validation uses the same set.
+- **Insights | Log Viewer | OpenVox Agent empty pane**: journal-first collection (units `puppet` / `puppet-agent`, identifiers `-t puppet-agent` / `-t puppet`, files, host-journal filter); relax tight **Since** windows when `log_level=err` leaves the window empty; stack-aware tab labels (OpenVox vs Puppet OSS); sudoers `-t` rules.
+- **Node Purge** complete path: PDB deactivate (+ verify), CA clean with sudoers wildcards, `puppet node clean`, ENC delete; UI step results.
+- **Orchestration | Configuration**: reliable load of `/etc/puppetlabs/bolt/` `bolt-project.yaml` / `inventory.yaml` (PTY-aware sudo cat, errors surfaced).
+- **Executive Summary email**: deploy `generate_fleet_health_report.py`; no lab sample fallback on live failure; in-process snapshot for Send; JSON-safe serialization.
+- **Classify node → 500**: `certificates_service` import path fixed.
+- **Monitoring / Insights**: Fleet Node Status Trends data window; Monitoring embeds catalog charts; window presets; related polish from the 3.10.3 beta train.
+
+### Upgrade notes
+- Deploy/update refreshes `/etc/sudoers.d/openvox-gui-users` (journalctl `-t` rules, CA clean/revoke/generate `--certname *`, Bolt config cat, etc.). Review backups under `openvox-gui-users.bak.*` if you had local overrides (prefer `openvox-gui-users-local`).
+- After upgrade, open **Classification (ENC)** once so reconciliation can prune stale SQLite rows.
+- Lab vs production: validate on lab first; production still uses bastion workflow.
+
 ## [3.10.3b14] - 2026-07-01 (beta — live fleet = active PDB ∩ signed CA)
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.10.3b14**
+**OpenVox GUI Version 3.10.4**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -127,7 +127,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.10.3b14"}
+   # Should return: {"status":"ok","version":"3.10.4"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -975,6 +975,21 @@ These commands run privileged operations (reading configs, restarting services).
 - The container is a dark monospace block for contrast — if the theme or CSS is overridden, highlights may be hard to see.
 - "System Log" tab shows the *full* `journalctl` (no unit filter) — this can be very noisy; use the Filter box or time range.
 - Reproduce on the server: `sudo journalctl -u openvox-gui -n 50 --output short-iso` (or the specific unit/file for other tabs).
+
+### Problem: OpenVox Agent tab is empty
+- Agent often has **no on-disk log files** (and `puppet_agent.log` may be a directory). Collection is **journal-first** (units `puppet` / `puppet-agent`, then `journalctl -t puppet-agent`, then host journal filter). Requires **3.10.4+** (or 3.10.3b12+) and matching sudoers (`ensure-sudoers.sh` adds `-t` rules on deploy/update).
+- With **`log_level = err`** in puppet.conf the agent is quiet when healthy. A tight **Since** filter (Last hour / Today) can hide older error lines; **3.10.4** relaxes Since and shows last available lines with a warning when the window is empty.
+- Check on the server: `sudo journalctl -u puppet -n 50 --output short-iso` and `sudo journalctl -t puppet-agent -n 50 --output short-iso`.
+
+## Live fleet / ENC / Inventory membership
+
+### Problem: ENC Unclassified or Inventory still lists hosts after `ca clean`
+- **3.10.4** defines the live fleet as **active PuppetDB ∩ signed CA** (`get_live_nodes`). CA-cleaned hosts must not appear on Nodes, Inventory, ENC Unclassified, Dashboard, or Node Health. Open **Classification (ENC)** once after upgrade so SQLite reconciliation prunes stale ENC rows.
+- If a host is still **active in PuppetDB** (never deactivated) **and** still has a **signed cert**, it will correctly remain on the live fleet — finish cleanup with deactivate/expire/`puppet node clean` as needed, not only `ca clean`.
+- Certificates page is CA-authoritative and may still list pending/revoked state independently of the live fleet lists.
+
+### Problem: Inventory node count differs from Overview | Nodes
+- Fixed in **3.10.4** (3.10.3b11–b14): both use the same live-fleet membership. Older builds counted all PuppetDB inventory factsets (including deactivated/expired) vs CA-signed-only Nodes.
 
 ## Reports Page
 
