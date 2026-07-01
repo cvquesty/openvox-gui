@@ -131,13 +131,55 @@ class PuppetDBService:
                 unique.append(node)
         return unique
 
+    async def get_live_nodes(self) -> List[Dict]:
+        """Return nodes that exist in **both** active PuppetDB and the CA.
+
+        This is the shared membership source of truth for Overview | Nodes,
+        Insights | Inventory, ENC Unclassified / reconciliation, Dashboard,
+        and Node Health:
+
+        - **Active PuppetDB** — not deactivated / not expired (ghost factsets
+          after expire/deactivate do not count).
+        - **Signed CA certificate** — ``puppetserver ca clean`` removes the
+          cert; those hosts must disappear everywhere even if PuppetDB has
+          not yet expired the node record.
+
+        If the CA list cannot be loaded, falls back to active PuppetDB only
+        (still excludes deactivated/expired).
+        """
+        active = await self.get_nodes(include_inactive=False)
+        try:
+            from .certificates_service import list_certificates as list_ca_certificates
+
+            cert_data = await list_ca_certificates()
+            signed = {
+                str(c.get("name", "")).strip().lower()
+                for c in (cert_data.get("signed") or [])
+                if c.get("name")
+            }
+        except Exception as e:
+            logger.warning(
+                "get_live_nodes: CA list unavailable, using active PuppetDB only: %s",
+                e,
+                exc_info=True,
+            )
+            return active
+
+        live = [
+            n
+            for n in active
+            if str(n.get("certname", "")).strip().lower() in signed
+        ]
+        live.sort(key=lambda n: str(n.get("certname", "")).lower())
+        return live
+
     async def get_fleet_nodes(self) -> List[Dict]:
         """Return signed CA certificates enriched with PuppetDB records.
 
-        **Not** the membership SSoT for Overview | Nodes or Insights | Inventory
-        — those use active PuppetDB via ``get_nodes()``. This CA union is for
-        certificate-centric views and callers that need every trusted cert
-        (including signed certs that never reported to PuppetDB).
+        **Not** the membership SSoT for Overview | Nodes, Inventory, or ENC —
+        those use ``get_live_nodes()`` (active PuppetDB ∩ signed CA). This CA
+        union is for certificate-centric views and callers that need every
+        trusted cert (including signed certs that never reported to PuppetDB).
 
         - Starts from `puppetserver ca list --all` (signed certs).
         - Enriches every certname with its full PuppetDB record (if present),
@@ -592,11 +634,11 @@ class PuppetDBService:
         structured facts). Missing facts are empty strings for UI robustness.
         Disks are pre-formatted as newline-separated "name: size" strings.
         """
-        # Active membership (SSoT) — exclude deactivated / expired ghosts.
-        active_nodes = await self.get_nodes(include_inactive=False)
+        # Live membership (SSoT) — active PuppetDB ∩ signed CA.
+        live_nodes = await self.get_live_nodes()
         active_keys = {
             str(n.get("certname", "")).strip().lower()
-            for n in active_nodes
+            for n in live_nodes
             if n.get("certname")
         }
 

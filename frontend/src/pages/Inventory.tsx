@@ -143,7 +143,7 @@ export function InventoryPage() {
       </Group>
 
       <Text size="sm" c="dimmed">
-        Live hardware / OS inventory from active PuppetDB nodes (same membership as Overview | Nodes; excludes deactivated/expired).
+        Live hardware / OS inventory for the live fleet (active PuppetDB ∩ signed CA — same membership as Overview | Nodes and ENC).
         Disks are listed one per line inside the cell. Location comes from a custom <code>location</code> fact if you have one deployed.
       </Text>
 

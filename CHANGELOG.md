@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b14] - 2026-07-01 (beta — live fleet = active PDB ∩ signed CA)
+
+### Fixed
+- **ENC Unclassified (and fleet lists) showing CA-cleaned / gone hosts:** Membership is now **`get_live_nodes()`** = **active PuppetDB ∩ currently signed CA**. After `puppetserver ca clean` (or PDB deactivate/expire), hosts drop from Overview | Nodes, Insights | Inventory, Dashboard, Node Health, and ENC Unclassified / classified reconciliation. ENC SQLite rows not on that live set are **always pruned** (previously only pruned when still known to PDB). Frontend unclassified uses case-insensitive certname matching.
+
 ## [3.10.3b13] - 2026-07-01 (beta — Nodes All Nodes export)
 
 ### Added

@@ -46,12 +46,10 @@ async def list_nodes(
     guard against injection.
     """
     try:
-        # Active PuppetDB nodes are the membership SSoT for Overview | Nodes
-        # and Insights | Inventory (not CA signed-cert count, not deactivated /
-        # expired PDB ghosts). Aligns fleet totals across those pages.
-        # Certificates remain authoritative on the CA page; get_fleet_nodes()
-        # is still available for callers that need signed-cert union.
-        fleet = await puppetdb_service.get_nodes(include_inactive=False)
+        # Live fleet = active PuppetDB ∩ signed CA (get_live_nodes). Hides
+        # deactivated/expired PDB ghosts and hosts after `ca clean` even if
+        # PuppetDB has not expired them yet. Aligns Nodes, Inventory, ENC.
+        fleet = await puppetdb_service.get_live_nodes()
 
         # Apply environment / status filters after fetch (Python), so we never
         # rely on PQL operator quirks for deactivated filtering.

@@ -827,21 +827,26 @@ function NodesTab() {
     setDeleteLoading(false);
   };
 
-  // PuppetDB is the source of truth for node existence. Filter out
-  // ENC entries for nodes no longer in PuppetDB and deduplicate.
+  // Live fleet from /api/nodes (active PuppetDB ∩ signed CA). Filter ENC
+  // rows and Unclassified to that set only — CA-cleaned / PDB-gone hosts
+  // must not appear. Compare certnames case-insensitively.
   const puppetSet = new Set(puppetNodes.map((cn) => cn.toLowerCase()));
   const activeClassified = (() => {
     const seen = new Set<string>();
     return classified.filter((n) => {
-      const key = n.certname.toLowerCase();
-      if (seen.has(key)) return false;
+      const key = (n.certname || '').toLowerCase();
+      if (!key || seen.has(key)) return false;
       seen.add(key);
       return puppetSet.has(key);
     });
   })();
 
-  const classifiedNames = new Set(activeClassified.map((n) => n.certname));
-  const unclassified = puppetNodes.filter((cn) => !classifiedNames.has(cn));
+  const classifiedNames = new Set(
+    activeClassified.map((n) => (n.certname || '').toLowerCase())
+  );
+  const unclassified = puppetNodes.filter(
+    (cn) => cn && !classifiedNames.has(cn.toLowerCase())
+  );
 
   if (loading) return <Center h={300}><Loader size="xl" /></Center>;
 
@@ -859,7 +864,9 @@ function NodesTab() {
         <Text fw={700} mb="sm">Unclassified Nodes ({unclassified.length})</Text>
         {unclassified.length > 0 ? (
           <>
-            <Text size="xs" c="dimmed" mb="sm">Known to PuppetDB but not yet classified. Click to classify.</Text>
+            <Text size="xs" c="dimmed" mb="sm">
+              On the live fleet (active in PuppetDB with a signed cert) but not yet classified. Click to classify.
+            </Text>
             <Group gap="xs" wrap="wrap">
               {unclassified.map((cn) => (
                 <Badge key={cn} variant="outline" color="gray" size="sm" style={{ cursor: 'pointer' }}
@@ -868,7 +875,7 @@ function NodesTab() {
             </Group>
           </>
         ) : (
-          <Text size="sm" c="dimmed">All PuppetDB nodes are classified.</Text>
+          <Text size="sm" c="dimmed">All live-fleet nodes are classified.</Text>
         )}
       </Card>
       <Card withBorder shadow="sm" padding="lg">

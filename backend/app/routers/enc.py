@@ -338,47 +338,32 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
     return deduped
 
 async def _validate_certname_in_fleet(certname: str):
-    """Reject certnames that are not currently part of the live fleet.
+    """Reject certnames that are not on the live fleet.
 
-    The authoritative source for fleet membership is the set of signed
-    certificates (via puppetserver ca list). We also require the node to
-    appear as active (non-deactivated) in PuppetDB.
-
-    The ENC only stores *classification metadata* on top of real fleet
-    members. We must not allow classification of ghosts or future nodes
-    that have never had a cert.
+    Live = active PuppetDB ∩ signed CA (``get_live_nodes``). Enc only stores
+    classification on real members — not CA-cleaned hosts or PDB ghosts.
     """
-    from ..services.certificates_service import list_certificates as list_ca_certs
-
     try:
-        # Must be currently signed
-        ca = await list_ca_certs(use_cache=True)
-        signed = {
-            (c.get("name") or "").strip().lower()
-            for c in (ca.get("signed") or [])
-            if (c.get("name") or "").strip()
+        live = await puppetdb_service.get_live_nodes()
+        live_set = {
+            str(n.get("certname", "")).strip().lower()
+            for n in live
+            if n.get("certname")
         }
         cn = certname.strip().lower()
-        if cn not in signed:
+        if cn not in live_set:
             raise HTTPException(
                 status_code=400,
-                detail=f"Node '{certname}' does not have a signed certificate. "
-                       "Only nodes with current signed certs can be classified.",
-            )
-
-        # Should also be active in PDB (prevents classifying something just cleaned)
-        active_nodes = await puppetdb_service.get_nodes()
-        active_certnames = {n.get("certname", "").strip().lower() for n in active_nodes}
-        if cn not in active_certnames:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Node '{certname}' is not active in PuppetDB. "
-                       "Only active nodes can be classified.",
+                detail=(
+                    f"Node '{certname}' is not on the live fleet "
+                    "(requires an active PuppetDB record and a signed CA certificate). "
+                    "Cleaned or expired hosts cannot be classified."
+                ),
             )
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Could not validate certname against fleet/CA: {e}")
+        logger.warning(f"Could not validate certname against live fleet: {e}")
 
 
 @router.post("/nodes", status_code=201)
