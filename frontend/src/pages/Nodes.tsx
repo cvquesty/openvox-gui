@@ -17,12 +17,21 @@ import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OpsTable, OpsColumn } from '../components/OpsTable';
+import { ExportActions } from '../components/ExportActions';
 import { FilterBar } from '../components/FilterBar';
 import { useUrlFilters } from '../hooks/useUrlFilters';
 import { useActivity } from '../hooks/ActivityContext';
 import { useSkipAdhocConfirm } from '../hooks/useSkipAdhocConfirm';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
+
+/** Columns for All Nodes export (CSV / JSON / text) — mirrors Inventory ExportActions. */
+const NODES_EXPORT_COLS = [
+  'certname',
+  'latest_report_status',
+  'report_environment',
+  'report_timestamp',
+];
 
 /* ═══════════════════════════════════════════════════════════════
    NODE-O-VISION 6000 — the server rack X-ray machine
@@ -388,6 +397,18 @@ export function NodesPage() {
     return nodeList.filter(matchesNodeFilters);
   }, [nodeList, search, statusFilter]);
 
+  // Plain rows for ExportActions (current search/status filters, same set as OpsTable)
+  const allNodesExportRows = useMemo(
+    () =>
+      filtered.map((n) => ({
+        certname: n.certname,
+        latest_report_status: n.latest_report_status ?? '',
+        report_environment: n.report_environment ?? '',
+        report_timestamp: n.report_timestamp ?? '',
+      })),
+    [filtered]
+  );
+
   const toggleGroup = (groupName: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
@@ -533,11 +554,23 @@ export function NodesPage() {
         </Stack>
       )}
 
-      {/* All nodes — OpsTable (sruiux2 P0-2: sort + paginate) */}
-      <Title order={4}>All Nodes ({totalNodes})</Title>
-      {totalNodes > 200 && (
+      {/* All nodes — OpsTable (sruiux2 P0-2: sort + paginate) + Inventory-style export */}
+      <Group justify="space-between" align="center">
+        <Title order={4}>All Nodes ({filtered.length})</Title>
+        <ExportActions
+          results={allNodesExportRows}
+          filenameBase="nodes"
+          variant="compact"
+          showDownload
+          columns={NODES_EXPORT_COLS}
+        />
+      </Group>
+      <Text size="xs" c="dimmed">
+        Export uses the current search and status filters (same rows as the table below).
+      </Text>
+      {filtered.length > 200 && (
         <Alert color="yellow" variant="light">
-          Large fleet ({totalNodes} nodes loaded client-side). Use search and OpsTable page size; further server-side paging is planned in later 3.10.04 slices.
+          Large fleet ({filtered.length} nodes loaded client-side). Use search and OpsTable page size; further server-side paging is planned in later 3.10.04 slices.
         </Alert>
       )}
       <Card withBorder shadow="sm" padding="lg" style={{ overflow: 'hidden' }}>

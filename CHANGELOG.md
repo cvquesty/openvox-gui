@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.3b13] - 2026-07-01 (beta — Nodes All Nodes export)
+
+### Added
+- **Overview | Nodes — All Nodes export:** Same compact ExportActions as Insights | Inventory (column picker, CSV download, copy JSON / formatted text). Exports the **current filtered** All Nodes list (search + status chips), not the full unfiltered fleet.
+
 ## [3.10.3b12] - 2026-07-01 (beta — agent Log Viewer journal fallbacks)
 
 ### Fixed
