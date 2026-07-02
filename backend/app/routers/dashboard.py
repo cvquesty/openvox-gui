@@ -24,13 +24,48 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
-# Dashboard /data pulls live nodes + up to 20k reports and is hit on every
+# Dashboard /data pulls live nodes + lean 48h report rows and is hit on every
 # Dashboard auto-refresh. 20s TTL keeps the UI "live" while collapsing
 # multi-tab / multi-user storms into one PuppetDB round-trip per worker.
 _DASHBOARD_DATA_TTL = 20.0
 
+# Fields required by fleet_insights.compute_trends — never pull full report
+# bodies (metrics/resources/logs). Full reports were the #1 cause of slow
+# Overview | Dashboard first paint on medium fleets.
+_TREND_REPORT_FIELDS = '["certname", "status", "noop", "receive_time"]'
+
 
 # ─── Helpers (operate on already-fetched data, no PuppetDB calls) ────
+
+
+async def _fetch_trend_reports(cutoff: str) -> List[Any]:
+    """48h report stream for trends — projected columns only.
+
+    Uses PuppetDB AST ``extract`` so the wire payload is a few fields per
+    row instead of multi-KB report documents (metrics, resource events, …).
+    Falls back to the legacy full-document query if extract is rejected
+    (very old PuppetDB), so the dashboard still works.
+    """
+    lean_query = (
+        f'["extract", {_TREND_REPORT_FIELDS}, '
+        f'[">", "receive_time", "{cutoff}"]]'
+    )
+    params = {
+        "limit": "20000",
+        "order_by": '[{"field": "receive_time", "order": "asc"}]',
+    }
+    try:
+        return await puppetdb_service._query("reports", query=lean_query, params=params)
+    except Exception as e:
+        logger.warning(
+            "dashboard lean report extract failed (%s); falling back to full reports",
+            e,
+        )
+        return await puppetdb_service._query(
+            "reports",
+            query=f'[">", "receive_time", "{cutoff}"]',
+            params=params,
+        )
 
 
 async def _build_dashboard_data() -> Dict[str, Any]:
@@ -40,14 +75,7 @@ async def _build_dashboard_data() -> Dict[str, Any]:
     )
     raw_nodes, reports = await asyncio.gather(
         puppetdb_service.get_live_nodes(),  # active PDB ∩ signed CA (SSoT w/ Inventory / ENC)
-        puppetdb_service._query(
-            "reports",
-            query=f'[">" , "receive_time", "{cutoff}"]',
-            params={
-                "limit": "20000",
-                "order_by": '[{"field": "receive_time", "order": "asc"}]',
-            },
-        ),
+        _fetch_trend_reports(cutoff),
     )
 
     status_counts = compute_status_counts(raw_nodes)
@@ -68,7 +96,8 @@ async def _build_dashboard_data() -> Dict[str, Any]:
             seen.add(k)
             deduped_nodes.append(n)
 
-    # model_dump so the TTL cache stores plain JSON-friendly dicts
+    # model_dump so the TTL cache stores plain JSON-friendly dicts.
+    # Only emit NodeSummary fields (drop any PDB noise that slipped through).
     nodes_out = []
     for n in deduped_nodes:
         summary = NodeSummary(**n)
@@ -90,17 +119,17 @@ async def _build_dashboard_data() -> Dict[str, Any]:
 async def get_dashboard_data():
     """All dashboard data from PuppetDB in one call.
 
-    Queries PuppetDB exactly twice — once for nodes and once for the
-    last 48 hours of reports — then derives every dashboard metric from
-    those two result sets.  The frontend never needs to query PuppetDB
-    through a second endpoint for the same data.
+    Queries PuppetDB twice in parallel — live nodes and a **projected**
+    48h report stream (certname/status/noop/receive_time only) — then
+    derives status counts, trends, and the node table from those sets.
 
     Responses are cached briefly (see ``_DASHBOARD_DATA_TTL``) with
     single-flight locking so concurrent polls share one upstream query.
     """
     try:
+        # v2 cache key: lean extract payload shape / invalidates full-report cache
         return await cache_get_or_set(
-            "dashboard:data:v1",
+            "dashboard:data:v2",
             _DASHBOARD_DATA_TTL,
             _build_dashboard_data,
         )

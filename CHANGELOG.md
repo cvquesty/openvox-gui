@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.5-dev.3] - 2026-07-02 (dev — Overview | Dashboard first-paint)
+
+### Fixed / improved
+- **Overview | Dashboard cold path**: `/api/dashboard/data` now requests a PuppetDB **projected** 48h report stream (`extract` of certname/status/noop/receive_time only) instead of full report documents — the main cause of multi-second first paint on medium fleets. Falls back to full reports if extract fails on very old PuppetDB.
+- **Dashboard UI**: sessionStorage last-good snapshot + `useApi` keep-previous-data so return visits and auto-refresh never blank the page; “Refreshing…” badge instead of full-page spinner; trends chart uses cheaper `monotone` curves and slightly lower height; casual Command-Center mascot deferred one tick so ring/trends paint first.
+- **`useApi`**: optional `initialData` / `keepPreviousData` (default on) and `refreshing` flag for stale-while-revalidate across the app.
+
 ## [3.10.5-dev.2] - 2026-07-02 (dev — deploy applies uvicorn workers unit)
 
 ### Fixed

@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Title, Grid, Card, Text, Group, RingProgress, Stack, Alert, Loader, Center,
+  Title, Grid, Card, Text, Group, RingProgress, Stack,
   Badge, Tooltip, Table, ActionIcon, Select, Switch, ScrollArea, SimpleGrid,
 } from '@mantine/core';
 import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
@@ -19,6 +19,30 @@ import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
+
+/** sessionStorage snapshot so return visits paint the last good dashboard instantly */
+const DASH_CACHE_KEY = 'openvox_dashboard_data_v2';
+
+function readDashCache(): any | null {
+  try {
+    const raw = sessionStorage.getItem(DASH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Ignore empty / corrupt shells
+    if (!parsed || !parsed.node_status) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDashCache(payload: any) {
+  try {
+    sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    /* quota — ignore */
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    COMMAND-CENTER-O-TRON 9000 — mission control cartoon
@@ -160,26 +184,49 @@ function nodeTimeAgo(timestamp: string | null): string {
 export function DashboardPage() {
   const { isRobots } = useAppTheme();
   const navigate = useNavigate();
-  // Single PuppetDB query — nodes, status counts, and trends all derived
-  // from the same data fetch.  PuppetDB is the CMDB; query it once.
-  const { data: dashData, loading, error, refetch } = useApi<any>(dashboard.getData);
+  // Seed from sessionStorage so return visits paint ring/trends/table instantly
+  // while a background refresh runs (stale-while-revalidate). First visit still
+  // waits on /api/dashboard/data — which is now a lean PuppetDB extract.
+  const [initialCache] = useState(() => readDashCache());
+  const { data: dashData, loading, refreshing, error, refetch } = useApi<any>(
+    dashboard.getData,
+    [],
+    { initialData: initialCache, keepPreviousData: true },
+  );
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [sortField, setSortField] = useState<string>('certname');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // Defer the large casual SVG so ring + trends get the first paint slot
+  const [showMascot, setShowMascot] = useState(false);
+
+  useEffect(() => {
+    if (!isRobots || !dashData) return;
+    const t = window.setTimeout(() => setShowMascot(true), 0);
+    return () => clearTimeout(t);
+  }, [isRobots, dashData]);
+
+  // Persist successful payloads for the next cold open of this tab
+  useEffect(() => {
+    if (dashData?.node_status) writeDashCache(dashData);
+  }, [dashData]);
 
   const nodeList: NodeSummary[] = dashData?.nodes || [];
   const ns = dashData?.node_status || { changed: 0, unchanged: 0, failed: 0, unreported: 0, noop: 0, total: 0 };
 
-  const nodeTrends = (dashData?.node_trends || []).map((trend: any) => ({
-    timestamp: trend.timestamp,
-    unchanged: trend.unchanged || 0,
-    changed: trend.changed || 0,
-    failed: trend.failed || 0,
-    noop: trend.noop || 0,
-    unreported: trend.unreported || 0,
-  }));
+  const nodeTrends = useMemo(
+    () =>
+      (dashData?.node_trends || []).map((trend: any) => ({
+        timestamp: trend.timestamp,
+        unchanged: trend.unchanged || 0,
+        changed: trend.changed || 0,
+        failed: trend.failed || 0,
+        noop: trend.noop || 0,
+        unreported: trend.unreported || 0,
+      })),
+    [dashData?.node_trends],
+  );
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
@@ -201,15 +248,17 @@ export function DashboardPage() {
     });
   }, [nodeList]);
 
-  const sortedNodes = [...dedupedNodes].sort((a, b) => {
+  const sortedNodes = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
-    const av = (a as any)[sortField] ?? '';
-    const bv = (b as any)[sortField] ?? '';
-    if (typeof av === 'string' && typeof bv === 'string') {
-      return dir * av.localeCompare(bv);
-    }
-    return dir * (av > bv ? 1 : av < bv ? -1 : 0);
-  });
+    return [...dedupedNodes].sort((a, b) => {
+      const av = (a as any)[sortField] ?? '';
+      const bv = (b as any)[sortField] ?? '';
+      if (typeof av === 'string' && typeof bv === 'string') {
+        return dir * av.localeCompare(bv);
+      }
+      return dir * (av > bv ? 1 : av < bv ? -1 : 0);
+    });
+  }, [dedupedNodes, sortField, sortDir]);
 
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
@@ -224,10 +273,11 @@ export function DashboardPage() {
       setLastRefresh(new Date());
     }, parseInt(refreshInterval) * 1000);
     return () => clearInterval(iv);
-  }, [autoRefresh, refreshInterval]);
+  }, [autoRefresh, refreshInterval, refetch]);
 
-  if (loading) return <LoadingState label="Loading dashboard…" />;
-  if (error) return <ErrorState title="Dashboard failed to load" message={error} />;
+  // Full-page spinner only on true cold start (no cache, no data yet)
+  if (loading && !dashData) return <LoadingState label="Loading dashboard…" />;
+  if (error && !dashData) return <ErrorState title="Dashboard failed to load" message={error} />;
   if (!dashData) return null;
 
   const ringData = [
@@ -246,6 +296,9 @@ export function DashboardPage() {
           {autoRefresh && (
             <Badge variant="dot" color="green" size="sm">Live</Badge>
           )}
+          {refreshing && (
+            <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>
+          )}
         </Group>
         <Group gap="sm">
           <Text size="xs" c="dimmed">Updated {lastRefresh.toLocaleTimeString()}</Text>
@@ -258,8 +311,8 @@ export function DashboardPage() {
         </Group>
       </Group>
 
-      {/* Casual theme illustration */}
-      {isRobots && (
+      {/* Casual theme illustration — deferred one tick so ring/trends paint first */}
+      {isRobots && showMascot && (
         <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}>
           <CommandCenterOTron />
         </Card>
@@ -335,17 +388,13 @@ export function DashboardPage() {
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb="md">Active Node Status Trends</Title>
             <Text size="xs" c="dimmed" mb="xs">Click a series in the legend or chart area → filtered Nodes list (sruiux2 P1-2 lite)</Text>
-            <ResponsiveContainer width="100%" height={400}>
+            {/* height 320 + monotone (not natural) — cheaper first paint than 400/natural */}
+            <ResponsiveContainer width="100%" height={320}>
               <AreaChart
                 data={nodeTrends}
                 margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                 style={{ cursor: 'pointer' }}
-                onClick={(state: any) => {
-                  // Prefer active series if Recharts provides it; else open Nodes
-                  const key = state?.activeTooltipIndex != null ? null : null;
-                  void key;
-                  navigate('/nodes');
-                }}
+                onClick={() => navigate('/nodes')}
               >
                 <defs>
                   <linearGradient id="gUnchanged" x1="0" y1="0" x2="0" y2="1">
@@ -386,11 +435,11 @@ export function DashboardPage() {
                     }
                   }}
                 />
-                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes')} />
-                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=unchanged')} />
-                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=changed')} />
-                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=failed')} />
-                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=noop')} />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes')} />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=unchanged')} />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=changed')} />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=failed')} />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=noop')} />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
