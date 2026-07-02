@@ -253,13 +253,69 @@ else
     echo "  Node.js not found — skipping frontend build"
 fi
 
-# 4. Fix permissions
-echo "[4/6] Fixing permissions..."
+# 4. Fix permissions + refresh main systemd unit (workers / resource limits)
+echo "[4/6] Fixing permissions and systemd unit..."
 SERVICE_USER="puppet"
+SERVICE_GROUP="puppet"
+APP_HOST="::"
+UVICORN_WORKERS="2"
 if [ -f /etc/systemd/system/openvox-gui.service ]; then
     UNIT_USER=$(grep "^User=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
     [ -n "$UNIT_USER" ] && SERVICE_USER="$UNIT_USER"
+    UNIT_GROUP=$(grep "^Group=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
+    [ -n "$UNIT_GROUP" ] && SERVICE_GROUP="$UNIT_GROUP"
 fi
+# Prefer explicit worker count from .env (performance tuning)
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    _UW_LINE=$(grep -E '^OPENVOX_GUI_UVICORN_WORKERS=' "${INSTALL_DIR}/config/.env" 2>/dev/null | tail -1 || true)
+    if [ -n "$_UW_LINE" ]; then
+        UVICORN_WORKERS="${_UW_LINE#*=}"
+    fi
+    _HOST_LINE=$(grep -E '^OPENVOX_GUI_APP_HOST=' "${INSTALL_DIR}/config/.env" 2>/dev/null | tail -1 || true)
+    if [ -n "$_HOST_LINE" ]; then
+        APP_HOST="${_HOST_LINE#*=}"
+    fi
+fi
+if ! [[ "${UVICORN_WORKERS}" =~ ^[1-9][0-9]*$ ]]; then
+    UVICORN_WORKERS=2
+fi
+if [ "${UVICORN_WORKERS}" = "2" ] && command -v nproc >/dev/null 2>&1; then
+    _NCPU=$(nproc 2>/dev/null || echo 2)
+    if [ "${_NCPU}" -ge 8 ]; then
+        UVICORN_WORKERS=4
+    fi
+fi
+
+if [ -f "${REPO_DIR}/config/openvox-gui.service" ]; then
+    sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
+        | sed "s|User=puppet|User=${SERVICE_USER}|" \
+        | sed "s|Group=puppet|Group=${SERVICE_GROUP}|" \
+        > /etc/systemd/system/openvox-gui.service
+    sed -i "s/--host [^ ]*/--host ${APP_HOST}/g" /etc/systemd/system/openvox-gui.service
+    if grep -q -- '--workers ' /etc/systemd/system/openvox-gui.service 2>/dev/null; then
+        sed -i "s/--workers [0-9][0-9]*/--workers ${UVICORN_WORKERS}/g" /etc/systemd/system/openvox-gui.service
+    else
+        sed -i "s|^ExecStart=\(.*\)$|ExecStart=\1 --workers ${UVICORN_WORKERS}|" /etc/systemd/system/openvox-gui.service
+    fi
+    if [ -f "${INSTALL_DIR}/config/.env" ]; then
+        SSL_LINE=$(grep "^OPENVOX_GUI_SSL_ENABLED=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+        if [ "$SSL_LINE" = "OPENVOX_GUI_SSL_ENABLED=true" ]; then
+            SSL_CERT_LINE=$(grep "^OPENVOX_GUI_SSL_CERT_PATH=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+            SSL_KEY_LINE=$(grep "^OPENVOX_GUI_SSL_KEY_PATH=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+            SSL_CERT="${SSL_CERT_LINE#*=}"
+            SSL_KEY="${SSL_KEY_LINE#*=}"
+            if [ -n "$SSL_CERT" ] && [ -n "$SSL_KEY" ]; then
+                CURRENT_EXEC=$(grep "^ExecStart=" /etc/systemd/system/openvox-gui.service 2>/dev/null || true)
+                if [[ "$CURRENT_EXEC" != *"--ssl-certfile"* ]]; then
+                    sed -i "s|^ExecStart=\(.*\)$|ExecStart=\1 --ssl-certfile ${SSL_CERT} --ssl-keyfile ${SSL_KEY}|" /etc/systemd/system/openvox-gui.service
+                fi
+            fi
+        fi
+    fi
+    systemctl daemon-reload 2>/dev/null || true
+    echo "  refreshed openvox-gui.service (workers=${UVICORN_WORKERS}, host=${APP_HOST})"
+fi
+
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${INSTALL_DIR}"
 chmod 600 "${INSTALL_DIR}/config/.env" 2>/dev/null || true
 chmod 755 "${INSTALL_DIR}/scripts/enc.py" 2>/dev/null || true

@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.5-dev.2] - 2026-07-02 (dev — deploy applies uvicorn workers unit)
+
+### Fixed
+- **`deploy.sh` / remote update** now rewrites `openvox-gui.service` from the repo template (workers, concurrency limits, `LimitNOFILE`, SSL flags) instead of leaving a stale lab dual-uvicorn launcher in place. Remote deploys finally pick up serving resource settings.
+
 ## [3.10.5-dev.1] - 2026-07-02 (dev — GUI performance: cache, workers, charts)
 
 ### Added
