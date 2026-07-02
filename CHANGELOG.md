@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.5-dev.4] - 2026-07-02 (dev — fix Dashboard Center import)
+
+### Fixed
+- **Overview | Dashboard crash**: `Center is not defined` — Mantine `Center` was dropped from the import while still wrapping RingProgress. Restored.
+
 ## [3.10.5-dev.3] - 2026-07-02 (dev — Overview | Dashboard first-paint)
 
 ### Fixed / improved
