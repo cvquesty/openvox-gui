@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { IconGitBranch, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const STATUS_COLORS: Record<string, string> = {
   unchanged: '#2ecc71',
@@ -64,43 +65,42 @@ interface EnvironmentData {
 }
 
 export function MetricsEnvironmentsPage() {
-  const [data, setData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>(loadHistory);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
   const [refreshRate, setRefreshRate] = useState<string>('30');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const result = await metrics.environments();
-      setData(result);
+  const { data, loading, refreshing, error, refetch } = useApi(
+    () => metrics.environments(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_environments_v1',
+      cacheValidate: (d) => d != null && Array.isArray((d as any).environments),
+    },
+  );
 
-      // Accumulate history point
-      const envs: EnvironmentData[] = result.environments || [];
-      const point: any = { time: new Date().toLocaleTimeString() };
-      for (const env of envs) {
-        point[`${env.name}_total`] = env.total;
-        point[`${env.name}_unchanged`] = env.unchanged;
-        point[`${env.name}_changed`] = env.changed;
-        point[`${env.name}_failed`] = env.failed;
-      }
-      setHistory(prev => {
-        const updated = [...prev, point];
-        const trimmed = updated.length > MAX_POINTS ? updated.slice(-MAX_POINTS) : updated;
-        saveHistory(trimmed);
-        return trimmed;
-      });
-    } catch (err: any) {
-      setError(err.message || 'Failed to load environment data');
+  // Accumulate history when a new snapshot arrives
+  useEffect(() => {
+    if (!data?.environments) return;
+    const envs: EnvironmentData[] = data.environments || [];
+    const point: any = { time: new Date().toLocaleTimeString() };
+    for (const env of envs) {
+      point[`${env.name}_total`] = env.total;
+      point[`${env.name}_unchanged`] = env.unchanged;
+      point[`${env.name}_changed`] = env.changed;
+      point[`${env.name}_failed`] = env.failed;
     }
-    setLoading(false);
+    setHistory((prev) => {
+      const updated = [...prev, point];
+      const trimmed = updated.length > MAX_POINTS ? updated.slice(-MAX_POINTS) : updated;
+      saveHistory(trimmed);
+      return trimmed;
+    });
     setLastRefresh(new Date());
-  }, []);
+  }, [data]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchData = useCallback(() => { refetch(); }, [refetch]);
 
   useEffect(() => {
     const rate = parseInt(refreshRate) * 1000;
@@ -109,7 +109,7 @@ export function MetricsEnvironmentsPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchData, refreshRate]);
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -128,6 +128,7 @@ export function MetricsEnvironmentsPage() {
           <IconGitBranch size={28} />
           <Title order={2}>Environment Comparison</Title>
           <Badge variant="light" size="lg">{environments.length} environments</Badge>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Group gap="xs">
           <Select size="xs" data={[{ value: '__all__', label: 'All Environments' }, ...envNames.map(n => ({ value: n, label: n }))]}

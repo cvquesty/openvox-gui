@@ -16,13 +16,14 @@
  * Live checks via Bolt work over SSH and are independent of the agent.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
   Table, Button, TextInput, ScrollArea, Paper,
 } from '@mantine/core';
 import { IconHeartbeat, IconRefresh, IconSearch, IconAlertTriangle, IconCheck, IconX } from '@tabler/icons-react';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 interface NodeHealthEntry {
   certname: string;
@@ -45,30 +46,29 @@ interface LiveResult {
 }
 
 export function MetricsNodeHealthPage() {
-  const [data, setData] = useState<any>(null);
   const [liveResults, setLiveResults] = useState<Record<string, LiveResult>>({});
-  const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  const fetchData = useCallback(async () => {
-    try {
-      const result = await metrics.nodeHealth();
-      setData(result);
-      setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load node health');
-    }
-    setLoading(false);
-    setLastRefresh(new Date());
-  }, []);
+  const { data, loading, refreshing, error, refetch } = useApi(
+    () => metrics.nodeHealth(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_node_health_v1',
+      cacheValidate: (d) => d != null && Array.isArray((d as any).nodes),
+    },
+  );
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchData = () => {
+    refetch();
+    setLastRefresh(new Date());
+  };
 
   const runLiveCheck = async () => {
     setChecking(true);
+    setLiveError(null);
     try {
       // Use 'all' to check everything (Bolt will expand).
       // In production you may want to limit or do in batches for large fleets.
@@ -89,14 +89,14 @@ export function MetricsNodeHealthPage() {
       });
       setLiveResults(newResults);
     } catch (e: any) {
-      setError('Live check failed: ' + (e.message || e));
+      setLiveError('Live check failed: ' + (e.message || e));
     }
     setChecking(false);
   };
 
   const clearLive = () => setLiveResults({});
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -116,6 +116,7 @@ export function MetricsNodeHealthPage() {
 
   return (
     <Stack>
+      {liveError && <Alert color="orange" title="Live check">{liveError}</Alert>}
       <Group justify="space-between">
         <Group gap="sm">
           <IconHeartbeat size={28} />
@@ -128,6 +129,7 @@ export function MetricsNodeHealthPage() {
               {withLiveDisabled} disabled (live)
             </Badge>
           )}
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Group gap="xs">
           <Button
@@ -135,7 +137,7 @@ export function MetricsNodeHealthPage() {
             variant="light"
             leftSection={<IconRefresh size={14} />}
             onClick={fetchData}
-            loading={loading}
+            loading={refreshing}
           >
             Refresh facts
           </Button>

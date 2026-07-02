@@ -6,7 +6,7 @@
  * Combines agent-side metrics (from PuppetDB reports) with server-side
  * metrics (from PuppetDB Jolokia/JMX).
  */
-import { useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select, Button,
 } from '@mantine/core';
@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { IconChartLine, IconArrowsMaximize, IconArrowsMinimize, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { downsampleSeries } from '../utils/chartDefaults';
+import { useApi } from '../hooks/useApi';
 import { performance as perfApi, metrics } from '../services/api';
 
 const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#95a5a6'];
@@ -138,85 +139,82 @@ export function MetricsPerformancePage({
   embedded = false,
   windowHours,
 }: { embedded?: boolean; windowHours?: number } = {}) {
-  const [perfData, setPerfData] = useState<any>(null);
-  const [serverData, setServerData] = useState<any>(null);
   const [serverHistory, setServerHistory] = useState<any[]>(loadServerHistory);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   // 30s default — charts re-render is expensive; cache on API is ~30s anyway
   const [refreshRate, setRefreshRate] = useState<string>('30');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const initialLoadDone = useRef(false);
   const hoursNum =
     windowHours != null && Number.isFinite(windowHours)
       ? Math.min(168, Math.max(0.25, Number(windowHours)))
       : 48;
 
-  const fetchData = useCallback(async () => {
-    try {
-      // Only block the page on the *first* load. Polls update in place so
-      // Recharts is not unmounted/remounted (huge snappiness win).
-      if (!initialLoadDone.current) setLoading(true);
-      const [perf, server] = await Promise.all([
-        perfApi.getOverview(hoursNum),
-        metrics.puppetdbPerformance().catch(() => null),
-      ]);
-      setPerfData(perf);
-      setServerData(server);
-      initialLoadDone.current = true;
-      // Accumulate server metrics history for time-series charts
-      if (server) {
-        const point: any = { time: new Date().toLocaleTimeString() };
-        point.catalog_ms = Number(server.catalog_processing?.Mean) || 0;
-        point.facts_ms = Number(server.facts_processing?.Mean) || 0;
-        point.report_ms = Number(server.report_processing?.Mean) || 0;
-        point.store_catalog_ms = Number(server.store_catalog?.Mean) / 1000 || 0;
-        point.store_facts_ms = Number(server.store_facts?.Mean) / 1000 || 0;
-        point.store_report_ms = Number(server.store_report?.Mean) / 1000 || 0;
-        point.http_query_ms = Number(server.http_query_time?.Mean) || 0;
-        point.http_cmd_ms = Number(server.http_cmd_time?.Mean) || 0;
-        point.queue_depth = Number(server.cmd_depth?.Count) || 0;
-        point.write_active = Number(server.write_pool_active?.Value) || 0;
-        point.write_idle = Number(server.write_pool_idle?.Value) || 0;
-        point.read_active = Number(server.read_pool_active?.Value) || 0;
-        point.read_idle = Number(server.read_pool_idle?.Value) || 0;
-        point.write_pending = Number(server.write_pool_pending?.Value) || 0;
-        point.read_pending = Number(server.read_pool_pending?.Value) || 0;
-        point.hash_match_ms = Number(server.catalog_hash_match?.Mean) / 1000 || 0;
-        point.hash_miss_ms = Number(server.catalog_hash_miss?.Mean) / 1000 || 0;
-        point.dedup_pct = (Number(server.dedup_pct?.Value) || 0) * 100;
-        point.gc_young_count = Number(server.gc_young?.CollectionCount) || 0;
-        point.gc_young_time = Number(server.gc_young?.CollectionTime) || 0;
-        point.gc_old_count = Number(server.gc_old?.CollectionCount) || 0;
-        point.gc_old_time = Number(server.gc_old?.CollectionTime) || 0;
-        point.nodes = Number(server.population_nodes?.Value) || 0;
-        point.resources = Number(server.population_resources?.Value) || 0;
-        point.avg_resources = Number(server.population_avg_resources?.Value) || 0;
-        setServerHistory(prev => {
-          const updated = [...prev, point];
-          const trimmed = updated.length > MAX_SERVER_POINTS ? updated.slice(-MAX_SERVER_POINTS) : updated;
-          saveServerHistory(trimmed);
-          return trimmed;
-        });
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load performance data');
-    } finally {
-      setLoading(false);
-      setLastRefresh(new Date());
-    }
+  const fetchBundle = useCallback(async () => {
+    const [perf, server] = await Promise.all([
+      perfApi.getOverview(hoursNum),
+      metrics.puppetdbPerformance().catch(() => null),
+    ]);
+    return { perf, server };
   }, [hoursNum]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const { data: bundle, loading, refreshing, error, refetch } = useApi(
+    fetchBundle,
+    [hoursNum],
+    {
+      cacheKey: `openvox_metrics_performance_v1_${hoursNum}`,
+      cacheValidate: (d) => d != null && (d as any).perf != null,
+    },
+  );
+
+  const perfData = bundle?.perf ?? null;
+  const serverData = bundle?.server ?? null;
+
+  // Accumulate JMX history points whenever a fresh server snapshot arrives
+  useEffect(() => {
+    if (!serverData) return;
+    const server = serverData;
+    const point: any = { time: new Date().toLocaleTimeString() };
+    point.catalog_ms = Number(server.catalog_processing?.Mean) || 0;
+    point.facts_ms = Number(server.facts_processing?.Mean) || 0;
+    point.report_ms = Number(server.report_processing?.Mean) || 0;
+    point.store_catalog_ms = Number(server.store_catalog?.Mean) / 1000 || 0;
+    point.store_facts_ms = Number(server.store_facts?.Mean) / 1000 || 0;
+    point.store_report_ms = Number(server.store_report?.Mean) / 1000 || 0;
+    point.http_query_ms = Number(server.http_query_time?.Mean) || 0;
+    point.http_cmd_ms = Number(server.http_cmd_time?.Mean) || 0;
+    point.queue_depth = Number(server.cmd_depth?.Count) || 0;
+    point.write_active = Number(server.write_pool_active?.Value) || 0;
+    point.write_idle = Number(server.write_pool_idle?.Value) || 0;
+    point.read_active = Number(server.read_pool_active?.Value) || 0;
+    point.read_idle = Number(server.read_pool_idle?.Value) || 0;
+    point.write_pending = Number(server.write_pool_pending?.Value) || 0;
+    point.read_pending = Number(server.read_pool_pending?.Value) || 0;
+    point.hash_match_ms = Number(server.catalog_hash_match?.Mean) / 1000 || 0;
+    point.hash_miss_ms = Number(server.catalog_hash_miss?.Mean) / 1000 || 0;
+    point.dedup_pct = (Number(server.dedup_pct?.Value) || 0) * 100;
+    point.gc_young_count = Number(server.gc_young?.CollectionCount) || 0;
+    point.gc_young_time = Number(server.gc_young?.CollectionTime) || 0;
+    point.gc_old_count = Number(server.gc_old?.CollectionCount) || 0;
+    point.gc_old_time = Number(server.gc_old?.CollectionTime) || 0;
+    point.nodes = Number(server.population_nodes?.Value) || 0;
+    point.resources = Number(server.population_resources?.Value) || 0;
+    point.avg_resources = Number(server.population_avg_resources?.Value) || 0;
+    setServerHistory((prev) => {
+      const updated = [...prev, point];
+      const trimmed = updated.length > MAX_SERVER_POINTS ? updated.slice(-MAX_SERVER_POINTS) : updated;
+      saveServerHistory(trimmed);
+      return trimmed;
+    });
+    setLastRefresh(new Date());
+  }, [serverData]);
 
   // Auto-refresh at configurable rate
   useEffect(() => {
     const rate = parseInt(refreshRate) * 1000;
     if (rate <= 0) return;
-    const interval = setInterval(fetchData, rate);
+    const interval = setInterval(() => refetch(), rate);
     return () => clearInterval(interval);
-  }, [fetchData, refreshRate]);
+  }, [refetch, refreshRate]);
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => prev === id ? null : id);
@@ -228,13 +226,13 @@ export function MetricsPerformancePage({
 
   // Catch render errors from bad JMX data
   try {
-    return <MetricsPerformanceContent embedded={embedded} perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} refreshRate={refreshRate} setRefreshRate={setRefreshRate} lastRefresh={lastRefresh} fetchData={fetchData} clearHistory={() => { setServerHistory([]); saveServerHistory([]); localStorage.setItem(SERVER_HISTORY_KEY + '_v', String(HISTORY_VERSION)); }} />;
+    return <MetricsPerformanceContent embedded={embedded} perfData={perfData} serverData={serverData} serverHistory={serverHistory} expanded={expanded} toggleExpand={toggleExpand} refreshRate={refreshRate} setRefreshRate={setRefreshRate} lastRefresh={lastRefresh} fetchData={() => refetch()} clearHistory={() => { setServerHistory([]); saveServerHistory([]); localStorage.setItem(SERVER_HISTORY_KEY + '_v', String(HISTORY_VERSION)); }} refreshing={refreshing} />;
   } catch (e: any) {
     return <Alert color="red" title="Render Error">{String(e?.message || e)}</Alert>;
   }
 }
 
-function MetricsPerformanceContent({ embedded = false, perfData, serverData, serverHistory, expanded, toggleExpand, refreshRate, setRefreshRate, lastRefresh, fetchData, clearHistory }: { embedded?: boolean; perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void; refreshRate: string; setRefreshRate: (v: string) => void; lastRefresh: Date; fetchData: () => void; clearHistory: () => void }) {
+function MetricsPerformanceContent({ embedded = false, perfData, serverData, serverHistory, expanded, toggleExpand, refreshRate, setRefreshRate, lastRefresh, fetchData, clearHistory, refreshing = false }: { embedded?: boolean; perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void; refreshRate: string; setRefreshRate: (v: string) => void; lastRefresh: Date; fetchData: () => void; clearHistory: () => void; refreshing?: boolean }) {
 
   // Agent-side data — stride + cap before Recharts bind
   const rawTrends = perfData.run_time_trends || [];
@@ -487,6 +485,7 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
           <IconChartLine size={embedded ? 22 : 28} />
           <Title order={embedded ? 3 : 2}>Run Performance</Title>
           <Badge variant="light" color="blue" size="lg">{stats.total_runs || 0} runs / {stats.total_nodes || 0} nodes</Badge>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Group gap="xs">
           <Select size="xs" data={REFRESH_OPTIONS} value={refreshRate}

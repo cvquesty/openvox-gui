@@ -5,7 +5,7 @@
  * changes across the fleet. Each event is displayed as a card with status
  * badges, resource info, timestamps, and corrective-change drift markers.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
@@ -13,6 +13,7 @@ import {
 } from '@mantine/core';
 import { IconTimeline, IconAlertTriangle } from '@tabler/icons-react';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const COLORS = ['#0D6EFD', '#28a745', '#dc3545', '#ffc107', '#6c757d', '#17a2b8', '#fd7e14', '#6f42c1'];
 
@@ -100,30 +101,26 @@ function EventCard({ event }: { event: any }) {
 }
 
 export function MetricsTimelinePage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [limit, setLimit] = useState('100');
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: { limit?: number; status?: string } = { limit: parseInt(limit) };
-      if (status) params.status = status;
-      const result = await metrics.events(params);
-      setData(result);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load timeline events');
-    }
-    setLoading(false);
+  const fetchEvents = useCallback(async () => {
+    const params: { limit?: number; status?: string } = { limit: parseInt(limit) };
+    if (status) params.status = status;
+    return metrics.events(params);
   }, [status, limit]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const { data, loading, refreshing, error } = useApi(
+    fetchEvents,
+    [status, limit],
+    {
+      cacheKey: `openvox_metrics_timeline_v1_${status || 'all'}_${limit}`,
+      cacheValidate: (d) => d != null && Array.isArray((d as any).events),
+    },
+  );
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
   const events = data.events || [];
@@ -141,6 +138,7 @@ export function MetricsTimelinePage() {
         <Group gap="sm">
           <IconTimeline size={28} />
           <Title order={2}>Resource Change Timeline</Title>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Alert variant="light" color="blue" mb="xs">
           This page shows a real-time feed of every resource change across your entire fleet — what changed, when, on which node, and whether it was an intentional change or corrective drift. Use it to monitor fleet activity after a code deployment, investigate unexpected changes, or audit what Puppet modified during a specific time window.

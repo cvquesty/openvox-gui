@@ -5,13 +5,13 @@
  * Common at top, environments below, groups under their environments,
  * node counts per group. Uses nested Cards for the tree layout.
  */
-import { useState, useEffect, useCallback } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Paper,
   ScrollArea,
 } from '@mantine/core';
 import { IconHierarchy, IconWorld, IconFolder, IconServer, IconLayersLinked } from '@tabler/icons-react';
 import { enc } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const COLORS = ['#0D6EFD', '#28a745', '#dc3545', '#ffc107', '#6c757d', '#17a2b8', '#fd7e14', '#6f42c1'];
 
@@ -23,29 +23,17 @@ interface HierarchyData {
 }
 
 export function MetricsClassificationPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, refreshing, error } = useApi(
+    () => enc.getHierarchy(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_classification_v1',
+      cacheValidate: (d) => d != null && typeof d === 'object',
+    },
+  );
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await enc.getHierarchy();
-      setData(result);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load classification hierarchy');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error loading classification">{error}</Alert>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error && !data) return <Alert color="red" title="Error loading classification">{error}</Alert>;
   if (!data) return null;
 
   const hierarchy = data as HierarchyData;
@@ -84,6 +72,7 @@ export function MetricsClassificationPage() {
       <Group gap="sm">
         <IconHierarchy size={28} />
         <Title order={2}>Classification Tree</Title>
+        {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
       </Group>
 
       <Alert variant="light" color="blue" mb="xs">

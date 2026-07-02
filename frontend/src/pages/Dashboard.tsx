@@ -20,29 +20,7 @@ import { LoadingState, ErrorState } from '../components/StateComponents';
 import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
 
-/** sessionStorage snapshot so return visits paint the last good dashboard instantly */
-const DASH_CACHE_KEY = 'openvox_dashboard_data_v2';
 
-function readDashCache(): any | null {
-  try {
-    const raw = sessionStorage.getItem(DASH_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    // Ignore empty / corrupt shells
-    if (!parsed || !parsed.node_status) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function writeDashCache(payload: any) {
-  try {
-    sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify(payload));
-  } catch {
-    /* quota — ignore */
-  }
-}
 
 /* ═══════════════════════════════════════════════════════════════
    COMMAND-CENTER-O-TRON 9000 — mission control cartoon
@@ -184,14 +162,14 @@ function nodeTimeAgo(timestamp: string | null): string {
 export function DashboardPage() {
   const { isRobots } = useAppTheme();
   const navigate = useNavigate();
-  // Seed from sessionStorage so return visits paint ring/trends/table instantly
-  // while a background refresh runs (stale-while-revalidate). First visit still
-  // waits on /api/dashboard/data — which is now a lean PuppetDB extract.
-  const [initialCache] = useState(() => readDashCache());
+  // sessionStorage SWR via useApi cacheKey — same pattern as Insights graph pages
   const { data: dashData, loading, refreshing, error, refetch } = useApi<any>(
     dashboard.getData,
     [],
-    { initialData: initialCache, keepPreviousData: true },
+    {
+      cacheKey: 'openvox_dashboard_data_v2',
+      cacheValidate: (d) => d != null && (d as any).node_status != null,
+    },
   );
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState('30');
@@ -206,11 +184,6 @@ export function DashboardPage() {
     const t = window.setTimeout(() => setShowMascot(true), 0);
     return () => clearTimeout(t);
   }, [isRobots, dashData]);
-
-  // Persist successful payloads for the next cold open of this tab
-  useEffect(() => {
-    if (dashData?.node_status) writeDashCache(dashData);
-  }, [dashData]);
 
   const nodeList: NodeSummary[] = dashData?.nodes || [];
   const ns = dashData?.node_status || { changed: 0, unchanged: 0, failed: 0, unreported: 0, noop: 0, total: 0 };

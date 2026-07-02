@@ -5,7 +5,7 @@
  * visualization: scatter plots for numeric data, stacked area for categorical.
  * Highlights outliers across the fleet.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid,
@@ -20,6 +20,7 @@ import {
   IconSearch, IconAlertTriangle,
 } from '@tabler/icons-react';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#95a5a6'];
 
@@ -249,23 +250,20 @@ function FactThumbnail({ data, expanded, onClick }: {
 }
 
 export function MetricsFactDistPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [customFact, setCustomFact] = useState('');
   const [customData, setCustomData] = useState<any>(null);
   const [customLoading, setCustomLoading] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
 
-  const fetchOverview = useCallback(async () => {
-    setLoading(true);
-    try { setData(await metrics.factOverview()); }
-    catch (e: any) { setError(e.message); }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchOverview(); }, [fetchOverview]);
+  const { data, loading, refreshing, error, refetch } = useApi(
+    () => metrics.factOverview(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_fact_overview_v1',
+      cacheValidate: (d) => d != null && Array.isArray((d as any).facts),
+    },
+  );
 
   const handleCustomQuery = async () => {
     if (!customFact.trim()) return;
@@ -275,8 +273,8 @@ export function MetricsFactDistPage() {
     setCustomLoading(false);
   };
 
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
 
   const facts: FactCard[] = data?.facts || [];
 
@@ -286,6 +284,8 @@ export function MetricsFactDistPage() {
         <IconChartPie size={28} />
         <Title order={2}>Fleet Fact Overview</Title>
         <Badge variant="light" color="blue" size="lg">{facts.length} facts</Badge>
+        {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
+        <Button size="xs" variant="light" onClick={() => refetch()}>Refresh</Button>
       </Group>
 
       <Alert variant="light" color="blue" mb="xs">

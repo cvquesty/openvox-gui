@@ -24,6 +24,7 @@ import {
   CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { IconServer, IconRefresh, IconTrash, IconArrowsMaximize, IconArrowsMinimize, IconChartLine } from '@tabler/icons-react';
+import { useApi } from '../hooks/useApi';
 import { metrics } from '../services/api';
 
 interface HistoryPoint {
@@ -135,87 +136,79 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
 
 /** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
 export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?: boolean } = {}) {
-  const [data, setData] = useState<any>(null);
   // Seed from localStorage so graphs have prior data immediately on page load (persistent collection UX)
   const [history, setHistory] = useState<HistoryPoint[]>(loadPSHealthHistory);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [refreshRate, setRefreshRate] = useState<string>('30');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const result = await metrics.puppetserverHealth();
-      setData(result);
-      setError(null);
+  const { data, loading, refreshing, error, refetch } = useApi(
+    () => metrics.puppetserverHealth(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_puppetserver_health_v1',
+      cacheValidate: (d) => d != null && typeof d === 'object',
+    },
+  );
 
-      // Prefer server-provided history (Phase 3 + background collector). It will contain points
-      // even if some values were temporarily missing. This gives cross-session shared history.
-      // Always persist whatever we end up with so revisits show data instantly.
-      let nextHistory: HistoryPoint[] | null = null;
-      if (result.history && Array.isArray(result.history) && result.history.length > 0) {
-        nextHistory = result.history.map((p: any) => ({
-          time: p.time,
-          heap_used_mb: p.heap_used_mb,
-          heap_pct: p.heap_pct,
-          nonheap_used_mb: p.nonheap_used_mb,
-          nonheap_pct: p.nonheap_pct,
-          compile_time_ms: p.compile_time_ms,
-          jruby_active: p.jruby_active,
-          gc_young_time: p.gc_young_time,
-          gc_old_time: p.gc_old_time,
-          http_catalog_mean: p.http_catalog_mean,
-          http_report_mean: p.http_report_mean,
-          http_file_mean: p.http_file_mean,
-          process_cpu_load: p.process_cpu_load,
-          open_fds: p.open_fds,
-        }));
-      } else {
-        // Always try to record a point when we have a successful response.
-        // This way compile time and JRuby trends accumulate even if heap metrics
-        // are not yet available on this poll.
-        const now = Date.now();
-        const point: HistoryPoint = {
-          time: new Date().toLocaleTimeString(),
-          ts: now,
-          heap_used_mb: result.jvm_heap ? result.jvm_heap.used_mb : undefined,
-          heap_pct: result.jvm_heap ? result.jvm_heap.pct : undefined,
-          nonheap_used_mb: result.jvm_nonheap ? result.jvm_nonheap.used_mb : undefined,
-          nonheap_pct: result.jvm_nonheap ? result.jvm_nonheap.pct : undefined,
-          compile_time_ms: result.compile_time_ms,
-          jruby_active: result.jruby_active,
-          gc_young_time: (result.gc_young || {}).time_ms,
-          gc_old_time: (result.gc_old || {}).time_ms,
-          process_cpu_load: (result.os || {}).process_cpu_load,
-          open_fds: (result.os || {}).open_file_descriptors,
-        };
-        // Only append if we have at least one interesting value, to avoid pure-empty spam
-        if (point.heap_used_mb != null || point.compile_time_ms != null || point.jruby_active != null) {
-          setHistory(prev => {
-            const updated = [...prev, point];
-            const trimmed = updated.length > MAX_PS_POINTS ? updated.slice(-MAX_PS_POINTS) : updated;
-            savePSHealthHistory(trimmed);
-            return trimmed;
-          });
-          // Early return for this branch (we saved inside setter)
-          nextHistory = null;
-        }
+  // Merge server history / append live points when snapshot updates
+  useEffect(() => {
+    if (!data) return;
+    const result = data;
+    let nextHistory: HistoryPoint[] | null = null;
+    if (result.history && Array.isArray(result.history) && result.history.length > 0) {
+      nextHistory = result.history.map((p: any) => ({
+        time: p.time,
+        heap_used_mb: p.heap_used_mb,
+        heap_pct: p.heap_pct,
+        nonheap_used_mb: p.nonheap_used_mb,
+        nonheap_pct: p.nonheap_pct,
+        compile_time_ms: p.compile_time_ms,
+        jruby_active: p.jruby_active,
+        gc_young_time: p.gc_young_time,
+        gc_old_time: p.gc_old_time,
+        http_catalog_mean: p.http_catalog_mean,
+        http_report_mean: p.http_report_mean,
+        http_file_mean: p.http_file_mean,
+        process_cpu_load: p.process_cpu_load,
+        open_fds: p.open_fds,
+      }));
+    } else {
+      const now = Date.now();
+      const point: HistoryPoint = {
+        time: new Date().toLocaleTimeString(),
+        ts: now,
+        heap_used_mb: result.jvm_heap ? result.jvm_heap.used_mb : undefined,
+        heap_pct: result.jvm_heap ? result.jvm_heap.pct : undefined,
+        nonheap_used_mb: result.jvm_nonheap ? result.jvm_nonheap.used_mb : undefined,
+        nonheap_pct: result.jvm_nonheap ? result.jvm_nonheap.pct : undefined,
+        compile_time_ms: result.compile_time_ms,
+        jruby_active: result.jruby_active,
+        gc_young_time: (result.gc_young || {}).time_ms,
+        gc_old_time: (result.gc_old || {}).time_ms,
+        process_cpu_load: (result.os || {}).process_cpu_load,
+        open_fds: (result.os || {}).open_file_descriptors,
+      };
+      if (point.heap_used_mb != null || point.compile_time_ms != null || point.jruby_active != null) {
+        setHistory((prev) => {
+          const updated = [...prev, point];
+          const trimmed = updated.length > MAX_PS_POINTS ? updated.slice(-MAX_PS_POINTS) : updated;
+          savePSHealthHistory(trimmed);
+          return trimmed;
+        });
+        nextHistory = null;
       }
-      if (nextHistory) {
-        const trimmed = nextHistory.length > MAX_PS_POINTS ? nextHistory.slice(-MAX_PS_POINTS) : nextHistory;
-        setHistory(trimmed);
-        savePSHealthHistory(trimmed);
-      }
-    } catch (e: any) {
-      setError(e.message || 'Failed to load PuppetServer health');
     }
-    setLoading(false);
+    if (nextHistory) {
+      const trimmed = nextHistory.length > MAX_PS_POINTS ? nextHistory.slice(-MAX_PS_POINTS) : nextHistory;
+      setHistory(trimmed);
+      savePSHealthHistory(trimmed);
+    }
     setLastRefresh(new Date());
-  }, []);
+  }, [data]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchData = useCallback(() => { refetch(); }, [refetch]);
 
   useEffect(() => {
     const rate = parseInt(refreshRate) * 1000;
@@ -237,7 +230,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
     setExpanded(prev => prev === id ? null : id);
   };
 
-  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
+  if (loading && !data) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -485,6 +478,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <Badge color={statusColor} variant="filled" size="lg">
             {data.status || 'unknown'}
           </Badge>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Group gap="xs">
           <Select size="xs" data={REFRESH_OPTIONS} value={refreshRate}

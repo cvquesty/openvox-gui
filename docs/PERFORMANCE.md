@@ -11,7 +11,9 @@ How to keep the web UI snappy as fleets and chart pages grow. This is about the 
 | Whole app sluggish under multi-tab use | Single uvicorn worker, uncached dashboard, concurrent PDB load |
 | First navigation to a metrics page is slow | Large JS chunk download (mitigated by code-split + vendor chunks) |
 
-## Overview | Dashboard (first screen — highest priority)
+## Overview | Dashboard + graph-heavy Insights pages
+
+### Dashboard-specific (largest cold-path win)
 
 Why it used to feel slowest:
 
@@ -19,15 +21,34 @@ Why it used to feel slowest:
 2. The UI showed a **full-page spinner** until that entire payload returned — no progressive paint.
 3. Auto-refresh **unmounted** the page on every poll (`loading=true`), so the ring + trends chart re-mounted repeatedly.
 
-What we do now:
+What we do now on Dashboard:
 
 | Change | Effect |
 |--------|--------|
 | PuppetDB `extract` of `certname, status, noop, receive_time` only | Orders-of-magnitude smaller JSON; trends still correct |
 | 20s server TTL + single-flight | Concurrent tabs/users share one PDB hit |
-| `useApi` keep-previous-data | Auto-refresh never blanks the dashboard |
-| `sessionStorage` last-good snapshot | Second open in the same tab paints instantly, then refreshes |
 | Lighter chart (`monotone`, height 320) + deferred casual mascot | Faster first paint of ring + trends |
+
+### Shared UI pattern (all graph-heavy pages)
+
+`useApi({ cacheKey, cacheValidate })` + default **keep-previous-data**:
+
+| Page | session cache key prefix |
+|------|--------------------------|
+| Dashboard | `openvox_dashboard_data_v2` |
+| Compliance | `openvox_metrics_compliance_v1_*` |
+| Run Performance | `openvox_metrics_performance_v1_*` |
+| Fact Distribution | `openvox_metrics_fact_overview_v1` |
+| Class Coverage | `openvox_metrics_class_coverage_v1` |
+| Heatmap | `openvox_metrics_heatmap_v1` |
+| Classification | `openvox_metrics_classification_v1` |
+| Timeline | `openvox_metrics_timeline_v1_*` |
+| Node Health | `openvox_metrics_node_health_v1` |
+| Environments | `openvox_metrics_environments_v1` |
+| Server Health | `openvox_metrics_puppetserver_health_v1` |
+| OpenVoxDB Health | `openvox_metrics_puppetdb_health_v1` |
+
+Return visits in the same tab paint the last-good snapshot immediately, then refresh in the background (“Refreshing…”). Auto-refresh no longer blanks charts.
 
 If Dashboard is still slow on **first** login of the day, the remaining cost is co-located PuppetDB/CA latency for `get_live_nodes()` (active nodes ∩ signed certs). Check `ovox infra health` and PDB heap before raising GUI workers further.
 

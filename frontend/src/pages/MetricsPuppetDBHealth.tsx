@@ -6,6 +6,7 @@
  * Auto-refreshes every 30 seconds, accumulating data points for the graph.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useApi } from '../hooks/useApi';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
   Grid,
@@ -106,10 +107,7 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
 
 /** embedded: compact chrome for Insights | Monitoring wallboard (same charts/data as full page). */
 export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boolean } = {}) {
-  const [data, setData] = useState<any>(null);
   const [heapHistory, setHeapHistory] = useState<HeapDataPoint[]>(loadHistory);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -117,52 +115,52 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
     setExpanded((prev) => (prev === id ? null : id));
   };
 
-  const fetchData = useCallback(async () => {
-    try {
-      const result = await metrics.puppetdbHealth();
-      setData(result);
-      setError(null);
+  const { data, loading, refreshing, error, refetch } = useApi(
+    () => metrics.puppetdbHealth(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_puppetdb_health_v1',
+      cacheValidate: (d) => d != null && typeof d === 'object',
+    },
+  );
 
-      // Accumulate heap + DB interaction data points (persistent client history)
-      const jvm = result.jvm_heap || {};
-      const nh = result.jvm_nonheap || {};
-      if (jvm.used_mb !== undefined || result.ps_puppetdb_metrics || result.http_client_metrics) {
-        const now = Date.now();
-        // Pull some means from ps_ lists for history
-        const pdbm = result.ps_puppetdb_metrics || [];
-        const hcm = result.http_client_metrics || [];
-        const findMean = (arr: any[], key: string) => arr.find((x: any) => (x.metric || '').includes(key))?.mean;
+  useEffect(() => {
+    if (!data) return;
+    const result = data;
+    const jvm = result.jvm_heap || {};
+    const nh = result.jvm_nonheap || {};
+    if (jvm.used_mb !== undefined || result.ps_puppetdb_metrics || result.http_client_metrics) {
+      const now = Date.now();
+      const pdbm = result.ps_puppetdb_metrics || [];
+      const hcm = result.http_client_metrics || [];
+      const findMean = (arr: any[], key: string) => arr.find((x: any) => (x.metric || '').includes(key))?.mean;
 
-        const point: HeapDataPoint = {
-          time: new Date().toLocaleTimeString(),
-          ts: now,
-          used_mb: jvm.used_mb ?? 0,
-          committed_mb: jvm.committed_mb ?? 0,
-          max_mb: jvm.max_mb ?? 0,
-          pct: jvm.pct ?? 0,
-          queue_depth: result.queue_depth ?? 0,
-          nonheap_used_mb: nh.used_mb,
-          catalog_save_mean: findMean(pdbm, 'catalog_save'),
-          report_process_mean: findMean(pdbm, 'report_process'),
-          replace_catalog_mean: findMean(hcm, 'replace_catalog'),
-          store_report_mean: findMean(hcm, 'store_report'),
-          replace_facts_mean: findMean(hcm, 'replace_facts'),
-        };
-        setHeapHistory(prev => {
-          const updated = [...prev, point];
-          const trimmed = updated.length > MAX_POINTS ? updated.slice(-MAX_POINTS) : updated;
-          saveHistory(trimmed);
-          return trimmed;
-        });
-      }
-    } catch (e: any) {
-      setError(e.message || 'Failed to load PuppetDB health');
+      const point: HeapDataPoint = {
+        time: new Date().toLocaleTimeString(),
+        ts: now,
+        used_mb: jvm.used_mb ?? 0,
+        committed_mb: jvm.committed_mb ?? 0,
+        max_mb: jvm.max_mb ?? 0,
+        pct: jvm.pct ?? 0,
+        queue_depth: result.queue_depth ?? 0,
+        nonheap_used_mb: nh.used_mb,
+        catalog_save_mean: findMean(pdbm, 'catalog_save'),
+        report_process_mean: findMean(pdbm, 'report_process'),
+        replace_catalog_mean: findMean(hcm, 'replace_catalog'),
+        store_report_mean: findMean(hcm, 'store_report'),
+        replace_facts_mean: findMean(hcm, 'replace_facts'),
+      };
+      setHeapHistory((prev) => {
+        const updated = [...prev, point];
+        const trimmed = updated.length > MAX_POINTS ? updated.slice(-MAX_POINTS) : updated;
+        saveHistory(trimmed);
+        return trimmed;
+      });
     }
-    setLoading(false);
     setLastRefresh(new Date());
-  }, []);
+  }, [data]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchData = useCallback(() => { refetch(); }, [refetch]);
 
   useEffect(() => {
     intervalRef.current = setInterval(fetchData, 30000);
@@ -171,7 +169,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
     };
   }, [fetchData]);
 
-  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
+  if (loading && !data) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
@@ -316,6 +314,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <Badge color={statusColor} variant="filled" size="lg">
             {data.status || 'unknown'}
           </Badge>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Group gap="xs">
           <IconRefresh size={14} style={{ opacity: 0.5 }} />

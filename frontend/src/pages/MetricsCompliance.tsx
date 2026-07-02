@@ -5,7 +5,7 @@
  * compliance status, a trend area chart over the selected time window,
  * summary stat cards, and expandable per-category node lists.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
@@ -19,6 +19,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const COLORS = ['#0D6EFD', '#28a745', '#dc3545', '#ffc107', '#6c757d', '#17a2b8', '#fd7e14', '#6f42c1'];
 
@@ -119,26 +120,19 @@ export function MetricsCompliancePage({
   embedded = false,
   windowHours,
 }: { embedded?: boolean; windowHours?: number } = {}) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [hoursLocal, setHoursLocal] = useState(24);
   const controlled = windowHours != null && Number.isFinite(windowHours);
   const hoursNum = clampWindowHours(controlled ? Number(windowHours) : hoursLocal);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await metrics.compliance(hoursNum);
-      setData(result);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load compliance data');
-    }
-    setLoading(false);
-  }, [hoursNum]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchCompliance = useCallback(() => metrics.compliance(hoursNum), [hoursNum]);
+  const { data, loading, refreshing, error, refetch } = useApi(
+    fetchCompliance,
+    [hoursNum],
+    {
+      cacheKey: `openvox_metrics_compliance_v1_${hoursNum}`,
+      cacheValidate: (d) => d != null && typeof d === 'object' && 'total' in (d as object),
+    },
+  );
 
   // Keep prior charts mounted while a new window/filter loads (avoids full unmount flash)
   if (loading && !data) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
@@ -174,6 +168,7 @@ export function MetricsCompliancePage({
         <Group gap="sm">
           <IconShieldCheck size={embedded ? 22 : 28} />
           <Title order={embedded ? 3 : 2}>Fleet Compliance &amp; Drift</Title>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         {!controlled && (
           <Group gap="xs" align="flex-end">

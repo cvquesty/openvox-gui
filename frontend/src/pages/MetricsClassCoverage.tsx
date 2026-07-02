@@ -4,7 +4,7 @@
  * Class Coverage Report — horizontal bar chart of top classes by deployment
  * count plus a searchable table.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Table,
   TextInput, ScrollArea, Paper,
@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { IconShieldCheck, IconSearch } from '@tabler/icons-react';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const COLORS = ['#0D6EFD', '#28a745', '#dc3545', '#ffc107', '#6c757d', '#17a2b8', '#fd7e14', '#6f42c1'];
 
@@ -24,30 +25,18 @@ interface ClassEntry {
 }
 
 export function MetricsClassCoveragePage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const { data, loading, refreshing, error } = useApi(
+    () => metrics.classCoverage(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_class_coverage_v1',
+      cacheValidate: (d) => d != null && Array.isArray((d as any).classes),
+    },
+  );
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await metrics.classCoverage();
-      setData(result);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load class coverage data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error loading class coverage">{error}</Alert>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error && !data) return <Alert color="red" title="Error loading class coverage">{error}</Alert>;
   if (!data) return null;
 
   const classes: ClassEntry[] = data.classes || [];
@@ -76,6 +65,7 @@ export function MetricsClassCoveragePage() {
         <IconShieldCheck size={28} />
         <Title order={2}>Class Coverage Report</Title>
         <Badge variant="light" size="lg">{classes.length} classes</Badge>
+        {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
       </Group>
 
       {/* Summary */}

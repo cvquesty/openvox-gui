@@ -4,7 +4,7 @@
  * Node Status Heatmap — colored grid of nodes grouped by environment.
  * Green = unchanged, Blue = changed, Red = failed, Yellow = noop, Gray = unreported.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Tooltip,
@@ -12,6 +12,7 @@ import {
 } from '@mantine/core';
 import { IconLayoutGrid } from '@tabler/icons-react';
 import { metrics } from '../services/api';
+import { useApi } from '../hooks/useApi';
 
 const STATUS_COLORS: Record<string, string> = {
   unchanged: '#28a745',
@@ -39,30 +40,18 @@ interface HeatmapNode {
 
 export function MetricsHeatmapPage() {
   const navigate = useNavigate();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [envFilter, setEnvFilter] = useState<string | null>(null);
+  const { data, loading, refreshing, error } = useApi(
+    () => metrics.heatmap(),
+    [],
+    {
+      cacheKey: 'openvox_metrics_heatmap_v1',
+      cacheValidate: (d) => d != null && Array.isArray((d as any).nodes),
+    },
+  );
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await metrics.heatmap();
-      setData(result);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load heatmap data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  if (loading) return <Center h={400}><Loader size="xl" /></Center>;
-  if (error) return <Alert color="red" title="Error loading heatmap">{error}</Alert>;
+  if (loading && !data) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error && !data) return <Alert color="red" title="Error loading heatmap">{error}</Alert>;
   if (!data) return null;
 
   const allNodes: HeatmapNode[] = data.nodes || [];
@@ -102,6 +91,7 @@ export function MetricsHeatmapPage() {
           <IconLayoutGrid size={28} />
           <Title order={2}>Node Status Heatmap</Title>
           <Badge variant="light" size="lg">{filteredNodes.length} nodes</Badge>
+          {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Select
           placeholder="Filter environment"

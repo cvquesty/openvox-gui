@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.5-dev.5] - 2026-07-02 (dev — SWR + session cache on all graph pages)
+
+### Improved
+- **Graph-heavy Insights pages share the Dashboard SWR pattern**: `useApi` now supports optional `cacheKey` / `cacheValidate` (sessionStorage last-good snapshot + keep-previous-data). Applied to Compliance, Run Performance, Fact Distribution, Class Coverage, Heatmap, Classification Tree, Timeline, Node Health, Environments, OpenVox Server Health, OpenVoxDB Health, and Dashboard (unified). Return visits paint instantly; auto-refresh shows “Refreshing…” without unmounting charts.
+- **`sessionCache` utility** for consistent versioned keys across pages.
+
 ## [3.10.5-dev.4] - 2026-07-02 (dev — fix Dashboard Center import)
 
 ### Fixed
