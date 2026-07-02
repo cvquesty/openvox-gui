@@ -6,7 +6,7 @@
  * Combines agent-side metrics (from PuppetDB reports) with server-side
  * metrics (from PuppetDB Jolokia/JMX).
  */
-import { useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select, Button,
 } from '@mantine/core';
@@ -15,6 +15,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
 import { IconChartLine, IconArrowsMaximize, IconArrowsMinimize, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { downsampleSeries } from '../utils/chartDefaults';
 import { performance as perfApi, metrics } from '../services/api';
 
 const COLORS = ['#0D6EFD', '#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#3498db', '#e91e63', '#95a5a6'];
@@ -143,8 +144,10 @@ export function MetricsPerformancePage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [refreshRate, setRefreshRate] = useState<string>('15');
+  // 30s default — charts re-render is expensive; cache on API is ~30s anyway
+  const [refreshRate, setRefreshRate] = useState<string>('30');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const initialLoadDone = useRef(false);
   const hoursNum =
     windowHours != null && Number.isFinite(windowHours)
       ? Math.min(168, Math.max(0.25, Number(windowHours)))
@@ -152,13 +155,16 @@ export function MetricsPerformancePage({
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only block the page on the *first* load. Polls update in place so
+      // Recharts is not unmounted/remounted (huge snappiness win).
+      if (!initialLoadDone.current) setLoading(true);
       const [perf, server] = await Promise.all([
         perfApi.getOverview(hoursNum),
         metrics.puppetdbPerformance().catch(() => null),
       ]);
       setPerfData(perf);
       setServerData(server);
+      initialLoadDone.current = true;
       // Accumulate server metrics history for time-series charts
       if (server) {
         const point: any = { time: new Date().toLocaleTimeString() };
@@ -216,7 +222,7 @@ export function MetricsPerformancePage({
     setExpanded(prev => prev === id ? null : id);
   };
 
-  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
+  if (loading && !perfData) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
   if (error && !perfData) return <Alert color="red" title="Error">{String(error)}</Alert>;
   if (!perfData) return null;
 
@@ -230,9 +236,17 @@ export function MetricsPerformancePage({
 
 function MetricsPerformanceContent({ embedded = false, perfData, serverData, serverHistory, expanded, toggleExpand, refreshRate, setRefreshRate, lastRefresh, fetchData, clearHistory }: { embedded?: boolean; perfData: any; serverData: any; serverHistory: any[]; expanded: string | null; toggleExpand: (id: string) => void; refreshRate: string; setRefreshRate: (v: string) => void; lastRefresh: Date; fetchData: () => void; clearHistory: () => void }) {
 
-  // Agent-side data
+  // Agent-side data — stride + cap before Recharts bind
   const rawTrends = perfData.run_time_trends || [];
-  const trends = rawTrends.filter((_: any, i: number) => i % 2 === 0).slice(-120);
+  const trends = downsampleSeries(
+    rawTrends.filter((_: any, i: number) => i % 2 === 0).slice(-240),
+    120,
+  );
+  // Live JMX series can grow; bind a downsampled view so 10+ charts stay cheap
+  const serverHistoryChart = useMemo(
+    () => downsampleSeries(serverHistory, 120),
+    [serverHistory],
+  );
   const nodeComparison = (perfData.node_comparison || [])
     .sort((a: any, b: any) => (b.avg_total || 0) - (a.avg_total || 0))
     .slice(0, 10);
@@ -312,7 +326,7 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="total" stroke="#0D6EFD" fill="url(#gT)" strokeWidth={2} dot={false} name="Total" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="total" stroke="#0D6EFD" fill="url(#gT)" strokeWidth={2} dot={false} name="Total" />
         </AreaChart>
       ),
     },
@@ -325,10 +339,10 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Fact Gen" />
-          <Area type="natural" dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} dot={false} name="Plugin Sync" />
-          <Area type="natural" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} dot={false} name="Config Retrieval" />
-          <Area type="natural" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} dot={false} name="Catalog Apply" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Fact Gen" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} dot={false} name="Plugin Sync" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="config_retrieval" stroke="#e67e22" fill="none" strokeWidth={1.5} dot={false} name="Config Retrieval" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="catalog_application" stroke="#e74c3c" fill="none" strokeWidth={1.5} dot={false} name="Catalog Apply" />
         </AreaChart>
       ),
     },
@@ -342,7 +356,7 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
           <Legend wrapperStyle={{ fontSize: 9 }} />
           {nodeComparison.map((n: any, i: number) => (
-            <Area key={n.certname} type="natural" dataKey={n.certname}
+            <Area isAnimationActive={false} animationDuration={0} key={n.certname} type="natural" dataKey={n.certname}
               stroke={COLORS[i % COLORS.length]} fill="none" strokeWidth={1.5}
               dot={false} connectNulls name={shortName(n.certname)} />
           ))}
@@ -353,62 +367,62 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
       id: 'cmd-processing', title: 'Command Processing Time',
       stats: cmdData.map(d => ({ label: d.name, value: String(formatMs(d.mean)), color: 'cyan' })),
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Catalog" />
-          <Area type="natural" dataKey="facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Facts" />
-          <Area type="natural" dataKey="report_ms" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Report" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Catalog" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Facts" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="report_ms" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Report" />
         </AreaChart>
       ),
     },
     {
       id: 'storage-timing', title: 'Storage Operation Timing',
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Catalog" />
-          <Area type="natural" dataKey="store_facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Facts" />
-          <Area type="natural" dataKey="store_report_ms" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Report" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="store_catalog_ms" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Catalog" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="store_facts_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Facts" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="store_report_ms" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Report" />
         </AreaChart>
       ),
     },
     {
       id: 'db-pool', title: 'Database Connection Pool',
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
           <ReTooltip {...TOOLTIP_STYLE} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="write_active" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Write Active" />
-          <Area type="natural" dataKey="write_idle" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Write Idle" />
-          <Area type="natural" dataKey="read_active" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Read Active" />
-          <Area type="natural" dataKey="read_idle" stroke="#1abc9c" fill="none" strokeWidth={1.5} dot={false} name="Read Idle" />
-          <Area type="natural" dataKey="write_pending" stroke="#f39c12" fill="none" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Write Pending" />
-          <Area type="natural" dataKey="read_pending" stroke="#9b59b6" fill="none" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Read Pending" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="write_active" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Write Active" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="write_idle" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Write Idle" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="read_active" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Read Active" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="read_idle" stroke="#1abc9c" fill="none" strokeWidth={1.5} dot={false} name="Read Idle" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="write_pending" stroke="#f39c12" fill="none" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Write Pending" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="read_pending" stroke="#9b59b6" fill="none" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Read Pending" />
         </AreaChart>
       ),
     },
     {
       id: 'http-latency', title: 'HTTP API Latency',
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="http_query_ms" stroke="#3498db" fill="none" strokeWidth={2} dot={false} name="Query API" />
-          <Area type="natural" dataKey="http_cmd_ms" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Command API" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="http_query_ms" stroke="#3498db" fill="none" strokeWidth={2} dot={false} name="Query API" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="http_cmd_ms" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Command API" />
         </AreaChart>
       ),
     },
@@ -416,14 +430,14 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
       id: 'catalog-dedup', title: 'Catalog Deduplication',
       stats: [{ label: 'Dedup Rate', value: `${(Number(jmxVal(s.dedup_pct, 'Value') || 0) * 100).toFixed(1)}%`, color: 'green' }],
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatMs} />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatMs(v), n]} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="hash_match_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Hash Match" />
-          <Area type="natural" dataKey="hash_miss_ms" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Hash Miss" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="hash_match_ms" stroke="#2ecc71" fill="none" strokeWidth={2} dot={false} name="Hash Match" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="hash_miss_ms" stroke="#e74c3c" fill="none" strokeWidth={2} dot={false} name="Hash Miss" />
         </AreaChart>
       ),
     },
@@ -434,14 +448,14 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
         { label: 'Old GC', value: `${Number(jmxVal(s.gc_old, 'CollectionCount')) || 0} collections`, color: 'orange' },
       ],
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
           <ReTooltip {...TOOLTIP_STYLE} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="gc_young_count" stroke="#3498db" fill="none" strokeWidth={2} dot={false} name="Young Gen Collections" />
-          <Area type="natural" dataKey="gc_old_count" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Old Gen Collections" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="gc_young_count" stroke="#3498db" fill="none" strokeWidth={2} dot={false} name="Young Gen Collections" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="gc_old_count" stroke="#e67e22" fill="none" strokeWidth={2} dot={false} name="Old Gen Collections" />
         </AreaChart>
       ),
     },
@@ -453,14 +467,14 @@ function MetricsPerformanceContent({ embedded = false, perfData, serverData, ser
         { label: 'Avg/Node', value: `${(Number(jmxVal(s.population_avg_resources, 'Value')) || 0).toFixed(0)}` },
       ],
       render: () => (
-        <AreaChart data={serverHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={serverHistoryChart} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
           <ReTooltip {...TOOLTIP_STYLE} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Nodes" />
-          <Area type="natural" dataKey="avg_resources" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Avg Resources/Node" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={false} name="Nodes" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="avg_resources" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Avg Resources/Node" />
         </AreaChart>
       ),
     },

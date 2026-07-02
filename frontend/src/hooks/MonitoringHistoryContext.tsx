@@ -28,7 +28,8 @@ import { metrics, performance as perfApi } from '../services/api';
 const PERF_HIST_KEY = 'openvox_monitor_perf_hist_v2';
 const PS_HIST_KEY = 'openvox_monitor_ps_hist_v3';
 const PDB_HIST_KEY = 'openvox_monitor_pdb_hist_v3';
-const MAX_HIST = 2000;
+// ~4h at 30s poll; enough for wallboard trends without multi-MB localStorage + Recharts cost
+const MAX_HIST = 480;
 
 type AnyPoint = Record<string, any>;
 
@@ -281,9 +282,10 @@ export function MonitoringHistoryProvider({ children }: { children: ReactNode })
   }, [appendPerfPoint, appendPsPoints, appendPdbPoint]);
 
   // Background collector — always running while SPA is loaded.
-  // We slow down when the tab is hidden to be nice to the server.
+  // 30s visible matches metrics page defaults and backend ~30s TTL caches.
+  // We slow down further when the tab is hidden to be nice to the server.
   const getIntervalMs = () =>
-    document.visibilityState === 'hidden' ? 60_000 : 15_000;
+    document.visibilityState === 'hidden' ? 120_000 : 30_000;
 
   useEffect(() => {
     // initial catch-up

@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.5-dev.1] - 2026-07-02 (dev — GUI performance: cache, workers, charts)
+
+### Added
+- **`docs/PERFORMANCE.md`**: operator guide for GUI snappiness (uvicorn workers, TTL caches, chart/poll tips, measurement).
+- **Process-local TTL cache helper** (`backend/app/utils/ttl_cache.py`) with single-flight locking for expensive reads.
+- **`OPENVOX_GUI_UVICORN_WORKERS`** support in update path + `.env.example` note; systemd unit defaults include `--workers 2`, `--limit-concurrency 100`, `--backlog 2048`, `LimitNOFILE=65536`, `TasksMax=512`.
+
+### Fixed / improved
+- **Dashboard `/api/dashboard/data`**: ~20s TTL cache + single-flight so multi-tab / auto-refresh no longer re-pulls up to 20k reports on every hit.
+- **Metrics + performance API caches**: TTL raised to ~45s (aligned with 30s UI poll defaults).
+- **GZip middleware** for large JSON responses; **PuppetDB httpx** connection pool / keepalive tuned.
+- **Recharts**: animations disabled on operational chart pages; Run Performance / Server health default poll **30s**; PuppetDB health poll **30s**; monitoring background collector **30s** (120s when tab hidden) with history cap reduced to 480 points; series downsampled before chart bind.
+- **Vite manual chunks** (charts / mantine / react-vendor / icons / flow) for better long-term caching and lighter non-chart navigations.
+- **Run Performance / Compliance**: avoid full-page loader unmount on background refresh when prior data exists (keeps charts mounted).
+
+### Upgrade notes
+- After deploy, confirm `systemctl cat openvox-gui` shows `--workers N` and resource limits. Set `OPENVOX_GUI_UVICORN_WORKERS` in `.env` to override. Lab dual-stack custom launchers are replaced by the standard unit on update — use `--host ::` (template default) for dual-stack.
+- Hard-refresh browsers once to pick up new frontend chunks.
+
 ## [3.10.4] - 2026-07-01 (stable — live fleet consistency + operator polish)
 
 Stable promotion of the **3.10.3b1–b14** functionality train on `main`. Full per-commit detail remains in the beta entries below; this section is the operator-facing summary for GitHub Release **v3.10.4**.

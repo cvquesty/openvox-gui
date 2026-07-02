@@ -63,10 +63,17 @@ class PuppetDBService:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
+            # Keep a modest connection pool warm so multi-chart pages that
+            # fan out to PuppetDB reuse TLS sessions instead of re-handshaking.
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
                 verify=self._create_ssl_context(),
-                timeout=30.0,
+                timeout=httpx.Timeout(30.0, connect=5.0),
+                limits=httpx.Limits(
+                    max_connections=40,
+                    max_keepalive_connections=20,
+                    keepalive_expiry=30.0,
+                ),
             )
         return self._client
 

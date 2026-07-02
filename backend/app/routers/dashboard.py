@@ -7,6 +7,7 @@ twice (once for nodes, once for recent reports) and computes every
 dashboard metric from those two result sets.
 """
 import asyncio
+import logging
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
@@ -17,11 +18,70 @@ from ..models.schemas import DashboardStats, NodeStatusCount, NodeSummary
 from ..database import async_session
 from ..models.session import ActiveSession
 from ..services.fleet_insights import compute_status_counts, compute_trends
+from ..utils.ttl_cache import get_or_set as cache_get_or_set
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
+# Dashboard /data pulls live nodes + up to 20k reports and is hit on every
+# Dashboard auto-refresh. 20s TTL keeps the UI "live" while collapsing
+# multi-tab / multi-user storms into one PuppetDB round-trip per worker.
+_DASHBOARD_DATA_TTL = 20.0
+
 
 # ─── Helpers (operate on already-fetched data, no PuppetDB calls) ────
+
+
+async def _build_dashboard_data() -> Dict[str, Any]:
+    """Fetch and assemble dashboard payload (uncached)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime(
+        "%Y-%m-%dT%H:%M:%S.000Z"
+    )
+    raw_nodes, reports = await asyncio.gather(
+        puppetdb_service.get_live_nodes(),  # active PDB ∩ signed CA (SSoT w/ Inventory / ENC)
+        puppetdb_service._query(
+            "reports",
+            query=f'[">" , "receive_time", "{cutoff}"]',
+            params={
+                "limit": "20000",
+                "order_by": '[{"field": "receive_time", "order": "asc"}]',
+            },
+        ),
+    )
+
+    status_counts = compute_status_counts(raw_nodes)
+    trends = compute_trends(raw_nodes, reports)
+
+    # Derive environments from the node data we already have
+    envs = sorted(
+        {n.get("report_environment", "") for n in raw_nodes if n.get("report_environment")}
+    )
+
+    # Explicit dedup of the nodes list we emit (get_nodes() already dedups,
+    # but presentation layers and any direct consumers must see unique hosts).
+    seen: set[str] = set()
+    deduped_nodes = []
+    for n in raw_nodes:
+        k = n.get("certname", "").strip().lower()
+        if k and k not in seen:
+            seen.add(k)
+            deduped_nodes.append(n)
+
+    # model_dump so the TTL cache stores plain JSON-friendly dicts
+    nodes_out = []
+    for n in deduped_nodes:
+        summary = NodeSummary(**n)
+        nodes_out.append(
+            summary.model_dump() if hasattr(summary, "model_dump") else summary.dict()
+        )
+
+    return {
+        "nodes": nodes_out,
+        "node_status": status_counts,
+        "node_trends": trends,
+        "environments": envs,
+    }
 
 
 # ─── Unified endpoint — single source of truth ──────────────
@@ -34,46 +94,18 @@ async def get_dashboard_data():
     last 48 hours of reports — then derives every dashboard metric from
     those two result sets.  The frontend never needs to query PuppetDB
     through a second endpoint for the same data.
+
+    Responses are cached briefly (see ``_DASHBOARD_DATA_TTL``) with
+    single-flight locking so concurrent polls share one upstream query.
     """
     try:
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime(
-            "%Y-%m-%dT%H:%M:%S.000Z"
+        return await cache_get_or_set(
+            "dashboard:data:v1",
+            _DASHBOARD_DATA_TTL,
+            _build_dashboard_data,
         )
-        raw_nodes, reports = await asyncio.gather(
-            puppetdb_service.get_live_nodes(),  # active PDB ∩ signed CA (SSoT w/ Inventory / ENC)
-            puppetdb_service._query(
-                "reports",
-                query=f'[">" , "receive_time", "{cutoff}"]',
-                params={
-                    "limit": "20000",
-                    "order_by": '[{"field": "receive_time", "order": "asc"}]'
-                }
-            ),
-        )
-
-        status_counts = compute_status_counts(raw_nodes)
-        trends = compute_trends(raw_nodes, reports)
-
-        # Derive environments from the node data we already have
-        envs = sorted({n.get("report_environment", "") for n in raw_nodes if n.get("report_environment")})
-
-        # Explicit dedup of the nodes list we emit (get_nodes() already dedups,
-        # but presentation layers and any direct consumers must see unique hosts).
-        seen: set[str] = set()
-        deduped_nodes = []
-        for n in raw_nodes:
-            k = n.get("certname", "").strip().lower()
-            if k and k not in seen:
-                seen.add(k)
-                deduped_nodes.append(n)
-
-        return {
-            "nodes": [NodeSummary(**n) for n in deduped_nodes],
-            "node_status": status_counts,
-            "node_trends": trends,
-            "environments": envs,
-        }
     except Exception as e:
+        logger.exception("dashboard /data failed")
         raise HTTPException(status_code=500, detail=f"Error fetching dashboard data: {str(e)}")
 
 

@@ -38,5 +38,30 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Split heavy vendor libraries so navigations re-use cached chunks and
+    // first paint of non-chart pages does not parse Recharts up front.
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('recharts') || id.includes('d3-') || id.includes('victory-vendor')) {
+            return 'charts';
+          }
+          if (id.includes('@xyflow') || id.includes('dagre')) {
+            return 'flow';
+          }
+          if (id.includes('@mantine')) {
+            return 'mantine';
+          }
+          if (id.includes('@tabler/icons-react')) {
+            return 'icons';
+          }
+          if (id.includes('react-dom') || id.includes('react-router') || id.includes('/react/')) {
+            return 'react-vendor';
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 900,
   },
 });

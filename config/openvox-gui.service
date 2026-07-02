@@ -11,6 +11,15 @@
 # after PuppetServer and PuppetDB, because the GUI depends on
 # both of those services being available for API queries.
 #
+# Performance notes:
+#   - --workers N: process workers (install default 2; raise for multi-core
+#     fleets — see docs/PERFORMANCE.md). update_local.sh can rewrite the
+#     count from UVICORN_WORKERS / OPENVOX_GUI_UVICORN_WORKERS.
+#   - --limit-concurrency: caps concurrent requests per process so one
+#     burst cannot exhaust the event loop.
+#   - --timeout-keep-alive: recycle idle keep-alives promptly.
+#   - LimitNOFILE / TasksMax: headroom for TLS, PuppetDB, and child procs.
+#
 # Security hardening notes:
 #   - ProtectSystem=true makes /usr and /boot read-only, protecting
 #     OS binaries while allowing the service to manage /etc, /var,
@@ -36,15 +45,27 @@ EnvironmentFile=INSTALL_DIR/config/.env
 # SSL disabled (default):
 # Use --host :: for dual-stack IPv4+IPv6 (works on most systems even if only IPv4 is present).
 # Use --host 0.0.0.0 for IPv4-only, or 127.0.0.1 / ::1 for localhost-only.
-ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host :: --port 4567
+# Worker count default 2; install/update scripts may raise this for larger hosts.
+ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host :: --port 4567 --workers 2 --limit-concurrency 100 --timeout-keep-alive 5 --backlog 2048
 # SSL enabled (set OPENVOX_GUI_SSL_ENABLED=true in .env and configure cert paths):
-# ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host :: --port 4567 --ssl-certfile /etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem --ssl-keyfile /etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem
+# ExecStart=INSTALL_DIR/venv/bin/uvicorn app.main:app --host :: --port 4567 --workers 2 --limit-concurrency 100 --timeout-keep-alive 5 --backlog 2048 --ssl-certfile /etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem --ssl-keyfile /etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
+TimeoutStopSec=30
+KillMode=mixed
 
-# Security hardening — ProtectSystem=true makes /usr and /boot
-# read-only (protecting OS binaries) while leaving /etc, /var, /opt
+# Resource headroom — the GUI fans out to PuppetDB, Puppet Server metrics,
+# journalctl, and Bolt. Defaults are intentionally generous on a co-located
+# control plane; override with a drop-in if co-tenancy requires harder caps.
+LimitNOFILE=65536
+TasksMax=512
+# Uncomment on dedicated control-plane hosts with spare RAM if the OOM killer
+# prefers other services first:
+# OOMScoreAdjust=-200
+
+# Security hardening — ProtectSystem=true makes /usr and /boot read-only
+# (protecting OS binaries) while leaving /etc, /var, /opt
 # writable. This is the right balance for a service that orchestrates
 # Puppet agent, Bolt, and r10k — tools that need broad filesystem
 # access to manage the system. The puppet user's Unix permissions and

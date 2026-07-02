@@ -140,8 +140,9 @@ export function MetricsCompliancePage({
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (loading) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
-  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+  // Keep prior charts mounted while a new window/filter loads (avoids full unmount flash)
+  if (loading && !data) return <Center h={embedded ? 200 : 400}><Loader size={embedded ? 'md' : 'xl'} /></Center>;
+  if (error && !data) return <Alert color="red" title="Error">{error}</Alert>;
   if (!data) return null;
 
   const donutData = [
@@ -240,7 +241,7 @@ export function MetricsCompliancePage({
                   itemStyle={{ color: '#e0e0e0' }}
                   formatter={(value: number) => [`${value} nodes`, 'Count']}
                 />
-                <Bar dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
+                <Bar isAnimationActive={false} animationDuration={0} dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
                   {donutData.filter(d => d.value > 0).map((entry, idx) => (
                     <Cell key={idx} fill={entry.color} />
                   ))}
@@ -270,9 +271,9 @@ export function MetricsCompliancePage({
                 <YAxis allowDecimals={false} />
                 <ReTooltip contentStyle={{ backgroundColor: "rgba(20,20,33,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.3)", padding: "10px 14px", fontSize: 12, color: "#e0e0e0" }} labelStyle={{ fontWeight: 600, color: "#fff", marginBottom: 4 }} />
                 <Legend />
-                <Area type="monotone" dataKey="compliant" stroke={STATUS_COLORS.compliant} fill={STATUS_COLORS.compliant} fillOpacity={0.4} strokeWidth={2} name="Compliant" />
-                <Area type="monotone" dataKey="drifted" stroke={STATUS_COLORS.drifted} fill={STATUS_COLORS.drifted} fillOpacity={0.4} strokeWidth={2} name="Drifted" />
-                <Area type="monotone" dataKey="failed" stroke={STATUS_COLORS.failed} fill={STATUS_COLORS.failed} fillOpacity={0.4} strokeWidth={2} name="Failed" />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="compliant" stroke={STATUS_COLORS.compliant} fill={STATUS_COLORS.compliant} fillOpacity={0.4} strokeWidth={2} name="Compliant" />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="drifted" stroke={STATUS_COLORS.drifted} fill={STATUS_COLORS.drifted} fillOpacity={0.4} strokeWidth={2} name="Drifted" />
+                <Area isAnimationActive={false} animationDuration={0} type="monotone" dataKey="failed" stroke={STATUS_COLORS.failed} fill={STATUS_COLORS.failed} fillOpacity={0.4} strokeWidth={2} name="Failed" />
               </AreaChart>
             </ResponsiveContainer>
           </Card>

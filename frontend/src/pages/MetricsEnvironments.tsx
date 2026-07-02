@@ -176,9 +176,9 @@ export function MetricsEnvironmentsPage() {
               <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
               <ReTooltip {...TOOLTIP_STYLE} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              <Area type="natural" dataKey={`${envName}_unchanged`} stroke={STATUS_COLORS.unchanged} fill="none" strokeWidth={2} dot={false} connectNulls name="Unchanged" />
-              <Area type="natural" dataKey={`${envName}_changed`} stroke={STATUS_COLORS.changed} fill="none" strokeWidth={2} dot={false} connectNulls name="Changed" />
-              <Area type="natural" dataKey={`${envName}_failed`} stroke={STATUS_COLORS.failed} fill="none" strokeWidth={2} dot={false} connectNulls name="Failed" />
+              <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey={`${envName}_unchanged`} stroke={STATUS_COLORS.unchanged} fill="none" strokeWidth={2} dot={false} connectNulls name="Unchanged" />
+              <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey={`${envName}_changed`} stroke={STATUS_COLORS.changed} fill="none" strokeWidth={2} dot={false} connectNulls name="Changed" />
+              <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey={`${envName}_failed`} stroke={STATUS_COLORS.failed} fill="none" strokeWidth={2} dot={false} connectNulls name="Failed" />
             </AreaChart>
           </ResponsiveContainer>
           {history.length < 3 && (

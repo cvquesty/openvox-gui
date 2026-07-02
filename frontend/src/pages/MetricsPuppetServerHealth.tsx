@@ -141,7 +141,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [refreshRate, setRefreshRate] = useState<string>('10');
+  const [refreshRate, setRefreshRate] = useState<string>('30');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -330,7 +330,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Area type="natural" dataKey="used" stroke="#0D6EFD" fill="url(#gPsHeap)" strokeWidth={2} dot={false} name="Used" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="used" stroke="#0D6EFD" fill="url(#gPsHeap)" strokeWidth={2} dot={false} name="Used" />
         </AreaChart>
       ),
     },
@@ -347,7 +347,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
-          <Area type="natural" dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap used" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap used" />
         </AreaChart>
       ),
     },
@@ -361,7 +361,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="compile" stroke="#e67e22" strokeWidth={2} dot={false} name="Catalog mean (ms)" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="compile" stroke="#e67e22" strokeWidth={2} dot={false} name="Catalog mean (ms)" />
         </LineChart>
       ),
     },
@@ -375,7 +375,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="mean" stroke="#27ae60" strokeWidth={2} dot={false} name="Report mean (ms)" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#27ae60" strokeWidth={2} dot={false} name="Report mean (ms)" />
         </LineChart>
       ),
     },
@@ -389,7 +389,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="mean" stroke="#3498db" fillOpacity={0.3} strokeWidth={2} dot={false} name="File mean (ms)" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#3498db" fillOpacity={0.3} strokeWidth={2} dot={false} name="File mean (ms)" />
         </AreaChart>
       ),
     },
@@ -403,7 +403,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="active" stroke="#9b59b6" fillOpacity={0.3} strokeWidth={2} dot={false} name="Total mean (ms)" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="active" stroke="#9b59b6" fillOpacity={0.3} strokeWidth={2} dot={false} name="Total mean (ms)" />
         </AreaChart>
       ),
     },
@@ -417,7 +417,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="time_ms" stroke="#e74c3c" strokeWidth={2} dot={false} name="Young GC ms" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="time_ms" stroke="#e74c3c" strokeWidth={2} dot={false} name="Young GC ms" />
         </LineChart>
       ),
     },
@@ -431,7 +431,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="time_ms" stroke="#c0392b" strokeWidth={2} dot={false} name="Old GC ms" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="time_ms" stroke="#c0392b" strokeWidth={2} dot={false} name="Old GC ms" />
         </LineChart>
       ),
     },
@@ -445,7 +445,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" %" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="load" stroke="#f39c12" fillOpacity={0.25} strokeWidth={2} dot={false} name="CPU %" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="load" stroke="#f39c12" fillOpacity={0.25} strokeWidth={2} dot={false} name="CPU %" />
         </AreaChart>
       ),
     },
@@ -459,7 +459,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="fds" stroke="#16a085" strokeWidth={2} dot={false} name="Open FDs" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="fds" stroke="#16a085" strokeWidth={2} dot={false} name="Open FDs" />
         </LineChart>
       ),
     },

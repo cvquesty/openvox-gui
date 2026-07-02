@@ -2,6 +2,8 @@
 
 This document explains how to monitor and safely tune your OpenVox Server and OpenVoxDB using the `ovox infra` command-line tools.
 
+> **GUI application performance** (uvicorn workers, dashboard cache, chart rendering): see **[PERFORMANCE.md](PERFORMANCE.md)**.
+
 ## Why Tuning Matters
 
 A default OpenVox installation works for small environments, but as your fleet grows you will eventually hit limits in:

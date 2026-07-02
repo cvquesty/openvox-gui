@@ -113,7 +113,7 @@ export function MetricsClassCoveragePage() {
                   props.payload.fullName,
                 ]}
               />
-              <Area type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={{ r: 3, fill: '#0D6EFD' }} name="Nodes" />
+              <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={{ r: 3, fill: '#0D6EFD' }} name="Nodes" />
             </AreaChart>
           </ResponsiveContainer>
         ) : (

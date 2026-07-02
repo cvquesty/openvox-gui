@@ -386,11 +386,11 @@ export function DashboardPage() {
                     }
                   }}
                 />
-                <Area type="natural" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes')} />
-                <Area type="natural" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=unchanged')} />
-                <Area type="natural" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=changed')} />
-                <Area type="natural" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=failed')} />
-                <Area type="natural" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=noop')} />
+                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="unreported" stroke="#95a5a6" fill="#95a5a6" fillOpacity={0.1} strokeWidth={1} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes')} />
+                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="unchanged" stroke="#2ecc71" fill="url(#gUnchanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=unchanged')} />
+                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="changed" stroke="#f39c12" fill="url(#gChanged)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=changed')} />
+                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="failed" stroke="#e74c3c" fill="url(#gFailed)" strokeWidth={2} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=failed')} />
+                <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="noop" stroke="#3498db" fill="url(#gNoop)" strokeWidth={1.5} dot={false} style={{ cursor: 'pointer' }} onClick={() => navigate('/nodes?status=noop')} />
               </AreaChart>
             </ResponsiveContainer>
           </Card>

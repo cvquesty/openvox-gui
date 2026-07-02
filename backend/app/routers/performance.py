@@ -39,7 +39,8 @@ router = APIRouter(prefix="/api/performance", tags=["performance"])
 # page refreshes don't each trigger a fresh query.
 _cache: Dict[str, Any] = {}
 _cache_ts: Dict[str, float] = {}
-_CACHE_TTL = 30  # seconds
+# 45s aligns with default UI poll (30s) so most refreshes hit cache after first fill
+_CACHE_TTL = 45  # seconds
 
 def _get_cached(key: str) -> Any:
     if key in _cache and (time.time() - _cache_ts.get(key, 0)) < _CACHE_TTL:

@@ -3,7 +3,7 @@
  *
  * OpenVoxDB Health Dashboard — JVM heap usage over time as a line chart,
  * service status badge, command queue stats, active node count.
- * Auto-refreshes every 10 seconds, accumulating data points for the graph.
+ * Auto-refreshes every 30 seconds, accumulating data points for the graph.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -165,7 +165,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    intervalRef.current = setInterval(fetchData, 10000);
+    intervalRef.current = setInterval(fetchData, 30000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -203,7 +203,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
           <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
-          <Area type="natural" dataKey="used" stroke="#0D6EFD" fill="url(#gPdbH)" strokeWidth={2} dot={false} name="Heap used" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="used" stroke="#0D6EFD" fill="url(#gPdbH)" strokeWidth={2} dot={false} name="Heap used" />
         </AreaChart>
       ),
     },
@@ -217,7 +217,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap" />
         </AreaChart>
       ),
     },
@@ -231,7 +231,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="depth" stroke="#e67e22" strokeWidth={2} dot={false} name="Queue" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="depth" stroke="#e67e22" strokeWidth={2} dot={false} name="Queue" />
         </LineChart>
       ),
     },
@@ -245,7 +245,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="mean" stroke="#2980b9" strokeWidth={2} dot={false} name="catalog_save" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#2980b9" strokeWidth={2} dot={false} name="catalog_save" />
         </LineChart>
       ),
     },
@@ -259,7 +259,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="mean" stroke="#16a085" strokeWidth={2} dot={false} name="report_process" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#16a085" strokeWidth={2} dot={false} name="report_process" />
         </LineChart>
       ),
     },
@@ -273,7 +273,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="mean" stroke="#e74c3c" fillOpacity={0.25} strokeWidth={2} dot={false} name="replace_catalog" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#e74c3c" fillOpacity={0.25} strokeWidth={2} dot={false} name="replace_catalog" />
         </AreaChart>
       ),
     },
@@ -287,7 +287,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Area type="natural" dataKey="mean" stroke="#c0392b" fillOpacity={0.25} strokeWidth={2} dot={false} name="store_report" />
+          <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#c0392b" fillOpacity={0.25} strokeWidth={2} dot={false} name="store_report" />
         </AreaChart>
       ),
     },
@@ -301,7 +301,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" ms" />
           <ReTooltip {...TOOLTIP_STYLE} />
-          <Line type="natural" dataKey="mean" stroke="#9b59b6" strokeWidth={2} dot={false} name="replace_facts" />
+          <Line isAnimationActive={false} animationDuration={0} type="natural" dataKey="mean" stroke="#9b59b6" strokeWidth={2} dot={false} name="replace_facts" />
         </LineChart>
       ),
     },
@@ -320,7 +320,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
         <Group gap="xs">
           <IconRefresh size={14} style={{ opacity: 0.5 }} />
           <Text size="xs" c="dimmed">
-            Auto-refresh 10s &middot; Updated {lastRefresh.toLocaleTimeString()}
+            Auto-refresh 30s &middot; Updated {lastRefresh.toLocaleTimeString()}
           </Text>
           {error && <Badge color="orange" variant="light" size="sm">Refresh error</Badge>}
           {heapHistory.length > 0 && (

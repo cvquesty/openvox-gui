@@ -16,6 +16,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -209,6 +210,11 @@ async def openvox_domain_error_handler(request: Request, exc: OpenVoxError):
         status_code=getattr(exc, "http_status", 500),
         content={"detail": exc.to_detail(), "code": getattr(exc, "code", "error")},
     )
+
+# Compress large JSON responses (dashboard, metrics, inventory). minimum_size
+# keeps tiny health/auth replies uncompressed. Starlette GZip is safe with
+# reverse proxies (Apache/nginx) that already speak Accept-Encoding.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)

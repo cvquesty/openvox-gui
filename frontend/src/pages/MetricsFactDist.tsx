@@ -76,7 +76,7 @@ function NumericDistribution({ data, height }: { data: Array<{ certname: string;
           {...TOOLTIP_STYLE}
           formatter={(v: number, _n: string, p: any) => [`${v}`, p.payload.certname]}
         />
-        <Area
+        <Area isAnimationActive={false} animationDuration={0}
           type="natural"
           dataKey="value"
           stroke="#0D6EFD"
@@ -116,7 +116,7 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
             formatter={(value: number, _n: string, props: any) => [
               `${value} nodes (${props.payload.pct}%)`, props.payload.fullName
             ]} />
-          <Bar dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
+          <Bar isAnimationActive={false} animationDuration={0} dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
             {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Bar>
         </BarChart>
@@ -134,7 +134,7 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
           formatter={(value: number, _n: string, props: any) => [
             `${value} nodes (${props.payload.pct}%)`, props.payload.fullName
           ]} />
-        <Bar dataKey="count" name="Nodes" radius={[3, 3, 0, 0]}>
+        <Bar isAnimationActive={false} animationDuration={0} dataKey="count" name="Nodes" radius={[3, 3, 0, 0]}>
           {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
         </Bar>
       </BarChart>

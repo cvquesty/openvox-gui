@@ -372,7 +372,31 @@ SERVICE_USER="puppet"
 SERVICE_GROUP="puppet"
 APP_HOST="0.0.0.0"
 APP_PORT_CFG="${APP_PORT}"
+# Worker count: prefer OPENVOX_GUI_UVICORN_WORKERS from .env, then UVICORN_WORKERS
+# env, then a small auto-scale from nproc (cap 8). See docs/PERFORMANCE.md.
 UVICORN_WORKERS="2"
+if [ -f "${INSTALL_DIR}/config/.env" ]; then
+    _UW_LINE=$(grep -E '^OPENVOX_GUI_UVICORN_WORKERS=' "${INSTALL_DIR}/config/.env" 2>/dev/null | tail -1 || true)
+    if [ -n "$_UW_LINE" ]; then
+        UVICORN_WORKERS="${_UW_LINE#*=}"
+    fi
+fi
+if [ -n "${UVICORN_WORKERS_OVERRIDE:-}" ]; then
+    UVICORN_WORKERS="${UVICORN_WORKERS_OVERRIDE}"
+fi
+# Sanitize: positive integer only
+if ! [[ "${UVICORN_WORKERS}" =~ ^[1-9][0-9]*$ ]]; then
+    UVICORN_WORKERS=2
+fi
+# Soft auto-scale when still at default 2 and host has more cores (lab/prod).
+if [ "${UVICORN_WORKERS}" = "2" ] && command -v nproc >/dev/null 2>&1; then
+    _NCPU=$(nproc 2>/dev/null || echo 2)
+    if [ "${_NCPU}" -ge 4 ]; then
+        # leave 1–2 cores for Puppet Server / PDB on co-located hosts
+        UVICORN_WORKERS=$(( _NCPU > 6 ? 4 : 2 ))
+        [ "${_NCPU}" -ge 8 ] && UVICORN_WORKERS=4
+    fi
+fi
 if [ -f /etc/systemd/system/openvox-gui.service ]; then
     UNIT_USER=$(grep "^User=" /etc/systemd/system/openvox-gui.service 2>/dev/null | cut -d= -f2)
     [ -n "$UNIT_USER" ] && SERVICE_USER="$UNIT_USER"
@@ -405,6 +429,14 @@ sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui.service" \
 # Inject/override the bind host (preserves user's IPv4/IPv6/dual choice from previous install)
 sed -i "s/--host [^ ]*/--host ${APP_HOST}/g" /etc/systemd/system/openvox-gui.service
 
+# Inject worker count (template ships with --workers 2)
+if grep -q -- '--workers ' /etc/systemd/system/openvox-gui.service 2>/dev/null; then
+    sed -i "s/--workers [0-9][0-9]*/--workers ${UVICORN_WORKERS}/g" /etc/systemd/system/openvox-gui.service
+else
+    sed -i "s|^ExecStart=\(.*\)$|ExecStart=\1 --workers ${UVICORN_WORKERS}|" /etc/systemd/system/openvox-gui.service
+fi
+log_info "uvicorn workers: ${UVICORN_WORKERS}"
+
 # If SSL is enabled in .env, add SSL flags to ExecStart
 if [ -f "${INSTALL_DIR}/config/.env" ]; then
     SSL_LINE=$(grep "^OPENVOX_GUI_SSL_ENABLED=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
@@ -424,7 +456,7 @@ if [ -f "${INSTALL_DIR}/config/.env" ]; then
 fi
 
 systemctl daemon-reload
-log_ok "Updated systemd service file"
+log_ok "Updated systemd service file (workers=${UVICORN_WORKERS})"
 
 # Update sudoers rules via the centralized manager (Option 1 / issue #36).
 #

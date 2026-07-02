@@ -37,7 +37,8 @@ _AUTH = require_role("admin", "operator", "viewer")
 # ─── Response cache (TTL-based) ──────────────────────────
 _cache: Dict[str, Any] = {}
 _cache_ts: Dict[str, float] = {}
-_CACHE_TTL = 30  # seconds
+# Align with UI default poll (~30s) so refreshes usually hit warm cache
+_CACHE_TTL = 45  # seconds
 
 def _get_cached(key: str) -> Any:
     if key in _cache and (_time.time() - _cache_ts.get(key, 0)) < _CACHE_TTL:
