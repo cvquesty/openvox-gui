@@ -4,15 +4,15 @@
 - **Default branch is `main`** — staging branch has been removed
 - All development and releases go through `main`
 
-### 3.10 line status (as of **3.10.4** stable on `main`)
+### 3.10 line status (as of **3.10.6** stable on `main`)
 
-The 2026-06 evaluation-driven alpha effort (**`3.10.a_r_alpha.N`**, trains `3.10.01`–`3.10.04` / srdev1–sruiux2) was **merged into `main`** and promoted through **3.10.1.b*** / stable **3.10.2**, then the **3.10.3b*** functionality train to stable **`3.10.4`**. Day-to-day development and releases go through **`main`** again.
+The 2026-06 evaluation-driven alpha effort (**`3.10.a_r_alpha.N`**, trains `3.10.01`–`3.10.04` / srdev1–sruiux2) was **merged into `main`** and promoted through **3.10.1.b*** / stable **3.10.2**, the **3.10.3b*** functionality train to stable **`3.10.4`**, then the **3.10.5-dev** performance train to stable **`3.10.6`**. Day-to-day development and releases go through **`main`** again.
 
-- **Current stable baseline:** **3.10.4** (`v3.10.4`). Live fleet membership is **`get_live_nodes()`** (active PuppetDB ∩ signed CA) for Nodes / Inventory / ENC / Dashboard / Node Health.
-- **Prior stables on this line:** **3.10.2** (`v3.10.2`); historical bugfix locals **`3.10.2+bugfix*`** — archaeology only, do **not** invent alternate local labels for new work.
+- **Current stable baseline:** **3.10.6** (`v3.10.6`). Performance: lean Dashboard PDB extract, multi-worker uvicorn, graph-page SWR — see `docs/PERFORMANCE.md`. Live fleet membership remains **`get_live_nodes()`** (active PuppetDB ∩ signed CA) for Nodes / Inventory / ENC / Dashboard / Node Health.
+- **Prior stables on this line:** **3.10.4** (`v3.10.4`), **3.10.2** (`v3.10.2`); historical bugfix locals **`3.10.2+bugfix*`** — archaeology only, do **not** invent alternate local labels for new work.
 - **Historical alpha branch** `3.10.a_r_alpha.6` may still exist on the remote for reference; **prune only when explicitly requested** after lab verification. Do not treat it as the active develop branch unless a new alpha effort is opened.
-- **Train markers (archive / archaeology):** `3.10.01.aN` security, `3.10.02.aN` architecture, `3.10.03.aN` sruiux1, `3.10.04.aN` sruiux2, `3.10.3bN` post-3.10.2 functionality betas — useful when reading old commits/CHANGELOG, not for new work on `main`.
-- **New large spike / risky refactor:** optionally open a **new** alpha branch with the same lab-only rules below; otherwise commit on `main` with SemVer pre-releases (`3.10.5-dev.N` or `3.10.5.bN` style per team preference) via `/commit`.
+- **Train markers (archive / archaeology):** `3.10.01.aN` security, `3.10.02.aN` architecture, `3.10.03.aN` sruiux1, `3.10.04.aN` sruiux2, `3.10.3bN` post-3.10.2 functionality betas, `3.10.5-dev.N` performance — useful when reading old commits/CHANGELOG, not for new work on `main`.
+- **New large spike / risky refactor:** optionally open a **new** alpha branch with the same lab-only rules below; otherwise commit on `main` with SemVer pre-releases (`3.10.7-dev.N` style) via `/commit`.
 
 **Lab / production discipline (still STRICT):**
 - Primary validation deploys: lab **`openvox.questy.org`** (`10.0.100.225`) only unless the user names production bastion workflow.

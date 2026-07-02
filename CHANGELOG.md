@@ -11,6 +11,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.6] - 2026-07-02 (stable — GUI performance: serving, caches, Dashboard & graph SWR)
+
+Stable promotion of the **3.10.5-dev.1–dev.5** performance train on `main`. Full per-commit detail remains in the pre-release entries below; this section is the operator-facing summary for GitHub Release **v3.10.6**.
+
+### Highlights (why this release)
+
+Overview | Dashboard and graph-heavy Insights pages were feeling slow under real fleets (full PuppetDB report pulls, single-worker serving, chart remounts on every poll). **3.10.6** makes first paint and return visits snappier across the board while giving operators explicit knobs for uvicorn workers and a dedicated performance guide.
+
+### Added
+- **`docs/PERFORMANCE.md`** — operator guide for GUI snappiness: uvicorn workers, systemd limits, API TTL caches, chart/poll tips, Dashboard cold-path notes, measurement with `curl`.
+- **`OPENVOX_GUI_UVICORN_WORKERS`** (and update/deploy injection) — multi-worker serving; systemd template defaults include `--workers 2`, `--limit-concurrency 100`, `--timeout-keep-alive 5`, `--backlog 2048`, `LimitNOFILE=65536`, `TasksMax=512`.
+- **Process-local TTL cache** (`backend/app/utils/ttl_cache.py`) with single-flight locking for expensive reads.
+- **`useApi` session cache** — optional `cacheKey` / `cacheValidate` + default keep-previous-data; **`sessionCache` utility** for versioned keys.
+- **Vite manual chunks** — charts / mantine / react-vendor / icons / flow for better long-term browser caching.
+
+### Fixed / improved — API & serving
+- **Dashboard `/api/dashboard/data`**: lean PuppetDB **`extract`** of `certname, status, noop, receive_time` for the 48h trend stream (was full report documents — primary multi-second cold-path cost); ~20s TTL + single-flight; falls back to full reports only if extract fails on very old PuppetDB.
+- **Metrics + performance API caches**: TTL ~45s (aligned with 30s UI poll defaults).
+- **GZip middleware** for large JSON responses; **PuppetDB httpx** connection pool / keepalive tuned.
+- **`deploy.sh` / remote update** rewrites `openvox-gui.service` from the repo template on every deploy (workers, SSL flags, resource limits) — no more stale lab dual-uvicorn launcher left behind.
+
+### Fixed / improved — UI (Dashboard + all graph-heavy pages)
+- **Overview | Dashboard**: SWR + session snapshot; no full-page blank on auto-refresh (“Refreshing…” badge); cheaper trends chart (`monotone`, height 320); deferred casual mascot so ring/trends paint first; restored Mantine **`Center`** import (RingProgress crash in 3.10.5-dev.3).
+- **Shared graph SWR** applied to: Compliance, Run Performance, Fact Distribution, Class Coverage, Heatmap, Classification Tree, Timeline, Node Health, Environments, OpenVox Server Health, OpenVoxDB Health (plus Dashboard). Return visits in the same tab paint instantly; auto-refresh does not unmount charts.
+- **Recharts**: animations disabled on operational chart pages; default polls **30s**; monitoring background collector **30s** (120s when tab hidden), history cap 480; series downsampled before chart bind where applicable.
+
+### Upgrade notes
+- After upgrade, confirm serving: `systemctl cat openvox-gui | grep -E 'ExecStart|LimitNOFILE|TasksMax'` — expect `--workers N`. Override with `OPENVOX_GUI_UVICORN_WORKERS` in `config/.env` (e.g. `4` on multi-core co-located hosts; leave headroom for Puppet Server / PuppetDB).
+- **Hard-refresh browsers once** (or clear site data) to pick up new frontend chunks and SWR cache keys.
+- Lab dual-stack custom launchers are replaced by the standard unit on update — prefer `--host ::` (or `OPENVOX_GUI_APP_HOST`) for dual-stack.
+- Performance tuning details: [docs/PERFORMANCE.md](docs/PERFORMANCE.md). Lab vs production: validate on lab first; production still uses bastion workflow.
+
+### Pre-release train (archaeology)
+`3.10.5-dev.1` … `3.10.5-dev.5` — see entries below for the incremental history.
+
 ## [3.10.5-dev.5] - 2026-07-02 (dev — SWR + session cache on all graph pages)
 
 ### Improved

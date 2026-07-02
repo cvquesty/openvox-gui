@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.10.5-dev.5**
+**OpenVox GUI Version 3.10.6**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -191,7 +191,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.10.5-dev.5"}
+# {"status":"ok","version":"3.10.6"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:
@@ -609,8 +609,8 @@ If you're stuck:
 
 OpenVox GUI uses **Semantic Versioning (SemVer 2.0.0)** plus optional **pre-releases**:
 
-- **Stable:** `MAJOR.MINOR.PATCH` (example: **3.10.4** — current stable on `main`)
-- **Pre-release / beta trains:** e.g. `3.10.3b14`, `3.10.1.b2`, `3.9.0-dev.42`, historical alpha labels such as `3.10.04.a8` on feature branches
+- **Stable:** `MAJOR.MINOR.PATCH` (example: **3.10.6** — current stable on `main`)
+- **Pre-release / beta trains:** e.g. `3.10.6`, `3.10.3b14`, `3.9.0-dev.42`, historical alpha labels such as `3.10.04.a8` on feature branches
 - **ovox CLI** version always matches the GUI (root `VERSION` file) as of 3.7.3
 
 Rules of thumb:
@@ -621,6 +621,7 @@ Rules of thumb:
 - Prefer the latest **stable** GitHub Release for production; use betas only on lab/test unless you mean to
 
 Examples:
+- `3.10.4` → `3.10.6`: GUI performance (Dashboard lean PDB extract, multi-worker uvicorn, graph-page SWR)
 - `3.10.2` → `3.10.4`: Live fleet consistency + 3.10.3 beta train (Log Viewer, ENC, Inventory, export, Executive Summary)
 - `3.10.3b14` → `3.10.4`: Beta train promoted to stable (same code family)
 - `3.9.7` → `3.10.2`: Feature line promotion (Insights NOC, ops UI, Orchestration #38)
@@ -628,23 +629,28 @@ Examples:
 
 ### Recent Versions
 
-**Version 3.10.4 (Current stable — July 2026)**
+**Version 3.10.6 (Current stable — July 2026)**
+- Promotes **3.10.5-dev.1–dev.5** on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.6))
+- **Performance:** Dashboard lean PuppetDB trend extract; multi-worker uvicorn (`OPENVOX_GUI_UVICORN_WORKERS`); API TTL caches; GZip; graph-page session SWR — see [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
+- After upgrade: hard-refresh browsers once; confirm `systemctl cat openvox-gui` shows `--workers N`
+- **Default git branch remains `main`** (no `staging` branch)
+
+**Version 3.10.4 (stable — July 2026, superseded by 3.10.6 for new installs)**
 - Promotes **3.10.3b1–b14** on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.4))
 - **Live fleet** = active PuppetDB ∩ signed CA (`get_live_nodes`) for Nodes, Inventory, ENC, Dashboard, Node Health; ENC prunes SQLite ghosts
 - **Nodes All Nodes export** (CSV / JSON / text, column picker, respects filters)
 - **Log Viewer Agent** journal-first + identifier / host-journal fallbacks; sudoers `-t` rules
 - **Purge / Bolt config / Executive Summary** reliability fixes (see CHANGELOG)
 - After upgrade: open **Classification (ENC)** once so reconciliation runs; review sudoers backup if you used local overrides
-- **Default git branch remains `main`** (no `staging` branch)
 
-**Version 3.10.2 (stable — June 2026, superseded by 3.10.4 for new installs)**
+**Version 3.10.2 (stable — June 2026, superseded by 3.10.6 for new installs)**
 - Promotes the 3.10 line on **`main`** after the `3.10.a_r_alpha.6` merge and **3.10.1.b1** / **3.10.1.b2** betas ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.2))
 - **Monitoring NOC** multi-graph wallboard with shared UTC timeline; live JMX series timestamp fix
 - **Ops UI** — OpsTable, FilterBar, Insights hub (`/insights`, `/insights/all`)
 - **Orchestration:** one Bolt run per click (fixes triple execution — GitHub [#38](https://github.com/cvquesty/openvox-gui/issues/38))
 
-**Version 3.10.1.b2 (beta, superseded by 3.10.2 / 3.10.4)**
-- Orchestration single-run fix only (#38); prefer upgrading to **3.10.4**
+**Version 3.10.1.b2 (beta, superseded by 3.10.2 / 3.10.4 / 3.10.6)**
+- Orchestration single-run fix only (#38); prefer upgrading to **3.10.6**
 
 **Version 3.7.0**
 - **Metrics / Insights section** — visualization pages: Run Performance (JMX), Fleet Compliance,

@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.10.4-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.10.6-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -90,7 +90,8 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - **[Security Policy](SECURITY.md)** — Supported versions and how to report vulnerabilities
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to the project
 - **[Contributors](CONTRIBUTORS.md)** — People who helped build this project
-- **[Release announcements](docs/releases/)** — Press kits for stable GitHub Releases (e.g. [3.10.4](docs/releases/press_3.10.4.md))
+- **[Performance tuning](docs/PERFORMANCE.md)** — uvicorn workers, API caches, Dashboard / graph-page snappiness
+- **[Release announcements](docs/releases/)** — Press kits for stable GitHub Releases (e.g. [3.10.6](docs/releases/press_3.10.6.md))
 
 ## ✨ Main Features
 
@@ -306,27 +307,29 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py r
 sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py list
 ```
 
-## What's New in Version 3.10.4 (current stable)
+## What's New in Version 3.10.6 (current stable)
 
-**3.10.4** is the current stable release on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.4)). It promotes the **3.10.3b1–b14** functionality train: consistent **live fleet** membership, Log Viewer / ENC / Inventory fixes, Nodes export, Executive Summary reliability, and related operator polish.
+**3.10.6** is the current stable release on **`main`** ([GitHub Release](https://github.com/cvquesty/openvox-gui/releases/tag/v3.10.6)). It promotes the **3.10.5-dev** performance train: snappier Overview | Dashboard and graph-heavy Insights pages, multi-worker uvicorn defaults, API TTL caches, and shared stale-while-revalidate UI. Full operator guide: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**.
 
 ### Headline for operators
-- **Live fleet everywhere that matters** — Overview | Nodes, Dashboard, Insights | Inventory, Node Health, and ENC Unclassified / reconciliation all use **`get_live_nodes()`**: **active PuppetDB ∩ signed CA**. After `puppetserver ca clean` or PDB deactivate/expire, hosts drop from those lists (and stale ENC SQLite rows are pruned). The **Certificates** page remains the CA-authoritative view.
-- **Nodes export** — All Nodes on Overview | Nodes has the same ExportActions as Inventory (CSV / JSON / text, column picker) over the **filtered** result set.
-- **Log Viewer — OpenVox Agent** — journal-first collection with unit / identifier / host-journal fallbacks; stack-aware labels (OpenVox vs Puppet OSS); clearer behavior when `log_level=err` and tight **Since** filters would otherwise show an empty pane.
-- **Purge, Bolt config, Executive Summary** — complete node purge + sudoers; reliable Bolt project/inventory load under `/etc/puppetlabs/bolt/`; fleet health report script deployed; Send uses in-process live snapshot (no lab sample fallback).
-- **Still in 3.10.4 from 3.10.2** — Monitoring NOC, OpsTable / FilterBar, Orchestration single Bolt run per click ([#38](https://github.com/cvquesty/openvox-gui/issues/38)), and the broader 3.10 platform work — see [CHANGELOG.md](CHANGELOG.md).
+- **Dashboard first paint** — lean PuppetDB report **`extract`** for 48h status trends (not full report documents); ~20s server TTL; session snapshot + keep-previous-data so return visits and auto-refresh do not blank the page.
+- **All graph-heavy Insights pages** — same SWR + sessionStorage pattern (Compliance, Run Performance, Fact Dist, Class Coverage, Heatmap, Classification, Timeline, Node Health, Environments, Server/DB Health; Monitoring wallboard embeds inherit it).
+- **Serving headroom** — systemd **`--workers 2`** by default (set `OPENVOX_GUI_UVICORN_WORKERS` in `.env`), concurrency / backlog limits, `LimitNOFILE=65536`; **deploy rewrites the unit** every time so remote updates actually apply workers.
+- **Charts & polls** — Recharts animations off on operational graphs; 30s default polls; Vite vendor chunks for lighter navigations.
+- **Still in 3.10.6 from 3.10.4 / 3.10.2** — live fleet (`get_live_nodes`), Nodes export, Log Viewer / ENC / Executive Summary fixes, Monitoring NOC, Orchestration single Bolt run per click ([#38](https://github.com/cvquesty/openvox-gui/issues/38)) — see [CHANGELOG.md](CHANGELOG.md).
 
 ### How we version (quick mental model)
-- **Stable:** `MAJOR.MINOR.PATCH` (this release: **3.10.4**).
-- **Dev / beta trains:** pre-releases such as `3.10.3b14`, `3.10.1.b1`, `3.9.0-dev.N`, or historical alpha labels like `3.10.04.a8` on feature branches. The **`ovox` CLI** stays in **lockstep** with the GUI via the root `VERSION` file (`scripts/bump-version.sh`).
+- **Stable:** `MAJOR.MINOR.PATCH` (this release: **3.10.6**).
+- **Dev / beta trains:** pre-releases such as `3.10.5-dev.N`, `3.10.3b14`, or historical alpha labels on feature branches. The **`ovox` CLI** stays in **lockstep** with the GUI via the root `VERSION` file (`scripts/bump-version.sh`).
 - **Default branch:** **`main`** only (the old `staging` branch is gone).
 - GitHub **Releases** are deliberate for shippable stables; pre-release tags may exist for lab testing.
 
 > **Metrics note (unchanged since 3.7):** Full Run Performance / Server Health / PuppetDB Health still need OpenVox Server config — see **[docs/METRICS.md](docs/METRICS.md)**. Without it many Insights charts stay empty or thin.
 
 ### Earlier 3.x highlights (still in the product)
-Everything below shipped in prior minors and remains part of **3.10.4** — see CHANGELOG for the full timeline.
+Everything below shipped in prior minors and remains part of **3.10.6** — see CHANGELOG for the full timeline.
+
+**3.10.4** — Live fleet (active PDB ∩ signed CA), Nodes export, Log Viewer / ENC / Executive Summary polish.
 
 **3.10.2** — Monitoring NOC wallboard, Ops UI consistency, Orchestration single-run fix (#38), 3.10 alpha promotion to stable.
 

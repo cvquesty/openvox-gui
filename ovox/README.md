@@ -29,8 +29,8 @@ ovox --help
 
 The project follows **Semantic Versioning (SemVer 2.0.0) + pre-releases** (canonized across AGENTS.md, skills, scripts, and docs).
 
-- Stable releases: clean `MAJOR.MINOR.PATCH` (e.g. **3.10.2**). These are intentional and high-signal ("only when necessary").
-- Development trains: pre-release identifiers on the upcoming stable, e.g. `3.10.3-dev.1`, `3.10.1.b2`, `3.9.0-dev.42`, or `3.9.0-rc.N`.
+- Stable releases: clean `MAJOR.MINOR.PATCH` (e.g. **3.10.6**). These are intentional and high-signal ("only when necessary").
+- Development trains: pre-release identifiers on the upcoming stable, e.g. `3.10.7-dev.1`, `3.10.5-dev.5`, `3.9.0-dev.42`, or `3.9.0-rc.N`.
   - Daily workflow = ordinary git pushes. The `/commit` skill handles pre-release version bumps, CHANGELOG, conventional commits, annotated tags (for "tryable but unreleased" versions), and deploys.
 - Promotion to stable: Use the `/release` skill (or an explicit maintainers promote) when a pre-release train is ready for users. It promotes to clean stable SemVer, creates the stable tag, pushes it, and prepares the manual GitHub Release.
 - GitHub Releases: separate, manual, only for shippable stable versions (on schedule). Never automatic from /commit alone.
@@ -41,7 +41,7 @@ As of OpenVox GUI 3.7.3, the `ovox` CLI is versioned in lockstep with the main p
 - `ovox/ovox/__init__.py` (`__version__`)
 - `ovox/pyproject.toml` (the Python package version)
 
-This means that when the GUI is released as (for example) **3.10.2**, the shipped `ovox` CLI carries exactly the same version string (`ovox --version` should match the GUI footer / `/api/health`).
+This means that when the GUI is released as (for example) **3.10.6**, the shipped `ovox` CLI carries exactly the same version string (`ovox --version` should match the GUI footer / `/api/health`).
 
 At runtime the CLI prefers (in order):
 1. `OPENVOX_CLI_VERSION` or `OPENVOX_VERSION` environment variable
