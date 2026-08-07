@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.8-dev.6] - 2026-08-07 (dev — Host Health serving estate)
+
+### Added
+- **Insights | Host Health** (`/insights/host-health`): OS metrics for the **OpenVox serving estate only** (GUI host; optional remotes via env). Agent fleet not collected.
+  - `/proc` always; **sysstat** (`sar`, `pidstat`) when installed on the GUI host
+  - Optional remotes: `OPENVOX_GUI_HOST_HEALTH_TARGETS` / `OPENVOX_GUI_HOST_HEALTH_ROLES` in `.env` + Bolt
+  - Background collector + history under `data/host_metrics/`
+  - API: `GET /api/insights/host-health`, `GET .../targets`, `POST .../collect`
+  - Docs: [docs/HOST_HEALTH.md](docs/HOST_HEALTH.md)
+- Backport of the 3.11.0-alpha.7 feature set for production/lab **3.10.x** pins (no Cluster UI dependency).
+
 ## [3.10.8-dev.5] - 2026-07-30 (dev — certops role + server cert protection)
 
 ### Added

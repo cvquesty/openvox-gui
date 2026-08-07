@@ -173,6 +173,12 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning(f"Failed to start PS health background collector: {exc}")
 
+    # Serving-estate host metrics (/proc + sysstat/pidstat; agents excluded)
+    try:
+        await metrics_router.start_host_metrics_collector()
+    except Exception as exc:
+        logger.warning(f"Failed to start host metrics background collector: {exc}")
+
     # --- Maintenance Mode Stale State Handling (post-3.7 maintenance feature) ---
     # The maintenance flag (maintenance.json + .flag) is intentionally persistent
     # so deploy scripts can keep the GUI "down" during updates. However, this
@@ -208,6 +214,10 @@ async def lifespan(app: FastAPI):
     await puppetdb_service.close()
     try:
         await metrics_router.stop_ps_health_collector()
+    except Exception:
+        pass
+    try:
+        await metrics_router.stop_host_metrics_collector()
     except Exception:
         pass
 

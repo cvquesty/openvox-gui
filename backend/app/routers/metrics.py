@@ -1137,3 +1137,68 @@ async def check_agent_disabled_live(
     except Exception as e:
         logger.warning(f"node-health live check error: {e}")
         raise HTTPException(status_code=502, detail=f"Live check failed: {str(e)}")
+
+
+# ─── Host Health (serving estate: sysstat / pidstat /proc) ───
+# Scope: OpenVox control plane only (GUI host + optional env targets).
+# Agent fleet collection is not implemented.
+
+
+@router.get("/host-health")
+async def get_host_health(
+    refresh: bool = Query(True, description="Collect a fresh sample"),
+    include_remote: bool = Query(
+        True,
+        description="Include Bolt collection for remote serving-estate hosts",
+    ),
+    _user: str = Depends(_AUTH),
+):
+    """
+    OS-level host metrics for the OpenVox **serving estate** only.
+
+    Uses /proc always; richer samples when ``sysstat`` (sar, pidstat) is
+    installed on the GUI host. Optional remote hosts via
+    ``OPENVOX_GUI_HOST_HEALTH_TARGETS`` + Bolt. Does **not** collect from agents.
+    """
+    from ..services import host_metrics as hm
+
+    return await hm.get_host_health(refresh=refresh, include_remote=include_remote)
+
+
+@router.get("/host-health/targets")
+async def get_host_health_targets(_user: str = Depends(_AUTH)):
+    """List serving-estate hosts that Host Health will attempt to cover."""
+    from ..services import host_metrics as hm
+
+    return {
+        "scope": "serving_estate",
+        "targets": hm.serving_estate_targets(),
+        "note": (
+            "Agent certnames are not included. "
+            "Add remotes with OPENVOX_GUI_HOST_HEALTH_TARGETS in .env (3.10)."
+        ),
+    }
+
+
+@router.post("/host-health/collect")
+async def collect_host_health(
+    include_remote: bool = Query(True),
+    _user: str = Depends(require_role("admin", "operator")),
+):
+    """Force a full serving-estate collection (admin/operator)."""
+    from ..services import host_metrics as hm
+
+    return await hm.collect_serving_estate(include_remote=include_remote)
+
+
+async def start_host_metrics_collector():
+    """Started from app lifespan — persistent local (and periodic remote) samples."""
+    from ..services import host_metrics as hm
+
+    await hm.start_host_metrics_collector()
+
+
+async def stop_host_metrics_collector():
+    from ..services import host_metrics as hm
+
+    await hm.stop_host_metrics_collector()

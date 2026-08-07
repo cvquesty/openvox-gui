@@ -107,7 +107,7 @@ See everything at a glance:
 
 ### 📈 Insights & Monitoring *(3.7+ metrics, 3.10 NOC)*
 - **Monitoring** (`/insights`) — NOC-style multi-graph wallboard: fleet, compliance, run performance, OpenVox Server and OpenVoxDB health on a **shared UTC timeline** (configurable window). Live series use a single execution model for timeline alignment.
-- **Insights catalog** (`/insights/all`) — launcher for all metrics pages (compliance, node health, timeline, performance, PuppetDB/Server health, heatmap, classification, class coverage, environments, fact dist, catalog graph, …)
+- **Insights catalog** (`/insights/all`) — launcher for all metrics pages (compliance, node health, **Host Health** (serving estate), timeline, performance, PuppetDB/Server health, heatmap, classification, class coverage, environments, fact dist, catalog graph, …)
 - **Reports**, **Inventory**, **Log Viewer** under Insights for day-2 ops
 - Full server-side JMX charts still need [docs/METRICS.md](docs/METRICS.md) on the OpenVox Server
 

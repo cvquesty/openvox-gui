@@ -19,6 +19,7 @@ import {
   IconChartBar,
   IconLayoutDashboard,
   IconArrowLeft,
+  IconServer2,
 } from '@tabler/icons-react';
 
 const CARDS: { path: string; title: string; description: string; icon: any; color: string }[] = [
@@ -30,6 +31,7 @@ const CARDS: { path: string; title: string; description: string; icon: any; colo
   { path: '/insights/catalog', title: 'Catalog Graph', description: 'Catalog resource relationships', icon: IconTopologyRing, color: 'cyan' },
   { path: '/insights/openvox-server-health', title: 'OpenVox Server Health', description: 'Puppet Server JVM and service metrics', icon: IconServer, color: 'indigo' },
   { path: '/insights/openvoxdb-health', title: 'OpenVoxDB Health', description: 'PuppetDB command and storage health', icon: IconHeartRateMonitor, color: 'pink' },
+  { path: '/insights/host-health', title: 'Host Health', description: 'OS CPU/memory/load/pidstat for serving estate (not agents)', icon: IconServer2, color: 'cyan' },
   { path: '/insights/node-health', title: 'Node Health', description: 'Per-node status and staleness', icon: IconHeartbeat, color: 'red' },
   { path: '/insights/heatmap', title: 'Node Heatmap', description: 'Visual density of node outcomes', icon: IconGridDots, color: 'lime' },
   { path: '/insights/environments', title: 'Environments', description: 'Nodes and activity by environment', icon: IconWorld, color: 'green' },

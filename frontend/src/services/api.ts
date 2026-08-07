@@ -565,6 +565,17 @@ export const metrics = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
+
+  // Host Health — OpenVox serving estate only (sysstat/pidstat//proc; not agents)
+  hostHealth: (refresh: boolean = true, includeRemote: boolean = true) =>
+    fetchJSON<any>(
+      `/insights/host-health?refresh=${refresh ? 'true' : 'false'}&include_remote=${includeRemote ? 'true' : 'false'}`
+    ),
+  hostHealthTargets: () => fetchJSON<any>('/insights/host-health/targets'),
+  hostHealthCollect: (includeRemote: boolean = true) =>
+    fetchJSON<any>(`/insights/host-health/collect?include_remote=${includeRemote ? 'true' : 'false'}`, {
+      method: 'POST',
+    }),
 };
 
 // ─── Log Viewer ─────────────────────────────────────────────
