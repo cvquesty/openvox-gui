@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.10.8-dev.6**
+**OpenVox GUI Version 3.10.8-dev.7**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -127,7 +127,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.10.8-dev.6"}
+   # Should return: {"status":"ok","version":"3.10.8-dev.7"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -228,6 +228,13 @@ To use a real certificate, see the Configuration documentation.
    sudo chmod 755 /opt/openvox-gui
    sudo chmod 600 /opt/openvox-gui/config/.env
    ```
+
+   **`extra_forbidden` / `openvox_gui_puppet_ca_host`:**
+
+   The `.env` has keys this build does not define (you set
+   `OPENVOX_GUI_PUPPET_CA_HOST` before deploying a build that has that
+   setting). Comment those lines out, restart, then upgrade, then
+   uncomment. Builds from 3.10.8-dev.7 ignore unknown keys.
 
    **Python dependency issues:**
 
@@ -481,6 +488,20 @@ To use a real certificate, see the Configuration documentation.
    # On an OpenVox agent:
    sudo puppet agent -t
    ```
+
+4. **Dedicated console (GUI not on the CA):** do **not** install
+   `openvox-server`. Set `OPENVOX_GUI_PUPPET_CA_HOST` to the CA VIP
+   (e.g. `ovca.corp.int-x.ai`) after deploying **3.10.8-dev.7+**, and
+   allow the console certname in CA `auth.conf`. Point
+   `OPENVOX_GUI_PUPPET_SSL_*` at this host’s agent cert/key/`ca.pem`
+   (not `localhost.pem`). `load_cert_chain` `FileNotFoundError` means
+   those paths are wrong or unreadable by the `puppet` user.
+
+5. **Empty Overview but Compliance shows unreported nodes:** the GUI
+   was intersecting PuppetDB with a local `puppetserver ca list` that
+   returned zero certs. 3.10.8-dev.7 uses the remote CA HTTP API
+   instead. Compilers still need `reports = store,puppetdb` and an
+   agent run before graphs fill in.
 
 ### Problem: Reports Missing or Incomplete
 

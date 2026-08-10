@@ -348,6 +348,7 @@ async def get_ca_info():
     import re
     import subprocess
     from datetime import datetime, timezone
+    from pathlib import Path
     
     # Check cache first
     cached = _get_cached_ca_info()
@@ -355,8 +356,18 @@ async def get_ca_info():
         return cached
     
     try:
-        # Get CA certificate info via PTY-enabled sudo helper
-        ca_cert_path = "/etc/puppetlabs/puppet/ssl/ca/ca_crt.pem"
+        # Public CA cert — agent localcacert on a console; cadir on a co-located CA.
+        # Never require /etc/puppetlabs/puppet/ssl/ca/ca_crt.pem (that is cadir).
+        from ..config import settings as _settings
+
+        candidates = [
+            getattr(_settings, "puppet_ssl_ca", "") or "",
+            "/etc/puppetlabs/puppet/ssl/certs/ca.pem",
+            "/etc/puppetlabs/puppet/ssl/ca/ca_crt.pem",
+        ]
+        ca_cert_path = next((p for p in candidates if p and Path(p).is_file()), "")
+        if not ca_cert_path:
+            return {"error": "Could not read CA certificate"}
         ca_result = await run_sudo(
             ["sudo", "openssl", "x509", "-in", ca_cert_path, "-text", "-noout"],
             timeout=10,
@@ -436,8 +447,13 @@ async def get_ca_info():
             if fp_match:
                 info["sha256_fingerprint"] = fp_match.group(1).strip()
         
-        # Get CA CRL info if available
-        crl_path = "/etc/puppetlabs/puppet/ssl/ca/ca_crl.pem"
+        # Get CA CRL info if available (agent crl.pem on consoles; cadir on CA host)
+        _crl_candidates = [
+            str(Path(ca_cert_path).resolve().parent.parent / "crl.pem"),
+            "/etc/puppetlabs/puppet/ssl/crl.pem",
+            "/etc/puppetlabs/puppet/ssl/ca/ca_crl.pem",
+        ]
+        crl_path = next((p for p in _crl_candidates if Path(p).is_file()), _crl_candidates[-1])
         crl_result = await run_sudo(
             ["sudo", "openssl", "crl", "-in", crl_path, "-text", "-noout"],
             timeout=10,

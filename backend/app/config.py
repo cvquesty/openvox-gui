@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     # ── PuppetServer connection settings ──────────────────────
     puppet_server_host: str = "localhost"
     puppet_server_port: int = 8140
+    # Dedicated CA VIP/FQDN for clustered estates (console is not the CA).
+    # Empty = use puppet_server_host (co-located / small install).
+    # Multi-DC example: ovca.corp.int-x.ai  (NOT ovcompilers.*)
+    puppet_ca_host: str = ""
+    puppet_ca_port: int = 8140
     puppet_ssl_cert: str = "/etc/puppetlabs/puppet/ssl/certs/localhost.pem"
     puppet_ssl_key: str = "/etc/puppetlabs/puppet/ssl/private_keys/localhost.pem"
     puppet_ssl_ca: str = "/etc/puppetlabs/puppet/ssl/certs/ca.pem"
@@ -145,6 +150,9 @@ class Settings(BaseSettings):
         env_prefix = "OPENVOX_GUI_"
         env_file = "/opt/openvox-gui/config/.env"
         env_file_encoding = "utf-8"
+        # Ignore unknown OPENVOX_GUI_* keys so a newer .env (e.g. PUPPET_CA_HOST)
+        # cannot prevent an older build from starting (pydantic extra_forbidden).
+        extra = "ignore"
 
 
 settings = Settings()

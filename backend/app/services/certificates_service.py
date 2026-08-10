@@ -11,11 +11,17 @@ compilation exposes as ``$trusted['extensions']``.
 from __future__ import annotations
 
 import logging
+import os
 import re
+import ssl
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
+import httpx
+
+from ..config import settings
 from ..utils.sudo import run_sudo
 
 logger = logging.getLogger(__name__)
@@ -136,9 +142,238 @@ def is_protected_certname(certname: str) -> bool:
     return certname.strip().lower() in get_protected_certnames()
 
 
-async def run_ca_command(args: List[str], timeout: int = 30) -> dict:
+def resolve_ca_host() -> str:
+    """CA HTTPS hostname.
+
+    Clustered consoles must set OPENVOX_GUI_PUPPET_CA_HOST (e.g. ovca.corp)
+    because OPENVOX_GUI_PUPPET_SERVER_HOST is the *compiler* VIP (CA disabled).
+    Co-located installs leave puppet_ca_host empty and reuse puppet_server_host.
+    """
+    host = (getattr(settings, "puppet_ca_host", None) or "").strip()
+    if host:
+        return host
+    return (settings.puppet_server_host or "localhost").strip()
+
+
+def resolve_ca_port() -> int:
+    port = getattr(settings, "puppet_ca_port", None)
+    if port:
+        try:
+            return int(port)
+        except (TypeError, ValueError):
+            pass
+    return int(settings.puppet_server_port or 8140)
+
+
+def _create_ca_ssl_context() -> ssl.SSLContext:
+    ctx = ssl.create_default_context(cafile=settings.puppet_ssl_ca)
+    ctx.load_cert_chain(
+        certfile=settings.puppet_ssl_cert,
+        keyfile=settings.puppet_ssl_key,
+    )
+    return ctx
+
+
+def parse_certificate_statuses(payload: Any) -> Dict[str, List[dict]]:
+    """Turn CA HTTP ``certificate_statuses`` JSON into GUI list shape."""
+    items = payload if isinstance(payload, list) else []
+    signed: List[dict] = []
+    requested: List[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        state = str(item.get("state") or "").strip().lower()
+        fps = item.get("fingerprints") if isinstance(item.get("fingerprints"), dict) else {}
+        fingerprint = str(
+            fps.get("SHA256") or fps.get("sha256") or fps.get("default") or item.get("fingerprint") or ""
+        )
+        if fingerprint.upper().startswith("SHA256"):
+            fingerprint = fingerprint.split(":", 1)[-1].strip()
+        alts = item.get("dns_alt_names") or item.get("subject_alt_names") or []
+        raw = name
+        if fingerprint:
+            raw = f"{name}       (SHA256)  {fingerprint}"
+        if alts:
+            raw = f"{raw}    alt names: {alts}"
+        entry = {"name": name, "fingerprint": fingerprint, "state": state, "raw": raw}
+        if state in ("requested", "request"):
+            requested.append(entry)
+        elif state == "revoked":
+            continue
+        else:
+            signed.append(entry)
+    return {"signed": signed, "requested": requested}
+
+
+async def _ca_http_request(
+    method: str,
+    path: str,
+    *,
+    json_body: Optional[dict] = None,
+    timeout: int = 30,
+) -> Tuple[int, Any, str]:
+    """mTLS HTTPS to the CA API. Returns (http_status, json_or_none, error_text)."""
+    url = f"https://{resolve_ca_host()}:{resolve_ca_port()}{path}"
+    try:
+        ctx = _create_ca_ssl_context()
+    except Exception as e:
+        logger.warning("CA mTLS context failed: %s", e)
+        return 0, None, f"CA mTLS context failed: {e}"
+    try:
+        async with httpx.AsyncClient(verify=ctx, timeout=timeout) as client:
+            resp = await client.request(
+                method,
+                url,
+                json=json_body,
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+            )
+            body: Any = None
+            text = resp.text or ""
+            if resp.headers.get("content-type", "").startswith("application/json") or (
+                text[:1] in ("{", "[")
+            ):
+                try:
+                    body = resp.json()
+                except Exception:
+                    body = None
+            return resp.status_code, body, text
+    except Exception as e:
+        logger.warning("CA HTTP %s %s failed: %s", method, path, e)
+        return 0, None, str(e)
+
+
+async def list_certificates_via_http() -> Optional[Dict[str, Any]]:
+    """GET /puppet-ca/v1/certificate_statuses/any_key. None = caller should try CLI."""
+    status, body, text = await _ca_http_request(
+        "GET", "/puppet-ca/v1/certificate_statuses/any_key"
+    )
+    if status == 0:
+        return None
+    if status >= 400:
+        logger.warning("CA certificate_statuses HTTP %s: %s", status, text[:300])
+        return {
+            "signed": [],
+            "requested": [],
+            "error": f"CA HTTP {status}: {text[:500]}",
+        }
+    parsed = parse_certificate_statuses(body)
+    parsed["source"] = "ca-http"
+    return parsed
+
+
+async def run_ca_command_cli(args: List[str], timeout: int = 30) -> dict:
+    if not os.path.isfile(PUPPETSERVER_CA):
+        return {
+            "returncode": 127,
+            "stdout": "",
+            "stderr": (
+                f"{PUPPETSERVER_CA} not found (normal on a dedicated console). "
+                "Set OPENVOX_GUI_PUPPET_CA_HOST to the CA VIP and allow this "
+                "host's certname in CA auth.conf. Do not install openvox-server "
+                "on the console."
+            ),
+        }
     cmd = ["sudo", PUPPETSERVER_CA, "ca"] + args
     return await run_sudo(cmd, timeout=timeout)
+
+
+async def _try_ca_http_command(args: List[str], timeout: int = 30) -> Optional[dict]:
+    """Map puppetserver-ca CLI args to the CA HTTP API. None = use CLI."""
+    if not args:
+        return None
+    if args[0] == "list":
+        data = await list_certificates_via_http()
+        if data is None:
+            return None
+        if data.get("error"):
+            return {"returncode": 1, "stdout": "", "stderr": data["error"]}
+        lines = ["Signed Certificates:"]
+        for c in data.get("signed") or []:
+            lines.append("    " + (c.get("raw") or c.get("name") or ""))
+        if data.get("requested"):
+            lines.append("Requested Certificates:")
+            for c in data["requested"]:
+                lines.append("    " + (c.get("raw") or c.get("name") or ""))
+        return {"returncode": 0, "stdout": "\n".join(lines) + "\n", "stderr": ""}
+
+    def _certname_from(argv: List[str]) -> Optional[str]:
+        if "--certname" in argv:
+            i = argv.index("--certname")
+            if i + 1 < len(argv):
+                return argv[i + 1]
+        if len(argv) >= 2:
+            return argv[1]
+        return None
+
+    if args[0] == "sign":
+        cn = _certname_from(args)
+        if not cn:
+            return None
+        status, _body, text = await _ca_http_request(
+            "PUT",
+            f"/puppet-ca/v1/certificate_status/{quote(cn, safe='')}",
+            json_body={"desired_state": "signed"},
+            timeout=timeout,
+        )
+        if status == 0:
+            return None
+        ok = 200 <= status < 300
+        return {
+            "returncode": 0 if ok else status,
+            "stdout": text if ok else "",
+            "stderr": "" if ok else f"CA HTTP {status}: {text[:500]}",
+        }
+
+    if args[0] == "revoke":
+        cn = _certname_from(args)
+        if not cn:
+            return None
+        status, _body, text = await _ca_http_request(
+            "PUT",
+            f"/puppet-ca/v1/certificate_status/{quote(cn, safe='')}",
+            json_body={"desired_state": "revoked"},
+            timeout=timeout,
+        )
+        if status == 0:
+            return None
+        ok = 200 <= status < 300
+        return {
+            "returncode": 0 if ok else status,
+            "stdout": text if ok else "",
+            "stderr": "" if ok else f"CA HTTP {status}: {text[:500]}",
+        }
+
+    if args[0] == "clean":
+        cn = _certname_from(args)
+        if not cn:
+            return None
+        status, _body, text = await _ca_http_request(
+            "PUT",
+            "/puppet-ca/v1/clean",
+            json_body={"certnames": [cn]},
+            timeout=timeout,
+        )
+        if status == 0:
+            return None
+        ok = 200 <= status < 300
+        return {
+            "returncode": 0 if ok else status,
+            "stdout": text if ok else "",
+            "stderr": "" if ok else f"CA HTTP {status}: {text[:500]}",
+        }
+
+    return None
+
+
+async def run_ca_command(args: List[str], timeout: int = 30) -> dict:
+    """Prefer CA HTTP API (works on a console). Fall back to local puppetserver CLI."""
+    http = await _try_ca_http_command(args, timeout=timeout)
+    if http is not None:
+        return http
+    return await run_ca_command_cli(args, timeout=timeout)
 
 
 def _parse_ca_list_output(raw_output: str) -> Dict[str, List[dict]]:
@@ -184,21 +419,37 @@ def _parse_ca_list_output(raw_output: str) -> Dict[str, List[dict]]:
 
 
 async def list_certificates(use_cache: bool = True) -> Dict[str, Any]:
-    """
-    List signed + requested certificates via `puppetserver ca list --all`.
+    """List signed + requested certificates.
 
-    Same shape as routers.certificates.list_certificates for fleet enrichment.
+    Prefer the remote CA HTTP API (dedicated console / clustered CA). Fall
+    back to ``puppetserver ca list --all`` only when that binary exists
+    (co-located master). A missing binary is an error, not an empty fleet.
     """
     global _cache_cert_list, _cache_cert_list_time
     if use_cache and _cache_cert_list and (time.time() - _cache_cert_list_time) < _CACHE_TTL_CERTS:
         return _cache_cert_list
 
-    result = await run_ca_command(["list", "--all"])
+    http = await list_certificates_via_http()
+    if http is not None and not http.get("error"):
+        _cache_cert_list = http
+        _cache_cert_list_time = time.time()
+        return http
+    if http is not None and http.get("error"):
+        # HTTP reached the CA but failed (403/404). Do not pretend the fleet
+        # is empty — surface the error so get_live_nodes can fall back to PDB.
+        logger.warning("CA HTTP list failed: %s", http.get("error"))
+        # Still try CLI on a co-located host before giving up.
+
+    result = await run_ca_command_cli(["list", "--all"])
     if result.get("returncode") != 0:
-        return {"signed": [], "requested": [], "error": result.get("stderr") or ""}
+        err = (result.get("stderr") or result.get("stdout") or "").strip()
+        if http and http.get("error"):
+            err = f"{http['error']} | CLI: {err}"
+        return {"signed": [], "requested": [], "error": err}
 
     raw_output = (result.get("stdout") or "") + "\n" + (result.get("stderr") or "")
     parsed = _parse_ca_list_output(raw_output)
+    parsed["source"] = "puppetserver-cli"
     _cache_cert_list = parsed
     _cache_cert_list_time = time.time()
     return parsed

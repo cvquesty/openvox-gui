@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [3.10.8-dev.7] - 2026-08-10 (dev — remote CA HTTP API for dedicated consoles)
+
+### Fixed
+- **Dedicated console / clustered CA:** Certificate list, sign/revoke/clean, and CA info no longer require a local `puppetserver` binary or `/etc/puppetlabs/puppet/ssl/ca/ca_crt.pem`. The GUI calls the remote CA HTTP API (`/puppet-ca/v1/certificate_statuses`, status, clean) with the console agent mTLS cert. Set `OPENVOX_GUI_PUPPET_CA_HOST` to the CA VIP (e.g. `ovca.corp.int-x.ai`) — not the compiler VIP. Co-located installs still fall back to `puppetserver ca` when that binary exists. A missing binary is an error (PDB fallback for live nodes), not an empty fleet.
+- **Settings `extra = "ignore"`:** Unknown `OPENVOX_GUI_*` keys in `.env` no longer prevent startup (`extra_forbidden`). A newer `.env` (e.g. `PUPPET_CA_HOST`) can sit on an older build without taking the unit down.
+
 ## [3.10.8-dev.6] - 2026-08-07 (dev — Host Health serving estate)
 
 ### Added

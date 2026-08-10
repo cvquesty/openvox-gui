@@ -696,6 +696,8 @@ async def get_app_config():
         "app_name": settings.app_name,
         "puppet_server_host": settings.puppet_server_host,
         "puppet_server_port": settings.puppet_server_port,
+        "puppet_ca_host": settings.puppet_ca_host,
+        "puppet_ca_port": settings.puppet_ca_port,
         "puppetdb_host": settings.puppetdb_host,
         "puppetdb_port": settings.puppetdb_port,
         "auth_backend": settings.auth_backend,
@@ -722,6 +724,8 @@ async def update_app_config(
         "app_name": "OPENVOX_GUI_APP_NAME",
         "puppet_server_host": "OPENVOX_GUI_PUPPET_SERVER_HOST",
         "puppet_server_port": "OPENVOX_GUI_PUPPET_SERVER_PORT",
+        "puppet_ca_host": "OPENVOX_GUI_PUPPET_CA_HOST",
+        "puppet_ca_port": "OPENVOX_GUI_PUPPET_CA_PORT",
         "puppetdb_host": "OPENVOX_GUI_PUPPETDB_HOST",
         "puppetdb_port": "OPENVOX_GUI_PUPPETDB_PORT",
         "debug": "OPENVOX_GUI_DEBUG",
@@ -750,9 +754,9 @@ async def update_app_config(
         setattr(settings, key, truthy)
     elif key == "app_name":
         settings.app_name = str(value)
-    elif key in ("puppet_server_host", "puppetdb_host", "http_proxy", "https_proxy", "no_proxy"):
+    elif key in ("puppet_server_host", "puppet_ca_host", "puppetdb_host", "http_proxy", "https_proxy", "no_proxy"):
         setattr(settings, key, str(value) if value is not None else "")
-    elif key in ("puppet_server_port", "puppetdb_port"):
+    elif key in ("puppet_server_port", "puppet_ca_port", "puppetdb_port"):
         try:
             setattr(settings, key, int(value))
         except (TypeError, ValueError):
