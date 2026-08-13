@@ -19,7 +19,7 @@ passlib[bcrypt]==1.7.4
 PyJWT[crypto]==2.13.0
 # 4.1+ removes bcrypt.__about__ which passlib 1.7.4 still reads (breaks manage_users)
 bcrypt==4.0.1
-cryptography==48.0.1
+cryptography==50.0.0
 certifi==2026.5.20
 prometheus-client==0.25.0
 python-json-logger==3.2.1
