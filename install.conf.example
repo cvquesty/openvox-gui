@@ -15,6 +15,11 @@ APP_HOST="::"
 UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
+# Python interpreter used to create the virtualenv. The backend requires
+# Python >= 3.10. On EL8/EL9 the default python3 is older; install the
+# python3.12 package and point this at it.
+#PYTHON_BIN="/usr/bin/python3.12"
+
 # ─── PuppetServer Settings ────────────────────────────────────
 # FQDN of the PuppetServer / catalog compile endpoint (defaults to hostname -f).
 # Clustered estates: set this to the *compiler VIP* (agents compile there).

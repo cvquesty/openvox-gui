@@ -46,6 +46,13 @@ APP_HOST="::"
 UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
+# Python interpreter used to create the virtualenv. The backend requires
+# Python >= 3.10; on distros whose default python3 is older (EL9: 3.9,
+# EL8: 3.6), point this at a parallel-installed interpreter, e.g.
+# PYTHON_BIN=/usr/bin/python3.12 (both EL8 and EL9 ship python3.12 as a
+# regular package). Settable from the environment or install.conf.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
 PUPPET_SERVER_HOST="$(hostname -f)"
 PUPPET_SERVER_PORT="8140"
 # Clustered / dedicated console: CA VIP (not the compiler LB). Empty = same as server host.
@@ -939,13 +946,22 @@ fi
 
 log_step 4 "Python Virtual Environment"
 
-if ! command -v python3 &>/dev/null; then
-    log_err "Python 3 is not installed. Please install python3 and python3-venv."
+if ! command -v "$PYTHON_BIN" &>/dev/null; then
+    log_err "Python interpreter '${PYTHON_BIN}' not found. Install it (plus its venv support), or set PYTHON_BIN to another interpreter (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
+    exit 1
+fi
+
+# The backend's dependencies (FastAPI/pydantic/cryptography pins) require
+# Python >= 3.10. Fail here with a clear message instead of at pip
+# resolution deep inside the install.
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+    PY_VER=$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "unknown")
+    log_err "Python >= 3.10 is required; '${PYTHON_BIN}' is ${PY_VER}. Set PYTHON_BIN to a newer interpreter (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
     exit 1
 fi
 
 if [ ! -d "${INSTALL_DIR}/venv" ]; then
-    python3 -m venv "${INSTALL_DIR}/venv"
+    "$PYTHON_BIN" -m venv "${INSTALL_DIR}/venv"
     log_ok "Created Python virtual environment"
 else
     log_ok "Virtual environment already exists"
@@ -971,7 +987,9 @@ if [ -d "${INSTALL_DIR}/ovox" ]; then
     # Make sure the running version matches the deployed ovox/VERSION file
     if [ -f "${INSTALL_DIR}/ovox/VERSION" ]; then
         VER=$(cat "${INSTALL_DIR}/ovox/VERSION")
-        SITE_PKG="${INSTALL_DIR}/venv/lib/python3.11/site-packages/ovox/__init__.py"
+        # The venv's lib directory is named after the interpreter version
+        # (python3.10, python3.12, ...), so it cannot be hardcoded.
+        SITE_PKG=$(echo "${INSTALL_DIR}"/venv/lib/python3.*/site-packages/ovox/__init__.py)
         if [ -f "$SITE_PKG" ]; then
             sed -i "s/^__version__ = .*/__version__ = \"${VER}\"/" "$SITE_PKG" 2>/dev/null || true
         fi
