@@ -9,9 +9,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
 from app.services.certificates_service import (
+    ca_member_targets,
     parse_ca_certificate_pem,
     parse_ca_crl_pem,
     parse_certificate_statuses,
+    unwrap_bolt_item,
 )
 
 
@@ -106,3 +108,42 @@ def test_parse_ca_certificate_pem_rejects_junk():
     except ValueError:
         return
     raise AssertionError("expected ValueError for junk PEM")
+
+
+def test_unwrap_bolt_item_success():
+    bolt = {
+        "returncode": 0,
+        "stdout": '{"items":[{"target":"ovca1.example.com","status":"success","value":{"stdout":"signed\\n"}}]}',
+        "stderr": "",
+    }
+    rc, out, err = unwrap_bolt_item(bolt)
+    assert rc == 0
+    assert "signed" in out
+    assert err == ""
+
+
+def test_unwrap_bolt_item_remote_failure():
+    bolt = {
+        "returncode": 1,
+        "stdout": '{"items":[{"target":"ovca2.example.com","status":"failure","value":{"stderr":"no CSR","_error":{"msg":"no CSR"}}}]}',
+        "stderr": "",
+    }
+    rc, _out, err = unwrap_bolt_item(bolt)
+    assert rc != 0
+    assert "no CSR" in err
+
+
+def test_ca_member_targets_skips_vip(monkeypatch):
+    def fake_cfg():
+        return {
+            "ca_nodes": ["ovca1.site-a.example.com", "ovca2.site-a.example.com"],
+            "ca_vips": ["ovca.example.com"],
+        }
+
+    monkeypatch.setattr(
+        "app.services.cluster_config.load_cluster_config",
+        fake_cfg,
+    )
+    hosts = ca_member_targets()
+    assert hosts == ["ovca1.site-a.example.com", "ovca2.site-a.example.com"]
+    assert "ovca.example.com" not in hosts

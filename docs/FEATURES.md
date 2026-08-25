@@ -118,7 +118,9 @@ Groups match `frontend/src/components/AppShell.tsx`. Expand/collapse is remember
 ### Certificate Authority (`/certificates`)
 
 - CA info (local `puppetserver ca` **or** remote CA HTTP API on dedicated consoles)
-- Pending CSR list → **sign** / reject (admin/operator)
+- Pending CSR **sign** / revoke / clean: CA HTTP first, then **Bolt**
+  `puppetserver ca` on Settings → Cluster `ca_nodes` (`ovca*`) when the
+  VIP PUT 404s (standby). AIO still uses local `puppetserver ca`.
 - Signed inventory; **trusted facts** from cert extension requests (`pp_role`, …)
 - Revoke / clean (admin/operator/**certops** for agent mutate set)
 - Cluster-aware labels (console / compiler / CA / puppetdb) — not “everything is the old co-located master”

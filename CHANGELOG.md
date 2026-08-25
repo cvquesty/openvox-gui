@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.12.1-dev.2] - 2026-08-25 (fix — sign certs via Bolt on ovca*)
+
+### Fixed
+- **Certificate sign / revoke / clean** on a dedicated console no longer
+  runs local `puppetserver ca` (no CA there — 404 / binary missing).
+  Mutations try the CA HTTP API, then Bolt `puppetserver ca` as root on
+  each Settings → Cluster **ca_nodes** member until one succeeds. The
+  CSR lives on the Promoted ovca; a VIP PUT to the standby 404s.
+
 ## [3.12.1-dev.1] - 2026-08-25 (fix — install.sh Python 3.10+ on EL8/EL9)
 
 ### Fixed

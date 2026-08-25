@@ -11,9 +11,11 @@ compilation exposes as ``$trusted['extensions']``.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
+import shlex
 import socket
 import ssl
 import time
@@ -551,13 +553,129 @@ async def run_ca_command_cli(args: List[str], timeout: int = 30) -> dict:
             "stdout": "",
             "stderr": (
                 f"{PUPPETSERVER_CA} not found (normal on a dedicated console). "
-                "Set OPENVOX_GUI_PUPPET_CA_HOST to the CA VIP and allow this "
-                "host's certname in CA auth.conf. Do not install openvox-server "
-                "on the console."
+                "Set OPENVOX_GUI_PUPPET_CA_HOST to the CA VIP, list ovca* in "
+                "Settings → Cluster → ca_nodes, and allow bolt@ SSH. "
+                "Do not install openvox-server on the console."
             ),
         }
     cmd = ["sudo", PUPPETSERVER_CA, "ca"] + args
     return await run_sudo(cmd, timeout=timeout)
+
+
+def ca_member_targets() -> List[str]:
+    """Real ovca* members (not the DNS VIP). Bolt signs on these hosts."""
+    out: List[str] = []
+
+    def _add(name: str) -> None:
+        h = (name or "").strip().lower()
+        if h and h not in out:
+            out.append(h)
+
+    try:
+        from .cluster_config import load_cluster_config
+
+        cfg = load_cluster_config() or {}
+        for host in cfg.get("ca_nodes") or []:
+            _add(str(host))
+    except Exception:
+        cfg = {}
+    if not out:
+        try:
+            from .estate_inventory import discover_serving_estate
+
+            for host in discover_serving_estate().get("ca_nodes") or []:
+                _add(str(host))
+        except Exception:
+            pass
+    return out
+
+
+def unwrap_bolt_item(bolt: Dict[str, Any]) -> Tuple[int, str, str]:
+    """Exit code + stdout/stderr of the first Bolt target."""
+    raw = str(bolt.get("stdout") or "")
+    if raw.strip().startswith("{"):
+        try:
+            data = json.loads(raw[raw.find("{") :])
+            items = data.get("items") or []
+            if items and isinstance(items[0], dict):
+                it = items[0]
+                val = it.get("value") if isinstance(it.get("value"), dict) else {}
+                stdout = str(val.get("stdout") or val.get("merged_output") or "")
+                stderr = str(val.get("stderr") or "")
+                err = val.get("_error") if isinstance(val.get("_error"), dict) else {}
+                if it.get("status") == "success":
+                    return 0, stdout, stderr
+                msg = str(err.get("msg") or stderr or bolt.get("stderr") or "")
+                rc = int(bolt.get("returncode") or 1)
+                return rc if rc != 0 else 1, stdout, msg
+        except Exception:
+            pass
+    return int(bolt.get("returncode") or 1), raw, str(bolt.get("stderr") or "")
+
+
+async def _try_ca_bolt_command(args: List[str], timeout: int = 120) -> Optional[dict]:
+    """Run ``puppetserver ca …`` on each ovca* member via Bolt until one works.
+
+    Dedicated consoles have no local CA. The CA VIP PUT often 404s when
+    HAProxy lands on the standby (CSR lives on the Promoted cadir only).
+    """
+    if not args or args[0] == "list":
+        return None
+    targets = ca_member_targets()
+    if not targets:
+        return None
+    try:
+        from ..routers.bolt_runtime import find_bolt, run_bolt_command
+    except Exception as e:
+        logger.warning("CA bolt import failed: %s", e)
+        return None
+    if not find_bolt():
+        return {
+            "returncode": 127,
+            "stdout": "",
+            "stderr": "OpenBolt is not installed on this console; cannot sign on ovca*.",
+        }
+
+    remote = PUPPETSERVER_CA + " ca " + " ".join(shlex.quote(a) for a in args)
+    last: Optional[dict] = None
+    for host in targets:
+        try:
+            bolt = await run_bolt_command(
+                [
+                    "command",
+                    "run",
+                    remote,
+                    "--targets",
+                    host,
+                    "--run-as",
+                    "root",
+                    "--format",
+                    "json",
+                ],
+                timeout=timeout,
+            )
+        except Exception as e:
+            last = {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": f"bolt@{host}: {e}",
+            }
+            logger.warning("CA bolt %s failed: %s", host, e)
+            continue
+        rc, stdout, stderr = unwrap_bolt_item(bolt)
+        last = {
+            "returncode": rc,
+            "stdout": stdout,
+            "stderr": stderr or ("" if rc == 0 else f"bolt@{host} rc={rc}"),
+            "via": f"bolt:{host}",
+        }
+        if rc == 0:
+            extra = f"(via bolt@{host})"
+            last["stdout"] = (stdout.rstrip() + "\n" + extra).strip() + "\n"
+            logger.info("CA %s succeeded via bolt@%s", args[0], host)
+            return last
+        logger.info("CA %s via bolt@%s rc=%s: %s", args[0], host, rc, (stderr or "")[:200])
+    return last
 
 
 async def _try_ca_http_command(args: List[str], timeout: int = 30) -> Optional[dict]:
@@ -649,11 +767,41 @@ async def _try_ca_http_command(args: List[str], timeout: int = 30) -> Optional[d
 
 
 async def run_ca_command(args: List[str], timeout: int = 30) -> dict:
-    """Prefer CA HTTP API (works on a console). Fall back to local puppetserver CLI."""
+    """Sign/revoke/clean: CA HTTP, then Bolt to ovca*, then local CLI.
+
+    Dedicated consoles must not run ``puppetserver ca`` locally. HTTP PUT
+    to the CA VIP 404s when the request hits the standby (CSR is only on
+    the Promoted cadir). Bolt walks ``ca_nodes`` until one succeeds.
+    """
+    errors: List[str] = []
     http = await _try_ca_http_command(args, timeout=timeout)
-    if http is not None:
+    if http is not None and int(http.get("returncode") or 1) == 0:
+        http["via"] = http.get("via") or "ca-http"
         return http
-    return await run_ca_command_cli(args, timeout=timeout)
+    if http is not None:
+        errors.append(str(http.get("stderr") or "CA HTTP failed"))
+
+    bolt = await _try_ca_bolt_command(args, timeout=max(timeout, 120))
+    if bolt is not None and int(bolt.get("returncode") or 1) == 0:
+        return bolt
+    if bolt is not None:
+        errors.append(str(bolt.get("stderr") or "CA bolt failed"))
+
+    cli = await run_ca_command_cli(args, timeout=timeout)
+    if int(cli.get("returncode") or 1) == 0:
+        cli["via"] = "local-cli"
+        return cli
+
+    # Console has no local CA — keep the HTTP/Bolt error, not "binary not found".
+    preferred = bolt if bolt is not None else http
+    if preferred is not None and int(cli.get("returncode") or 0) == 127:
+        tail = " | ".join(e for e in errors if e)
+        if tail:
+            preferred["stderr"] = ((preferred.get("stderr") or "") + " | " + tail).strip(" |")
+        return preferred
+    if errors:
+        cli["stderr"] = ((cli.get("stderr") or "") + " | " + " | ".join(errors)).strip(" |")
+    return cli
 
 
 def _parse_ca_list_output(raw_output: str) -> Dict[str, List[dict]]:

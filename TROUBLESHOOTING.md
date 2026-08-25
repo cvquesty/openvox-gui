@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.12.1-dev.1**
+**OpenVox GUI Version 3.12.1-dev.2**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -132,7 +132,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.12.1-dev.1"}
+   # Should return: {"status":"ok","version":"3.12.1-dev.2"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -723,7 +723,12 @@ Live-fleet rules and HAProxy vs DNS RR: [docs/FEATURES.md](docs/FEATURES.md#live
    sudo puppetserver ca sign --certname node.example.com
    ```
 
-4. **Dedicated console:** signing uses the **remote CA HTTP API**. Set `OPENVOX_GUI_PUPPET_CA_HOST` to the **CA VIP** (not the compiler VIP). Confirm the console agent cert is allowed in CA `auth.conf` for certificate status/sign paths.
+4. **Dedicated console:** list/info use the CA HTTP API
+   (`OPENVOX_GUI_PUPPET_CA_HOST` = CA VIP). **Sign / revoke / clean**
+   try that PUT first; if it 404s (standby VIP / CSR on the other
+   ovca), the GUI Bolts `puppetserver ca …` as root on each
+   **Settings → Cluster → CA members** (`ovca1`/`ovca2`, not the DNS
+   VIP) until one succeeds. Confirm `bolt@` SSH + sudo to those hosts.
 
 ### Problem: Certificate Expiration Warnings
 

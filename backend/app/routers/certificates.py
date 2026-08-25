@@ -74,8 +74,6 @@ def _set_cached_ca_info(data):
     _cache_ca_info = data
     _cache_ca_info_time = time.time()
 
-PUPPETSERVER_CA = "/opt/puppetlabs/bin/puppetserver"
-
 # Strict pattern for Puppet certificate names (FQDNs). Only alphanumeric
 # characters, dots, and hyphens are allowed — no slashes, no double-dots,
 # no path separators. This prevents path traversal attacks where a
@@ -102,9 +100,8 @@ def _validate_certname(certname: str) -> str:
 
 
 async def _run_ca_command(args: List[str], timeout: int = 30) -> dict:
-    """Run a puppetserver ca command."""
-    cmd = ["sudo", PUPPETSERVER_CA, "ca"] + args
-    return await run_sudo(cmd, timeout=timeout)
+    """CA mutate: HTTP, then Bolt to ovca*, then local puppetserver ca."""
+    return await certificates_service.run_ca_command(args, timeout=timeout)
 
 
 def _ca_failure_detail(result: dict) -> str:
@@ -182,8 +179,11 @@ async def sign_certificate(
     if result["returncode"] != 0:
         raise HTTPException(status_code=500, detail=_ca_failure_detail(result))
     _invalidate_cert_list_cache()  # Invalidate cache after mutation
-    return {"status": "success", "message": f"Certificate signed for {body.certname}",
-            "output": result["stdout"]}
+    via = result.get("via") or ""
+    msg = f"Certificate signed for {body.certname}"
+    if via:
+        msg = f"{msg} ({via})"
+    return {"status": "success", "message": msg, "output": result["stdout"], "via": via}
 
 
 @router.post("/revoke")
@@ -303,9 +303,11 @@ async def reject_certificate_request(
     wrapper = script if script.is_file() else repo_script
 
     result: dict
-    if wrapper.is_file():
+    local_csr = Path(f"/etc/puppetlabs/puppet/ssl/ca/requests/{body.certname}.pem")
+    if wrapper.is_file() and local_csr.is_file():
         result = await run_sudo(["sudo", str(wrapper), body.certname], timeout=120)
     else:
+        # Dedicated console: CSR is on ovca*, not here.
         result = await _run_ca_command(["clean", "--certname", body.certname], timeout=120)
 
     from ..utils.audit import audit_event
