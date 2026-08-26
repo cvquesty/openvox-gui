@@ -33,7 +33,7 @@ typer>=0.12.0
 python-dotenv==1.2.2
 
 # For proper HOCON parsing in Puppet Server config files (used by ovox infra tune)
-pyhocon>=0.3.60
+pyhocon>=0.3.63
 
 # Fleet Health PDF report generation (matplotlib for chart recreation matching UI, fpdf2 for fixed-layout one-page PDF assembly)
 matplotlib>=3.8
