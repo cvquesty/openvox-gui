@@ -24,7 +24,7 @@ cryptography==50.0.0
 certifi==2026.5.20
 prometheus-client==0.25.0
 python-json-logger==3.2.1
-slowapi==0.1.9
+slowapi==0.1.10
 itsdangerous==2.2.0
 ldap3==2.9.1
 
