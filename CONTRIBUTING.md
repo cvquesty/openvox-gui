@@ -17,6 +17,19 @@ The best thing about Open Source software is you can fix it yourself and contrib
 7. Push your changes to your forked repository.
 8. Open a pull request **into `main`**.
 
+### Testing Your Change
+
+Every pull request runs `install.sh` end to end on AlmaLinux 9, AlmaLinux 10 and Ubuntu 24.04, with and without SSL (see `.github/workflows/ci.yml`). You can run the same check locally before you push — all you need is Docker or Podman and a built frontend:
+
+```bash
+cd frontend && npm ci && npm run build && cd ..
+
+scripts/ci-install-test.sh almalinux:10 false   # <image> <ssl: true|false>
+scripts/ci-install-test.sh ubuntu:24.04 true
+```
+
+Each run starts a throwaway systemd container, installs the GUI from your working tree with `install.sh -c`, and checks that the service comes up, `/health` answers and the admin login works. It takes about a minute and prints `OK:` at the end; on failure it shows the tail of the installer log (or the service journal) so you can see what went wrong. The container is removed afterwards. The script uses Docker if it is installed and Podman otherwise; set `CONTAINER_ENGINE=podman` (or `docker`) to choose.
+
 We will review the PR and merge it as soon as possible. It's that simple!
 
 **Current stable:** **3.12.0** ([Releases](https://github.com/cvquesty/openvox-gui/releases)). See [docs/STATUS.md](docs/STATUS.md) and the version badge on the [README](README.md). Report bugs with the version from the GUI footer or `curl -k https://your-server:4567/api/health`.

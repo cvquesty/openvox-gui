@@ -1,0 +1,60 @@
+# Install test: run install.sh end to end on the supported platforms.
+#
+# The frontend is built once and shared; each matrix leg starts a systemd
+# container, runs the unattended installer with BUILD_FRONTEND=false, and
+# checks the service, /health and the admin login. See
+# scripts/ci-install-test.sh (same script works locally).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        run: cd frontend && npm ci --no-audit --no-fund && npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+
+  install-test:
+    name: install.sh ${{ matrix.image }} ssl=${{ matrix.ssl }}
+    needs: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["almalinux:9", "almalinux:10", "ubuntu:24.04"]
+        ssl: ["false", "true"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - name: Run install test
+        run: bash scripts/ci-install-test.sh "${{ matrix.image }}" "${{ matrix.ssl }}"
