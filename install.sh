@@ -709,10 +709,23 @@ log_proxy_status
 
 log_step 1 "Service User"
 
+# useradd --gid requires the group to exist already, and only the
+# openvox-server / openvoxdb packages create 'puppet'. A dedicated console
+# (agent package only) or a non-default SERVICE_GROUP has no such group,
+# so create it here. Errors are not discarded: under set -e a failed
+# useradd aborts now with its real message instead of surfacing four
+# steps later as "chown: invalid user".
+if getent group "$SERVICE_GROUP" >/dev/null; then
+    log_ok "Group '${SERVICE_GROUP}' already exists"
+else
+    groupadd --system "$SERVICE_GROUP"
+    log_ok "Created system group '${SERVICE_GROUP}'"
+fi
+
 if id "$SERVICE_USER" &>/dev/null; then
     log_ok "User '${SERVICE_USER}' already exists"
 else
-    useradd --system --gid "$SERVICE_GROUP" --shell /sbin/nologin --home-dir "$INSTALL_DIR" "$SERVICE_USER" 2>/dev/null || true
+    useradd --system --gid "$SERVICE_GROUP" --shell /sbin/nologin --home-dir "$INSTALL_DIR" "$SERVICE_USER"
     log_ok "Created system user '${SERVICE_USER}'"
 fi
 
