@@ -1672,6 +1672,17 @@ fi
 
 # ─── Step 11: Initial Setup & Launch ──────────────────────────
 
+# uvicorn serves HTTPS on APP_PORT when SSL_ENABLED=true, so the health
+# probes below must use the matching scheme (a plaintext probe gets an
+# empty reply, curl exit 52, and never succeeds). -k: the certificate is
+# issued for the host's FQDN, not localhost.
+if [ "$SSL_ENABLED" = "true" ]; then
+    APP_SCHEME="https"
+else
+    APP_SCHEME="http"
+fi
+HEALTH_URL="${APP_SCHEME}://localhost:${APP_PORT}/health"
+
 log_step 11 "Initial Setup & Launch"
 
 # Create admin user if using local auth
@@ -1687,7 +1698,7 @@ if [ "$AUTH_BACKEND" = "local" ]; then
     # Wait for service to be ready
     log_info "Waiting for service to start..."
     for i in $(seq 1 30); do
-        if curl -sf http://localhost:${APP_PORT}/health >/dev/null 2>&1; then
+        if curl -skf "${HEALTH_URL}" >/dev/null 2>&1; then
             break
         fi
         sleep 1
@@ -1733,7 +1744,7 @@ log_info "Verifying service health..."
 sleep 2
 HEALTH_OK="false"
 for i in $(seq 1 15); do
-    if curl -sf http://localhost:${APP_PORT}/health >/dev/null 2>&1; then
+    if curl -skf "${HEALTH_URL}" >/dev/null 2>&1; then
         HEALTH_OK="true"
         break
     fi
@@ -1741,7 +1752,7 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTH_OK" = "true" ]; then
-    HEALTH_RESPONSE=$(curl -sf http://localhost:${APP_PORT}/health 2>/dev/null)
+    HEALTH_RESPONSE=$(curl -skf "${HEALTH_URL}" 2>/dev/null)
     log_ok "Service is running — ${HEALTH_RESPONSE}"
 else
     log_err "Service did not start. Check: journalctl -u openvox-gui -n 50"
@@ -1773,11 +1784,6 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║           Installation Complete! 🎉                   ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════╝${NC}"
 echo
-if [ "$SSL_ENABLED" = "true" ]; then
-    APP_SCHEME="https"
-else
-    APP_SCHEME="http"
-fi
 echo -e "  ${BOLD}Application:${NC}    ${APP_SCHEME}://$(hostname -f):${APP_PORT}"
 echo -e "  ${BOLD}API Docs:${NC}       ${APP_SCHEME}://$(hostname -f):${APP_PORT}/api/docs"
 echo -e "  ${BOLD}Health Check:${NC}   ${APP_SCHEME}://$(hostname -f):${APP_PORT}/health"
