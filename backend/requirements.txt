@@ -22,7 +22,7 @@ bcrypt==5.0.0
 # 50.0.0: PYSEC-2026-3552/3553/3554 (PKCS#7 oracle, path-build DoS, nameConstraints wildcard)
 cryptography==50.0.0
 certifi==2026.5.20
-prometheus-client==0.25.0
+prometheus-client==0.26.0
 python-json-logger==3.2.1
 slowapi==0.1.10
 itsdangerous==2.2.0
