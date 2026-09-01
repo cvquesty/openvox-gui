@@ -7,7 +7,7 @@ pydantic==2.13.4
 # (NestedSecretsSettingsSource symlink traversal fix). Applied from PR #37 + full documentation.
 # Supply chain: use pip install --require-hashes in production; hashes not pinned here for dev flexibility.
 pydantic-settings==2.14.2
-sqlalchemy==2.0.49
+sqlalchemy==2.0.52
 aiosqlite==0.22.1
 asyncpg==0.30.0
 psycopg2-binary==2.9.10
