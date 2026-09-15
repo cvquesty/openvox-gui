@@ -22,7 +22,7 @@ bcrypt==5.0.0
 cryptography==50.0.0
 certifi==2026.5.20
 prometheus-client==0.26.0
-python-json-logger==3.2.1
+python-json-logger==4.2.0
 slowapi==0.1.10
 itsdangerous==2.2.0
 ldap3==2.9.1
