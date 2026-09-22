@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ovox"
-version = "3.14.0"
+version = "3.14.1-dev.1"
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -30,7 +30,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "typer>=0.12.0",
+  "typer>=0.27.2",
   "rich>=13.0.0",
   "httpx>=0.24.0",
   "pyyaml>=6.0.0",

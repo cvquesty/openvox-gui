@@ -1,7 +1,7 @@
 {
   "name": "openvox-gui",
   "private": true,
-  "version": "3.14.0",
+  "version": "3.14.1-dev.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +19,7 @@
     "@mantine/notifications": "^7.17.8",
     "@tabler/icons-react": "^3.46.0",
     "@types/dagre": "^0.7.54",
-    "@xyflow/react": "^12.11.3",
+    "@xyflow/react": "^12.11.6",
     "ansi-to-html": "^0.7.2",
     "dagre": "^0.8.5",
     "react": "^19.2.8",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.1.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "~26.1.0",
     "postcss": "^8.5.28",
     "postcss-preset-mantine": "^1.12.0",
