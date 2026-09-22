@@ -1,1 +1,393 @@
-PLACEHOLDER_WILL_REPLACE_WITH_FULL
+ou=people,dc=example,dc=com"
+            value={form.user_base_dn} onChange={(e) => updateField('user_base_dn', e.currentTarget.value)} />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <TextInput label="User Search Filter" description="Use {username} as placeholder" placeholder="(uid={username})"
+            value={form.user_search_filter} onChange={(e) => updateField('user_search_filter', e.currentTarget.value)} />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <TextInput label="Username Attribute" placeholder="uid" value={form.user_attr_username}
+            onChange={(e) => updateField('user_attr_username', e.currentTarget.value)} />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <TextInput label="Email Attribute" placeholder="mail" value={form.user_attr_email}
+            onChange={(e) => updateField('user_attr_email', e.currentTarget.value)} />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <TextInput label="Display Name Attribute" placeholder="cn" value={form.user_attr_display_name}
+            onChange={(e) => updateField('user_attr_display_name', e.currentTarget.value)} />
+        </Grid.Col>
+      </Grid>
+
+      <Divider my="md" label="Active Directory Settings" labelPosition="left" />
+      <Group gap="xl">
+        <Switch label="Use AD User Principal Name (UPN) for bind" checked={form.use_ad_upn}
+          onChange={(e) => updateField('use_ad_upn', e.currentTarget.checked)} />
+      </Group>
+      <Collapse expanded={form.use_ad_upn}>
+        <TextInput mt="sm" label="AD Domain" description="Domain for UPN bind (username@domain)" placeholder="corp.example.com"
+          value={form.ad_domain} onChange={(e) => updateField('ad_domain', e.currentTarget.value)} style={{ maxWidth: 400 }} />
+      </Collapse>
+
+      {/* Test Result */}
+      {testResult && (
+        <Alert mt="md" color={testResult.success ? 'green' : 'red'} title={testResult.success ? 'Connection Successful' : 'Connection Failed'} withCloseButton onClose={() => setTestResult(null)}>
+          <Text size="sm">{testResult.message}</Text>
+          {testResult.hints && testResult.hints.length > 0 && (
+            <Stack gap={4} mt="xs">
+              {testResult.hints.map((hint: string, i: number) => (
+                <Text key={i} size="xs" c="yellow">💡 {hint}</Text>
+              ))}
+            </Stack>
+          )}
+          {testResult.user_base_dn_valid === false && <Text size="xs" c="orange" mt="xs">⚠ {testResult.user_base_dn_warning}</Text>}
+          {testResult.user_base_dn_valid === true && <Text size="xs" c="green" mt="xs">✓ User Base DN is valid</Text>}
+        </Alert>
+      )}
+
+      {saveError && (
+        <Alert
+          mt="md"
+          color="red"
+          title="Save failed"
+          withCloseButton
+          onClose={() => setSaveError(null)}
+        >
+          <ScrollArea.Autosize mah={220} type="auto" offsetScrollbars>
+            <Text
+              size="sm"
+              ff="monospace"
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+            >
+              {saveError}
+            </Text>
+          </ScrollArea.Autosize>
+        </Alert>
+      )}
+
+      <Divider my="md" />
+
+      <Group justify="space-between">
+        <Button variant="outline" leftSection={<IconTestPipe size={16} />} onClick={handleTest} loading={testing}
+          disabled={!form.server_url}>
+          Test Connection
+        </Button>
+        <Button leftSection={<IconDeviceFloppy size={16} />} onClick={handleSave} loading={saving}>
+          Save LDAP Configuration
+        </Button>
+      </Group>
+    </Card>
+  );
+}
+
+/* ────────────────────── Auth Settings Tab ────────────────────── */
+function AuthSettingsTab() {
+  const { data: appData } = useApi(config.getApp);
+
+  return (
+    <Stack>
+      {/* Authentication Source Summary */}
+      <Card withBorder shadow="sm">
+        <Text fw={700} mb="sm">Authentication</Text>
+        <Group>
+          <Text size="sm" c="dimmed">Backend:</Text>
+          <Badge color={appData?.auth_backend === 'none' ? 'yellow' : 'green'} size="lg">{appData?.auth_backend || 'none'}</Badge>
+        </Group>
+        <Text size="xs" c="dimmed" mt="sm">
+          Each user can authenticate via LDAP (corporate credentials) or local accounts (service accounts, break-glass).
+          The authentication source is selectable per user. <Text span fw={500}>Roles (Admin, Operator, Viewer) are assigned and managed exclusively in the User Manager tab.</Text>
+        </Text>
+      </Card>
+
+      {/* LDAP Configuration */}
+      <LdapConfigPanel />
+    </Stack>
+  );
+}
+
+/* ────────────────────── User Manager Tab ────────────────────── */
+function UserManagerTab() {
+  const { user: currentUser } = useAuth();
+  const { isRobots } = useAppTheme();
+  const [userList, setUserList] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<string>('operator');
+  const [newAuthSource, setNewAuthSource] = useState<string>('ldap');
+  const [addLoading, setAddLoading] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwUser, setPwUser] = useState('');
+  const [pwValue, setPwValue] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [roleUser, setRoleUser] = useState('');
+  const [roleValue, setRoleValue] = useState<string>('viewer');
+  const [roleLoading, setRoleLoading] = useState(false);
+  const [authSrcOpen, setAuthSrcOpen] = useState(false);
+  const [authSrcUser, setAuthSrcUser] = useState('');
+  const [authSrcValue, setAuthSrcValue] = useState<string>('ldap');
+  const [authSrcLoading, setAuthSrcLoading] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await users.list();
+      setUserList(Array.isArray(data) ? data : []);
+    } catch (err: any) { setError(err.message || 'Failed to load users'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useState(() => { loadUsers(); });
+
+  const handleAddUser = async () => {
+    if (!newUsername) return;
+    if (newAuthSource === 'local' && !newPassword) return;
+    setAddLoading(true);
+    try {
+      await users.create({ username: newUsername, password: newPassword, role: newRole, auth_source: newAuthSource });
+      notifications.show({ title: 'User Created', message: `User '${newUsername}' created (${newAuthSource}, role: ${newRole})`, color: 'green' });
+      setNewUsername(''); setNewPassword(''); setNewRole('operator'); setNewAuthSource('ldap'); loadUsers();
+    } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
+    finally { setAddLoading(false); }
+  };
+
+  const handleDeleteUser = async (username: string) => {
+    setDeleteLoading(true);
+    try {
+      await users.remove(username);
+      notifications.show({ title: 'User Deleted', message: `User '${username}' removed`, color: 'green' });
+      setDeleteUser(null);
+      loadUsers();
+    } catch (err: any) {
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    }
+    setDeleteLoading(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwValue) return;
+    setPwLoading(true);
+    try {
+      await users.changePassword(pwUser, pwValue);
+      notifications.show({ title: 'Password Changed', message: `Password updated for '${pwUser}'`, color: 'green' });
+      setPwOpen(false); setPwValue('');
+    } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
+    finally { setPwLoading(false); }
+  };
+
+  const handleChangeRole = async () => {
+    setRoleLoading(true);
+    try {
+      await users.changeRole(roleUser, roleValue);
+      notifications.show({ title: 'Role Changed', message: `Role updated to '${roleValue}' for '${roleUser}'`, color: 'green' });
+      setRoleOpen(false); loadUsers();
+    } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
+    finally { setRoleLoading(false); }
+  };
+
+  const handleChangeAuthSource = async () => {
+    setAuthSrcLoading(true);
+    try {
+      await users.changeAuthSource(authSrcUser, authSrcValue);
+      notifications.show({ title: 'Auth Source Changed', message: `'${authSrcUser}' now authenticates via ${authSrcValue.toUpperCase()}`, color: 'green' });
+      setAuthSrcOpen(false); loadUsers();
+    } catch (err: any) { notifications.show({ title: 'Error', message: err.message, color: 'red' }); }
+    finally { setAuthSrcLoading(false); }
+  };
+
+  if (loading) return <Center h={300}><Loader size="xl" /></Center>;
+  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+
+  return (
+    <Stack>
+      {/* Add User */}
+      <Grid align="flex-start">
+        {isRobots && (
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Card withBorder shadow="sm" padding="sm" style={{ overflow: 'hidden' }}><PeopleProcessingMachine /></Card>
+          </Grid.Col>
+        )}
+        <Grid.Col span={{ base: 12, md: isRobots ? 6 : 12 }}>
+          <Card withBorder shadow="sm" padding="lg">
+            <Group gap="sm" mb="md">
+              <IconPlus size={18} />
+              <Title order={4}>Add User</Title>
+            </Group>
+            <Text size="xs" c="dimmed" mb="sm">
+              Create a new user. LDAP users authenticate with their directory credentials. Local users use a password stored in this application.
+            </Text>
+            <Stack gap="sm">
+              <TextInput label="Username" placeholder="Enter username" value={newUsername} onChange={(e) => setNewUsername(e.currentTarget.value)} />
+              <Select label="Authentication Source" description="LDAP users authenticate with corporate credentials. Local users use a stored password."
+                data={[
+                  { value: 'ldap', label: 'LDAP / Active Directory' },
+                  { value: 'local', label: 'Local' },
+                ]} value={newAuthSource} onChange={(v) => { setNewAuthSource(v || 'ldap'); if (v === 'ldap') setNewPassword(''); }} />
+              <Collapse expanded={newAuthSource === 'local'}>
+                <PasswordInput label="Password" placeholder="Enter password" value={newPassword} onChange={(e) => setNewPassword(e.currentTarget.value)} />
+              </Collapse>
+              <Select label="Role" data={ROLE_SELECT_DATA}
+                value={newRole} onChange={(v) => setNewRole(v || 'viewer')} />
+              <Button leftSection={<IconPlus size={16} />} onClick={handleAddUser} loading={addLoading}
+                disabled={!newUsername || (newAuthSource === 'local' && !newPassword)}>Create User</Button>
+            </Stack>
+          </Card>
+        </Grid.Col>
+      </Grid>
+
+      {/* User Table */}
+      <Card withBorder shadow="sm">
+        <Text fw={700} mb="sm">All Users</Text>
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Username</Table.Th>
+              <Table.Th>Role</Table.Th>
+              <Table.Th>Source</Table.Th>
+              <Table.Th style={{ textAlign: 'right' }}>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {userList.map((u) => (
+              <Table.Tr key={u.username}>
+                <Table.Td><Text fw={500}>{u.username}</Text></Table.Td>
+                <Table.Td><Badge color={roleBadgeColor[u.role] || 'gray'} variant="light">{u.role}</Badge></Table.Td>
+                <Table.Td>
+                  <Badge
+                    color={authSourceColor[u.auth_source || 'local'] || 'gray'}
+                    variant="outline"
+                    size="sm"
+                    leftSection={u.auth_source === 'ldap' ? <IconWorld size={10} /> : <IconLock size={10} />}
+                  >
+                    {u.auth_source || 'local'}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Group gap="xs" justify="flex-end">
+                    {(u.auth_source || 'local') === 'local' && (
+                      <Tooltip label="Change password">
+                        <ActionIcon variant="subtle" color="blue" onClick={() => { setPwUser(u.username); setPwValue(''); setPwOpen(true); }}>
+                          <IconKey size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    <Tooltip label="Change auth source">
+                      <ActionIcon variant="subtle" color="grape" onClick={() => { setAuthSrcUser(u.username); setAuthSrcValue(u.auth_source || 'local'); setAuthSrcOpen(true); }}>
+                        <IconSwitchHorizontal size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Change role"><ActionIcon variant="subtle" color="orange" onClick={() => { setRoleUser(u.username); setRoleValue(u.role); setRoleOpen(true); }}><IconShield size={16} /></ActionIcon></Tooltip>
+                    {u.username !== currentUser?.username && (<Tooltip label="Delete user"><ActionIcon variant="subtle" color="red" onClick={() => setDeleteUser(u.username)}><IconTrash size={16} /></ActionIcon></Tooltip>)}
+                  </Group>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+            {userList.length === 0 && (<Table.Tr><Table.Td colSpan={4}><Text c="dimmed" ta="center" py="lg">No users found</Text></Table.Td></Table.Tr>)}
+          </Table.Tbody>
+        </Table>
+      </Card>
+
+      <Modal opened={pwOpen} onClose={() => setPwOpen(false)} title={`Change Password \u2014 ${pwUser}`} centered>
+        <Stack>
+          <PasswordInput label="New Password" placeholder="Enter new password" value={pwValue} onChange={(e) => setPwValue(e.currentTarget.value)} required />
+          <Button onClick={handleChangePassword} loading={pwLoading} fullWidth>Update Password</Button>
+        </Stack>
+      </Modal>
+      <Modal opened={roleOpen} onClose={() => setRoleOpen(false)} title={`Change Role \u2014 ${roleUser}`} centered>
+        <Stack>
+          <Select label="Role" data={ROLE_SELECT_DATA}
+            value={roleValue} onChange={(v) => setRoleValue(v || 'viewer')} />
+          <Button onClick={handleChangeRole} loading={roleLoading} fullWidth>Update Role</Button>
+        </Stack>
+      </Modal>
+      <Modal opened={authSrcOpen} onClose={() => setAuthSrcOpen(false)} title={`Change Auth Source \u2014 ${authSrcUser}`} centered>
+        <Stack>
+          <Select label="Authentication Source" description="LDAP: credentials validated against your directory server. Local: password stored in this application."
+            data={[
+              { value: 'ldap', label: 'LDAP / Active Directory' },
+              { value: 'local', label: 'Local' },
+            ]} value={authSrcValue} onChange={(v) => setAuthSrcValue(v || 'ldap')} />
+          {authSrcValue === 'ldap' && (
+            <Alert variant="light" color="blue" title="Note">
+              Switching to LDAP will invalidate this user's local password. They will need to authenticate using their LDAP/AD credentials.
+            </Alert>
+          )}
+          <Button onClick={handleChangeAuthSource} loading={authSrcLoading} fullWidth>Update Auth Source</Button>
+        </Stack>
+      </Modal>
+      <ConfirmModal
+        opened={!!deleteUser}
+        onClose={() => !deleteLoading && setDeleteUser(null)}
+        onConfirm={() => deleteUser && handleDeleteUser(deleteUser)}
+        title="Delete user?"
+        body={`Delete user '${deleteUser}'? This cannot be undone.`}
+        details={deleteUser ? [deleteUser] : undefined}
+        confirmLabel="Delete user"
+        danger
+        loading={deleteLoading}
+      />
+    </Stack>
+  );
+}
+
+/* ────────────────────── Proxy Configuration Tab ────────────────────── */
+
+function ProxyTab() {
+  const { data, loading, error, refetch } = useApi(config.getApp);
+  const [httpProxy, setHttpProxy] = useState('');
+  const [httpsProxy, setHttpsProxy] = useState('');
+  const [noProxy, setNoProxy] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (data && !initialized) {
+      setHttpProxy(data.http_proxy || '');
+      setHttpsProxy(data.https_proxy || '');
+      setNoProxy(data.no_proxy || '');
+      setInitialized(true);
+    }
+  }, [data, initialized]);
+
+  const isDirty =
+    data &&
+    (httpProxy !== (data.http_proxy || '') ||
+     httpsProxy !== (data.https_proxy || '') ||
+     noProxy !== (data.no_proxy || ''));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await config.updateApp('http_proxy', httpProxy);
+      await config.updateApp('https_proxy', httpsProxy);
+      await config.updateApp('no_proxy', noProxy);
+      notifications.show({
+        title: 'Proxy settings saved',
+        message: 'Restart the openvox-gui service and repo-sync timer for changes to take effect.',
+        color: 'green',
+      });
+      setInitialized(false);
+      refetch();
+    } catch (err: any) {
+      notifications.show({
+        title: 'Failed to save proxy settings',
+        message: err.message || String(err),
+        color: 'red',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await config.testProxy();
+      notifications.show({
+        title: res.success ? 'Connection successful' : 'Connection failed',
+        message: `${res.message} (proxy
