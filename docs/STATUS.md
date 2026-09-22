@@ -56,11 +56,11 @@ drop `@esbuild/*` optional packages):
 - #94 `@xyflow/react` 12.11.3 → 12.11.6
 - #96 `certifi` 2026.5.20 → 2026.7.22
 - #92 `typer` ≥ 0.12.0 → ≥ 0.27.2
-- #93 `matplotlib` ≥ 3.8 → ≥ 3.11.2
 - #90 `pytest-cov` ≥ 5.0,<7 → ≥ 7.1.0,<8 (CI only)
 
 Not applied (same policy as #80–#89):
 
+- #93 `matplotlib` ≥ 3.11.2 (requires Python ≥3.11; install/CI floor is 3.10 — keep ≥3.8)
 - #91 / #99 Mantine 7 → 9 (core stays 7.17.8)
 - #98 Recharts 2 → 3 (Monitoring charts just landed on Recharts 2)
 - #95 `python-json-logger` 3 → 4 (major; leave 3.2.1 this train)
