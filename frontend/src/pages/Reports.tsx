@@ -270,7 +270,7 @@ function ReportOScope() {
   );
 }
 
-// ─── Grouped Reports View ──────────────────────────────────
+// ─── Grouped Reports View ───────────────────────────────────────────────────
 interface GroupedReports {
   [groupName: string]: {
     nodes: string[];
@@ -740,7 +740,7 @@ export function ReportsPage() {
                     {badgeProps.label}
                   </Badge>
                 </Group>
-                <Collapse in={isExpanded}>
+                <Collapse expanded={isExpanded}>
                   <Box mt="sm">
                     <OpsTable<ReportNodeRow>
                       data={nodeRows}
