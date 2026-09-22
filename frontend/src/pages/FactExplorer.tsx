@@ -17,9 +17,9 @@ import { PrettyJson, isJsonLike } from '../components/PrettyJson';
 import { ExportActions } from '../components/ExportActions';
 import { factValueMatches } from '../utils/factFilter';
 
-/* ═══════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════════
    FACT-O-SCOPE 5000 — the giant magnifying glass
-   ═══════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════════════════════ */
 function FactOScope() {
   return (
     <svg viewBox="0 0 520 260" width="100%" style={{ maxHeight: 280 }}>
@@ -428,7 +428,7 @@ export function FactExplorerPage() {
               {!selectedFact && !namesLoading && (
                 <Alert variant="light" color="gray">
                   <Text size="sm" fw={500} mb={8}>Quick access to common facts:</Text>
-                  <Grid gutter="xs">
+                  <Grid gap="xs">
                     <Grid.Col span={6}>
                       <Stack gap={4}>
                         <Text size="xs" c="dimmed">System</Text>
