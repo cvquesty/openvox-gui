@@ -1,0 +1,331 @@
+/**
+ * OpenVox GUI - ConfigApp.tsx
+ * 
+ * Component documentation to be expanded.
+ */
+import { useState, useCallback, useEffect } from 'react';
+import {
+  Title, Loader, Center, Alert, Card, Stack, Text, Code, Table, Badge, Group,
+  Tabs, TextInput, Textarea, PasswordInput, Select, ActionIcon, Modal, Tooltip, Button,
+  Grid, SegmentedControl, Switch, Divider, Accordion, Collapse, ScrollArea,
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import {
+  IconSettings, IconUsers, IconPlus, IconTrash, IconKey, IconShield,
+  IconEdit, IconDeviceFloppy, IconX, IconRefresh, IconServer,
+  IconPlugConnected, IconTestPipe, IconLock, IconWorld,
+  IconSwitchHorizontal,
+} from '@tabler/icons-react';
+import { useApi } from '../hooks/useApi';
+import { config, users, ldap } from '../services/api';
+import { useAuth } from '../hooks/AuthContext';
+import { useAppTheme } from '../hooks/ThemeContext';
+import { StatusBadge } from '../components/StatusBadge';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { ConfigSSLPage } from './ConfigSSL';
+
+/* ────────────────────── Types ────────────────────── */
+interface User {
+  username: string;
+  role: string;
+  auth_source?: string;
+}
+
+const roleBadgeColor: Record<string, string> = {
+  admin: 'red',
+  operator: 'blue',
+  certops: 'orange',
+  viewer: 'gray',
+};
+
+const ROLE_SELECT_DATA = [
+  { value: 'admin', label: 'Admin — Full access' },
+  { value: 'operator', label: 'Operator — Deploy & manage' },
+  { value: 'certops', label: 'Certops — View + clean agent certs' },
+  { value: 'viewer', label: 'Viewer — Read only' },
+];
+
+const authSourceColor: Record<string, string> = {
+  local: 'cyan',
+  ldap: 'grape',
+};
+
+/* ── People Processing Machine SVG (unchanged) ──────────── */
+function PeopleProcessingMachine() {
+  return (
+    <svg viewBox="0 0 500 320" width="100%" style={{ maxHeight: 360 }}>
+      <defs>
+        <linearGradient id="pm-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1a1b2e" />
+          <stop offset="100%" stopColor="#252540" />
+        </linearGradient>
+        <linearGradient id="pm-machine" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#556677" />
+          <stop offset="100%" stopColor="#3d4d5d" />
+        </linearGradient>
+      </defs>
+      <rect width="500" height="320" fill="url(#pm-sky)" rx="8" />
+      <rect x="0" y="260" width="500" height="60" fill="#1a1a2e" />
+      <rect x="0" y="260" width="500" height="2" fill="#333355" />
+      <rect x="30" y="240" width="440" height="12" fill="#334455" rx="6" />
+      <circle cx="50" cy="246" r="5" fill="#445566" stroke="#556677" strokeWidth="1">
+        <animateTransform attributeName="transform" type="rotate" values="0 50 246;360 50 246" dur="2s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="450" cy="246" r="5" fill="#445566" stroke="#556677" strokeWidth="1">
+        <animateTransform attributeName="transform" type="rotate" values="0 450 246;360 450 246" dur="2s" repeatCount="indefinite" />
+      </circle>
+      <circle r="2" fill="#556677"><animateMotion dur="4s" repeatCount="indefinite" path="M30,246 L470,246" /></circle>
+      <circle r="2" fill="#556677"><animateMotion dur="4s" repeatCount="indefinite" path="M30,246 L470,246" begin="2s" /></circle>
+      <g><animateMotion dur="6s" repeatCount="indefinite" path="M0,0 L80,0" />
+        <circle cx="55" cy="208" r="8" fill="none" stroke="#aabbcc" strokeWidth="2" />
+        <line x1="55" y1="216" x2="55" y2="232" stroke="#aabbcc" strokeWidth="2" />
+        <line x1="55" y1="222" x2="45" y2="228" stroke="#aabbcc" strokeWidth="2" />
+        <line x1="55" y1="222" x2="65" y2="228" stroke="#aabbcc" strokeWidth="2" />
+        <line x1="55" y1="232" x2="48" y2="242" stroke="#aabbcc" strokeWidth="2" />
+        <line x1="55" y1="232" x2="62" y2="242" stroke="#aabbcc" strokeWidth="2" />
+        <text x="67" y="206" fill="#ffaa44" fontSize="14" fontWeight="bold">?</text>
+      </g>
+      <g><animateMotion dur="6s" repeatCount="indefinite" path="M0,0 L80,0" begin="3s" />
+        <circle cx="100" cy="208" r="8" fill="none" stroke="#ccbbaa" strokeWidth="2" />
+        <line x1="100" y1="216" x2="100" y2="232" stroke="#ccbbaa" strokeWidth="2" />
+        <line x1="100" y1="222" x2="90" y2="228" stroke="#ccbbaa" strokeWidth="2" />
+        <line x1="100" y1="222" x2="110" y2="228" stroke="#ccbbaa" strokeWidth="2" />
+        <line x1="100" y1="232" x2="93" y2="242" stroke="#ccbbaa" strokeWidth="2" />
+        <line x1="100" y1="232" x2="107" y2="242" stroke="#ccbbaa" strokeWidth="2" />
+        <text x="112" y="206" fill="#ff6644" fontSize="14" fontWeight="bold">!</text>
+      </g>
+      <rect x="175" y="120" width="150" height="128" fill="url(#pm-machine)" rx="6" stroke="#7788aa" strokeWidth="1.5" />
+      <polygon points="210,120 290,120 270,95 230,95" fill="#667788" stroke="#7788aa" strokeWidth="1" />
+      <text x="250" y="113" textAnchor="middle" fill="#aabbcc" fontSize="7" fontFamily="monospace">INPUT</text>
+      <rect x="195" y="140" width="110" height="22" fill="#334455" rx="3" />
+      <text x="250" y="155" textAnchor="middle" fill="#44aaff" fontSize="9" fontFamily="monospace" fontWeight="bold">USER-O-MATIC 3000</text>
+      <circle cx="215" cy="180" r="14" fill="none" stroke="#88aacc" strokeWidth="2" strokeDasharray="4 3">
+        <animateTransform attributeName="transform" type="rotate" values="0 215 180;360 215 180" dur="3s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="285" cy="180" r="14" fill="none" stroke="#88aacc" strokeWidth="2" strokeDasharray="4 3">
+        <animateTransform attributeName="transform" type="rotate" values="360 285 180;0 285 180" dur="3s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="195" cy="210" r="4" fill="#44ff44"><animate attributeName="fill" values="#44ff44;#22aa22;#44ff44" dur="1.5s" repeatCount="indefinite" /></circle>
+      <circle cx="207" cy="210" r="4" fill="#ffaa22" /><circle cx="219" cy="210" r="4" fill="#44aaff" />
+      <rect x="290" y="220" width="40" height="12" fill="#556677" rx="2" />
+      <text x="310" y="218" textAnchor="middle" fill="#aabbcc" fontSize="7" fontFamily="monospace">OUTPUT</text>
+      <g>
+        <circle cx="370" cy="208" r="8" fill="none" stroke="#66dd66" strokeWidth="2" />
+        <line x1="370" y1="216" x2="370" y2="232" stroke="#66dd66" strokeWidth="2" />
+        <line x1="370" y1="222" x2="360" y2="228" stroke="#66dd66" strokeWidth="2" />
+        <line x1="370" y1="222" x2="380" y2="228" stroke="#66dd66" strokeWidth="2" />
+        <line x1="370" y1="232" x2="364" y2="242" stroke="#66dd66" strokeWidth="2" />
+        <line x1="370" y1="232" x2="376" y2="242" stroke="#66dd66" strokeWidth="2" />
+        <rect x="358" y="216" width="24" height="8" fill="#ff4444" rx="2" opacity="0.9" />
+        <text x="370" y="223" textAnchor="middle" fill="white" fontSize="5" fontFamily="monospace">ADMIN</text>
+        <text x="382" y="208" fill="#44ff44" fontSize="10">&#10003;</text>
+      </g>
+      <g>
+        <circle cx="420" cy="208" r="8" fill="none" stroke="#66bbdd" strokeWidth="2" />
+        <line x1="420" y1="216" x2="420" y2="232" stroke="#66bbdd" strokeWidth="2" />
+        <line x1="420" y1="222" x2="410" y2="228" stroke="#66bbdd" strokeWidth="2" />
+        <line x1="420" y1="222" x2="430" y2="228" stroke="#66bbdd" strokeWidth="2" />
+        <line x1="420" y1="232" x2="414" y2="242" stroke="#66bbdd" strokeWidth="2" />
+        <line x1="420" y1="232" x2="426" y2="242" stroke="#66bbdd" strokeWidth="2" />
+        <rect x="410" y="216" width="20" height="8" fill="#4488ff" rx="2" opacity="0.9" />
+        <text x="420" y="223" textAnchor="middle" fill="white" fontSize="5" fontFamily="monospace">OPS</text>
+      </g>
+      <text x="250" y="282" textAnchor="middle" fill="#8899aa" fontSize="11" fontFamily="monospace">The People Processing Machine</text>
+      <text x="250" y="298" textAnchor="middle" fill="#556677" fontSize="9" fontFamily="monospace">unsorted humans in &#8594; authorized users out</text>
+      <text x="250" y="310" textAnchor="middle" fill="#445566" fontSize="7" fontFamily="monospace">(no humans were harmed in the making of this feature)</text>
+    </svg>
+  );
+}
+
+/* ────────────────────── Application Tab ────────────────────── */
+function ApplicationTab({ onSwitchToServices }: { onSwitchToServices: () => void }) {
+  const { data, loading, error, refetch } = useApi(config.getApp);
+  const { theme: appTheme, setTheme } = useAppTheme();
+  const [editing, setEditing] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+
+  if (loading) return <Center h={300}><Loader size="xl" /></Center>;
+  if (error) return <Alert color="red" title="Error">{error}</Alert>;
+
+  const settingsMeta: Record<string, { label: string; description: string; editable: boolean; type?: string }> = {
+    app_name:            { label: 'Application Name',    description: 'Display name shown in the header and login page', editable: true },
+    puppet_server_host:  { label: 'OpenVox Server Host',  description: 'FQDN of the OpenVox Server for API communication', editable: true },
+    puppet_server_port:  { label: 'OpenVox Server Port',  description: 'OpenVox Server HTTPS API port (usually 8140)', editable: true, type: 'number' },
+    puppet_ca_host:      { label: 'OpenVox CA Host',      description: 'FQDN of the CA (clustered consoles only; empty means same as OpenVox Server Host)', editable: true },
+    puppet_ca_port:      { label: 'OpenVox CA Port',      description: 'CA HTTPS API port (usually 8140)', editable: true, type: 'number' },
+    puppetdb_host:       { label: 'OpenVox DB Host',      description: 'FQDN of the OpenVoxDB server', editable: true },
+    puppetdb_port:       { label: 'OpenVox DB Port',      description: 'OpenVoxDB HTTPS API port (usually 8081)', editable: true, type: 'number' },
+    debug:               { label: 'Debug Mode',          description: 'Enable verbose debug logging (restart required)', editable: true, type: 'boolean' },
+    skip_adhoc_confirm_dialogs: {
+      label: 'Skip ad-hoc run confirms',
+      description:
+        'When Yes, skip confirmation dialogs for Bolt (command / task / plan), r10k deploy, and Run OpenVox. Destructive actions (purge node, certs, ENC deletes, user delete) always require confirmation. Applies immediately (no restart).',
+      editable: true,
+      type: 'boolean',
+    },
+  };
+
+  const HIDDEN_APP_KEYS = new Set(['auth_backend', 'http_proxy', 'https_proxy', 'no_proxy']);
+  const entries = data
+    ? Object.entries(data).filter(([key]) => !HIDDEN_APP_KEYS.has(key))
+    : [];
+  // Stable order: known meta keys first (incl. new toggle at bottom of identity/debug block), then any extras
+  const metaOrder = Object.keys(settingsMeta);
+  entries.sort(([a], [b]) => {
+    const ia = metaOrder.indexOf(a);
+    const ib = metaOrder.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+
+  const handleEdit = (key: string, currentValue: any) => {
+    setEditing((prev) => ({ ...prev, [key]: String(currentValue) }));
+  };
+  const handleCancel = (key: string) => {
+    setEditing((prev) => { const next = { ...prev }; delete next[key]; return next; });
+  };
+  const handleSave = async (key: string) => {
+    setSaving(key);
+    try {
+      await config.updateApp(key, editing[key]);
+      const restartHint =
+        key === 'skip_adhoc_confirm_dialogs'
+          ? 'Applied for this process — reload other tabs if needed.'
+          : 'Go to the Services tab to restart.';
+      notifications.show({
+        title: 'Setting Updated',
+        message: `${settingsMeta[key]?.label || key} updated. ${restartHint}`,
+        color: 'green',
+      });
+      handleCancel(key);
+      refetch();
+    } catch (err: any) {
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
+    } finally { setSaving(null); }
+  };
+
+  return (
+    <Stack>
+      <Card withBorder shadow="sm">
+        <Group justify="space-between" align="center">
+          <div>
+            <Text fw={700} mb={4}>Application Theme</Text>
+            <Text size="sm" c="dimmed">
+              Choose the visual style. <Text span fw={500}>Light</Text> is a clean light theme with blue accents. <Text span fw={500}>Dark</Text> is a clean dark theme with orange accents. <Text span fw={500}>Robots!!</Text> features dark mode with orange accents and animated illustrations.
+            </Text>
+          </div>
+          <SegmentedControl value={appTheme} onChange={(v) => setTheme(v as any)}
+            data={[
+              { label: 'Light', value: 'light' }, 
+              { label: 'Dark', value: 'dark' }, 
+              { label: 'Robots!!', value: 'robots' }
+            ]} size="md" />
+        </Group>
+      </Card>
+      <Card withBorder shadow="sm">
+        <Text fw={700} mb="sm">Application Settings</Text>
+        <Text size="xs" c="dimmed" mb="md">Changes are written to the .env configuration file. Some changes require a <Text span size="xs" c="blue" style={{ cursor: 'pointer' }} td="underline" onClick={onSwitchToServices}>service restart</Text> to take effect.</Text>
+        <Table striped>
+          <Table.Thead><Table.Tr><Table.Th style={{ width: 220 }}>Setting</Table.Th><Table.Th>Value</Table.Th><Table.Th style={{ width: 100, textAlign: 'right' }}>Actions</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {entries.map(([key, value]: [string, any]) => {
+              const meta = settingsMeta[key];
+              const isEditing = key in editing;
+              return (
+                <Table.Tr key={key}>
+                  <Table.Td><Text size="sm" fw={500}>{meta?.label || key}</Text>{meta?.description && <Text size="xs" c="dimmed">{meta.description}</Text>}</Table.Td>
+                  <Table.Td>
+                    {isEditing ? (
+                      meta?.type === 'boolean' ? (
+                        <Select data={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]} value={editing[key]}
+                          onChange={(v) => setEditing((prev) => ({ ...prev, [key]: v || 'false' }))} size="xs" style={{ maxWidth: 120 }} />
+                      ) : (
+                        <TextInput value={editing[key]} onChange={(e) => setEditing((prev) => ({ ...prev, [key]: e.currentTarget.value }))}
+                          size="xs" style={{ maxWidth: 300 }} type={meta?.type === 'number' ? 'number' : 'text'} />
+                      )
+                    ) : typeof value === 'boolean' ? (
+                      <Badge color={value ? 'green' : 'gray'}>{value ? 'Yes' : 'No'}</Badge>
+                    ) : (<Code>{String(value)}</Code>)}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: 'right' }}>
+                    {meta?.editable && (isEditing ? (
+                      <Group gap={4} justify="flex-end">
+                        <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => handleCancel(key)}><IconX size={14} /></ActionIcon>
+                        <ActionIcon size="sm" variant="filled" color="green" onClick={() => handleSave(key)} loading={saving === key}><IconDeviceFloppy size={14} /></ActionIcon>
+                      </Group>
+                    ) : (<ActionIcon size="sm" variant="subtle" onClick={() => handleEdit(key, value)}><IconEdit size={14} /></ActionIcon>))}
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      </Card>
+    </Stack>
+  );
+}
+
+/* ────────────────────── Cluster health (FQDN APIs + HA) ────────────────────── */
+function ClusterHealthPanel({
+  members,
+  full,
+  onRefresh,
+}: {
+  members: any[];
+  full?: any;
+  onRefresh: () => void;
+}) {
+  const ha = full?.ha;
+  const summary = full?.summary || {};
+  const pcs = ha?.pcs;
+
+  return (
+    <Stack>
+      <Card withBorder shadow="sm" padding="md">
+        <Group justify="space-between" mb="sm">
+          <Text fw={700}>Cluster member health (per-FQDN service APIs)</Text>
+          <Button variant="subtle" size="xs" leftSection={<IconRefresh size={14} />} onClick={onRefresh}>
+            Refresh
+          </Button>
+        </Group>
+        <Text size="xs" c="dimmed" mb="sm">
+          Compilers: /status/v1/simple + /status/v1/services on :8140.
+          PuppetDB: simple + services + /pdb/meta/v1/version + sample /pdb/query/v4/nodes.
+          CA: simple + services + CA certificate endpoint. Probes use host FQDNs, not VIP.
+        </Text>
+        {summary && (
+          <Group gap="md" mb="sm">
+            <Badge variant="outline">
+              compilers {summary.compilers_healthy ?? '—'}/{summary.compilers_total ?? '—'}
+            </Badge>
+            <Badge variant="outline">
+              puppetdb {summary.puppetdb_healthy ?? '—'}/{summary.puppetdb_total ?? '—'}
+            </Badge>
+            <Badge variant="outline">
+              ca {summary.ca_healthy ?? '—'}/{summary.ca_total ?? '—'}
+            </Badge>
+            {summary.ha_primary && (
+              <Badge color="blue" variant="light">HA primary: {summary.ha_primary}</Badge>
+            )}
+            {summary.ha_vip_node && (
+              <Badge color="cyan" variant="light">VIP on: {summary.ha_vip_node}</Badge>
+            )}
+          </Group>
+        )}
+        <Table striped highlightOnHover withTableBorder>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>FQDN</Table.Th>
+              <Table.Th>Role</Table.Th>
+              <Table.Th>Port</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Detail</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {(members || []).length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={5}>
+                  <Text c="dimmed" size="sm">No members configured — add
