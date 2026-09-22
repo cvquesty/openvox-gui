@@ -319,7 +319,7 @@ export function CertAuditPage() {
           <Title order={4}>Healthy Certificates ({active.length})</Title>
           <Text size="sm" c="dimmed">Signed and present in the live inventory</Text>
         </Group>
-        <Collapse in={showHealthy}>
+        <Collapse expanded={showHealthy}>
           <OpsTable<any>
             data={active}
             rowKey={(c) => c.certname}
