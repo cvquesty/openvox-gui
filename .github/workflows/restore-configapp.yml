@@ -1,0 +1,43 @@
+name: Restore ConfigApp
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.ci-scratch/ConfigApp.tsx.part*'
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Assemble ConfigApp.tsx from parts
+        run: |
+          set -euo pipefail
+          PARTS=(.ci-scratch/ConfigApp.tsx.part00 .ci-scratch/ConfigApp.tsx.part01 .ci-scratch/ConfigApp.tsx.part02 .ci-scratch/ConfigApp.tsx.part03 .ci-scratch/ConfigApp.tsx.part04)
+          for p in "${PARTS[@]}"; do
+            test -f "$p" || { echo "missing $p"; exit 1; }
+          done
+          cat "${PARTS[@]}" > frontend/src/pages/ConfigApp.tsx
+          wc -c frontend/src/pages/ConfigApp.tsx
+          head -c 80 frontend/src/pages/ConfigApp.tsx; echo
+          tail -c 80 frontend/src/pages/ConfigApp.tsx; echo
+
+      - name: Commit restored ConfigApp.tsx
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/pages/ConfigApp.tsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: restore ConfigApp.tsx from .ci-scratch parts"
+          git push
