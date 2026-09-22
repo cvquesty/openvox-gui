@@ -1,1 +1,1 @@
-PLACEHOLDER_DO_NOT_USE
+LOAD_FROM_FILE:/workspace/perf.tsx
