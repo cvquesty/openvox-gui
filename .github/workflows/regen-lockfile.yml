@@ -1,0 +1,78 @@
+name: Regen frontend lockfile
+
+# Replaces the operator laptop `cd frontend && npm install` handshake.
+# CI installs with `npm ci` on Node 22. When package.json pins change,
+# this job writes a lockfile on that same runner and commits it back.
+#
+# GITHUB_TOKEN pushes do not start a new CI run. After this job succeeds
+# (it already ran npm ci + typecheck + test + build), re-run the CI
+# workflow on the branch if you want the PR checks green.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to regenerate frontend/package-lock.json on
+        required: true
+        type: string
+        default: chore/3.14.1-dev.2
+  pull_request:
+    paths:
+      - frontend/package.json
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: regen-lockfile-${{ github.event.inputs.branch || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regen:
+    name: Regen package-lock.json (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.branch || github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+          registry-url: https://registry.npmjs.org
+
+      - name: npm install (rewrite lockfile to match package.json)
+        run: npm install --no-fund --no-audit
+
+      - name: Commit package-lock.json if it changed
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore(frontend): regenerate package-lock.json for CI npm ci"
+          file_pattern: frontend/package-lock.json
+          disable_globbing: true
+          commit_user_name: openvox-gui-ci
+          commit_user_email: 1455231+cvquesty@users.noreply.github.com
+
+      - name: npm ci (prove the new lockfile)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
