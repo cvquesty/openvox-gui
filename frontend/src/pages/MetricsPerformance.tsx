@@ -1,1 +1,1 @@
-@file:///workspace/perf_content_only.tsx
+PLACEHOLDER_DO_NOT_USE
