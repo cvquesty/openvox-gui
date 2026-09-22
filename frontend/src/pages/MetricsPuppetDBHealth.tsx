@@ -202,7 +202,7 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
-          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={((v: number) => [`${v} MB`, '']) as any} />
           <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="used" stroke="#0D6EFD" fill="url(#gPdbH)" strokeWidth={2} dot={false} name="Heap used" />
         </AreaChart>
       ),
