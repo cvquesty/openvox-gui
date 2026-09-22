@@ -1,14 +1,15 @@
-# OpenVox GUI — Project status (3.14.0)
+# OpenVox GUI — Project status (3.14.1-dev.1)
 
-**As of:** 2026-09-21
-**Branch:** `main`
-**VERSION file:** see repo root `VERSION` (`3.14.0`)
+**As of:** 2026-09-22
+**Branch:** `main` (train opened on `chore/3.14.1-dev.1`)
+**VERSION file:** see repo root `VERSION` (`3.14.1-dev.1`)
 **Current stable GitHub Release:** **3.14.0** (`v3.14.0`) once the
-Release is cut; tag and lab deploy land with this promotion.
+Release is cut; the 3.14.1 patch train is daily work after that tag.
 
 This file is the operator map after the 3.13.0-rc train (clustered
 ops, lean PDB, agent installer, Monitoring) was promoted to **3.14.0**.
-There is no 3.13.0 GitHub Release.
+There is no 3.13.0 GitHub Release. **3.14.1-dev.1** is the first drop
+of the next patch train.
 
 ---
 
@@ -28,8 +29,9 @@ defaults. Clustering is documented and supported.
 
 | Line | Status | Notes |
 |------|--------|--------|
+| **3.14.1-dev.1** | **Active patch train** | Dependabot #90–#99 compatible pins + #79 air-gap docs |
 | **3.14.0** | **Stable** | Current product. Promotes 3.13.0-rc.1–rc.32 + 3.12.1-dev.1–dev.34. |
-| **3.14.1-dev.N** | Next patch train | Daily work after this tag |
+| **3.14.1-dev.N** | Patch train | Daily work after 3.14.0 |
 | **3.15.0-rc.N** | Next minor (when needed) | PEP 440 only. Never put `gamma` in `VERSION`. |
 | **3.13.0-rc.N** | Promoted | Audit trail stays in CHANGELOG; no 3.13.0 stable |
 | **3.12.0** | Prior stable | AIO + clustered consoles, one fleet status |
@@ -43,7 +45,37 @@ Pre-release labels must be PEP 440 (`rc` / `a` / `b` / `dev`). Do **not** use
 
 ---
 
-## 3. What 3.14.0 ships (on top of 3.12.0)
+## 3. What 3.14.1-dev.1 adds
+
+### Dependabot #90–#99 (compatible pins only)
+
+Applied on this train (source pins; Dependabot lockfiles not merged — they
+drop `@esbuild/*` optional packages):
+
+- #97 `@vitejs/plugin-react` 6.1.0 → 6.1.1
+- #94 `@xyflow/react` 12.11.3 → 12.11.6
+- #96 `certifi` 2026.5.20 → 2026.7.22
+- #92 `typer` ≥ 0.12.0 → ≥ 0.27.2
+- #93 `matplotlib` ≥ 3.8 → ≥ 3.11.2
+- #90 `pytest-cov` ≥ 5.0,<7 → ≥ 7.1.0,<8 (CI only)
+
+Not applied (same policy as #80–#89):
+
+- #91 / #99 Mantine 7 → 9 (core stays 7.17.8)
+- #98 Recharts 2 → 3 (Monitoring charts just landed on Recharts 2)
+- #95 `python-json-logger` 3 → 4 (major; leave 3.2.1 this train)
+
+### Air-gapped / offline installs (#79)
+
+A full air-gapped GUI install (PyPI + npm + Vite in one shot) is **not**
+supported on this train. Use the HTTP/HTTPS proxy + allowlisted endpoints
+in [INSTALL.md](../INSTALL.md). After the first online install, agent
+packages can be served from the local mirror. A container/offline bundle
+is a later-train item.
+
+---
+
+## 4. What 3.14.0 ships (on top of 3.12.0)
 
 ### Clustered ops
 
@@ -96,10 +128,11 @@ Pre-release labels must be PEP 440 (`rc` / `a` / `b` / `dev`). Do **not** use
 - Remote tune apply to every compiler/ovdb via Bolt
 - Classify live compilers with `roles::catalog_compiler` (profile exists; production classify not confirmed)
 - Dual-console **same** `OPENVOX_GUI_SECRET_KEY` + `openvox_gui` DSN is an ops requirement, not a code fix
+- Full air-gapped / containerized GUI install (#79) — docs only this train
 
 ---
 
-## 4. Architecture cheat sheet
+## 5. Architecture cheat sheet
 
 ### All-in-one (default)
 
@@ -133,11 +166,11 @@ See [CLUSTERED_SHARED_DB.txt](CLUSTERED_SHARED_DB.txt).
 
 ---
 
-## 5. Documentation map
+## 6. Documentation map
 
 | Doc | Role |
 |-----|------|
-| [INSTALL.md](../INSTALL.md) | **AIO first**; clustered in advanced section |
+| [INSTALL.md](../INSTALL.md) | **AIO first**; clustered in advanced section; air-gap / proxy notes |
 | [UPDATE.md](../UPDATE.md) | Clone-then-deploy |
 | [FEATURES.md](FEATURES.md) | Page/API inventory |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Single vs clustered |
@@ -154,7 +187,7 @@ See [CLUSTERED_SHARED_DB.txt](CLUSTERED_SHARED_DB.txt).
 
 ---
 
-## 6. Ops truth
+## 7. Ops truth
 
 1. Node **Failed** = newest **OpenVoxDB report** status, not CA.
 2. Report processors = **compilers** `[server] reports = puppetdb`.
@@ -167,7 +200,7 @@ See [CLUSTERED_SHARED_DB.txt](CLUSTERED_SHARED_DB.txt).
 
 ---
 
-## 7. Continuous integration
+## 8. Continuous integration
 
 Every push to `main` runs `.github/workflows/ci.yml`
 (pytest, ruff, Vitest, Vite build, shell syntax, bolt-plugin, VERSION
