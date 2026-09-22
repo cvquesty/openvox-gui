@@ -1,1 +1,1 @@
-PLACEHOLDER_WILL_REPLACE
+@file:///workspace/perf_content_only.tsx
