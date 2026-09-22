@@ -1,15 +1,15 @@
-# OpenVox GUI — Project status (3.14.1-dev.1)
+# OpenVox GUI — Project status (3.14.1-dev.2)
 
 **As of:** 2026-09-22
-**Branch:** `main` (train opened on `chore/3.14.1-dev.1`)
-**VERSION file:** see repo root `VERSION` (`3.14.1-dev.1`)
+**Branch:** `chore/3.14.1-dev.2` (PR #101; train opened after 3.14.1-dev.1 on `main`)
+**VERSION file:** see repo root `VERSION` (`3.14.1-dev.2`)
 **Current stable GitHub Release:** **3.14.0** (`v3.14.0`) once the
 Release is cut; the 3.14.1 patch train is daily work after that tag.
 
 This file is the operator map after the 3.13.0-rc train (clustered
 ops, lean PDB, agent installer, Monitoring) was promoted to **3.14.0**.
-There is no 3.13.0 GitHub Release. **3.14.1-dev.1** is the first drop
-of the next patch train.
+There is no 3.13.0 GitHub Release. **3.14.1-dev.1** was the first drop
+of the next patch train. **3.14.1-dev.2** is the current snapshot.
 
 ---
 
@@ -29,7 +29,8 @@ defaults. Clustering is documented and supported.
 
 | Line | Status | Notes |
 |------|--------|--------|
-| **3.14.1-dev.1** | **Active patch train** | Dependabot #90–#99 compatible pins + #79 air-gap docs |
+| **3.14.1-dev.2** | **Active patch train** | Latest packaging that works together + secure (Mantine 9.6.2, Recharts 3.10.1, python-json-logger 4.2.0, cryptography 50.0.1, matplotlib>=3.10,<3.11) |
+| **3.14.1-dev.1** | Prior snapshot | Dependabot #90–#99 compatible pins + #79 air-gap docs |
 | **3.14.0** | **Stable** | Current product. Promotes 3.13.0-rc.1–rc.32 + 3.12.1-dev.1–dev.34. |
 | **3.14.1-dev.N** | Patch train | Daily work after 3.14.0 |
 | **3.15.0-rc.N** | Next minor (when needed) | PEP 440 only. Never put `gamma` in `VERSION`. |
@@ -45,7 +46,22 @@ Pre-release labels must be PEP 440 (`rc` / `a` / `b` / `dev`). Do **not** use
 
 ---
 
-## 3. What 3.14.1-dev.1 adds
+## 3. What 3.14.1-dev.2 adds
+
+Policy this snapshot: take current releases that install together and have
+no published advisories. Train breakage is OK if we can fix forward.
+
+### Packaging
+- **Backend:** `python-json-logger` 3.2.1 → 4.2.0 (leaves CVE-2025-27607 / GHSA-wmxh-pxcx-9w24). `cryptography` 50.0.0 → 50.0.1. `matplotlib` `>=3.8` → `>=3.10,<3.11` (3.8/3.9 EOL; keep Python 3.10 wheels). Did **not** take Dependabot #93 `>=3.11.2`.
+- **Frontend suite:** Mantine `core`/`hooks`/`notifications`/`dropzone` 7.17.8 → **9.6.2**. Recharts 2.15 → **3.10.1** + `react-is` ^19.2.8. `postcss-preset-mantine` 1.12.0 → 1.18.0.
+- **Mantine 9 API:** `Grid gutter` → `gap`; `Collapse in` → `expanded`.
+- **CI:** `.github/workflows/regen-lockfile.yml` regenerates `frontend/package-lock.json` on Node 22. No laptop `npm install` handshake.
+
+### Not in this snapshot
+- Dropping the Python 3.10 floor
+- #79 offline/container bundle (docs only — still open)
+
+### Prior snapshot: 3.14.1-dev.1
 
 ### Dependabot #90–#99 (compatible pins only)
 
@@ -60,7 +76,7 @@ drop `@esbuild/*` optional packages):
 
 Not applied (same policy as #80–#89):
 
-- #93 `matplotlib` ≥ 3.11.2 (requires Python ≥3.11; install/CI floor is 3.10 — keep ≥3.8)
+- #93 `matplotlib` ≥ 3.11.2 (requires Python ≥ 3.11; install/CI floor is 3.10 — keep ≥ 3.8)
 - #91 / #99 Mantine 7 → 9 (core stays 7.17.8)
 - #98 Recharts 2 → 3 (Monitoring charts just landed on Recharts 2)
 - #95 `python-json-logger` 3 → 4 (major; leave 3.2.1 this train)
