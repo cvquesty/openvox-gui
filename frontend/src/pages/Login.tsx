@@ -9,13 +9,22 @@ import {
   Group, Text,
 } from '@mantine/core';
 import { IconLock } from '@tabler/icons-react';
+import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../hooks/AuthContext';
 import { config } from '../services/api';
 import { useAppTheme } from '../hooks/ThemeContext';
+import {
+  consumeReturnTo,
+  destinationFromLocation,
+  peekReturnTo,
+  resolvePostLoginDestination,
+} from '../utils/returnTo';
 import { APP_VERSION } from '../version';
 
 export function LoginPage() {
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { isDark } = useAppTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,10 +44,16 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(username, password);
-      // Always send the user to the Dashboard after login, regardless
-      // of what URL they had bookmarked or were redirected from. The
-      // Dashboard is the starting point for all navigation.
-      window.location.href = '/';
+      // Stay in the SPA. The address bar is still the deep link because
+      // login is a mode, not a route. A full reload is not required for
+      // chunk upgrades: lazyWithRetry surfaces those, and versionChecker
+      // asks for a refresh separately. Reloading here would drop `next`.
+      const dest = resolvePostLoginDestination(
+        destinationFromLocation(location),
+        peekReturnTo(),
+      );
+      consumeReturnTo();
+      navigate(dest, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
