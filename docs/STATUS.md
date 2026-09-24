@@ -1,15 +1,15 @@
-# OpenVox GUI — Project status (3.14.1-dev.2)
+# OpenVox GUI — Project status (3.14.1-dev.3)
 
-**As of:** 2026-09-22
-**Branch:** `chore/3.14.1-dev.2` (PR #101; train opened after 3.14.1-dev.1 on `main`)
-**VERSION file:** see repo root `VERSION` (`3.14.1-dev.2`)
+**As of:** 2026-09-24
+**Branch:** `main` (3.14.1 patch train)
+**VERSION file:** see repo root `VERSION` (`3.14.1-dev.3`)
 **Current stable GitHub Release:** **3.14.0** (`v3.14.0`) once the
 Release is cut; the 3.14.1 patch train is daily work after that tag.
 
 This file is the operator map after the 3.13.0-rc train (clustered
 ops, lean PDB, agent installer, Monitoring) was promoted to **3.14.0**.
 There is no 3.13.0 GitHub Release. **3.14.1-dev.1** was the first drop
-of the next patch train. **3.14.1-dev.2** is the current snapshot.
+of the next patch train. **3.14.1-dev.3** is the current snapshot.
 
 ---
 
@@ -29,7 +29,8 @@ defaults. Clustering is documented and supported.
 
 | Line | Status | Notes |
 |------|--------|--------|
-| **3.14.1-dev.2** | **Active patch train** | Latest packaging that works together + secure (Mantine 9.6.2, Recharts 3.10.1, python-json-logger 4.2.0, cryptography 50.0.1, matplotlib>=3.10,<3.11) |
+| **3.14.1-dev.3** | **Active patch train** | Viewer mutate routes are gated in the sidebar, URL, and command palette. Login returns to the deep link. |
+| **3.14.1-dev.2** | Prior snapshot | Latest packaging that works together + secure (Mantine 9.6.2, Recharts 3.10.1, python-json-logger 4.2.0, cryptography 50.0.1, matplotlib>=3.10,<3.11) |
 | **3.14.1-dev.1** | Prior snapshot | Dependabot #90–#99 compatible pins + #79 air-gap docs |
 | **3.14.0** | **Stable** | Current product. Promotes 3.13.0-rc.1–rc.32 + 3.12.1-dev.1–dev.34. |
 | **3.14.1-dev.N** | Patch train | Daily work after 3.14.0 |
@@ -46,7 +47,18 @@ Pre-release labels must be PEP 440 (`rc` / `a` / `b` / `dev`). Do **not** use
 
 ---
 
-## 3. What 3.14.1-dev.2 adds
+## 3. What 3.14.1-dev.3 adds
+
+- **Viewer route gate.** Orchestration, Code Deployment, Agent Install, Hiera
+  data files, and OpenVox/Application configuration stay closed for the
+  viewer role in the sidebar, the address bar, and the command palette.
+  The page shows a read-only empty state. admin, operator, and certops
+  are unchanged.
+- **Login destination.** Signing in stays in the app and returns to the
+  page in the address bar (or `?next=` / `location.state.from`) instead
+  of reloading the dashboard.
+
+### Prior snapshot: 3.14.1-dev.2
 
 Policy this snapshot: take current releases that install together and have
 no published advisories. Train breakage is OK if we can fix forward.

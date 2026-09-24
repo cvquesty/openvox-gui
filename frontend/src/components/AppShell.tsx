@@ -64,6 +64,7 @@ import { useAppTheme, type AppTheme } from '../hooks/ThemeContext';
 import { useActivity } from '../hooks/ActivityContext';
 import { useInsightsTrickle } from '../hooks/useInsightsTrickle';
 import { useAppWarmup } from '../hooks/useAppWarmup';
+import { canAccessPath } from '../utils/canAccess';
 import { prefetchRoute } from '../utils/routePrefetch';
 import { dashboard, config, nodes as nodesApi } from '../services/api';
 import { APP_VERSION } from '../version';
@@ -145,18 +146,12 @@ function navItemMatchesPath(pathname: string, itemPath: string): boolean {
 }
 
 /** Viewers may read fleet/metrics; mutating Play/Deploy/Settings stay hidden. */
-const VIEWER_HIDDEN_PATHS = new Set([
-  '/orchestration',
-  '/deployment',
-  '/installer',
-  '/data/hiera',
-  '/config/puppet',
-  '/config/app',
-]);
-
 function filterNavForRole(items: NavItem[], role?: string): NavItem[] {
-  if (role !== 'viewer') return items;
-  return items.filter((item) => !VIEWER_HIDDEN_PATHS.has(item.path));
+  return items.flatMap((item) => {
+    if (!canAccessPath(item.path, role)) return [];
+    if (!item.children?.length) return [item];
+    return [{ ...item, children: filterNavForRole(item.children, role) }];
+  });
 }
 
 function pathBelongsToGroup(pathname: string, items: NavItem[]): boolean {
@@ -348,6 +343,7 @@ export function AppShellLayout() {
 
   // Render a top-level nav group (label + items)
   const renderNavGroup = (label: string, icon: any, items: NavItem[]) => {
+    if (items.length === 0) return null;
     const GroupIcon = icon;
     const groupHasActive = pathBelongsToGroup(location.pathname, items);
 
@@ -575,6 +571,7 @@ export function AppShellLayout() {
         opened={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         extraActions={paletteExtra}
+        role={user?.role}
       />
     </MantineAppShell>
   );

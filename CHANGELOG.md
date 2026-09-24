@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.3] - 2026-09-24 (fix — viewer route gate and login return path)
+
+### Fixed
+- **Viewer mutate pages.** Hiding Orchestration, Code Deployment, Agent Install,
+  Hiera data files, and configuration in the sidebar no longer leaves those
+  URLs and the command palette open. A viewer who opens one sees a read-only
+  empty state. admin, operator, and certops are unchanged.
+- **Login return path.** After sign-in the app stays on the deep link (or
+  `?next=` / `location.state.from`) instead of hard-navigating to the
+  dashboard. Chunk-load failures still ask for a refresh on their own.
+
 ## [3.14.0] - 2026-09-21 (stable — clustered ops, lean PDB, agent installer)
 
 Stable promotion of the **3.13.0-rc.1–rc.32** train (which itself
