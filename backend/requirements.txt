@@ -40,6 +40,6 @@ pyhocon>=0.3.63
 # Fleet Health PDF report generation (matplotlib for chart recreation matching UI, fpdf2 for fixed-layout one-page PDF assembly)
 # 3.8/3.9 are EOL. 3.11.x needs Python >=3.11 and drops the 3.10 floor.
 # 3.10.9 is the latest line that still ships cp310 wheels (cycler/eval + latex/ps hardening).
-matplotlib>=3.10,<3.11
+matplotlib>=3.10.9,<3.11
 fpdf2>=2.7
 Pillow==12.3.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)
