@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.2] - 2026-10-07
+
+### Fixes
+- **ENC classify upsert.** POST `/enc/nodes` no longer 400s with
+  `UniqueViolationError` / `enc_nodes_pkey` when the certname already
+  exists (re-classify or change environment). `save_node` updates the
+  row. The classifier retries as PUT if create hits a duplicate key.
+
 ## [3.14.0] - 2026-09-21 (stable — clustered ops, lean PDB, agent installer)
 
 Stable promotion of the **3.13.0-rc.1–rc.32** train (which itself
