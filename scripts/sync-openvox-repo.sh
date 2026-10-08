@@ -710,7 +710,14 @@ acquire_lock
 
 info "Starting OpenVox repo sync"
 info "  Script     : $0"
-info "  Script rev : 3.14.1-dev.14"
+_gui_ver=""
+for _vf in "$(dirname "$0")/../VERSION" /opt/openvox-gui/VERSION; do
+    if [ -f "$_vf" ]; then
+        _gui_ver=$(tr -d ' \n' < "$_vf")
+        break
+    fi
+done
+info "  Script rev : ${_gui_ver:-unknown}"
 info "  Target dir : ${PKG_REPO_DIR}"
 info "  Platforms  : ${PLATFORMS}"
 info "  Versions   : ${VERSIONS}"
