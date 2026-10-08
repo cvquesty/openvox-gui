@@ -222,8 +222,8 @@ export function InstallerPage() {
 
   // Distribution selector state
   const [upstream, setUpstream]           = useState<UpstreamInfo | null>(null);
-  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8'], distributions: [], transport: 'https' });
-  const [draftVersions, setDraftVersions]     = useState<string[]>(['8']);
+  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8', '9'], distributions: [], transport: 'https' });
+  const [draftVersions, setDraftVersions]     = useState<string[]>(['8', '9']);
   const [draftDists, setDraftDists]           = useState<string[]>([]);
   const [draftTransport, setDraftTransport]   = useState<MirrorTransport>('https');
   const [savingSelections, setSavingSelections] = useState(false);
@@ -254,7 +254,7 @@ export function InstallerPage() {
       installer.getDiskInfo().catch(() => null),
       installer.getUpstream().catch(() => null),
       installer.getSelections().catch(() => ({
-        openvox_versions: ['8'],
+        openvox_versions: ['8', '9'],
         distributions: [],
         transport: 'https',
       } as MirrorSelections)),
