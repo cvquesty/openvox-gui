@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.20] - 2026-10-08
+
+### Fixes
+- **Do not call yum/apt sync a success when a selected major is empty.**
+  HTTPS listing 404/empty on a required arch is a failure. After the
+  pull, each selected version must have RPMs/debs on disk or the run
+  is partial. ATLC could log success with ``yum/openvox9`` missing.
+
 ## [3.14.1-dev.19] - 2026-10-08
 
 ### Fixes
