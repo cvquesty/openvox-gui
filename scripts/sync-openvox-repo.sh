@@ -342,8 +342,11 @@ curl_fetch() {
     local dest_dir="$2"
     local filename
     filename=$(basename "$url")
-    # nginx/Starlette listings encode + as %2B; do not save that as the name.
-    filename=$(python3 -c "from urllib.parse import unquote, sys; print(unquote(sys.argv[1]))" "$filename")
+    # Listings encode + as %2B. Do not call python3 here: sudo -n PATH
+    # often has no python3, leaving filename empty so curl -o writes
+    # onto the directory and every file fails with curl 23.
+    filename="${filename//%2[Bb]/+}"
+    filename="${filename%%\?*}"
     mkdir -p "$dest_dir"
 
     if [ "$DRY_RUN" = "true" ]; then
@@ -351,6 +354,10 @@ curl_fetch() {
         return 0
     fi
 
+    if [ -z "$filename" ] || [ "$filename" = "." ] || [ "$filename" = ".." ]; then
+        warn "curl_fetch: empty filename for ${url}"
+        return 1
+    fi
     local dest_path="${dest_dir}/${filename}"
     if [ -d "$dest_path" ]; then
         warn "  ${dest_path} is a directory; removing so curl can write a file"

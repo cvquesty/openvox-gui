@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.23] - 2026-10-08
+
+### Fixes
+- **ATLC curl 23 on every RPM.** ``curl_fetch`` used python3 to unquote
+  ``%2B``. ``sudo -n`` PATH has no python3, filename was empty, curl
+  wrote onto the arch **directory**. Decode ``%2B`` in bash instead.
+  PDXC was fine because it uses rsync.
+
 ## [3.14.1-dev.22] - 2026-10-08
 
 ### Fixes
