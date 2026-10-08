@@ -712,6 +712,9 @@ info "Starting OpenVox repo sync"
 info "  Target dir : ${PKG_REPO_DIR}"
 info "  Platforms  : ${PLATFORMS}"
 info "  Versions   : ${VERSIONS}"
+if [ -f "$SELECTIONS_FILE" ]; then
+    info "  JSON       : ${SELECTIONS_FILE}"
+fi
 info "  Arches     : ${ARCHES}"
 if [ -n "$_CURL_PROXY" ]; then
     info "  HTTPS proxy: $(_redact_proxy_url "$_CURL_PROXY")"

@@ -1250,6 +1250,13 @@ def _write_selections(sel: MirrorSelections) -> None:
     PKG_REPO_DIR.mkdir(parents=True, exist_ok=True)
     sel.transport = _normalize_transport(sel.transport)
     SELECTIONS_FILE.write_text(json.dumps(sel.model_dump(), indent=2) + "\n")
+    logger.info(
+        "Wrote %s versions=%s dists=%d transport=%s",
+        SELECTIONS_FILE,
+        sel.openvox_versions,
+        len(sel.distributions),
+        sel.transport,
+    )
 
 
 def _mirror_arches() -> tuple[str, ...]:
@@ -1425,8 +1432,8 @@ async def _sync_distribution(dist_key: str, versions: list[str]) -> bool:
             )
 
         elif family in ("debian", "ubuntu"):
-            # Raw .debs from pool only — skip dists/ metadata (ephemeral / 404).
-            dest = PKG_REPO_DIR / "apt" / f"openvox{ver}"
+            # Same path install.bash uses: apt/pool/openvox{N}/o/openvox-agent/
+            dest = PKG_REPO_DIR / "apt" / "pool" / f"openvox{ver}"
             dest.mkdir(parents=True, exist_ok=True)
             ok = await _rsync_or_curl(
                 f"{RSYNC_APT}/pool/openvox{ver}/",

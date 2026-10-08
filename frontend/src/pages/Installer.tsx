@@ -776,9 +776,10 @@ export function InstallerPage() {
                   ))}
                 </Group>
                 <Text size="xs" c="dimmed" mb="md">
-                  These boxes only control what is mirrored. Agents install the
-                  newest major that is actually on disk unless the one-liner
-                  includes --version 8 (Linux) or -OpenVoxVersion 8 (Windows).
+                  Last saved on disk: {(savedSelections.openvox_versions || []).join(', ') || '(none)'}.
+                  Sync Now writes these boxes to disk first. The agent default is
+                  the newest major that actually exists under /opt/openvox-pkgs
+                  (not merely checked). For OpenVox 8 use --version 8.
                 </Text>
 
                 {upstream ? (
