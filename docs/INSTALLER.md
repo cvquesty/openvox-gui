@@ -229,9 +229,10 @@ The headline card. Header always shows the puppetserver FQDN, a
   The page auto-switches to this tab when you click "Sync now".
   A green **success** badge is the timestamp in
   `/opt/openvox-pkgs/.last-sync` from a *completed* run. The GUI
-  only toasts success when that timestamp advances. If the log
-  does not move, the job did not start (sudoers / stale lock);
-  do not treat the previous success badge as this click.
+  only toasts success when that timestamp advances. Sync now wraps
+  ``sudo`` with ``script(1)`` so CIS ``requiretty`` (ATLC) accepts
+  it from systemd. If the log shows ``must have a tty to run sudo``,
+  that wrap is missing on the console.
 
 ### 2. Pending Certificate Requests
 

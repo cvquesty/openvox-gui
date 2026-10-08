@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.14.1-dev.25**
+**OpenVox GUI Version 3.14.1-dev.26**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -132,7 +132,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.14.1-dev.25"}
+   # Should return: {"status":"ok","version":"3.14.1-dev.26"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -1423,6 +1423,14 @@ sudo find /opt/openvox-pkgs/yum -type d \
     \( -name src -o -name SRPMS -o -name ppc64le \) -prune -exec rm -rf {} +
 sudo /opt/openvox-gui/scripts/sync-openvox-repo.sh --quiet
 ```
+
+### Problem: Sync now logs `sudo: sorry, you must have a tty to run sudo`
+
+CIS/RHEL ``Defaults requiretty`` (often *after* `#includedir`)
+rejects bare ``sudo -n`` from the systemd GUI. CA and r10k already
+go through ``script(1)``. **3.14.1-dev.26** wraps Sync now the same
+way. An SSH ``sudo /opt/openvox-gui/scripts/sync-openvox-repo.sh``
+still works because that session has a TTY.
 
 ### Problem: Install script dies with `Could not determine the puppetserver FQDN`
 

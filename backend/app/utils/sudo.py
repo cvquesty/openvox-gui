@@ -34,6 +34,21 @@ logger = logging.getLogger(__name__)
 _SCRIPT_BIN = "/usr/bin/script"
 
 
+def tty_wrap_argv(cmd: List[str]) -> List[str]:
+    """Wrap argv so a background sudo still sees a controlling TTY.
+
+    ``run_sudo`` waits for the child. Repo sync runs for minutes, so
+    Sync now uses Popen. CIS ``Defaults requiretty`` rejects bare
+    ``sudo -n`` from systemd (CA/r10k still go through ``run_sudo``).
+    util-linux ``script -q -e -c`` is the same wrap those paths use.
+    """
+    if not cmd:
+        return list(cmd)
+    if os.path.isfile(_SCRIPT_BIN):
+        return [_SCRIPT_BIN, "-q", "-e", "-c", shlex.join(cmd), "/dev/null"]
+    return list(cmd)
+
+
 async def run_sudo(
     cmd: List[str],
     timeout: int = 30,

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.26] - 2026-10-08
+
+### Fixes
+- **ATLC Sync now: ``sudo: sorry, you must have a tty to run sudo``.**
+  3.14.1-dev.14+ fires ``sudo -n`` in the background so Apache does
+  not time out. That has no TTY. CIS ``Defaults requiretty`` on ATLC
+  rejects it; CA/r10k already wrap with ``script(1)``. Sync now uses
+  the same wrap. ``--quiet`` is dropped so sudoers matches the
+  zero-argument rule.
+
 ## [3.14.1-dev.25] - 2026-10-08
 
 ### Fixes

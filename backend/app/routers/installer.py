@@ -62,6 +62,7 @@ from pydantic import BaseModel
 
 from ..config import settings
 from ..dependencies import require_role
+from ..utils.sudo import tty_wrap_argv
 
 logger = logging.getLogger(__name__)
 
@@ -663,7 +664,9 @@ async def trigger_sync(
             in_progress=True,
         )
 
-    cmd = ["sudo", "-n", str(SYNC_SCRIPT), "--quiet"]
+    # No extra flags: sudoers allows this path with zero arguments.
+    # Wrap with script(1) so CIS requiretty (ATLC) accepts sudo from systemd.
+    cmd = tty_wrap_argv(["sudo", "-n", str(SYNC_SCRIPT)])
     logger.info("User %s triggered repo sync: %s", user, " ".join(cmd))
 
     child_env = os.environ.copy()
@@ -723,14 +726,14 @@ async def trigger_sync(
             _append_sync_log(
                 f"[{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}] "
                 f"[ERROR] sync process exited {rc} before taking the lock "
-                f"(sudo -n / sudoers?)"
+                f"(requiretty / sudoers). GUI wraps sudo with script(1)."
             )
             return SyncResult(
                 success=False,
                 exit_code=rc,
                 output=[
                     f"Sync process exited {rc} before the lock appeared. "
-                    "Check sudoers and the Sync Log tab.",
+                    "CIS requiretty needs a TTY; see the Sync Log tab.",
                 ],
                 triggered_by=user,
                 started=False,
