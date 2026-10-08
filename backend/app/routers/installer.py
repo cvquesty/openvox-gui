@@ -55,7 +55,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
@@ -1162,6 +1162,9 @@ def _detect_mirrored_selections() -> MirrorSelections:
                     if not rel_dir.is_dir():
                         continue
                     key = f"{fam_dir.name}/{rel_dir.name}"
+                    # EL 7 leftover on disk must not re-select itself.
+                    if fam_dir.name == "el" and rel_dir.name == "7":
+                        continue
                     if key not in dists:
                         dists.append(key)
 
@@ -1583,12 +1586,15 @@ async def get_mirror_selections() -> MirrorSelections:
 async def update_mirror_selections(
     body: MirrorSelections,
     user: str = Depends(require_role("admin", "operator")),
+    apply_sync: bool = Query(True, description="If false, write JSON and prune only; do not start a pull"),
 ) -> SelectionUpdateResult:
     """Save distribution selections and sync/remove as needed.
 
     Computes the diff between old and new selections:
     - Newly selected distributions are synced in the background.
     - Deselected distributions have their directories removed immediately.
+    - apply_sync=false: persist + prune only (used by Sync Now so one
+      full script run honors the checkboxes).
     """
     # Check sync lock
     holder = _sync_lock_held()
@@ -1645,7 +1651,7 @@ async def update_mirror_selections(
             if dist not in dists_to_sync:
                 dists_to_sync.append(dist)
 
-    if dists_to_sync:
+    if apply_sync and dists_to_sync:
         async def _background_sync():
             logger.info("Background sync starting for %d distribution(s): %s",
                         len(dists_to_sync), dists_to_sync)

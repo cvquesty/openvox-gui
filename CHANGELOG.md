@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.6] - 2026-10-08
+
+### Fixes
+- **Mirror Sync Now honors checkboxes.** Unchecking EL 7 (or any dist)
+  and hitting Sync Now writes ``.mirror-selections.json`` first, so the
+  pull no longer keeps syncing leftover ``el/7``. Leftover EL 7 on disk
+  is not auto-selected.
+
 ## [3.14.1-dev.5] - 2026-10-08
 
 ### Fixes

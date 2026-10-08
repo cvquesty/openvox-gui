@@ -719,6 +719,9 @@ else
     info "  HTTPS proxy: (none — set Settings → Application proxy or OPENVOX_GUI_HTTPS_PROXY)"
 fi
 info "  Transport  : ${MIRROR_TRANSPORT}"
+info "  EL releases: ${EL_RELEASES:-(none)}"
+info "  Debian     : ${DEB_RELEASES:-(none)}"
+info "  Ubuntu     : ${UBU_RELEASES:-(none)}"
 if [ "$HAVE_RSYNC" = "true" ]; then
     info "  Rsync yum  : ${RSYNC_YUM}"
     info "  Rsync apt  : ${RSYNC_APT}"
