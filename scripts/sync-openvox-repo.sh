@@ -378,11 +378,20 @@ curl_fetch() {
     fi
 
     # curl exit 22 = HTTP error (4xx/5xx) when using -f
-    # Show the error output for diagnosis
+    # curl exit 23 = write error (almost always disk full)
     if [ -n "$output" ]; then
         info "  curl: ${output}"
     fi
     warn "curl failed for ${url} (exit ${rc})"
+    if [ $rc -eq 23 ]; then
+        rm -f "$dest_path"
+        warn "curl exit 23 = cannot write ${dest_path} (disk full or permissions)"
+        df -h "$dest_dir" /opt / 2>/dev/null | while IFS= read -r line; do
+            warn "  df: ${line}"
+        done
+        warn "Stop pulling OpenVox 8 / extra arches if /opt is full. Uncheck 8, set arches to x86_64 only, re-sync 9."
+        exit 1
+    fi
     return 1
 }
 
@@ -742,6 +751,13 @@ else
     info "  HTTPS proxy: (none — set Settings → Application proxy or OPENVOX_GUI_HTTPS_PROXY)"
 fi
 info "  Transport  : ${MIRROR_TRANSPORT}"
+_sync_avail=$(df -P -k "$PKG_REPO_DIR" 2>/dev/null | awk 'NR==2 { print $4 }')
+if [ -n "${_sync_avail}" ]; then
+    info "  Free space : ${_sync_avail} KiB ($(df -P "$PKG_REPO_DIR" 2>/dev/null | awk 'NR==2 { print $6 }'))"
+    if [ "${_sync_avail}" -lt 1048576 ]; then
+        warn "Less than 1 GiB free under ${PKG_REPO_DIR}. OpenVox 8 + aarch64 will not fit. Uncheck 8 and extra arches."
+    fi
+fi
 info "  EL releases: ${EL_RELEASES:-(none)}"
 info "  Debian     : ${DEB_RELEASES:-(none)}"
 info "  Ubuntu     : ${UBU_RELEASES:-(none)}"
