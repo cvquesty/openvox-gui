@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.15] - 2026-10-08
+
+### Fixes
+- **Sync Log SSE reconnects.** A proxy drop used to close EventSource
+  forever and leave the badge on ``disconnected``. Retry every 3s.
+
 ## [3.14.1-dev.14] - 2026-10-08
 
 ### Fixes
