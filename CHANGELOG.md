@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.3] - 2026-10-08
+
+### Fixes
+- **Mirror sync keeps going.** One failed or vanished package no longer
+  aborts the rest of the tree. rsync uses ``--ignore-errors`` and treats
+  exit 23/24 as partial success. curl_mirror logs per-file failures and
+  continues. The sync script exits 0 after a partial run so systemd
+  timers and install.sh do not treat it as a full abort.
+
 ## [3.14.1-dev.2] - 2026-10-07
 
 ### Fixes

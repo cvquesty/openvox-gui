@@ -70,8 +70,9 @@
 #   RSYNC_WIN           rsync://rsync.voxpupuli.org/downloads/windows
 #
 # Exit codes:
-#   0  Success (or nothing to do)
-#   1  Generic failure
+#   0  Success, nothing to do, or partial (some packages failed; the
+#      rest of the mirror still ran). Check the log / .last-sync result.
+#   1  Generic failure (tooling missing, total transport failure)
 #   2  Lock held by another process
 #   3  Bad arguments
 ###############################################################################
@@ -274,17 +275,23 @@ rsync_tree() {
         info "DRY-RUN: rsync -av ${src} ${dest}"
         return 0
     fi
-    rsync -av -4 --timeout=60 --contimeout=15 \
+    rsync -av -4 --timeout=60 --contimeout=15 --ignore-errors \
         "$src" "$dest" 2>&1 \
         | while IFS= read -r line; do
             [ -n "$line" ] && info "  rsync: ${line}"
           done
     local rc=${PIPESTATUS[0]}
-    if [ $rc -ne 0 ]; then
-        warn "rsync failed for ${src} (exit ${rc})"
-        return 1
+    # 23 = partial transfer due to error; 24 = vanished source files.
+    # Keep going so one bad package does not abort the rest of the tree.
+    if [ $rc -eq 0 ]; then
+        return 0
     fi
-    return 0
+    if [ $rc -eq 23 ] || [ $rc -eq 24 ]; then
+        warn "rsync partial for ${src} (exit ${rc}); continuing"
+        return 0
+    fi
+    warn "rsync failed for ${src} (exit ${rc})"
+    return 1
 }
 
 # Sync only specific files from a remote directory using --include/--exclude
@@ -301,18 +308,22 @@ rsync_files() {
         info "DRY-RUN: rsync ${includes[*]} ${src} ${dest}"
         return 0
     fi
-    rsync -av -4 --timeout=60 --contimeout=15 \
+    rsync -av -4 --timeout=60 --contimeout=15 --ignore-errors \
         "${includes[@]}" --exclude='*/' --exclude='*' \
         "$src" "$dest" 2>&1 \
         | while IFS= read -r line; do
             [ -n "$line" ] && info "  rsync: ${line}"
           done
     local rc=${PIPESTATUS[0]}
-    if [ $rc -ne 0 ]; then
-        warn "rsync_files failed for ${src} (exit ${rc})"
-        return 1
+    if [ $rc -eq 0 ]; then
+        return 0
     fi
-    return 0
+    if [ $rc -eq 23 ] || [ $rc -eq 24 ]; then
+        warn "rsync_files partial for ${src} (exit ${rc}); continuing"
+        return 0
+    fi
+    warn "rsync_files failed for ${src} (exit ${rc})"
+    return 1
 }
 
 # ─── curl helpers ─────────────────────────────────────────────────────────────
@@ -481,7 +492,9 @@ curl_mirror() {
         fi
     done
 
-    [ $failures -gt 0 ] && return 1
+    if [ $failures -gt 0 ]; then
+        warn "  ${failures} file(s) failed under ${url}; continuing"
+    fi
     return 0
 }
 
@@ -1312,7 +1325,6 @@ fi
 
 write_status "$OVERALL_RESULT"
 
-if [ $SYNC_FAILURES -gt 0 ]; then
-    exit 1
-fi
+# Partial sync is still a completed update. Exit 0 so systemd timers
+# and install.sh do not treat one missing package as a full abort.
 exit 0
