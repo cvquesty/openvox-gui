@@ -143,14 +143,14 @@ function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Rely on httpOnly cookie for auth on same-origin SSE (cookies sent automatically).
+    // Cookie auth on same-origin SSE. Reconnect on drop (Apache proxy
+    // timeouts used to leave the badge stuck on disconnected).
     const url = `/api/installer/log/stream?lines=80`;
-    const es = new EventSource(url);
-
-    es.onopen = () => setConnected(true);
-
-    const pending: string[] = [];
+    let es: EventSource | null = null;
     let flushTimer: number | null = null;
+    let retryTimer: number | null = null;
+    let stopped = false;
+    const pending: string[] = [];
     const flush = () => {
       flushTimer = null;
       if (!pending.length) return;
@@ -160,21 +160,32 @@ function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
         return next.length > 2000 ? next.slice(-1500) : next;
       });
     };
-    es.onmessage = (event) => {
-      pending.push(event.data);
-      if (flushTimer == null) {
-        flushTimer = window.setTimeout(flush, 150);
-      }
+    const connect = () => {
+      if (stopped) return;
+      es = new EventSource(url);
+      es.onopen = () => setConnected(true);
+      es.onmessage = (event) => {
+        pending.push(event.data);
+        if (flushTimer == null) {
+          flushTimer = window.setTimeout(flush, 150);
+        }
+      };
+      es.onerror = () => {
+        setConnected(false);
+        es?.close();
+        es = null;
+        if (!stopped) {
+          retryTimer = window.setTimeout(connect, 3000);
+        }
+      };
     };
-
-    es.onerror = () => {
-      setConnected(false);
-      es.close();
-    };
+    connect();
 
     return () => {
+      stopped = true;
       if (flushTimer != null) window.clearTimeout(flushTimer);
-      es.close();
+      if (retryTimer != null) window.clearTimeout(retryTimer);
+      es?.close();
     };
   }, []);
 
