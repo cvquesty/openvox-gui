@@ -19,7 +19,7 @@
     "@mantine/notifications": "^9.6.2",
     "@tabler/icons-react": "^3.46.0",
     "@types/dagre": "^0.7.54",
-    "@xyflow/react": "^12.11.6",
+    "@xyflow/react": "^12.12.0",
     "ansi-to-html": "^0.7.2",
     "dagre": "^0.8.5",
     "react": "^19.2.8",
