@@ -76,6 +76,7 @@ router = APIRouter(prefix="/api/installer", tags=["installer"])
 
 PKG_REPO_DIR = Path(os.environ.get("OPENVOX_GUI_PKG_REPO_DIR", "/opt/openvox-pkgs"))
 SYNC_SCRIPT  = Path(os.environ.get("OPENVOX_GUI_SYNC_SCRIPT", "/opt/openvox-gui/scripts/sync-openvox-repo.sh"))
+SYNC_LOG_PATH = Path("/opt/openvox-gui/logs/repo-sync.log")
 
 # How agents reach the local mirror. Clustered consoles serve it on the
 # GUI port (https://<this-host>:4567/packages). AIO can also use the
@@ -227,15 +228,53 @@ def _read_status_file() -> dict:
     return out
 
 
+def _pid_alive(pid: int) -> bool:
+    """True if *pid* exists. PermissionError still means the process is live."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
 def _sync_lock_held() -> Optional[int]:
-    """Return the PID holding the sync lock, or None if unlocked."""
+    """Return the live PID holding the sync lock, or None if unlocked.
+
+    A leftover ``.sync.lock`` from a killed sudo job used to look like a
+    running sync. The GUI then toasted the previous ``.last-sync`` success
+    and the Sync Log never moved.
+    """
     lock = PKG_REPO_DIR / ".sync.lock"
     if not lock.exists():
         return None
     try:
-        return int(lock.read_text().strip())
+        pid = int(lock.read_text().strip())
     except (ValueError, OSError):
         return None
+    if _pid_alive(pid):
+        return pid
+    try:
+        lock.unlink()
+    except OSError:
+        pass
+    return None
+
+
+def _append_sync_log(message: str) -> None:
+    """Append one line to the operator-facing sync log."""
+    line = message if message.endswith("\n") else message + "\n"
+    try:
+        SYNC_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with SYNC_LOG_PATH.open("a") as fh:
+            fh.write(line)
+    except OSError as exc:
+        logger.warning("Could not append %s: %s", SYNC_LOG_PATH, exc)
 
 
 _PLATFORM_SECTIONS = (
@@ -640,11 +679,18 @@ async def trigger_sync(
     else:
         logger.warning("Repo sync: no HTTP proxy found in settings or .env")
 
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _append_sync_log(f"[{ts}] [INFO] GUI Sync now by {user}")
+
     try:
-        subprocess.Popen(
+        log_fh = SYNC_LOG_PATH.open("a")
+    except OSError:
+        log_fh = subprocess.DEVNULL
+    try:
+        proc = subprocess.Popen(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
             env=child_env,
             start_new_session=True,
         )
@@ -654,14 +700,50 @@ async def trigger_sync(
             status_code=500,
             detail=f"Failed to launch sync script: {exc}",
         ) from exc
+    finally:
+        if log_fh is not subprocess.DEVNULL:
+            log_fh.close()
+
+    # Popen returns before sudo writes .sync.lock. The GUI used to poll
+    # once, see no lock, and toast the previous .last-sync "success".
+    for _ in range(16):
+        await asyncio.sleep(0.5)
+        holder = _sync_lock_held()
+        if holder is not None:
+            return SyncResult(
+                success=True,
+                exit_code=0,
+                output=["Sync started in the background. Watch the Sync Log tab."],
+                triggered_by=user,
+                started=True,
+                in_progress=True,
+            )
+        rc = proc.poll()
+        if rc is not None:
+            _append_sync_log(
+                f"[{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}] "
+                f"[ERROR] sync process exited {rc} before taking the lock "
+                f"(sudo -n / sudoers?)"
+            )
+            return SyncResult(
+                success=False,
+                exit_code=rc,
+                output=[
+                    f"Sync process exited {rc} before the lock appeared. "
+                    "Check sudoers and the Sync Log tab.",
+                ],
+                triggered_by=user,
+                started=False,
+                in_progress=False,
+            )
 
     return SyncResult(
         success=True,
         exit_code=0,
-        output=["Sync started in the background. Watch the Sync Log tab."],
+        output=["Sync launched; waiting for the lock. Watch the Sync Log tab."],
         triggered_by=user,
         started=True,
-        in_progress=True,
+        in_progress=_sync_lock_held() is not None,
     )
 
 
@@ -717,9 +799,6 @@ async def list_files(prefix: str = "") -> dict:
     }
 
 
-SYNC_LOG_PATH = Path("/opt/openvox-gui/logs/repo-sync.log")
-
-
 @router.get("/log")
 async def get_sync_log(lines: int = 200) -> dict:
     """Return the last *lines* lines of the sync log file."""
@@ -759,7 +838,12 @@ async def stream_sync_log(lines: int = 50):
         )
         try:
             while True:
-                line = await proc.stdout.readline()
+                try:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    # Comment events flush Apache/nginx proxy buffers.
+                    yield ": keepalive\n\n"
+                    continue
                 if not line:
                     break
                 yield f"data: {line.decode(errors='replace').rstrip()}\n\n"

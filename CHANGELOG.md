@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.25] - 2026-10-08
+
+### Fixes
+- **Sync now no longer toasts a previous success while the log is frozen.**
+  The green panel was ``/opt/openvox-pkgs/.last-sync`` from an earlier
+  run. The GUI returned before sudo wrote ``.sync.lock``, polled once,
+  saw no lock, and treated that old result as this click. Apache can
+  also buffer SSE, so the panel stayed on the last 80 lines of the old
+  file. Sync now waits for a live lock (or a failed sudo), ignores
+  dead ``.sync.lock`` files, polls ``GET /log`` for the panel, and
+  only toasts success when ``last_sync_utc`` advances.
+
 ## [3.14.1-dev.24] - 2026-10-08
 
 ### Fixes

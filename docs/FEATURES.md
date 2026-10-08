@@ -142,7 +142,7 @@ Groups match `frontend/src/components/AppShell.tsx`. Expand/collapse is remember
 - Local mirror of VoxPupuli agent packages (yum/apt/windows/mac trees under `/opt/openvox-pkgs` or configured path)
 - One-line bootstrap scripts on **8140** (`/packages/…`) and GUI-assisted copy
 - On-demand and timer-based sync
-- First paint loads only the one-liner (`GET /installer/info`). Mirror package counts, disk usage, and upstream scrape wait until the Mirror tab is opened (`?full=true`, 2-minute cache). Sync Log SSE mounts only on that tab
+- First paint loads only the one-liner (`GET /installer/info`). Mirror package counts, disk usage, and upstream scrape wait until the Mirror tab is opened (`?full=true`, 2-minute cache). Sync Log polls the file and SSE-tails only on that tab; a success toast requires `.last-sync` to advance.
 - Details: [INSTALLER.md](INSTALLER.md)
 
 ### Certificate Audit (`/cert-audit`)

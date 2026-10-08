@@ -131,45 +131,48 @@ function CommandBlock({
 }
 
 /**
- * Live-tail sync log panel. Connects to the SSE endpoint on mount
- * and appends lines in real time. Falls back to the static syncLog
- * captured from the last manual sync if the stream hasn't produced
- * output yet.
+ * Live-tail sync log panel. Polls the log file (Apache can buffer SSE
+ * so the last 80 lines look frozen) and also listens on EventSource.
+ * streamKey remounts both after Sync now so a new run is not mixed
+ * with the previous snapshot.
  */
-function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
+function SyncLogPanel({ syncLog, streamKey }: { syncLog: string[]; streamKey: number }) {
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Cookie auth on same-origin SSE. Reconnect on drop (Apache proxy
-    // timeouts used to leave the badge stuck on disconnected).
-    const url = `/api/installer/log/stream?lines=80`;
+    let stopped = false;
+    const pull = async () => {
+      try {
+        const data = await installer.getLog(400);
+        if (!stopped && data.exists && data.lines.length) {
+          setLines(data.lines);
+        }
+      } catch {
+        /* keep the last snapshot */
+      }
+    };
+    void pull();
+    const id = window.setInterval(pull, 2000);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [streamKey]);
+
+  useEffect(() => {
+    // Cookie auth on same-origin SSE. Display comes from GET /log so
+    // Apache buffering cannot freeze the last 80 lines of an old run.
+    const url = `/api/installer/log/stream?lines=1`;
     let es: EventSource | null = null;
-    let flushTimer: number | null = null;
     let retryTimer: number | null = null;
     let stopped = false;
-    const pending: string[] = [];
-    const flush = () => {
-      flushTimer = null;
-      if (!pending.length) return;
-      const batch = pending.splice(0, pending.length);
-      setLines((prev) => {
-        const next = prev.concat(batch);
-        return next.length > 2000 ? next.slice(-1500) : next;
-      });
-    };
     const connect = () => {
       if (stopped) return;
       es = new EventSource(url);
       es.onopen = () => setConnected(true);
-      es.onmessage = (event) => {
-        pending.push(event.data);
-        if (flushTimer == null) {
-          flushTimer = window.setTimeout(flush, 150);
-        }
-      };
       es.onerror = () => {
         setConnected(false);
         es?.close();
@@ -183,11 +186,10 @@ function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
 
     return () => {
       stopped = true;
-      if (flushTimer != null) window.clearTimeout(flushTimer);
       if (retryTimer != null) window.clearTimeout(retryTimer);
       es?.close();
     };
-  }, []);
+  }, [streamKey]);
 
   // Auto-scroll to bottom when new lines arrive
   useEffect(() => {
@@ -228,6 +230,7 @@ export function InstallerPage() {
   const [error, setError]         = useState<string | null>(null);
   const [syncing, setSyncing]     = useState(false);
   const [syncLog, setSyncLog]     = useState<string[]>([]);
+  const [logEpoch, setLogEpoch]   = useState(0);
   const [activeTab, setActiveTab] = useState<string | null>('linux');
   const [mirrorReady, setMirrorReady] = useState(false);
 
@@ -316,8 +319,21 @@ export function InstallerPage() {
           transport: draftTransport,
         });
       }
+      const before = await installer.getInfo();
+      const startedUtc = before.last_sync_utc || '';
       const res = await installer.triggerSync();
       setSyncLog(res.output || []);
+      setLogEpoch((n) => n + 1);
+      setActiveTab('synclog');
+      setMirrorReady(false);
+      if (res.started === false && !res.in_progress) {
+        notifications.show({
+          title: 'Sync did not start',
+          message: (res.output || []).join(' ') || 'See the Sync Log tab',
+          color: 'red',
+        });
+        return;
+      }
       notifications.show({
         title: res.started === false && res.in_progress
           ? 'Sync already running'
@@ -325,20 +341,31 @@ export function InstallerPage() {
         message: 'Watch the Sync Log tab. A full pull can take several minutes.',
         color: 'blue',
       });
-      setActiveTab('synclog');
-      setMirrorReady(false);
       let last: Awaited<ReturnType<typeof installer.getInfo>> | null = null;
+      let sawLock = !!res.in_progress;
       for (let i = 0; i < 240; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         last = await installer.getInfo();
-        if (!last.sync_in_progress) break;
+        if (last.sync_in_progress) {
+          sawLock = true;
+          continue;
+        }
+        const stampChanged = !!(last.last_sync_utc && last.last_sync_utc !== startedUtc);
+        if (stampChanged || sawLock || i >= 1) break;
       }
       await refresh();
+      const stampChanged = !!(last?.last_sync_utc && last.last_sync_utc !== startedUtc);
       const result = last?.last_sync_result || '';
-      const ok = result.startsWith('success');
+      const ok = stampChanged && result.startsWith('success');
       notifications.show({
-        title: ok ? 'Sync complete' : (last?.sync_in_progress ? 'Sync still running' : 'Sync finished'),
-        message: result || 'See the Sync Log tab',
+        title: ok
+          ? 'Sync complete'
+          : (last?.sync_in_progress
+            ? 'Sync still running'
+            : (stampChanged ? 'Sync finished' : 'Sync did not finish')),
+        message: stampChanged
+          ? (result || 'See the Sync Log tab')
+          : 'last-sync did not change — the success badge is from a previous run. See the Sync Log.',
         color: ok ? 'green' : 'orange',
       });
     } catch (e: any) {
@@ -842,7 +869,7 @@ export function InstallerPage() {
 
           {/* ── Sync Log (live tail -f via SSE) ──────────────────── */}
           <Tabs.Panel value="synclog" pt="md">
-            <SyncLogPanel syncLog={syncLog} />
+            <SyncLogPanel syncLog={syncLog} streamKey={logEpoch} />
           </Tabs.Panel>
         </Tabs>
       </Card>
