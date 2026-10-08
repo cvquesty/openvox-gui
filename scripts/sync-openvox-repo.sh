@@ -430,10 +430,13 @@ _curl_fetch_listed_files() {
 #   $3 = optional accept regex (e.g., '\.(rpm|xml|gz)$') -- only
 #        files matching this pattern are downloaded. Directories
 #        are always followed regardless of the filter.
+#   $4 = "required" — listing 404/empty is a failure (selected arch),
+#        not a skip (unpublished optional tree).
 curl_mirror() {
     local url="$1"
     local dest="$2"
     local accept="${3:-}"
+    local required="${4:-}"
 
     # Normalise: ensure URL ends with /
     url="${url%/}/"
@@ -451,7 +454,10 @@ curl_mirror() {
     local listing
     listing=$(curl -fsSL -4 --connect-timeout 30 --max-time 60 \
         "${CURL_PROXY_ARGS[@]}" "$url" 2>/dev/null) || {
-        # 404 / empty tree: this arch or dist is not published (e.g. el/7/aarch64).
+        if [ "$required" = "required" ]; then
+            warn "Could not fetch listing ${url} (required tree)"
+            return 1
+        fi
         info "  (no listing at ${url} -- skipping)"
         return 0
     }
@@ -464,7 +470,10 @@ curl_mirror() {
         | grep -vE '^\.\.|^/|^$|index\.html|robots\.txt')
 
     if [ -z "$entries" ]; then
-        # Not necessarily an error -- some dirs are legitimately empty
+        if [ "$required" = "required" ]; then
+            warn "Empty listing at ${url} (required tree; proxy may have swallowed yum.voxpupuli.org/openvox9/)"
+            return 1
+        fi
         info "  (no files found in ${url})"
         return 0
     fi
@@ -1013,7 +1022,7 @@ curl_sync_yum() {
                         info "  (no ${arch} for openvox${v}/${fam}/${rel} -- skipping)"
                         continue
                     fi
-                    if ! curl_mirror "${url}${arch}/" "${dest}/${arch}"; then
+                    if ! curl_mirror "${url}${arch}/" "${dest}/${arch}" "" required; then
                         SYNC_FAILURES=$((SYNC_FAILURES + 1))
                     fi
                 done
@@ -1159,7 +1168,7 @@ curl_sync_apt() {
         #   /opt/openvox-pkgs/apt/pool/openvox{N}/o/openvox-agent/*.deb
         dest="${PKG_REPO_DIR}/apt/pool/openvox${v}"
         info "  -> raw .deb from ${url} -> ${dest}"
-        if ! curl_mirror "$url" "$dest" '\.deb$'; then
+        if ! curl_mirror "$url" "$dest" '\.deb$' required; then
             warn "Could not walk ${url}"
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
         fi
@@ -1415,6 +1424,35 @@ for platform in $(echo "$PLATFORMS" | tr ',' ' '); do
         *)       warn "Unknown platform: ${platform} (skipping)" ;;
     esac
 done
+
+# Selected majors must actually land on disk. HTTPS listing 404/empty
+# used to return 0, so ATLC could log "success" with yum/openvox9 empty.
+_assert_selected_versions_on_disk() {
+    local v n
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        [ -n "$v" ] || continue
+        if _csv_has "$PLATFORMS" yum; then
+            n=$(find "${PKG_REPO_DIR}/yum/openvox${v}" -name '*.rpm' 2>/dev/null | wc -l | tr -d ' ')
+            if [ "${n:-0}" -eq 0 ]; then
+                warn "yum/openvox${v} has 0 RPMs after sync (JSON Versions=${VERSIONS}; proxy/listing may have skipped openvox${v})"
+                SYNC_FAILURES=$((SYNC_FAILURES + 1))
+            else
+                info "  yum/openvox${v}: ${n} RPM(s) on disk"
+            fi
+        fi
+        if _csv_has "$PLATFORMS" apt; then
+            n=$(find "${PKG_REPO_DIR}/apt" -path "*/openvox${v}/*" -name '*.deb' 2>/dev/null | wc -l | tr -d ' ')
+            if [ "${n:-0}" -eq 0 ]; then
+                warn "apt openvox${v} has 0 debs after sync"
+                SYNC_FAILURES=$((SYNC_FAILURES + 1))
+            else
+                info "  apt openvox${v}: ${n} deb(s) on disk"
+            fi
+        fi
+    done
+}
+
+_assert_selected_versions_on_disk
 
 # ─── Permissions ─────────────────────────────────────────────────────────────
 if [ "$DRY_RUN" != "true" ]; then
