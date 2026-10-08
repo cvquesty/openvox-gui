@@ -1326,11 +1326,59 @@ def prune_unselected_mirror(
         for child in list(apt.iterdir()):
             if child.is_dir() and child.name.startswith("openvox"):
                 _rm(child)
+    elif apt.exists():
+        pool = apt / "pool"
+        if pool.exists():
+            for child in list(pool.iterdir()):
+                if child.is_dir() and child.name.startswith("openvox"):
+                    ver = child.name.replace("openvox", "", 1)
+                    if ver not in versions:
+                        _rm(child)
+        for child in list(apt.iterdir()):
+            if child.is_dir() and child.name.startswith("openvox"):
+                ver = child.name.replace("openvox", "", 1)
+                if ver not in versions:
+                    _rm(child)
+        dists_root = apt / "dists"
+        if dists_root.exists():
+            for dist_dir in list(dists_root.iterdir()):
+                if not dist_dir.is_dir():
+                    continue
+                for comp in list(dist_dir.iterdir()):
+                    if comp.is_dir() and comp.name.startswith("openvox"):
+                        ver = comp.name.replace("openvox", "", 1)
+                        if ver not in versions:
+                            _rm(comp)
+        for f in list(apt.glob("openvox*-release-*.deb")):
+            ver = f.name.split("-", 1)[0].replace("openvox", "", 1)
+            if ver not in versions:
+                try:
+                    f.unlink()
+                    removed.append(str(f))
+                    logger.info("Pruned unselected mirror file: %s", f)
+                except OSError as exc:
+                    logger.warning("Could not prune %s: %s", f, exc)
 
     if "windows" not in kinds:
         _rm(root / "windows")
+    else:
+        win = root / "windows"
+        if win.exists():
+            for child in list(win.iterdir()):
+                if child.is_dir() and child.name.startswith("openvox"):
+                    ver = child.name.replace("openvox", "", 1)
+                    if ver not in versions:
+                        _rm(child)
     if "mac" not in kinds:
         _rm(root / "mac")
+    else:
+        mac = root / "mac"
+        if mac.exists():
+            for child in list(mac.iterdir()):
+                if child.is_dir() and child.name.startswith("openvox"):
+                    ver = child.name.replace("openvox", "", 1)
+                    if ver not in versions:
+                        _rm(child)
 
     yum_root = root / "yum"
     if yum_root.exists():
@@ -1366,6 +1414,15 @@ def prune_unselected_mirror(
                             _rm(fam_dir)
                     except OSError:
                         pass
+            for f in list(yum_root.glob("openvox*-release-*.rpm")):
+                ver = f.name.split("-", 1)[0].replace("openvox", "", 1)
+                if ver not in versions:
+                    try:
+                        f.unlink()
+                        removed.append(str(f))
+                        logger.info("Pruned unselected mirror file: %s", f)
+                    except OSError as exc:
+                        logger.warning("Could not prune %s: %s", f, exc)
     return removed
 
 

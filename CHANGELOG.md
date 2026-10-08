@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.17] - 2026-10-08
+
+### Fixes
+- **Prune unselected OpenVox majors everywhere.** Unchecking 8 (or 7)
+  now deletes ``apt/pool/openvox8``, leftover ``apt/openvox8``,
+  ``windows/openvox8``, ``mac/openvox8``, and ``openvox8-release-*.rpm``
+  / ``.deb`` files, not only ``yum/openvox8``.
+
 ## [3.14.1-dev.16] - 2026-10-08
 
 ### Fixes
