@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.10] - 2026-10-08
+
+### Fixes
+- **HTTPS apt mirror writes ``pool/openvox{N}/``.** install.bash looks
+  there for OpenVox 9. The curl path had been writing
+  ``apt/openvox{N}/``, so ``--version 9`` 404'd even after a sync.
+  Also stringify ``openvox_versions`` so JSON ``[8, 9]`` is not dropped.
+
 ## [3.14.1-dev.9] - 2026-10-08
 
 ### Fixes

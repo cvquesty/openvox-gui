@@ -588,7 +588,7 @@ _load_from_config() {
     parsed=$(python3 -c "
 import json, sys
 cfg = json.load(open('${SELECTIONS_FILE}'))
-versions = [v for v in cfg.get('openvox_versions', ['8','9']) if str(v) != '7']
+versions = [str(v) for v in cfg.get('openvox_versions', ['8','9']) if str(v) != '7']
 if not versions:
     versions = ['8', '9']
 dists = cfg.get('distributions', [])
@@ -1070,8 +1070,10 @@ curl_sync_apt() {
     local v url dest
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         url="${APT_BASE}/pool/openvox${v}/"
-        dest="${PKG_REPO_DIR}/apt/openvox${v}"
-        info "  -> raw .deb from ${url}"
+        # Same layout as rsync_sync_apt and install.bash:
+        #   /opt/openvox-pkgs/apt/pool/openvox{N}/o/openvox-agent/*.deb
+        dest="${PKG_REPO_DIR}/apt/pool/openvox${v}"
+        info "  -> raw .deb from ${url} -> ${dest}"
         if ! curl_mirror "$url" "$dest" '\.deb$'; then
             warn "Could not walk ${url}"
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
