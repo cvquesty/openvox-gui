@@ -342,6 +342,8 @@ curl_fetch() {
     local dest_dir="$2"
     local filename
     filename=$(basename "$url")
+    # nginx/Starlette listings encode + as %2B; do not save that as the name.
+    filename=$(python3 -c "from urllib.parse import unquote, sys; print(unquote(sys.argv[1]))" "$filename")
     mkdir -p "$dest_dir"
 
     if [ "$DRY_RUN" = "true" ]; then
@@ -1173,6 +1175,18 @@ write_apt_file_indexes() {
         "${PKG_REPO_DIR}"/apt/openvox*/o/openvox-agent
     do
         [ -d "$d" ] || continue
+        python3 - "$d" <<'PY'
+from pathlib import Path
+from urllib.parse import unquote
+import sys
+root = Path(sys.argv[1])
+for p in root.iterdir():
+    if not p.is_file() or "%" not in p.name:
+        continue
+    dest = p.with_name(unquote(p.name))
+    if dest != p and not dest.exists():
+        p.rename(dest)
+PY
         if ls -1 "$d"/*.deb >/dev/null 2>&1; then
             # shellcheck disable=SC2012
             ls -1 "$d" | grep -E '\.deb$' > "${d}/index.txt" || true

@@ -796,8 +796,11 @@ If empty, run Infrastructure → Agent Install → Sync."
     curl -fSL --connect-timeout 15 --max-time 300 ${curl_tls_args} \
         -o /tmp/openvox-agent.deb "$deb_url" \
         || fail "Failed to download ${deb_url}"
-    DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/openvox-agent.deb \
-        || DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+    # curl | bash: dpkg must not read the rest of this script from stdin.
+    # Keep existing puppet.conf; we rewrite it below.
+    export DEBIAN_FRONTEND=noninteractive
+    dpkg --force-confold -i /tmp/openvox-agent.deb </dev/null \
+        || apt-get install -y -f </dev/null
     rm -f /tmp/openvox-agent.deb
 }
 

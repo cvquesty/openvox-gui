@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.18] - 2026-10-08
+
+### Fixes
+- **``curl | bash`` + dpkg no longer eats the rest of install.bash.**
+  ``dpkg --force-confold -i … </dev/null`` keeps puppet.conf and does
+  not steal stdin (the ``RSION}: command not found`` crash).
+- **Apt debs named with ``+`` not ``%2B``.** Listing hrefs are unquoted
+  when saving so install.bash does not request ``%252B``.
+
 ## [3.14.1-dev.17] - 2026-10-08
 
 ### Fixes
