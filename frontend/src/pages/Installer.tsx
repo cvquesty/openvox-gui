@@ -288,6 +288,23 @@ export function InstallerPage() {
     setSyncing(true);
     setSyncLog([]);
     try {
+      // Honor the Mirror checkboxes. Sync Now used to ignore unsaved
+      // draft (EL 7 stayed in .mirror-selections.json).
+      if (mirrorReady) {
+        await installer.saveSelections(
+          {
+            openvox_versions: draftVersions,
+            distributions: draftDists,
+            transport: draftTransport,
+          },
+          { applySync: false },
+        );
+        setSavedSelections({
+          openvox_versions: draftVersions,
+          distributions: draftDists,
+          transport: draftTransport,
+        });
+      }
       const res = await installer.triggerSync();
       setSyncLog(res.output || []);
       notifications.show({
