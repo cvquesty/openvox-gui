@@ -81,7 +81,7 @@ SYNC_SCRIPT  = Path(os.environ.get("OPENVOX_GUI_SYNC_SCRIPT", "/opt/openvox-gui/
 # puppetserver static-content mount on 8140. Override via
 # OPENVOX_GUI_PKG_REPO_URL when the published URL must differ.
 DEFAULT_PUPPETSERVER_PORT = 8140
-DEFAULT_OPENVOX_VERSION   = "8"
+DEFAULT_OPENVOX_VERSION   = "9"
 # OpenVox 7 is no longer published (yum/apt/windows/mac). Mirror 8 + 9 only.
 SUPPORTED_OPENVOX_MAJORS = ("8", "9")
 
@@ -309,6 +309,33 @@ async def _cached_platform_inventory() -> tuple[int, list]:
     return total, platforms
 
 
+def _latest_agent_version() -> str:
+    """Highest OpenVox major actually present on this console's mirror.
+
+    Agents install this unless they pass --version / -OpenVoxVersion.
+    Disk wins over the selections JSON so we do not default to 9 when
+    only openvox8 packages have been synced.
+    """
+    majors = tuple(SUPPORTED_OPENVOX_MAJORS)
+    on_disk: list[str] = []
+    for v in majors:
+        yum = PKG_REPO_DIR / "yum" / f"openvox{v}"
+        pool = PKG_REPO_DIR / "apt" / "pool" / f"openvox{v}"
+        apt = PKG_REPO_DIR / "apt" / f"openvox{v}"
+        if yum.is_dir() or pool.is_dir() or apt.is_dir():
+            on_disk.append(v)
+    if on_disk:
+        return max(on_disk, key=int)
+    try:
+        sel = _read_selections()
+        picked = [v for v in sel.openvox_versions if v in majors]
+        if picked:
+            return max(picked, key=int)
+    except Exception:
+        pass
+    return max(majors, key=int)
+
+
 def _render_template(text: str) -> str:
     """Substitute the install-script placeholders with live values.
 
@@ -323,7 +350,7 @@ def _render_template(text: str) -> str:
         text
         .replace("__OPENVOX_PUPPET_SERVER__",    server)
         .replace("__OPENVOX_CA_SERVER__",        ca)
-        .replace("__OPENVOX_DEFAULT_VERSION__",  DEFAULT_OPENVOX_VERSION)
+        .replace("__OPENVOX_DEFAULT_VERSION__",  _latest_agent_version())
     )
 
 
@@ -407,7 +434,7 @@ async def get_installer_info(full: bool = False) -> InstallerInfo:
         puppet_server     = console,
         puppet_port       = _console_port(),
         pkg_repo_dir      = str(PKG_REPO_DIR),
-        default_version   = DEFAULT_OPENVOX_VERSION,
+        default_version   = _latest_agent_version(),
         install_url_linux = install_url_l,
         install_url_win   = install_url_w,
         linux_command     = linux_cmd,

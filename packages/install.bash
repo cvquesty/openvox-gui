@@ -77,7 +77,7 @@ set -e
 #   1. --version CLI arg
 #   2. OPENVOX_VERSION environment variable
 #   3. The __OPENVOX_DEFAULT_VERSION__ placeholder (server-side render)
-#   4. Hard default of 8
+#   4. Hard default of 9 (latest published major; pass --version 8 for 8)
 
 PUPPET_SERVER="${PUPPET_SERVER:-__OPENVOX_PUPPET_SERVER__}"
 PUPPET_SERVER_PORT="${PUPPET_SERVER_PORT:-8140}"
@@ -88,7 +88,7 @@ PKG_REPO_URL="${PKG_REPO_URL:-}"
 DEFAULT_OPENVOX_VERSION="${DEFAULT_OPENVOX_VERSION:-__OPENVOX_DEFAULT_VERSION__}"
 case "$DEFAULT_OPENVOX_VERSION" in
     8|9) ;;                                        # rendered, valid
-    *)   DEFAULT_OPENVOX_VERSION="8" ;;            # placeholder or junk -> default
+    *)   DEFAULT_OPENVOX_VERSION="9" ;;            # placeholder or junk -> latest
 esac
 
 # ─── Standard agent paths (created by the openvox-agent package) ────────────
