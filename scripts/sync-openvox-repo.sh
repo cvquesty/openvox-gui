@@ -352,45 +352,39 @@ curl_fetch() {
     fi
 
     local dest_path="${dest_dir}/${filename}"
-    local curl_args=(-fSL -4 --connect-timeout 30 --max-time 600 "${CURL_PROXY_ARGS[@]}" -o "$dest_path")
+    if [ -d "$dest_path" ]; then
+        warn "  ${dest_path} is a directory; removing so curl can write a file"
+        rm -rf "$dest_path"
+    fi
 
-    # Conditional GET: only download if the remote file is newer
-    # than our local copy (sends If-Modified-Since). If the file
-    # doesn't exist locally, curl does an unconditional GET.
+    local errfile
+    errfile=$(mktemp)
+    # Do not wrap curl in $( ): piping stdout makes libcurl 23
+    # "client returned ERROR on write of 8192 bytes" through some proxies.
+    local curl_args=(-fSL -4 --http1.1 --connect-timeout 30 --max-time 600
+        "${CURL_PROXY_ARGS[@]}" -o "$dest_path" -sS)
     if [ -f "$dest_path" ]; then
         curl_args+=(-z "$dest_path")
     fi
 
-    # -s: silent (no progress bar), but -S: still show errors
-    if [ "$QUIET" = "true" ]; then
-        curl_args+=(-sS)
-    else
-        curl_args+=(-sS)
-    fi
-
-    local output
-    output=$(curl "${curl_args[@]}" "$url" 2>&1)
+    curl "${curl_args[@]}" "$url" 2>"$errfile"
     local rc=$?
+    local output=""
+    [ -s "$errfile" ] && output=$(cat "$errfile")
+    rm -f "$errfile"
 
     if [ $rc -eq 0 ]; then
         [ "$QUIET" != "true" ] && info "  fetched: ${filename}"
         return 0
     fi
 
-    # curl exit 22 = HTTP error (4xx/5xx) when using -f
-    # curl exit 23 = write error (almost always disk full)
     if [ -n "$output" ]; then
         info "  curl: ${output}"
     fi
     warn "curl failed for ${url} (exit ${rc})"
     if [ $rc -eq 23 ]; then
         rm -f "$dest_path"
-        warn "curl exit 23 = cannot write ${dest_path} (disk full or permissions)"
-        df -h "$dest_dir" /opt / 2>/dev/null | while IFS= read -r line; do
-            warn "  df: ${line}"
-        done
-        warn "Stop pulling OpenVox 8 / extra arches if /opt is full. Uncheck 8, set arches to x86_64 only, re-sync 9."
-        exit 1
+        warn "  curl 23 = write callback failed (not always disk full). dest=$(ls -ld "$dest_dir" 2>/dev/null || echo missing)"
     fi
     return 1
 }

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.22] - 2026-10-08
+
+### Fixes
+- **curl 23 is not treated as disk full.** Capturing ``curl -o file`` in
+  ``$(...)`` made libcurl fail writes through the ATLC proxy (64G free).
+  curl now writes the file directly, uses HTTP/1.1, and continues.
+
 ## [3.14.1-dev.21] - 2026-10-08
 
 ### Fixes
