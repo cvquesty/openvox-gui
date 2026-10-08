@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.8] - 2026-10-08
+
+### Fixes
+- **CI:** ``package.json`` matches the Mantine 9 / Recharts 3 lockfile
+  (merge had left 7.x pins). ``PyJWT`` 2.15.0. npm ``source-map-js``
+  1.2.2 and ``postcss-selector-parser`` 7.1.6 for audit.
+
 ## [3.14.1-dev.7] - 2026-10-08
 
 ### Fixes
