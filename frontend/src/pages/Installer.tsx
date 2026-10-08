@@ -499,7 +499,7 @@ export function InstallerPage() {
                 both live in the mirror. For an older major, add{' '}
                 <Code>--version 8</Code> (or <Code>OPENVOX_VERSION=8</Code>).
                 Keep older majors checked on the Mirror tab until those nodes
-                are gone.
+                are gone. The copy block includes <Code>--version {info.default_version}</Code>.
               </Alert>
               <CommandBlock
                 title={`OpenVox ${info.default_version} (default / latest)`}
@@ -512,7 +512,7 @@ export function InstallerPage() {
                   title="OpenVox 8 (older)"
                   icon={<IconBrandUbuntu size={18} />}
                   helper="Same one-liner with --version 8. Requires OpenVox 8 still selected on the Mirror tab."
-                  command={`${info.linux_command} --version 8`}
+                  command={info.linux_command.replace(/--version \d+/, '--version 8')}
                 />
               )}
             </Stack>
@@ -537,8 +537,8 @@ export function InstallerPage() {
                   icon={<IconBrandWindows size={18} />}
                   helper="Same script with -OpenVoxVersion 8."
                   command={info.windows_command.replace(
-                    ' -v',
-                    ' -OpenVoxVersion 8 -v',
+                    / -OpenVoxVersion '\d+'/,
+                    " -OpenVoxVersion '8'",
                   )}
                 />
               )}

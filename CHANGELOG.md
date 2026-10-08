@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.13] - 2026-10-08
+
+### Fixes
+- **``/packages/install.bash`` is live-rendered.** Agents curl that URL
+  (not ``/api/installer/script/``), so a static copy baked at deploy
+  kept defaulting to 8. The one-liner now includes ``--version N`` for
+  the newest major on disk.
+
 ## [3.14.1-dev.12] - 2026-10-08
 
 ### Fixes
