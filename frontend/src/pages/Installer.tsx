@@ -493,51 +493,55 @@ export function InstallerPage() {
           {/* ── Linux one-liner ──────────────────────────────────────── */}
           <Tabs.Panel value="linux" pt="md">
             <Stack gap="md">
-              <Alert color="blue" title="OpenVox 8 and 9 in the same mirror">
-                The command below installs <Text span fw={700}>OpenVox 8</Text>.
-                You can keep 8 and 9 on this console at the same time (Mirror tab).
-                They are not exclusive. Pick the major version on the agent:
-                add <Code>--version 9</Code> (or set <Code>OPENVOX_VERSION=9</Code>).
-                Do not uncheck 8 on the Mirror tab until every node has moved off 8.
+              <Alert color="blue" title="Latest on this mirror is the default">
+                The first command installs OpenVox <Text span fw={700}>{info.default_version}</Text>
+                {' '}(newest major that is actually on this console). 8 and 9 can
+                both live in the mirror. For an older major, add{' '}
+                <Code>--version 8</Code> (or <Code>OPENVOX_VERSION=8</Code>).
+                Keep older majors checked on the Mirror tab until those nodes
+                are gone.
               </Alert>
               <CommandBlock
-                title="OpenVox 8 (default)"
+                title={`OpenVox ${info.default_version} (default / latest)`}
                 icon={<IconBrandUbuntu size={18} />}
                 helper="Downloads packages from this console (/packages), installs openvox-agent, and points puppet.conf at the compile server. Compilers do not serve the yum/apt mirror."
                 command={info.linux_command}
               />
-              <CommandBlock
-                title="OpenVox 9"
-                icon={<IconBrandUbuntu size={18} />}
-                helper="Same one-liner with --version 9. Requires OpenVox 9 selected on the Mirror tab and a completed sync."
-                command={`${info.linux_command} --version 9`}
-              />
+              {info.default_version !== '8' && (
+                <CommandBlock
+                  title="OpenVox 8 (older)"
+                  icon={<IconBrandUbuntu size={18} />}
+                  helper="Same one-liner with --version 8. Requires OpenVox 8 still selected on the Mirror tab."
+                  command={`${info.linux_command} --version 8`}
+                />
+              )}
             </Stack>
           </Tabs.Panel>
 
           {/* ── Windows one-liner ────────────────────────────────────── */}
           <Tabs.Panel value="windows" pt="md">
             <Stack gap="md">
-              <Alert color="blue" title="OpenVox 8 and 9 in the same mirror">
-                Default install is OpenVox 8. For 9, add{' '}
-                <Code>-OpenVoxVersion 9</Code>. Keep 8 on the Mirror tab until
-                the Windows fleet is off 8.
+              <Alert color="blue" title="Latest on this mirror is the default">
+                Default is OpenVox {info.default_version}. For 8, add{' '}
+                <Code>-OpenVoxVersion 8</Code>.
               </Alert>
               <CommandBlock
-                title="OpenVox 8 (default)"
+                title={`OpenVox ${info.default_version} (default / latest)`}
                 icon={<IconBrandWindows size={18} />}
                 helper="Downloads install.ps1 and the MSI from this console, then points puppet.conf at the compile server."
                 command={info.windows_command}
               />
-              <CommandBlock
-                title="OpenVox 9"
-                icon={<IconBrandWindows size={18} />}
-                helper="Same script with -OpenVoxVersion 9."
-                command={info.windows_command.replace(
-                  ' -v',
-                  ' -OpenVoxVersion 9 -v',
-                )}
-              />
+              {info.default_version !== '8' && (
+                <CommandBlock
+                  title="OpenVox 8 (older)"
+                  icon={<IconBrandWindows size={18} />}
+                  helper="Same script with -OpenVoxVersion 8."
+                  command={info.windows_command.replace(
+                    ' -v',
+                    ' -OpenVoxVersion 8 -v',
+                  )}
+                />
+              )}
             </Stack>
           </Tabs.Panel>
 
@@ -772,9 +776,9 @@ export function InstallerPage() {
                   ))}
                 </Group>
                 <Text size="xs" c="dimmed" mb="md">
-                  These boxes only control what is mirrored. Agents still install 8
-                  unless the one-liner includes --version 9 (Linux) or -OpenVoxVersion 9
-                  (Windows). Keep both checked while any node still runs 8.
+                  These boxes only control what is mirrored. Agents install the
+                  newest major that is actually on disk unless the one-liner
+                  includes --version 8 (Linux) or -OpenVoxVersion 8 (Windows).
                 </Text>
 
                 {upstream ? (
