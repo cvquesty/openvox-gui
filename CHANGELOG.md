@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.19] - 2026-10-08
+
+### Fixes
+- **RHEL install if yum repodata is 404.** After dnf fails on missing
+  ``repomd.xml``, install.bash lists the arch dir and ``dnf localinstall``s
+  the newest ``openvox-agent`` RPM. Clear error if ATLC has no
+  ``yum/openvox9/el/9/x86_64`` at all.
+
 ## [3.14.1-dev.18] - 2026-10-08
 
 ### Fixes
