@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.24] - 2026-10-08
+
+### Fixes
+- **Same mirror transport on every console.** Default is rsync, then
+  HTTPS if port 873 is blocked. Stored ``https`` is treated as
+  rsync-then-HTTPS so ATLC matches PDXC except proxy/network.
+
 ## [3.14.1-dev.23] - 2026-10-08
 
 ### Fixes

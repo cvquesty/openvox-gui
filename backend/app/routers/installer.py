@@ -864,21 +864,21 @@ MIRROR_TRANSPORTS = ("https", "rsync", "rsync_fallback")
 
 
 def _normalize_transport(value: Optional[str]) -> str:
-    t = (value or "https").strip().lower().replace("-", "_")
+    t = (value or "rsync_fallback").strip().lower().replace("-", "_")
     if t in ("https", "http", "curl"):
         return "https"
     if t == "rsync":
         return "rsync"
     if t in ("rsync_fallback", "auto", "rsync_then_https"):
         return "rsync_fallback"
-    return "https"
+    return "rsync_fallback"
 
 
 class MirrorSelections(BaseModel):
     openvox_versions: list[str] = ["8", "9"]
     distributions: list[str] = []
     # https | rsync | rsync_fallback — how this site pulls the upstream mirror
-    transport: str = "https"
+    transport: str = "rsync_fallback"
 
 
 class SelectionUpdateResult(BaseModel):
@@ -1230,7 +1230,7 @@ def _detect_mirrored_selections() -> MirrorSelections:
             v for v in versions if v in SUPPORTED_OPENVOX_MAJORS
         ) or ["8", "9"],
         distributions=sorted(dists),
-        transport="https",
+        transport="rsync_fallback",
     )
 
 
