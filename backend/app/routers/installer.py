@@ -1439,6 +1439,15 @@ async def _sync_distribution(dist_key: str, versions: list[str]) -> bool:
     return success
 
 
+def _rsync_transfer_ok(returncode: int) -> bool:
+    """True if rsync got enough of the tree to keep going.
+
+    0 = complete, 23 = partial I/O error, 24 = vanished source files.
+    One missing package must not fail the whole mirror.
+    """
+    return returncode in (0, 23, 24)
+
+
 async def _rsync_or_curl(
     rsync_src: str,
     local_dest: str,
@@ -1456,14 +1465,14 @@ async def _rsync_or_curl(
             dest = local_dest.rstrip("/") + "/"
             proc = subprocess.run(
                 ["rsync", "-av", "-4", "--timeout=120", "--contimeout=15",
-                 rsync_src, dest],
+                 "--ignore-errors", rsync_src, dest],
                 capture_output=True, text=True, timeout=900,
             )
             if proc.returncode != 0:
                 logger.warning("rsync exit %d for %s: %s",
                                proc.returncode, rsync_src,
                                (proc.stderr or "")[:500])
-            return proc.returncode == 0
+            return _rsync_transfer_ok(proc.returncode)
         except FileNotFoundError:
             logger.warning("rsync binary not found")
             return False

@@ -465,6 +465,7 @@ class HierarchicalENCService:
         return {"purged": purged_count, "certnames": stale}
 
     async def get_node(self, db: AsyncSession, certname: str) -> Optional[EncNode]:
+        certname = (certname or "").strip()
         result = await db.execute(
             select(EncNode)
             .options(selectinload(EncNode.groups))
@@ -475,6 +476,9 @@ class HierarchicalENCService:
     async def save_node(self, db: AsyncSession, certname: str, environment: str,
                         classes: Dict = None, parameters: Dict = None,
                         group_ids: List[int] = None) -> EncNode:
+        from sqlalchemy.exc import IntegrityError
+
+        certname = (certname or "").strip()
         node = await self.get_node(db, certname)
         if node:
             node.environment = environment
@@ -484,7 +488,18 @@ class HierarchicalENCService:
             node = EncNode(certname=certname, environment=environment,
                            classes=classes or {}, parameters=parameters or {})
             db.add(node)
-            await db.flush()
+            try:
+                await db.flush()
+            except IntegrityError:
+                # Duplicate certname (UI POST /nodes while the row exists).
+                # PostgreSQL aborts the txn; roll back and update the row.
+                await db.rollback()
+                node = await self.get_node(db, certname)
+                if node is None:
+                    raise
+                node.environment = environment
+                node.classes = classes or {}
+                node.parameters = parameters or {}
             # Re-fetch so the groups relationship is loaded for manipulation
             node = await self.get_node(db, certname)
 
