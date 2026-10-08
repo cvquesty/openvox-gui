@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.5] - 2026-10-08
+
+### Fixes
+- **Yum HTTPS skip unpublished arches.** ``el/7/aarch64`` (and similar
+  missing trees) is a skip, not a sync failure. Directory-listing 404s
+  no longer mark the whole pull as failed.
+
 ## [3.14.1-dev.4] - 2026-10-08
 
 Train bump for merge to `main`. Includes ENC node upsert (dev.2) and

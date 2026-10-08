@@ -449,8 +449,9 @@ curl_mirror() {
     local listing
     listing=$(curl -fsSL -4 --connect-timeout 30 --max-time 60 \
         "${CURL_PROXY_ARGS[@]}" "$url" 2>/dev/null) || {
-        warn "Could not fetch directory listing from ${url}"
-        return 1
+        # 404 / empty tree: this arch or dist is not published (e.g. el/7/aarch64).
+        info "  (no listing at ${url} -- skipping)"
+        return 0
     }
 
     # Extract href values, skip parent-dir links, absolute paths,
@@ -472,7 +473,7 @@ curl_mirror() {
         if [[ "$entry" == */ ]]; then
             local subdir="${entry%/}"
             case "$subdir" in
-                src|SRPMS|debug|debuginfo|lost+found)
+                src|SRPMS|debug|debuginfo|lost+found|ppc64le|i386|i686)
                     info "  (skip ${subdir}/)"
                     continue
                     ;;
@@ -917,6 +918,13 @@ curl_sync_yum() {
                 _curl_fetch_listed_files "$url" "$dest" || true
                 for arch in $(echo "$ARCHES" | tr ',' ' '); do
                     info "  -> ${arch}/"
+                    # Same idea as rsync_sync_yum: unpublished arch is skip, not fail.
+                    if ! curl -fsSL -4 --connect-timeout 15 --max-time 30 \
+                            -o /dev/null "${CURL_PROXY_ARGS[@]}" \
+                            "${url}${arch}/" 2>/dev/null; then
+                        info "  (no ${arch} for openvox${v}/${fam}/${rel} -- skipping)"
+                        continue
+                    fi
                     if ! curl_mirror "${url}${arch}/" "${dest}/${arch}"; then
                         SYNC_FAILURES=$((SYNC_FAILURES + 1))
                     fi
