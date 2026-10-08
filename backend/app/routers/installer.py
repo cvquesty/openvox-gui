@@ -53,6 +53,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1612,7 +1613,7 @@ async def _rsync_or_curl(
                 ok = False
         else:
             file_url = curl_url + link
-            file_dest = os.path.join(local_dest, link)
+            file_dest = os.path.join(local_dest, unquote(link))
             if not await _fetch_file(file_url, file_dest):
                 ok = False
     return ok
