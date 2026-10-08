@@ -101,7 +101,7 @@ function DurationOverlayChart({
           width={52}
           label={{ value: yLabel, angle: -90, position: 'insideLeft', fill: '#8899aa', fontSize: 9 }}
         />
-        <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatDuration(Number(v)), n]} />
+        <ReTooltip {...TOOLTIP_STYLE} formatter={((v: number, n: string) => [formatDuration(Number(v)), n]) as any} />
         <Bar isAnimationActive={false} dataKey="mean" fill={colors[0] || '#0D6EFD'} name={yLabel} maxBarSize={36} />
       </BarChart>
     );
@@ -137,12 +137,12 @@ function DurationOverlayChart({
       />
       <ReTooltip
         {...TOOLTIP_STYLE}
-        formatter={(v: number, n: string, item) => {
+        formatter={((v: number, n: string, item: any) => {
           const key = String(item?.dataKey ?? '');
           const raw = item?.payload?.[`${key}__raw`];
           const ms = typeof raw === 'number' ? raw : v;
           return [formatDuration(Number(ms)), n];
-        }}
+        }) as any}
       />
       <Legend wrapperStyle={{ fontSize: 10 }} />
       {keys.map((k, i) => (
@@ -541,7 +541,7 @@ function MetricsPerformanceContent({
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={tickTime} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
-          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={((v: number, n: string) => [formatSeconds(v), n]) as any} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="total" stroke="#0D6EFD" fill="url(#gT)" strokeWidth={2} dot={false} name="Total" />
         </AreaChart>
@@ -554,7 +554,7 @@ function MetricsPerformanceContent({
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={tickTime} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} tickFormatter={formatSeconds} />
-          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number, n: string) => [formatSeconds(v), n]} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={((v: number, n: string) => [formatSeconds(v), n]) as any} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="fact_generation" stroke="#2ecc71" fill="none" strokeWidth={1.5} dot={false} name="Fact Gen" />
           <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="plugin_sync" stroke="#9b59b6" fill="none" strokeWidth={1.5} dot={false} name="Plugin Sync" />
@@ -572,10 +572,10 @@ function MetricsPerformanceContent({
           <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 9, fill: '#8899aa' }} />
           <ReTooltip
             {...TOOLTIP_STYLE}
-            formatter={(v: number) => [
+            formatter={((v: number) => [
               typeof v === 'number' && Number.isFinite(v) ? formatSeconds(v) : '—',
               'Avg run',
-            ]}
+            ]) as any}
           />
           <Bar isAnimationActive={false} dataKey="seconds" fill="#0D6EFD" name="Avg run" maxBarSize={18} />
         </BarChart>
@@ -675,12 +675,12 @@ function MetricsPerformanceContent({
           />
           <ReTooltip
             {...TOOLTIP_STYLE}
-            formatter={(v: number, n: string) => [
+            formatter={((v: number, n: string) => [
               String(n).includes('Dedup')
                 ? `${Number(v).toFixed(1)}%`
                 : formatDuration(Number(v)),
               n,
-            ]}
+            ]) as any}
           />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <Area
@@ -763,10 +763,10 @@ function MetricsPerformanceContent({
           />
           <ReTooltip
             {...TOOLTIP_STYLE}
-            formatter={(v: number, n: string) => [
+            formatter={((v: number, n: string) => [
               typeof v === 'number' ? (n.includes('Avg') ? v.toFixed(0) : String(Math.round(v))) : v,
               n,
-            ]}
+            ]) as any}
           />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <Line yAxisId="nodes" type="linear" dataKey="nodes" stroke="#0D6EFD" strokeWidth={2.5} dot={false} name="Live nodes" />

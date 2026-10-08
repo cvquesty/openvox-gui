@@ -41,9 +41,9 @@ const NODES_EXPORT_COLS = [
   'report_timestamp',
 ];
 
-/* ═══════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════════
    NODE-O-VISION 6000 — the server rack X-ray machine
-   ═══════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════════════════════ */
 function NodeOVision() {
   return (
     <svg viewBox="0 0 520 220" width="100%" style={{ maxHeight: 240 }}>
@@ -551,7 +551,7 @@ export function NodesPage() {
                     <Text c="dimmed" size="sm">({groupNodes.length} node{groupNodes.length !== 1 ? 's' : ''})</Text>
                   </Group>
                 </Group>
-                <Collapse in={isExpanded}>
+                <Collapse expanded={isExpanded}>
                   <ScrollArea h={480} mt="sm" type="auto" offsetScrollbars scrollbarSize={6}>
                     <Table striped highlightOnHover withTableBorder>
                           <Table.Thead>

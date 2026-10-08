@@ -1,0 +1,52 @@
+name: Restore ConfigApp.tsx
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [chore/3.14.1-dev.2]
+    paths:
+      - ".github/workflows/restore-configapp.yml"
+      - ".ci-scratch/ConfigApp.tsx.part00"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: restore-configapp
+  cancel-in-progress: true
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/3.14.1-dev.2
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assemble ConfigApp from scratch parts
+        run: |
+          set -euo pipefail
+          DEST=frontend/src/pages/ConfigApp.tsx
+          PARTS=(.ci-scratch/ConfigApp.tsx.part00 .ci-scratch/ConfigApp.tsx.part01 .ci-scratch/ConfigApp.tsx.part02 .ci-scratch/ConfigApp.tsx.part03 .ci-scratch/ConfigApp.tsx.part04)
+          for p in "${PARTS[@]}"; do
+            test -f "$p" || { echo "missing $p"; ls -la .ci-scratch || true; exit 1; }
+          done
+          cat "${PARTS[@]}" > "$DEST"
+          python3 - <<'PY'
+          from pathlib import Path
+          t = Path("frontend/src/pages/ConfigApp.tsx").read_text(encoding="utf-8")
+          assert len(t) > 50000, len(t)
+          assert "Collapse in=" not in t, "still has Collapse in="
+          assert "gutter=" not in t
+          assert "Collapse expanded=" in t
+          print("ConfigApp OK", len(t), "expanded=", t.count("Collapse expanded="))
+          PY
+          rm -rf .ci-scratch
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "fix(frontend): restore full ConfigApp.tsx (MCP truncate repair) + Mantine 9"
+          commit_user_name: openvox-gui-ci
+          commit_user_email: 1455231+cvquesty@users.noreply.github.com

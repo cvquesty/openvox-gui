@@ -323,7 +323,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
-          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={((v: number) => [`${v} MB`, '']) as any} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
           <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="used" stroke="#0D6EFD" fill="url(#gPsHeap)" strokeWidth={2} dot={false} name="Used" />
         </AreaChart>
@@ -341,7 +341,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} unit=" MB" />
-          <ReTooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} MB`, '']} />
+          <ReTooltip {...TOOLTIP_STYLE} formatter={((v: number) => [`${v} MB`, '']) as any} />
           <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="used" stroke="#8e44ad" fillOpacity={0.25} strokeWidth={2} dot={false} name="Non-heap used" />
         </AreaChart>
       ),

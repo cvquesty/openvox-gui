@@ -19,10 +19,13 @@ PyJWT[crypto]==2.13.0
 # breaks on bcrypt 5: missing __about__ + 72-byte ValueError).
 bcrypt==5.0.0
 # 50.0.0: PYSEC-2026-3552/3553/3554 (PKCS#7 oracle, path-build DoS, nameConstraints wildcard)
-cryptography==50.0.0
+# 50.0.1: latest OpenSSL 4.0.2 wheels; no published advisories
+cryptography==50.0.1
 certifi==2026.7.22
 prometheus-client==0.26.0
-python-json-logger==3.2.1
+# 3.2.1 is GHSA-wmxh-pxcx-9w24 / CVE-2025-27607 (dev-extra RCE range).
+# No in-repo JsonFormatter import; 4.2.0 is latest and Snyk-clean.
+python-json-logger==4.2.0
 slowapi==0.1.10
 itsdangerous==2.2.0
 ldap3==2.9.1
@@ -35,6 +38,8 @@ python-dotenv==1.2.3
 pyhocon>=0.3.63
 
 # Fleet Health PDF report generation (matplotlib for chart recreation matching UI, fpdf2 for fixed-layout one-page PDF assembly)
-matplotlib>=3.8
+# 3.8/3.9 are EOL. 3.11.x needs Python >=3.11 and drops the 3.10 floor.
+# 3.10.9 is the latest line that still ships cp310 wheels (cycler/eval + latex/ps hardening).
+matplotlib>=3.10,<3.11
 fpdf2>=2.7
 Pillow==12.3.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)

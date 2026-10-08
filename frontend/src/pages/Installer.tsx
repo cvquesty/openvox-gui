@@ -555,10 +555,10 @@ export function InstallerPage() {
                   <IconCloudDownload size={18} />
                   <Text fw={700} size="sm">Mirror Status</Text>
                 </Group>
-                <Grid gutter="md">
+                <Grid gap="md">
                   <Grid.Col span={{ base: 12, md: 8 }}>
                     <Stack gap="xs">
-                      <Grid gutter="xs">
+                      <Grid gap="xs">
                         <Grid.Col span={{ base: 12, sm: 6 }}>
                           <Stack gap={4}>
                             <Group gap="xs"><IconClock size={14} /><Text size="sm" fw={600}>Last sync</Text></Group>

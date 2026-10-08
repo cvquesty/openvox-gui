@@ -1,0 +1,41 @@
+name: Apply 3.14.1-dev.2 lockstep + Mantine 9 API
+
+# One-shot runner that applies remaining header/badge/Mantine/CHANGELOG
+# edits so we do not push 500KB files through the Contents API.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to patch
+        required: true
+        type: string
+        default: chore/3.14.1-dev.2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-dev2-${{ github.event.inputs.branch || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    name: Apply remaining 3.14.1-dev.2 edits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply lockstep, docs, Mantine 9 API
+        run: python3 scripts/apply_dev2_lockstep.py
+
+      - name: Commit if anything changed
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "fix: Mantine 9 API + 3.14.1-dev.2 lockstep docs"
+          commit_user_name: openvox-gui-ci
+          commit_user_email: 1455231+cvquesty@users.noreply.github.com

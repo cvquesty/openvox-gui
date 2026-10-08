@@ -98,10 +98,10 @@ export function MetricsClassCoveragePage() {
                 contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
                 labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
                 itemStyle={{ color: '#e0e0e0' }}
-                formatter={(value: number, _name: string, props: any) => [
+                formatter={((value: any, _name: any, props: any) => [
                   `${value} nodes`,
-                  props.payload.fullName,
-                ]}
+                  props?.payload?.fullName,
+                ]) as any}
               />
               <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={{ r: 3, fill: '#0D6EFD' }} name="Nodes" />
             </AreaChart>

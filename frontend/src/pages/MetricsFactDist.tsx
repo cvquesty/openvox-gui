@@ -75,7 +75,7 @@ function NumericDistribution({ data, height }: { data: Array<{ certname: string;
         <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} />
         <ReTooltip
           {...TOOLTIP_STYLE}
-          formatter={(v: number, _n: string, p: any) => [`${v}`, p.payload.certname]}
+          formatter={((v: any, _n: any, p: any) => [`${v}`, p?.payload?.certname]) as any}
         />
         <Area isAnimationActive={false} animationDuration={0}
           type="natural"
@@ -114,9 +114,7 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
           <XAxis type="number" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fill: '#8899aa' }} />
           <ReTooltip {...TOOLTIP_STYLE}
-            formatter={(value: number, _n: string, props: any) => [
-              `${value} nodes (${props.payload.pct}%)`, props.payload.fullName
-            ]} />
+            formatter={((value: any, _n: any, props: any) => [`${value} nodes (${props?.payload?.pct}%)`, props?.payload?.fullName]) as any} />
           <Bar isAnimationActive={false} animationDuration={0} dataKey="count" name="Nodes" radius={[0, 4, 4, 0]}>
             {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Bar>
@@ -132,9 +130,7 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
         <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} angle={-25} textAnchor="end" height={55} />
         <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
         <ReTooltip {...TOOLTIP_STYLE}
-          formatter={(value: number, _n: string, props: any) => [
-            `${value} nodes (${props.payload.pct}%)`, props.payload.fullName
-          ]} />
+          formatter={((value: any, _n: any, props: any) => [`${value} nodes (${props?.payload?.pct}%)`, props?.payload?.fullName]) as any} />
         <Bar isAnimationActive={false} animationDuration={0} dataKey="count" name="Nodes" radius={[3, 3, 0, 0]}>
           {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
         </Bar>

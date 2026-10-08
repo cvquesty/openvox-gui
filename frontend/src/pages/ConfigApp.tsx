@@ -1111,7 +1111,7 @@ function LdapConfigPanel() {
         <Switch label="Verify SSL Certificate" checked={form.ssl_verify} onChange={(e) => updateField('ssl_verify', e.currentTarget.checked)} />
       </Group>
 
-      <Collapse in={form.use_ssl || form.use_starttls}>
+      <Collapse expanded={form.use_ssl || form.use_starttls}>
         <TextInput mt="sm" label="CA Certificate Path" description="Path to CA certificate file for SSL verification (optional)"
           placeholder="/etc/ssl/certs/ldap-ca.pem" value={form.ssl_ca_cert}
           onChange={(e) => updateField('ssl_ca_cert', e.currentTarget.value)} />
@@ -1171,7 +1171,7 @@ function LdapConfigPanel() {
         <Switch label="Use AD User Principal Name (UPN) for bind" checked={form.use_ad_upn}
           onChange={(e) => updateField('use_ad_upn', e.currentTarget.checked)} />
       </Group>
-      <Collapse in={form.use_ad_upn}>
+      <Collapse expanded={form.use_ad_upn}>
         <TextInput mt="sm" label="AD Domain" description="Domain for UPN bind (username@domain)" placeholder="corp.example.com"
           value={form.ad_domain} onChange={(e) => updateField('ad_domain', e.currentTarget.value)} style={{ maxWidth: 400 }} />
       </Collapse>
@@ -1374,7 +1374,7 @@ function UserManagerTab() {
                   { value: 'ldap', label: 'LDAP / Active Directory' },
                   { value: 'local', label: 'Local' },
                 ]} value={newAuthSource} onChange={(v) => { setNewAuthSource(v || 'ldap'); if (v === 'ldap') setNewPassword(''); }} />
-              <Collapse in={newAuthSource === 'local'}>
+              <Collapse expanded={newAuthSource === 'local'}>
                 <PasswordInput label="Password" placeholder="Enter password" value={newPassword} onChange={(e) => setNewPassword(e.currentTarget.value)} />
               </Collapse>
               <Select label="Role" data={ROLE_SELECT_DATA}
@@ -1568,7 +1568,7 @@ function ProxyTab() {
 
         <Divider />
 
-        <Grid gutter="md">
+        <Grid gap="md">
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="HTTP Proxy"

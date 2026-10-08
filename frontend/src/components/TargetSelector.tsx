@@ -1,13 +1,13 @@
 /**
  * Target picker with resolved-count affordance (sruiux1 P0 #1).
  * Produces the same comma-separated targets string the Bolt API expects.
- * Accepts Mantine 7 MultiSelect data (flat strings, items, or { group, items }[]).
+ * Accepts Mantine MultiSelect data (flat strings, items, or { group, items }[]).
  */
-import { MultiSelect, Text, Group, Badge, Stack, ComboboxItem, ComboboxItemGroup } from '@mantine/core';
+import { MultiSelect, Text, Group, Badge, Stack, ComboboxItem, ComboboxParsedItemGroup } from '@mantine/core';
 
 export type TargetOption = { value: string; label: string; group?: string };
 
-export type TargetSelectData = (string | ComboboxItem | ComboboxItemGroup)[];
+export type TargetSelectData = (string | ComboboxItem | ComboboxParsedItemGroup)[];
 
 export function targetsToString(selected: string[]): string {
   return selected.join(',');

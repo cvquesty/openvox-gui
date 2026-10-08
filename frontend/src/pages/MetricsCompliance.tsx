@@ -82,7 +82,7 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
           <Text size="sm" c="dimmed">{nodes.length} node{nodes.length !== 1 ? 's' : ''}</Text>
         </Group>
       </Group>
-      <Collapse in={open}>
+      <Collapse expanded={open}>
         <Box style={{ maxHeight: 500, minHeight: 0, overflow: 'hidden' }}>
           <ScrollArea h="100%" mt="xs" type="auto" offsetScrollbars scrollbarSize={6}>
             <Table striped highlightOnHover withTableBorder>
@@ -262,7 +262,7 @@ export function MetricsCompliancePage({
                   contentStyle={{ backgroundColor: 'rgba(20,20,33,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '10px 14px', fontSize: 12, color: '#e0e0e0' }}
                   labelStyle={{ fontWeight: 600, color: '#fff', marginBottom: 4 }}
                   itemStyle={{ color: '#e0e0e0' }}
-                  formatter={(value: number) => [`${value} nodes`, 'Count']}
+                  formatter={((value: any) => [`${value} nodes`, 'Count']) as any}
                 />
                 <Bar isAnimationActive={false} animationDuration={0} dataKey="value" name="Nodes" radius={[0, 4, 4, 0]}>
                   {donutData.filter(d => d.value > 0).map((entry, idx) => (
