@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.12] - 2026-10-08
+
+### Fixes
+- **OpenVox 9 apt path on Apply Changes.** Background dist sync wrote
+  ``apt/openvox9/``; install.bash looks in ``apt/pool/openvox9/``.
+  Mirror tab shows last-saved versions so ATLC can see if 9 was
+  actually written to ``.mirror-selections.json``.
+
 ## [3.14.1-dev.11] - 2026-10-08
 
 ### Fixes
