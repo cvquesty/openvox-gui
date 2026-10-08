@@ -492,22 +492,53 @@ export function InstallerPage() {
 
           {/* ── Linux one-liner ──────────────────────────────────────── */}
           <Tabs.Panel value="linux" pt="md">
-            <CommandBlock
-              title="Run as root on the agent host"
-              icon={<IconBrandUbuntu size={18} />}
-              helper="Downloads packages from this console (/packages), installs openvox-agent, and points puppet.conf at the compile server. Compilers do not serve the yum/apt mirror."
-              command={info.linux_command}
-            />
+            <Stack gap="md">
+              <Alert color="blue" title="OpenVox 8 and 9 in the same mirror">
+                The command below installs <Text span fw={700}>OpenVox 8</Text>.
+                You can keep 8 and 9 on this console at the same time (Mirror tab).
+                They are not exclusive. Pick the major version on the agent:
+                add <Code>--version 9</Code> (or set <Code>OPENVOX_VERSION=9</Code>).
+                Do not uncheck 8 on the Mirror tab until every node has moved off 8.
+              </Alert>
+              <CommandBlock
+                title="OpenVox 8 (default)"
+                icon={<IconBrandUbuntu size={18} />}
+                helper="Downloads packages from this console (/packages), installs openvox-agent, and points puppet.conf at the compile server. Compilers do not serve the yum/apt mirror."
+                command={info.linux_command}
+              />
+              <CommandBlock
+                title="OpenVox 9"
+                icon={<IconBrandUbuntu size={18} />}
+                helper="Same one-liner with --version 9. Requires OpenVox 9 selected on the Mirror tab and a completed sync."
+                command={`${info.linux_command} --version 9`}
+              />
+            </Stack>
           </Tabs.Panel>
 
           {/* ── Windows one-liner ────────────────────────────────────── */}
           <Tabs.Panel value="windows" pt="md">
-            <CommandBlock
-              title="Run in an elevated PowerShell prompt"
-              icon={<IconBrandWindows size={18} />}
-              helper="Downloads install.ps1 and the MSI from this console, then points puppet.conf at the compile server."
-              command={info.windows_command}
-            />
+            <Stack gap="md">
+              <Alert color="blue" title="OpenVox 8 and 9 in the same mirror">
+                Default install is OpenVox 8. For 9, add{' '}
+                <Code>-OpenVoxVersion 9</Code>. Keep 8 on the Mirror tab until
+                the Windows fleet is off 8.
+              </Alert>
+              <CommandBlock
+                title="OpenVox 8 (default)"
+                icon={<IconBrandWindows size={18} />}
+                helper="Downloads install.ps1 and the MSI from this console, then points puppet.conf at the compile server."
+                command={info.windows_command}
+              />
+              <CommandBlock
+                title="OpenVox 9"
+                icon={<IconBrandWindows size={18} />}
+                helper="Same script with -OpenVoxVersion 9."
+                command={info.windows_command.replace(
+                  ' -v',
+                  ' -OpenVoxVersion 9 -v',
+                )}
+              />
+            </Stack>
           </Tabs.Panel>
 
           {/* ── Direct URLs ──────────────────────────────────────────── */}
@@ -728,7 +759,7 @@ export function InstallerPage() {
                 />
 
                 {/* OpenVox version toggles */}
-                <Group gap="lg" mb="md">
+                <Group gap="lg" mb={4}>
                   <Text size="sm" fw={600}>OpenVox Versions:</Text>
                   {(upstream?.openvox_versions || ['8', '9']).map(ver => (
                     <Checkbox
@@ -740,6 +771,11 @@ export function InstallerPage() {
                     />
                   ))}
                 </Group>
+                <Text size="xs" c="dimmed" mb="md">
+                  These boxes only control what is mirrored. Agents still install 8
+                  unless the one-liner includes --version 9 (Linux) or -OpenVoxVersion 9
+                  (Windows). Keep both checked while any node still runs 8.
+                </Text>
 
                 {upstream ? (
                   <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">

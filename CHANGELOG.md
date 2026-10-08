@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.9] - 2026-10-08
+
+### Fixes
+- **Agent Install page:** Linux and Windows tabs show copy-able OpenVox 8
+  and OpenVox 9 one-liners, plus a note that the Mirror version boxes
+  only control what is stored, not which major the agent installs.
+
 ## [3.14.1-dev.8] - 2026-10-08
 
 ### Fixes
