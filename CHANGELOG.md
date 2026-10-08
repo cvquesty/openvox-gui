@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.14] - 2026-10-08
+
+### Fixes
+- Sync log prints ``Script rev`` so ATLC vs PDXC can tell whether
+  ``/opt/openvox-gui/scripts/sync-openvox-repo.sh`` was actually
+  deployed (git pull in ~/openvox-gui is not enough).
+
 ## [3.14.1-dev.13] - 2026-10-08
 
 ### Fixes

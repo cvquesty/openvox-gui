@@ -709,6 +709,8 @@ mkdir -p "$PKG_REPO_DIR"
 acquire_lock
 
 info "Starting OpenVox repo sync"
+info "  Script     : $0"
+info "  Script rev : 3.14.1-dev.14"
 info "  Target dir : ${PKG_REPO_DIR}"
 info "  Platforms  : ${PLATFORMS}"
 info "  Versions   : ${VERSIONS}"
