@@ -866,6 +866,77 @@ prune_unselected_mirror() {
             done
         done
     done
+
+    # Release RPMs at yum root (openvox8-release-el-9.noarch.rpm, etc.)
+    for f in "${yum_root}"/openvox*-release-*.rpm; do
+        [ -f "$f" ] || continue
+        base=$(basename "$f")
+        ver=${base#openvox}
+        ver=${ver%%-*}
+        if ! _csv_has "$VERSIONS" "$ver"; then
+            info "Pruning unselected ${f}"
+            rm -f "$f"
+        fi
+    done
+
+    if _csv_has "$PLATFORMS" apt; then
+        for d in "${PKG_REPO_DIR}/apt/pool"/openvox*; do
+            [ -d "$d" ] || continue
+            ver=$(basename "$d")
+            ver=${ver#openvox}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${d}"
+                rm -rf "$d"
+            fi
+        done
+        for d in "${PKG_REPO_DIR}"/apt/openvox*; do
+            [ -d "$d" ] || continue
+            ver=$(basename "$d")
+            ver=${ver#openvox}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${d}"
+                rm -rf "$d"
+            fi
+        done
+        if [ -d "${PKG_REPO_DIR}/apt/dists" ]; then
+            for dist_dir in "${PKG_REPO_DIR}/apt/dists"/*; do
+                [ -d "$dist_dir" ] || continue
+                for comp in "$dist_dir"/openvox*; do
+                    [ -d "$comp" ] || continue
+                    ver=$(basename "$comp")
+                    ver=${ver#openvox}
+                    if ! _csv_has "$VERSIONS" "$ver"; then
+                        info "Pruning unselected ${comp}"
+                        rm -rf "$comp"
+                    fi
+                done
+            done
+        fi
+        for f in "${PKG_REPO_DIR}"/apt/openvox*-release-*.deb; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            ver=${base#openvox}
+            ver=${ver%%-*}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${f}"
+                rm -f "$f"
+            fi
+        done
+    fi
+
+    for plat in mac windows; do
+        _csv_has "$PLATFORMS" "$plat" || continue
+        [ -d "${PKG_REPO_DIR}/${plat}" ] || continue
+        for d in "${PKG_REPO_DIR}/${plat}"/openvox*; do
+            [ -d "$d" ] || continue
+            ver=$(basename "$d")
+            ver=${ver#openvox}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${d}"
+                rm -rf "$d"
+            fi
+        done
+    done
 }
 
 rsync_sync_yum() {
