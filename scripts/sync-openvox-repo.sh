@@ -647,13 +647,15 @@ deb_rels = [r.replace('debian','') for r in families.get('debian',[]) if r]
 ubu_rels = [r.replace('ubuntu','') for r in families.get('ubuntu',[]) if r]
 print('CFG_DEB=' + ','.join(deb_rels))
 print('CFG_UBU=' + ','.join(ubu_rels))
-t = str(cfg.get('transport') or 'https').strip().lower().replace('-', '_')
-if t in ('http', 'curl'):
-    t = 'https'
+t = str(cfg.get('transport') or 'rsync_fallback').strip().lower().replace('-', '_')
+if t in ('http', 'curl', 'https'):
+    # Old GUI default was https-only (ATLC). Use rsync then HTTPS so
+    # every console matches; proxy is only used if 873 is blocked.
+    t = 'rsync_fallback'
 elif t in ('auto', 'rsync_then_https'):
     t = 'rsync_fallback'
-elif t not in ('https', 'rsync', 'rsync_fallback'):
-    t = 'https'
+elif t not in ('rsync', 'rsync_fallback'):
+    t = 'rsync_fallback'
 print('CFG_TRANSPORT=' + t)
 " 2>/dev/null) || {
         warn "Could not parse ${SELECTIONS_FILE}"
@@ -701,7 +703,7 @@ fi
 
 # Transport comes from GUI Mirror selections (https | rsync | rsync_fallback).
 # PREFER_RSYNC=true still forces rsync+fallback for CLI/cron overrides.
-MIRROR_TRANSPORT="${MIRROR_TRANSPORT:-https}"
+MIRROR_TRANSPORT="${MIRROR_TRANSPORT:-rsync_fallback}"
 RSYNC_FALLBACK="true"
 case "$MIRROR_TRANSPORT" in
     rsync)

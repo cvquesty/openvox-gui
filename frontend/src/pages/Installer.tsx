@@ -233,7 +233,7 @@ export function InstallerPage() {
 
   // Distribution selector state
   const [upstream, setUpstream]           = useState<UpstreamInfo | null>(null);
-  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8', '9'], distributions: [], transport: 'https' });
+  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8', '9'], distributions: [], transport: 'rsync_fallback' });
   const [draftVersions, setDraftVersions]     = useState<string[]>(['8', '9']);
   const [draftDists, setDraftDists]           = useState<string[]>([]);
   const [draftTransport, setDraftTransport]   = useState<MirrorTransport>('https');
@@ -267,7 +267,7 @@ export function InstallerPage() {
       installer.getSelections().catch(() => ({
         openvox_versions: ['8', '9'],
         distributions: [],
-        transport: 'https',
+        transport: 'rsync_fallback',
       } as MirrorSelections)),
     ]);
     if (full) setInfo(full);
@@ -277,7 +277,7 @@ export function InstallerPage() {
     const vers = (s.openvox_versions || ['8', '9']).filter((v) => v !== '7');
     setDraftVersions(vers.length ? vers : ['8', '9']);
     setDraftDists(s.distributions);
-    const t = s.transport === 'rsync' || s.transport === 'rsync_fallback' ? s.transport : 'https';
+    const t = s.transport === 'rsync' ? 'rsync' : 'rsync_fallback';
     setDraftTransport(t);
     setMirrorReady(true);
   }, []);
@@ -356,7 +356,7 @@ export function InstallerPage() {
   const hasDraftChanges =
     JSON.stringify([...draftVersions].sort()) !== JSON.stringify([...savedSelections.openvox_versions].sort()) ||
     JSON.stringify([...draftDists].sort()) !== JSON.stringify([...savedSelections.distributions].sort()) ||
-    draftTransport !== (savedSelections.transport || 'https');
+    draftTransport !== (savedSelections.transport || 'rsync_fallback');
 
   const draftAdded = draftDists.filter(d => !savedSelections.distributions.includes(d));
   const draftRemoved = savedSelections.distributions.filter(d => !draftDists.includes(d));
@@ -760,7 +760,7 @@ export function InstallerPage() {
 
                 <Select
                   label="Mirror transport"
-                  description="HTTPS uses the GUI HTTP proxy (typical behind Squid). rsync talks to rsync.voxpupuli.org on port 873 and ignores the proxy."
+                  description="Use the same mode on every console. rsync-then-HTTPS: rsync to rsync.voxpupuli.org:873 (no proxy); if 873 is blocked, HTTPS via the GUI proxy. Only proxy/network should differ between sites."
                   data={[
                     { value: 'https', label: 'HTTPS (yum / apt / downloads.voxpupuli.org)' },
                     { value: 'rsync', label: 'rsync only (rsync.voxpupuli.org yum/apt/downloads)' },
