@@ -180,11 +180,12 @@ def _agent_install_commands(
     ca = (ca_srv or "").strip()
     noproxy = _noproxy_hosts(console, compile_srv, ca)
     ca_flag = f"--ca-server {ca} " if ca else ""
+    ver = _latest_agent_version()
     linux = (
         f"curl -k --noproxy {noproxy} {repo_url}/install.bash "
         f"| sudo bash -s -- --server {compile_srv} "
         f"{ca_flag}"
-        f"--pkg-repo-url {repo_url}"
+        f"--pkg-repo-url {repo_url} --version {ver}"
     )
     win = (
         "[System.Net.ServicePointManager]::SecurityProtocol = "
@@ -196,7 +197,7 @@ def _agent_install_commands(
         "$wc.DownloadFile($url, 'install.ps1'); "
         f".\\install.ps1 -Server '{compile_srv}'"
         + (f" -CaServer '{ca}'" if ca else "")
-        + f" -PkgRepoUrl '{repo_url}' -v"
+        + f" -PkgRepoUrl '{repo_url}' -OpenVoxVersion '{ver}' -v"
     )
     return linux, win
 
