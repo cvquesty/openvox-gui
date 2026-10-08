@@ -846,7 +846,7 @@ def _normalize_transport(value: Optional[str]) -> str:
 
 
 class MirrorSelections(BaseModel):
-    openvox_versions: list[str] = ["8"]
+    openvox_versions: list[str] = ["8", "9"]
     distributions: list[str] = []
     # https | rsync | rsync_fallback — how this site pulls the upstream mirror
     transport: str = "https"

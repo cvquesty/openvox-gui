@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.7] - 2026-10-08
+
+### Fixes
+- **Mirror versions 8 and 9 together.** They are not exclusive. Defaults
+  and empty-selection fallback are ``["8", "9"]`` (was ``["8"]`` only),
+  matching the sync script. Agent install one-liner still defaults to 8;
+  pass ``--version 9`` for OpenVox 9.
+
 ## [3.14.1-dev.6] - 2026-10-08
 
 ### Fixes
