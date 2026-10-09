@@ -34,7 +34,7 @@ jobs:
         run: python3 scripts/apply_dev2_lockstep.py
 
       - name: Commit if anything changed
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "fix: Mantine 9 API + 3.14.1-dev.2 lockstep docs"
           commit_user_name: openvox-gui-ci

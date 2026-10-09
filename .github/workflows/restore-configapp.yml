@@ -45,7 +45,7 @@ jobs:
           PY
           rm -rf .ci-scratch
 
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "fix(frontend): restore full ConfigApp.tsx (MCP truncate repair) + Mantine 9"
           commit_user_name: openvox-gui-ci

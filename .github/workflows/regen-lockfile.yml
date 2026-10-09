@@ -57,7 +57,7 @@ jobs:
         run: npm install --no-fund --no-audit
 
       - name: Commit package-lock.json if it changed
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(frontend): regenerate package-lock.json for CI npm ci"
           file_pattern: frontend/package-lock.json
