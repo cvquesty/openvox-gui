@@ -100,9 +100,24 @@ async def list_reports(
             else:
                 query = '["and", ' + ', '.join(conditions) + ']'
 
-        reports = await puppetdb_service.get_reports(
-            query=query, limit=limit, offset=offset
-        )
+        # Summary columns only. Full report documents include logs, metrics,
+        # and resource events — this list is polled and only renders the
+        # fields below. Fall back if an older PuppetDB rejects extract.
+        try:
+            reports = await puppetdb_service.get_reports_lean(
+                query=query,
+                limit=limit,
+                offset=offset,
+                fields=puppetdb_service._SUMMARY_REPORT_FIELDS,
+            )
+        except Exception as lean_err:
+            logger.warning(
+                "report list lean extract failed (%s); falling back to full reports",
+                lean_err,
+            )
+            reports = await puppetdb_service.get_reports(
+                query=query, limit=limit, offset=offset
+            )
         return [
             ReportSummary(
                 hash=r.get("hash", ""),
@@ -412,9 +427,19 @@ async def _get_fleet_health_snapshot_data(hours: int = 24) -> Dict[str, Any]:
 
         # Minimal trend (reuse the query that compliance does)
         since = (datetime.now(timezone.utc) - __import__("datetime").timedelta(hours=hours)).isoformat()  # keep minimal dep
-        reports = await puppetdb_service.get_reports(
-            query=f'[">" , "receive_time" , "{since}"]', limit=5000
-        )
+        try:
+            reports = await puppetdb_service.get_reports_lean(
+                query=f'[">", "receive_time", "{since}"]',
+                limit=5000,
+            )
+        except Exception as lean_err:
+            logger.warning(
+                "snapshot trend lean extract failed (%s); falling back to full reports",
+                lean_err,
+            )
+            reports = await puppetdb_service.get_reports(
+                query=f'[">" , "receive_time" , "{since}"]', limit=5000
+            )
         hourly: Dict[str, Dict[str, int]] = {}
         for r in reports:
             ts = (r.get("receive_time") or r.get("start_time") or "")[:13]
