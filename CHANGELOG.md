@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased]
+
+### Fixed
+- **Fresh installs left Bolt unable to resolve `openvox_enc` (#102).**
+  `install.sh` configured Bolt from `${INSTALL_DIR}/bolt-plugin/openvox_enc`
+  but never copied `bolt-plugin/` into the install directory, so the
+  step was skipped and `/etc/puppetlabs/bolt/modules` stayed empty.
+  Every GUI Bolt run then failed with `Unknown plugin: 'openvox_enc'`.
+  The installer now stages the plugin and installs it `root:bolt`
+  (directories `0750`, files `0640`) whenever Bolt is configured. A
+  missing source fails that install instead of continuing.
+  `update_local.sh`, `deploy.sh`, and `enable-console-orchestration.sh`
+  refresh the same module, so a re-install (`install.sh -c`) and an
+  upgrade land on the same files. `deploy.sh` also stages
+  `puppet_agent_disabled`, which `install.sh` and `update_local.sh`
+  already copied. Reported by
+  [@miharp](https://github.com/miharp), who diagnosed the missing copy
+  and the silent `-d` skip.
+
 ## [3.14.1-dev.28] - 2026-10-12
 
 ### Fixed

@@ -43,6 +43,7 @@ echo "===== AFTER ====="
 cat -A "$INV"
 
 # Refresh ENC plugin if a source tree is present (fixes /tmp require_relative)
+plugin_copied=false
 for src in \
   /root/openvox-gui/bolt-plugin/openvox_enc \
   /home/jsheets/openvox-gui/bolt-plugin/openvox_enc \
@@ -53,10 +54,16 @@ do
     install -d -o root -g bolt -m 0750 /etc/puppetlabs/bolt/modules
     cp -a "$src" /etc/puppetlabs/bolt/modules/openvox_enc
     chown -R root:bolt /etc/puppetlabs/bolt/modules/openvox_enc
+    find /etc/puppetlabs/bolt/modules/openvox_enc -type d -exec chmod 0750 {} +
+    find /etc/puppetlabs/bolt/modules/openvox_enc -type f -exec chmod 0640 {} +
     echo "Copied openvox_enc from $src"
+    plugin_copied=true
     break
   fi
 done
+if [[ $plugin_copied == false ]]; then
+  echo "WARN: openvox_enc source not found — Bolt will report Unknown plugin: 'openvox_enc'" >&2
+fi
 
 echo
 echo "Next:"

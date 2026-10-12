@@ -1111,6 +1111,30 @@ OpenBolt). Production uvicorn hides the traceback as a generic 500.
 
 4. **Inventory / targets:** Prefer ENC groups or PuppetDB-backed targets from the GUI Target selector. Sync inventory if you still maintain a static file: Orchestration inventory sync or `openvox_enc` plugin (see [bolt-plugin/README.md](bolt-plugin/README.md)).
 
+### Problem: Every Bolt run fails with `Unknown plugin: 'openvox_enc'`
+
+**Symptom:** Orchestration, file transfer, and Code Deploy return:
+
+```
+{"returncode":1,"output":"Unknown plugin: 'openvox_enc'","error":""}
+```
+
+`/etc/puppetlabs/bolt/modules` is empty. Reported by [@miharp](https://github.com/miharp) in [#102](https://github.com/cvquesty/openvox-gui/issues/102) against 3.14.0.
+
+**Cause:** `install.sh` installed the plugin only from `${INSTALL_DIR}/bolt-plugin/openvox_enc`, and never copied `bolt-plugin/` into the install directory. The check was false, so the step was skipped. Since 3.14.0 the GUI inventory resolves targets only through `openvox_enc`, so a fresh install (and `install.sh -c`) cannot run Bolt. Consoles upgraded with `update_local.sh` already had the tree staged, which is why they kept working.
+
+**Fix:** Upgrade to a release that includes the #102 installer fix. `install.sh` with `CONFIGURE_BOLT=true` now stages the plugin and installs it as `root:bolt`. To repair a console without reinstalling:
+
+```bash
+sudo install -d -o root -g bolt -m 0750 /etc/puppetlabs/bolt/modules
+sudo cp -a /opt/openvox-gui/bolt-plugin/openvox_enc /etc/puppetlabs/bolt/modules/openvox_enc
+sudo chown -R root:bolt /etc/puppetlabs/bolt/modules/openvox_enc
+sudo find /etc/puppetlabs/bolt/modules/openvox_enc -type d -exec chmod 0750 {} +
+sudo find /etc/puppetlabs/bolt/modules/openvox_enc -type f -exec chmod 0640 {} +
+```
+
+If `/opt/openvox-gui/bolt-plugin` is missing, copy `bolt-plugin/openvox_enc` from the release tree first. The `bolt` user must be able to read `bolt_plugin.json` and `tasks/resolve_reference.rb`.
+
 ### Problem: Every Bolt run logs `Failed to save result to /etc/puppetlabs/bolt/.rerun.json`
 
 **Symptom:** Command, task, and Stage/Activate succeed, then every result pane ends with:

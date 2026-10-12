@@ -57,6 +57,10 @@ EOF
 if [[ -d $PLUGIN_SRC ]]; then
   rm -rf "$BOLT/modules/openvox_enc"
   cp -a "$PLUGIN_SRC" "$BOLT/modules/openvox_enc"
+  find "$BOLT/modules/openvox_enc" -type d -exec chmod 0750 {} +
+  find "$BOLT/modules/openvox_enc" -type f -exec chmod 0640 {} +
+else
+  echo "WARN: $PLUGIN_SRC missing — Bolt will report Unknown plugin: 'openvox_enc'" >&2
 fi
 
 chown -R root:bolt "$BOLT/bolt-project.yaml" "$BOLT/inventory.yaml" "$BOLT/modules"

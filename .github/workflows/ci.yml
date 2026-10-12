@@ -147,7 +147,9 @@ jobs:
             scripts/ci-version-guard.sh \
             scripts/run-ci-local.sh \
             scripts/ci-install-test.sh \
+            scripts/install-openvox-enc-plugin.sh \
             tests/shell/run.sh \
+            tests/shell/test_installer_bolt_plugin.sh \
             bolt-plugin/bin/run-tests
 
   bolt-plugin:

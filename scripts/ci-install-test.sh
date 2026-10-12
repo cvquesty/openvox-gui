@@ -11,7 +11,11 @@
 # so Node.js is not required in the container.
 #
 # Asserts: install.sh exits 0, the service is active, /health answers on
-# the configured scheme, and the admin login returns 200.
+# the configured scheme, the admin login returns 200, and (GitHub #102)
+# openvox_enc is installed under /etc/puppetlabs/bolt/modules as root:bolt
+# and is discoverable on the Bolt modulepath. When the openbolt package
+# can be installed, `bolt plugin show` must list it and `bolt inventory
+# show` must not report Unknown plugin: 'openvox_enc'.
 #
 # This is the job from issue #48 / PR #49 (@miharp). It is what would have
 # caught #44 (TLS health probe) and #45 (missing service group).
@@ -92,7 +96,7 @@ case "$IMAGE" in
     printf '%s\n' \
       "FROM ${PULL_IMAGE}" \
       "ENV DEBIAN_FRONTEND=noninteractive" \
-      "RUN apt-get update -qq && apt-get install -y -qq systemd systemd-sysv sudo curl openssl python3 python3-venv python3-pip >/dev/null && apt-get clean" \
+      "RUN apt-get update -qq && apt-get install -y -qq systemd systemd-sysv sudo curl openssl python3 python3-venv python3-pip openssh-client passwd >/dev/null && apt-get clean" \
       'CMD ["/lib/systemd/systemd"]' \
       | "$ENGINE" build -q -t "$RUN_IMAGE" - >/dev/null
     INIT=""
@@ -105,7 +109,7 @@ case "$IMAGE" in
     # hostname: 'hostname -f' is used throughout install.sh.
     # python3.12: EL9's default python3 is 3.9 (too old).
     # curl: EL9 images ship curl-minimal, which conflicts with curl.
-    PREP="dnf install -y -q sudo openssl diffutils hostname >/dev/null; \
+    PREP="dnf install -y -q sudo openssl diffutils hostname openssh-clients shadow-utils >/dev/null; \
       if [ ! -x /usr/bin/python3.12 ]; then dnf install -y -q python3.12 >/dev/null || dnf install -y -q python3 >/dev/null; fi; \
       command -v curl >/dev/null || dnf install -y -q curl >/dev/null"
     PYTHON_BIN="/usr/bin/python3.12"
@@ -149,7 +153,7 @@ INSTALL_NODEJS=false
 CONFIGURE_FIREWALL=false
 CONFIGURE_SELINUX=false
 CONFIGURE_PKG_REPO=false
-CONFIGURE_BOLT=false
+CONFIGURE_BOLT=true
 CONFIGURE_ENC=false
 OPENVOX_GUI_DB_BACKEND=sqlite
 CONF
@@ -176,5 +180,29 @@ CONF
     -o /dev/null -w '%{http_code}')
   [ \"\$CODE\" = 200 ] || { echo \"FAIL: admin login returned \$CODE\"; journalctl -u openvox-gui -n 40 --no-pager; exit 1; }
   echo 'PASS: admin login'
+
+  # GitHub #102. install.sh with CONFIGURE_BOLT=true must leave openvox_enc
+  # on the Bolt modulepath. openbolt is not in the base OS repos; try the
+  # public OpenVox repo so \`bolt plugin show\` can run. A missing package
+  # does not fail the job — the file, owner, and modulepath checks do.
+  if [ ! -x /opt/puppetlabs/bolt/bin/bolt ] && ! command -v bolt >/dev/null 2>&1; then
+    echo '==> best-effort openbolt install so bolt plugin show can run'
+    if command -v dnf >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
+      printf '%s\n' \
+        '[openvox8]' \
+        'name=OpenVox 8 CI' \
+        'baseurl=https://yum.voxpupuli.org/openvox8/el/\$releasever/\$basearch' \
+        'gpgcheck=0' \
+        'enabled=1' \
+        > /etc/yum.repos.d/openvox-ci.repo
+      if ! timeout 180 dnf install -y openbolt; then
+        echo 'WARN: openbolt package not installed; file-level plugin check still required'
+      fi
+    fi
+  fi
+  bash /root/src/scripts/install-openvox-enc-plugin.sh --check \
+    --install-dir /opt/openvox-gui \
+    --bolt-dir /etc/puppetlabs/bolt
+  echo 'PASS: openvox_enc installed and resolvable'
 "
 echo "OK: install.sh on ${IMAGE} (SSL_ENABLED=${SSL}, ${ENGINE})"

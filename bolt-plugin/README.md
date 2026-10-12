@@ -57,8 +57,14 @@ Coverage includes:
 
 ## Installation
 
+`install.sh` (including `install.sh -c`) with `CONFIGURE_BOLT=true` stages
+`bolt-plugin/` into the install directory and copies `openvox_enc` to
+`/etc/puppetlabs/bolt/modules/openvox_enc` as `root:bolt`. `update_local.sh`
+and `deploy.sh` refresh that module when the `bolt` user exists. A missing
+plugin source fails the install instead of being skipped.
+
 ```bash
-# Copy the plugin module to Bolt's module path
+# Copy the plugin module to Bolt's module path (already done by install.sh)
 sudo cp -r /opt/openvox-gui/bolt-plugin/openvox_enc /etc/puppetlabs/bolt/modules/openvox_enc
 
 # Deploy the dynamic inventory (backs up existing)

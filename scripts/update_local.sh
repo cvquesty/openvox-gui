@@ -216,6 +216,7 @@ for script in \
     generate_fleet_health_report.py \
     ca-reject-csr.sh \
     enable-console-orchestration.sh \
+    install-openvox-enc-plugin.sh \
     fix-console-bolt-inventory.sh \
     apply-singleton-bolt-layout.sh \
     bootstrap-compiler.sh \
@@ -283,17 +284,15 @@ rm -rf "${INSTALL_DIR}/frontend"
 cp -a "${REPO_DIR}/frontend" "${INSTALL_DIR}/"
 log_ok "Deployed frontend source"
 
-# Deploy bolt-plugin if present (3.x feature — absent in 2.x, which is fine)
-if [ -d "${REPO_DIR}/bolt-plugin" ]; then
-    rm -rf "${INSTALL_DIR}/bolt-plugin"
-    cp -a "${REPO_DIR}/bolt-plugin" "${INSTALL_DIR}/"
+# Deploy bolt-plugin and, when the bolt user exists, refresh the live
+# module at /etc/puppetlabs/bolt/modules/openvox_enc (GitHub #102).
+# A tree without bolt-plugin/ (historical 2.x) warns and removes the
+# staged copy instead of failing the update.
+bash "${REPO_DIR}/scripts/install-openvox-enc-plugin.sh" \
+    --repo-dir "${REPO_DIR}" \
+    --install-dir "${INSTALL_DIR}"
+if [ -d "${INSTALL_DIR}/bolt-plugin/openvox_enc" ]; then
     log_ok "Deployed bolt-plugin"
-else
-    # Switching back to 2.x — clean up 3.x artifacts
-    if [ -d "${INSTALL_DIR}/bolt-plugin" ]; then
-        rm -rf "${INSTALL_DIR}/bolt-plugin"
-        log_info "Removed bolt-plugin (not present in this branch)"
-    fi
 fi
 
 # Ensure the maintenance pages directory is deployed/updated. These provide the

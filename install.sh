@@ -786,6 +786,7 @@ for script in \
     generate_fleet_health_report.py \
     ca-reject-csr.sh \
     enable-console-orchestration.sh \
+    install-openvox-enc-plugin.sh \
     fix-console-bolt-inventory.sh \
     apply-singleton-bolt-layout.sh \
     bootstrap-compiler.sh \
@@ -867,6 +868,29 @@ if [ -d "${SCRIPT_DIR}/maintenance" ]; then
     cp -a "${SCRIPT_DIR}/maintenance" "${INSTALL_DIR}/"
     chmod -R a+rX "${INSTALL_DIR}/maintenance" 2>/dev/null || true
     log_ok "Copied maintenance pages (for automatic use during updates/installs)"
+fi
+
+# GitHub #102 (@miharp): Bolt loads openvox_enc from
+# ${INSTALL_DIR}/bolt-plugin, then from /etc/puppetlabs/bolt/modules.
+# update_local.sh and deploy.sh already stage bolt-plugin/; a fresh
+# install and install.sh -c must too. Step 9 installs the module once
+# the bolt user exists. A missing source is a hard failure when Bolt
+# is being configured, not a silent skip.
+if [ "$CONFIGURE_BOLT" = "true" ]; then
+    bash "${SCRIPT_DIR}/scripts/install-openvox-enc-plugin.sh" \
+        --repo-dir "${SCRIPT_DIR}" \
+        --install-dir "${INSTALL_DIR}" \
+        --stage-only \
+        --require
+    log_ok "Staged bolt-plugin"
+else
+    bash "${SCRIPT_DIR}/scripts/install-openvox-enc-plugin.sh" \
+        --repo-dir "${SCRIPT_DIR}" \
+        --install-dir "${INSTALL_DIR}" \
+        --stage-only
+    if [ -d "${INSTALL_DIR}/bolt-plugin/openvox_enc" ]; then
+        log_ok "Staged bolt-plugin"
+    fi
 fi
 
 # Copy the puppet_agent_disabled external fact script (for Metrics | Node Health)
@@ -1531,12 +1555,14 @@ BOLTEOF
         log_ok "Bolt project already exists at ${BOLT_DIR}"
     fi
 
-    if [ -d "${INSTALL_DIR}/bolt-plugin/openvox_enc" ]; then
-        rm -rf "${BOLT_DIR}/modules/openvox_enc"
-        cp -a "${INSTALL_DIR}/bolt-plugin/openvox_enc" "${BOLT_DIR}/modules/openvox_enc"
-        chown -R root:bolt "${BOLT_DIR}/modules/openvox_enc"
-        log_ok "Installed openvox_enc inventory plugin"
-    fi
+    # Install openvox_enc onto the modulepath. The source was staged in
+    # Step 3. --require fails the install if it is missing (GitHub #102).
+    bash "${SCRIPT_DIR}/scripts/install-openvox-enc-plugin.sh" \
+        --repo-dir "${SCRIPT_DIR}" \
+        --install-dir "${INSTALL_DIR}" \
+        --bolt-dir "${BOLT_DIR}" \
+        --require
+    log_ok "Installed openvox_enc inventory plugin"
 
     if [ ! -f "${BOLT_DIR}/id_bolt" ]; then
         ssh-keygen -t ed25519 -N "" -f "${BOLT_DIR}/id_bolt" -C "openvox-gui-bolt" >/dev/null
