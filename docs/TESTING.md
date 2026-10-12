@@ -18,7 +18,7 @@ on every push and pull request to `main`:
 | **shell** | bash + ShellCheck | `bash -n`, helper `--help`, error-level lint |
 | **bolt-plugin** | Ruby 3.2 | `openvox_enc` inventory plugin tests |
 | **quality** | python3 | VERSION lockstep, dev-version guard, README badge, leak scan |
-| **install-test** | systemd containers | `install.sh` Alma 9/10, Ubuntu 24.04 |
+| **install-test** | systemd containers | `install.sh` Alma 9/10, Ubuntu 24.04, with `CONFIGURE_BOLT=true`. Asserts `openvox_enc` is installed `root:bolt` and discoverable on the Bolt modulepath (#102) |
 
 Dependency vulnerability scans stay in
 [`.github/workflows/security.yml`](../.github/workflows/security.yml)

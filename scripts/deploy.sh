@@ -183,6 +183,7 @@ for script in \
     generate_fleet_health_report.py \
     ca-reject-csr.sh \
     enable-console-orchestration.sh \
+    install-openvox-enc-plugin.sh \
     fix-console-bolt-inventory.sh \
     apply-singleton-bolt-layout.sh \
     bootstrap-compiler.sh \
@@ -262,6 +263,26 @@ if [ -d "${REPO_DIR}/maintenance" ]; then
     cp -a "${REPO_DIR}/maintenance" "${INSTALL_DIR}/"
     chmod -R a+rX "${INSTALL_DIR}/maintenance" 2>/dev/null || true
     echo "  + maintenance pages (formal/casual)"
+fi
+
+# bolt-plugin and the live openvox_enc module (GitHub #102). install.sh
+# and update_local.sh both stage this tree; a deploy that skips it leaves
+# fresh installs and remote upgrades with an empty Bolt modulepath.
+bash "${REPO_DIR}/scripts/install-openvox-enc-plugin.sh" \
+    --repo-dir "${REPO_DIR}" \
+    --install-dir "${INSTALL_DIR}"
+if [ -d "${INSTALL_DIR}/bolt-plugin/openvox_enc" ]; then
+    echo "  + bolt-plugin (openvox_enc)"
+fi
+
+# puppet_agent_disabled fact (Node Health). install.sh and update_local.sh
+# stage this reference copy; deploy.sh must too.
+mkdir -p "${INSTALL_DIR}/share/facts.d"
+if [ -f "${REPO_DIR}/share/facts.d/puppet_agent_disabled" ]; then
+    cp "${REPO_DIR}/share/facts.d/puppet_agent_disabled" \
+        "${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
+    chmod +x "${INSTALL_DIR}/share/facts.d/puppet_agent_disabled"
+    echo "  + puppet_agent_disabled fact"
 fi
 
 # 2. Update Python dependencies

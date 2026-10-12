@@ -71,6 +71,14 @@ else
 fi
 
 echo
+echo "── installer Bolt plugin (#102) ──"
+if bash "$REPO_ROOT/tests/shell/test_installer_bolt_plugin.sh"; then
+  pass "test_installer_bolt_plugin.sh"
+else
+  fail "test_installer_bolt_plugin.sh"
+fi
+
+echo
 echo "── ci-install-test image candidates (AlmaLinux 10) ──"
 candidates=$(bash -c '
   eval "$(sed -n "/^_image_candidates()/,/^}/p" scripts/ci-install-test.sh)"

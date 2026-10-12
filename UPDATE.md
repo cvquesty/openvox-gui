@@ -426,7 +426,7 @@ branches. The script displays a warning when it detects a branch switch:
 | Frontend | Completely replaced and rebuilt |
 | Python dependencies | Reinstalled from the branch's `requirements.txt` |
 | Database migrations | Applied (`upgrade head`) or reverted as needed |
-| Branch-specific files | Deployed if present, removed if absent (e.g., `bolt-plugin/`) |
+| Branch-specific files | Deployed if present, removed if absent (e.g., `bolt-plugin/`). When the `bolt` user exists, `openvox_enc` is also refreshed under `/etc/puppetlabs/bolt/modules` |
 | Data and config | **Preserved** — your `.env`, database, and logs are never touched |
 | Service file + sudoers | Updated and reloaded automatically |
 

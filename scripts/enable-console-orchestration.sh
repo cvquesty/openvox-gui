@@ -14,7 +14,6 @@ fi
 
 BOLT_DIR=/etc/puppetlabs/bolt
 GUI_ENV=/opt/openvox-gui/config/.env
-PLUGIN_SRC=/opt/openvox-gui/bolt-plugin/openvox_enc
 BOLT_BIN=""
 for c in /opt/puppetlabs/bolt/bin/bolt /opt/puppetlabs/bin/bolt; do
   [[ -x $c ]] && BOLT_BIN=$c && break
@@ -46,13 +45,31 @@ install -d -o root -g bolt -m 0750 "$BOLT_DIR/ssl"
 
 # bolt-project.yaml is written after PEM paths are known (OpenVoxDB block).
 
-if [[ -d $PLUGIN_SRC ]]; then
-  rm -rf "$BOLT_DIR/modules/openvox_enc"
-  cp -a "$PLUGIN_SRC" "$BOLT_DIR/modules/openvox_enc"
-  chown -R root:bolt "$BOLT_DIR/modules/openvox_enc"
+# Same installer path as install.sh / update_local.sh / deploy.sh (#102).
+# Running from a git clone stages bolt-plugin into /opt first; running
+# from the installed scripts/ dir installs the already-staged module.
+HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/install-openvox-enc-plugin.sh"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GUI_INSTALL_DIR="${INSTALL_DIR:-/opt/openvox-gui}"
+if [[ -f $HELPER ]]; then
+  bash "$HELPER" \
+    --repo-dir "$REPO_ROOT" \
+    --install-dir "$GUI_INSTALL_DIR" \
+    --bolt-dir "$BOLT_DIR" \
+    --require
   echo "Installed openvox_enc plugin"
 else
-  echo "WARN: $PLUGIN_SRC missing — ENC plugin skipped" >&2
+  PLUGIN_SRC="${GUI_INSTALL_DIR}/bolt-plugin/openvox_enc"
+  if [[ -d $PLUGIN_SRC ]]; then
+    rm -rf "$BOLT_DIR/modules/openvox_enc"
+    cp -a "$PLUGIN_SRC" "$BOLT_DIR/modules/openvox_enc"
+    chown -R root:bolt "$BOLT_DIR/modules/openvox_enc"
+    find "$BOLT_DIR/modules/openvox_enc" -type d -exec chmod 0750 {} +
+    find "$BOLT_DIR/modules/openvox_enc" -type f -exec chmod 0640 {} +
+    echo "Installed openvox_enc plugin"
+  else
+    echo "WARN: $PLUGIN_SRC missing — Bolt will report Unknown plugin: 'openvox_enc'" >&2
+  fi
 fi
 
 if [[ ! -f $BOLT_DIR/id_bolt ]]; then
