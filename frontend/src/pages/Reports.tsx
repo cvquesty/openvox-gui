@@ -22,6 +22,7 @@ import { OpsTable, OpsColumn } from '../components/OpsTable';
 import { FilterBar } from '../components/FilterBar';
 import { PageHeader } from '../components/PageHeader';
 import { CACHE_ENC_HIERARCHY, CACHE_NODES } from '../utils/cacheKeys';
+import { countDistinctReports } from '../utils/fleetCounts';
 
 type ReportNodeRow = {
   certname: string;
@@ -351,7 +352,7 @@ export function ReportsPage() {
   const [reportLimit, setReportLimit] = useState(200);
 
   // Fetch hierarchy (groups and nodes)
-  const { data: hierarchy, loading: hierarchyLoading } = useApi(
+  const { data: hierarchy, loading: hierarchyLoading, error: hierarchyError } = useApi(
     () => enc.getHierarchy(),
     [],
     { cacheKey: CACHE_ENC_HIERARCHY, pollIntervalMs: 30000 },
@@ -621,13 +622,22 @@ export function ReportsPage() {
     loadExecutiveRecipients();
   }, []);
 
-  if (loading && !reportList) return <LoadingState label="Loading reports…" />;
+  // Reports and the ENC hierarchy are separate requests. A cached report
+  // list with hierarchy still in flight used to render "Reports (0)".
+  const awaitingHierarchy = hierarchy == null && hierarchyLoading;
+  if ((loading && !reportList) || (reportList && awaitingHierarchy)) {
+    return <LoadingState label="Loading reports…" />;
+  }
   if (error && !reportList) return <ErrorState title="Failed to load reports" message={error} />;
+  if (hierarchyError && !hierarchy) {
+    return <ErrorState title="Failed to load report groups" message={hierarchyError} />;
+  }
 
   // Sort group names alphabetically for consistent ordering (like other lists in the app).
   // Note: filteredGroups may have fewer groups due to search, so we sort what's visible.
   const groupNames = Object.keys(filteredGroups).sort((a, b) => a.localeCompare(b));
-  const totalReports = Object.values(filteredGroups).reduce((sum, g) => sum + g.reports.length, 0);
+  // A node in two groups copies its reports into both. Count each report once.
+  const totalReports = countDistinctReports(filteredGroups);
 
   return (
     <Stack>

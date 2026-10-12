@@ -17,7 +17,11 @@ from ..services.puppetdb import puppetdb_service
 from ..models.schemas import DashboardStats, NodeStatusCount, NodeSummary
 from ..database import async_session
 from ..models.session import ActiveSession
-from ..services.fleet_insights import compute_status_counts, compute_trends
+from ..services.fleet_insights import (
+    compute_status_counts,
+    compute_trends,
+    distinct_node_rows,
+)
 from ..utils.ttl_cache import get_or_set as cache_get_or_set
 
 logger = logging.getLogger(__name__)
@@ -102,11 +106,15 @@ async def _build_dashboard_data() -> Dict[str, Any]:
         _fetch_trend_reports(cutoff),
     )
 
+    # One node list feeds the ring, the trends, and the table. Counting
+    # before this dedupe let node_status.total drift from len(nodes).
+    deduped_nodes = distinct_node_rows(raw_nodes)
+
     # Ring + trends are PuppetDB only (same VIP / same tables on every
     # console). Do not fold this console's Bolt execution_history into
     # the graphs — that store is per-GUI and made the two sites disagree.
     pdb_nodes = []
-    for n in raw_nodes:
+    for n in deduped_nodes:
         row = dict(n)
         if row.get("pdb_latest_report_status") is not None:
             row["latest_report_status"] = row["pdb_latest_report_status"]
@@ -117,18 +125,8 @@ async def _build_dashboard_data() -> Dict[str, Any]:
 
     # Derive environments from the node data we already have
     envs = sorted(
-        {n.get("report_environment", "") for n in raw_nodes if n.get("report_environment")}
+        {n.get("report_environment", "") for n in deduped_nodes if n.get("report_environment")}
     )
-
-    # Explicit dedup of the nodes list we emit (get_nodes() already dedups,
-    # but presentation layers and any direct consumers must see unique hosts).
-    seen: set[str] = set()
-    deduped_nodes = []
-    for n in raw_nodes:
-        k = n.get("certname", "").strip().lower()
-        if k and k not in seen:
-            seen.add(k)
-            deduped_nodes.append(n)
 
     # model_dump so the TTL cache stores plain JSON-friendly dicts.
     # Only emit NodeSummary fields (drop any PDB noise that slipped through).
