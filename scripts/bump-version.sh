@@ -44,31 +44,51 @@
 #   Pass the target stable version (e.g. 3.9.0) to promote from a
 #   pre-release train. Use --promote <pre-release> as a convenience
 #   to auto-strip the pre-release suffix and apply the clean stable.
+#
+# Next dev number:
+#   `next` (or `--next`) writes X.Y.Z-dev.N where N is one past the max
+#   of remote vX.Y.Z-dev.* tags and origin/main's VERSION. It does not
+#   count from the copy of VERSION in this checkout. The script refuses
+#   to write any version that is not strictly greater than origin/main
+#   or whose tag already exists on the remote.
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [[ -n "${OPENVOX_REPO_ROOT:-}" ]]; then
+    REPO_ROOT="$(cd "$OPENVOX_REPO_ROOT" && pwd)"
+else
+    REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
 
 usage() {
+    # NOTE: unquoted so $0 expands to the path used to invoke this script.
     cat >&2 <<EOF
 Usage: $0 [OPTIONS] <new-version>
+       $0 next
        $0 --promote <pre-release-version>
 
 Options:
+  next, --next      Write the next X.Y.Z-dev.N. N is one past the max
+                    of remote vX.Y.Z-dev.* tags and origin/main.
   --promote <ver>   Promote a pre-release (e.g. 3.9.0-dev.42) to its
                     clean stable equivalent (3.9.0) and apply it.
   -h, --help        Show this help.
 
-The script always treats the provided (or computed) value as the
-target version to write into the source tree.
+The script refuses a version that is not strictly greater than
+origin/main, and a version whose tag already exists on the remote.
 EOF
 }
 
 PROMOTE=false
+DO_NEXT=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        next|--next)
+            DO_NEXT=true
+            shift
+            ;;
         --promote)
             PROMOTE=true
             shift
@@ -99,11 +119,27 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 is required to choose and check the version" >&2
+    exit 1
+fi
+
+if $DO_NEXT; then
+    if [[ -n "${NEW_VERSION:-}" || "$PROMOTE" == true ]]; then
+        echo "Error: next cannot be combined with a version or --promote" >&2
+        usage
+        exit 1
+    fi
+    NEW_VERSION="$(python3 "$SCRIPT_DIR/dev_version.py" next --repo "$REPO_ROOT")"
+fi
+
 if [[ -z "${NEW_VERSION:-}" ]]; then
     echo "Error: <new-version> is required" >&2
     usage
     exit 1
 fi
+
+python3 "$SCRIPT_DIR/dev_version.py" assert-writable --version "$NEW_VERSION" --repo "$REPO_ROOT"
 
 if $PROMOTE; then
     echo "Promoting $PRE_VERSION → $NEW_VERSION (stable SemVer)"

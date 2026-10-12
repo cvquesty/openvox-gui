@@ -5,7 +5,9 @@
 #   1. VERSION lockstep across root, frontend, ovox
 #   2. README shields.io badge matches VERSION
 #   3. No PEP-440-invalid "gamma" in VERSION
-#   4. No leaked internal corporate URLs in source
+#   4. VERSION, when changed, is strictly newer than origin/main and
+#      does not reuse a remote tag (unchanged VERSION passes)
+#   5. No leaked internal corporate URLs in source
 #
 # Usage (from repo root or anywhere):
 #   ./scripts/ci-quality.sh
@@ -46,6 +48,9 @@ SHIELDS="$(printf '%s' "$VERSION" | sed 's/-/--/g')"
 if ! grep -q "version-${SHIELDS}-" README.md; then
   fail "README.md version badge does not contain version-${SHIELDS}-"
 fi
+
+echo "==> VERSION is strictly newer than origin/main when it changes"
+bash "$SCRIPT_DIR/ci-version-guard.sh"
 
 echo "==> Scanning application source for leaked internal URLs"
 python3 - <<'PY'

@@ -17,7 +17,7 @@ on every push and pull request to `main`:
 | **frontend** | Node 22 + Vitest | typecheck, unit tests, Vite build |
 | **shell** | bash + ShellCheck | `bash -n`, helper `--help`, error-level lint |
 | **bolt-plugin** | Ruby 3.2 | `openvox_enc` inventory plugin tests |
-| **quality** | python3 | VERSION lockstep, README badge, leak scan |
+| **quality** | python3 | VERSION lockstep, dev-version guard, README badge, leak scan |
 | **install-test** | systemd containers | `install.sh` Alma 9/10, Ubuntu 24.04 |
 
 Dependency vulnerability scans stay in
@@ -110,3 +110,11 @@ Lab validation still happens on the isolated lab console after a `/commit` deplo
 `scripts/bump-version.sh` is the only supported way to change `VERSION`.
 It updates `frontend/package.json`, ovox metadata, doc headers, and the
 README shields.io badge. CI fails if those drift.
+
+`scripts/bump-version.sh next` picks the next `X.Y.Z-dev.N` from remote
+tags and `origin/main`, and refuses a version whose tag already exists.
+`scripts/ci-version-guard.sh` (from `scripts/ci-quality.sh`) fails a PR
+that changes `VERSION` to something not strictly greater than
+`origin/main`, or that reuses a remote tag. A PR that does not change
+`VERSION` passes. Pull-request branches should leave `VERSION` alone;
+the bump happens on `main` at merge time.

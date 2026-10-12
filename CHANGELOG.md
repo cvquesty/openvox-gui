@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.27] - 2026-10-12
+
+### Fixed
+- **Dependabot lockfile regen.** `.github/workflows/regen-lockfile.yml`
+  no longer pushes commits onto Dependabot pull requests. Dependabot
+  already updates `package-lock.json`. A commit from this workflow
+  (committer `openvox-gui-ci`) on those branches stops Dependabot from
+  rebasing them; that is what stuck the vite update (PR #109). Human
+  pull requests that change `frontend/package.json` still get a Node 22
+  lockfile commit.
+- **Reused dev numbers.** `scripts/ci-version-guard.sh` fails a pull
+  request that changes `VERSION` to a value that is not strictly newer
+  than `origin/main`, or that already has a remote tag.
+  `scripts/bump-version.sh next` takes the next `dev` number from remote
+  tags and `origin/main`, and refuses to write a version whose tag
+  already exists. See the note directly above the `3.14.1-dev.3`
+  heading for the 2026-10-07 collision this closes.
+
 ## [3.14.1-dev.26] - 2026-10-08
 
 ### Fixes
@@ -184,6 +202,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Train bump for merge to `main`. Includes ENC node upsert (dev.2) and
 mirror sync continue-on-package-failure (dev.3).
+
+> **Note (version collision, 2026-10-07):** Tags `v3.14.1-dev.2` and
+> `v3.14.1-dev.3` were already on the remote when the two headings below
+> were numbered. `v3.14.1-dev.2` still points at `c756f0d` (2026-09-22,
+> packaging pins). `v3.14.1-dev.3` still points at `1ba92ac` (2026-09-24,
+> viewer route gate). A branch cut from `3.14.1-dev.1` counted up from
+> its own `VERSION` and reused those numbers for the ENC upsert and the
+> mirror-sync change described here. The tags were not moved or deleted,
+> so these headings do not describe the tagged commits.
 
 ## [3.14.1-dev.3] - 2026-10-08
 
