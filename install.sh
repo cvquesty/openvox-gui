@@ -870,27 +870,20 @@ if [ -d "${SCRIPT_DIR}/maintenance" ]; then
     log_ok "Copied maintenance pages (for automatic use during updates/installs)"
 fi
 
-# GitHub #102 (@miharp): Bolt loads openvox_enc from
-# ${INSTALL_DIR}/bolt-plugin, then from /etc/puppetlabs/bolt/modules.
-# update_local.sh and deploy.sh already stage bolt-plugin/; a fresh
-# install and install.sh -c must too. Step 9 installs the module once
-# the bolt user exists. A missing source is a hard failure when Bolt
-# is being configured, not a silent skip.
-if [ "$CONFIGURE_BOLT" = "true" ]; then
-    bash "${SCRIPT_DIR}/scripts/install-openvox-enc-plugin.sh" \
-        --repo-dir "${SCRIPT_DIR}" \
-        --install-dir "${INSTALL_DIR}" \
-        --stage-only \
-        --require
-    log_ok "Staged bolt-plugin"
+# Copy bolt-plugin so Step 9 can install openvox_enc (GitHub #102, @miharp).
+# The plugin-install step reads ${INSTALL_DIR}/bolt-plugin/openvox_enc.
+# update_local.sh already copied this tree; a fresh install and
+# install.sh -c must too, or that -d test is false and the step is skipped.
+if [ -d "${SCRIPT_DIR}/bolt-plugin" ]; then
+    rm -rf "${INSTALL_DIR}/bolt-plugin"
+    cp -a "${SCRIPT_DIR}/bolt-plugin" "${INSTALL_DIR}/"
+    log_ok "Copied bolt-plugin"
+elif [ "$CONFIGURE_BOLT" = "true" ]; then
+    log_err "No bolt-plugin/ directory in the source tree."
+    log_err "Bolt is being configured. Refusing to continue (Unknown plugin: 'openvox_enc')."
+    exit 1
 else
-    bash "${SCRIPT_DIR}/scripts/install-openvox-enc-plugin.sh" \
-        --repo-dir "${SCRIPT_DIR}" \
-        --install-dir "${INSTALL_DIR}" \
-        --stage-only
-    if [ -d "${INSTALL_DIR}/bolt-plugin/openvox_enc" ]; then
-        log_ok "Staged bolt-plugin"
-    fi
+    log_warn "No bolt-plugin/ directory found in source — OpenBolt ENC inventory will be unavailable"
 fi
 
 # Copy the puppet_agent_disabled external fact script (for Metrics | Node Health)
@@ -1555,14 +1548,22 @@ BOLTEOF
         log_ok "Bolt project already exists at ${BOLT_DIR}"
     fi
 
-    # Install openvox_enc onto the modulepath. The source was staged in
-    # Step 3. --require fails the install if it is missing (GitHub #102).
-    bash "${SCRIPT_DIR}/scripts/install-openvox-enc-plugin.sh" \
-        --repo-dir "${SCRIPT_DIR}" \
-        --install-dir "${INSTALL_DIR}" \
-        --bolt-dir "${BOLT_DIR}" \
-        --require
-    log_ok "Installed openvox_enc inventory plugin"
+    # Source was copied in Step 3. A missing tree used to skip this
+    # silently (GitHub #102); Bolt runs then fail with Unknown plugin.
+    if [ -d "${INSTALL_DIR}/bolt-plugin/openvox_enc" ]; then
+        rm -rf "${BOLT_DIR}/modules/openvox_enc"
+        cp -a "${INSTALL_DIR}/bolt-plugin/openvox_enc" "${BOLT_DIR}/modules/openvox_enc"
+        chown -R root:bolt "${BOLT_DIR}/modules/openvox_enc"
+        # Group bolt must be able to read the task. cp -a keeps the
+        # checkout mode; pin it so a restrictive umask cannot hide it.
+        find "${BOLT_DIR}/modules/openvox_enc" -type d -exec chmod 0750 {} +
+        find "${BOLT_DIR}/modules/openvox_enc" -type f -exec chmod 0640 {} +
+        log_ok "Installed openvox_enc inventory plugin"
+    else
+        log_err "openvox_enc plugin source missing at ${INSTALL_DIR}/bolt-plugin/openvox_enc"
+        log_err "Refusing to configure Bolt (every run would fail with Unknown plugin: 'openvox_enc')."
+        exit 1
+    fi
 
     if [ ! -f "${BOLT_DIR}/id_bolt" ]; then
         ssh-keygen -t ed25519 -N "" -f "${BOLT_DIR}/id_bolt" -C "openvox-gui-bolt" >/dev/null

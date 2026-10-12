@@ -17,16 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   but never copied `bolt-plugin/` into the install directory, so the
   step was skipped and `/etc/puppetlabs/bolt/modules` stayed empty.
   Every GUI Bolt run then failed with `Unknown plugin: 'openvox_enc'`.
-  The installer now stages the plugin and installs it `root:bolt`
-  (directories `0750`, files `0640`) whenever Bolt is configured. A
-  missing source fails that install instead of continuing.
-  `update_local.sh`, `deploy.sh`, and `enable-console-orchestration.sh`
-  refresh the same module, so a re-install (`install.sh -c`) and an
-  upgrade land on the same files. `deploy.sh` also stages
+  Reported and fixed by [@miharp](https://github.com/miharp): copy
+  `bolt-plugin/` into the install directory next to the other copies
+  so the existing plugin-install step runs, and install the module
+  `root:bolt`. Completed and extended by Cursor Agent: a missing
+  source fails the install instead of being skipped, upgrades through
+  `update_local.sh` and `deploy.sh` refresh the live module, and CI
+  checks the plugin is installed. `deploy.sh` also stages
   `puppet_agent_disabled`, which `install.sh` and `update_local.sh`
-  already copied. Reported by
-  [@miharp](https://github.com/miharp), who diagnosed the missing copy
-  and the silent `-d` skip.
+  already copied.
 
 ## [3.14.1-dev.28] - 2026-10-12
 

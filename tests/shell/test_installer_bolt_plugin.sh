@@ -17,14 +17,17 @@ pass() { echo "  OK  $*"; }
 bash "$HELPER" --help >/dev/null
 pass "install-openvox-enc-plugin.sh --help"
 
-# install.sh must stage the tree and must not skip a missing plugin.
-calls="$(grep -c 'install-openvox-enc-plugin.sh' "$INSTALL")"
-[[ "$calls" -ge 2 ]] || fail "install.sh should call the helper from Step 3 and Step 9 (found $calls)"
-grep -q -- '--require' "$INSTALL" || fail "install.sh does not pass --require when configuring Bolt"
-if grep -n 'cp -a "\${INSTALL_DIR}/bolt-plugin/openvox_enc"' "$INSTALL"; then
-    fail "install.sh still copies the plugin inline instead of using the helper"
+# @miharp: copy bolt-plugin/ into INSTALL_DIR next to the other copies,
+# so the existing plugin-install step can see it. A missing source
+# must exit rather than skip.
+grep -q 'cp -a "\${SCRIPT_DIR}/bolt-plugin" "\${INSTALL_DIR}/"' "$INSTALL" \
+    || fail "install.sh does not copy bolt-plugin into INSTALL_DIR"
+grep -q 'cp -a "\${INSTALL_DIR}/bolt-plugin/openvox_enc" "\${BOLT_DIR}/modules/openvox_enc"' "$INSTALL" \
+    || fail "install.sh no longer installs openvox_enc from INSTALL_DIR"
+if ! grep -A12 'if \[ -d "\${INSTALL_DIR}/bolt-plugin/openvox_enc" \]' "$INSTALL" | grep -q 'exit 1'; then
+    fail "missing openvox_enc source is still a silent skip"
 fi
-pass "install.sh stages bolt-plugin and fails closed"
+pass "install.sh copies bolt-plugin and fails closed"
 
 for script in scripts/update_local.sh scripts/deploy.sh scripts/enable-console-orchestration.sh; do
     grep -q 'install-openvox-enc-plugin.sh' "$REPO_ROOT/$script" \
