@@ -1,15 +1,16 @@
-# OpenVox GUI — Project status (3.14.1-dev.3)
+# OpenVox GUI — Project status (3.14.1-dev.4)
 
-**As of:** 2026-09-24
-**Branch:** `main` (3.14.1 patch train)
-**VERSION file:** see repo root `VERSION` (`3.14.1-dev.3`)
+**As of:** 2026-10-08
+**Branch:** `chore/3.14.1-dev.4` (merge to `main`)
+**VERSION file:** see repo root `VERSION` (`3.14.1-dev.4`)
 **Current stable GitHub Release:** **3.14.0** (`v3.14.0`) once the
 Release is cut; the 3.14.1 patch train is daily work after that tag.
 
 This file is the operator map after the 3.13.0-rc train (clustered
 ops, lean PDB, agent installer, Monitoring) was promoted to **3.14.0**.
-There is no 3.13.0 GitHub Release. **3.14.1-dev.1** was the first drop
-of the next patch train. **3.14.1-dev.3** is the current snapshot.
+There is no 3.13.0 GitHub Release. **3.14.1-dev.4** is the current
+snapshot (ENC upsert + mirror sync continue-on-error, on top of
+3.14.1-dev.2 packaging).
 
 ---
 
@@ -29,7 +30,7 @@ defaults. Clustering is documented and supported.
 
 | Line | Status | Notes |
 |------|--------|--------|
-| **3.14.1-dev.3** | **Active patch train** | Viewer mutate routes are gated in the sidebar, URL, and command palette. Login returns to the deep link. |
+| **3.14.1-dev.4** | **Active patch train** | ENC upsert, mirror sync continues on package failure, plus 3.14.1-dev.2 packaging |
 | **3.14.1-dev.2** | Prior snapshot | Latest packaging that works together + secure (Mantine 9.6.2, Recharts 3.10.1, python-json-logger 4.2.0, cryptography 50.0.1, matplotlib>=3.10,<3.11) |
 | **3.14.1-dev.1** | Prior snapshot | Dependabot #90–#99 compatible pins + #79 air-gap docs |
 | **3.14.0** | **Stable** | Current product. Promotes 3.13.0-rc.1–rc.32 + 3.12.1-dev.1–dev.34. |
@@ -47,23 +48,16 @@ Pre-release labels must be PEP 440 (`rc` / `a` / `b` / `dev`). Do **not** use
 
 ---
 
-## 3. What 3.14.1-dev.3 adds
+## 3. What 3.14.1-dev.4 adds
 
-- **Viewer route gate.** Orchestration, Code Deployment, Agent Install, Hiera
-  data files, and OpenVox/Application configuration stay closed for the
-  viewer role in the sidebar, the address bar, and the command palette.
-  The page shows a read-only empty state. admin, operator, and certops
-  are unchanged.
-- **Login destination.** Signing in stays in the app and returns to the
-  page in the address bar (or `?next=` / `location.state.from`) instead
-  of reloading the dashboard.
+- ENC classify upserts when the certname already exists
+- Mirror sync continues after a single package/rsync failure
 
-### Prior snapshot: 3.14.1-dev.2
+### Packaging (from 3.14.1-dev.2)
 
 Policy this snapshot: take current releases that install together and have
 no published advisories. Train breakage is OK if we can fix forward.
 
-### Packaging
 - **Backend:** `python-json-logger` 3.2.1 → 4.2.0 (leaves CVE-2025-27607 / GHSA-wmxh-pxcx-9w24). `cryptography` 50.0.0 → 50.0.1. `matplotlib` `>=3.8` → `>=3.10,<3.11` (3.8/3.9 EOL; keep Python 3.10 wheels). Did **not** take Dependabot #93 `>=3.11.2`.
 - **Frontend suite:** Mantine `core`/`hooks`/`notifications`/`dropzone` 7.17.8 → **9.6.2**. Recharts 2.15 → **3.10.1** + `react-is` ^19.2.8. `postcss-preset-mantine` 1.12.0 → 1.18.0.
 - **Mantine 9 API:** `Grid gutter` → `gap`; `Collapse in` → `expanded`.

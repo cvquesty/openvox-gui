@@ -76,3 +76,33 @@ def test_prune_drops_unselected_openvox_major(tmp_path: Path):
 
     assert keep.exists()
     assert not (tmp_path / "yum/openvox9").exists()
+
+
+def test_prune_drops_apt_pool_and_release_files_for_unselected_major(tmp_path: Path):
+    keep = _touch_tree(tmp_path, "apt/pool/openvox9/o/openvox-agent", "pkg.deb")
+    _touch_tree(tmp_path, "apt/pool/openvox8/o/openvox-agent", "pkg.deb")
+    _touch_tree(tmp_path, "apt/pool/openvox7/o/openvox-agent", "pkg.deb")
+    _touch_tree(tmp_path, "apt/openvox8/o/openvox-agent", "pkg.deb")
+    (tmp_path / "yum").mkdir(parents=True)
+    (tmp_path / "yum" / "openvox8-release-el-9.noarch.rpm").write_bytes(b"x")
+    (tmp_path / "yum" / "openvox9-release-el-9.noarch.rpm").write_bytes(b"x")
+    _touch_tree(tmp_path, "windows/openvox8", "agent.msi")
+    _touch_tree(tmp_path, "windows/openvox9", "agent.msi")
+
+    prune_unselected_mirror(
+        MirrorSelections(
+            openvox_versions=["9"],
+            distributions=["el/9", "debian/debian12", "windows/windows"],
+            transport="https",
+        ),
+        root=tmp_path,
+    )
+
+    assert keep.exists()
+    assert not (tmp_path / "apt/pool/openvox8").exists()
+    assert not (tmp_path / "apt/pool/openvox7").exists()
+    assert not (tmp_path / "apt/openvox8").exists()
+    assert not (tmp_path / "yum/openvox8-release-el-9.noarch.rpm").exists()
+    assert (tmp_path / "yum/openvox9-release-el-9.noarch.rpm").exists()
+    assert not (tmp_path / "windows/openvox8").exists()
+    assert (tmp_path / "windows/openvox9").exists()

@@ -1,5 +1,5 @@
 fastapi==0.141.1
-starlette==1.6.0
+starlette==1.7.0
 uvicorn[standard]==0.52.4
 httpx==0.28.1
 pydantic==2.13.5
@@ -9,12 +9,12 @@ pydantic-settings==2.15.0
 sqlalchemy==2.0.52
 aiosqlite==0.22.1
 asyncpg==0.31.0
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.13
 pyyaml==6.0.3
 python-multipart==0.0.32
 jinja2==3.1.6
 alembic==1.18.4
-PyJWT[crypto]==2.13.0
+PyJWT[crypto]==2.15.1
 # Hashing is via bcrypt directly (passlib 1.7.4 is unmaintained and
 # breaks on bcrypt 5: missing __about__ + 72-byte ValueError).
 bcrypt==5.0.0
@@ -40,6 +40,6 @@ pyhocon>=0.3.63
 # Fleet Health PDF report generation (matplotlib for chart recreation matching UI, fpdf2 for fixed-layout one-page PDF assembly)
 # 3.8/3.9 are EOL. 3.11.x needs Python >=3.11 and drops the 3.10 floor.
 # 3.10.9 is the latest line that still ships cp310 wheels (cycler/eval + latex/ps hardening).
-matplotlib>=3.10,<3.11
+matplotlib>=3.10.9,<3.11
 fpdf2>=2.7
 Pillow==12.3.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)

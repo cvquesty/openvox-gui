@@ -47,7 +47,7 @@ jobs:
           pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
       - name: Ruff (error-class rules)
-        run: ruff check --select E9,F821,F822,F823 backend/app backend/tests ovox/ovox tests/ovox
+        run: ruff check --select E9,F821,F822,F823 backend/app backend/tests ovox/ovox tests/ovox tests/scripts scripts/dev_version.py
 
       - name: Pytest (backend + ovox)
         env:
@@ -126,6 +126,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # ci-quality.sh compares VERSION to the merge-base with main.
+          fetch-depth: 0
 
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
@@ -141,6 +144,7 @@ jobs:
             scripts/bump-version.sh \
             scripts/ci-pip-audit.sh \
             scripts/ci-quality.sh \
+            scripts/ci-version-guard.sh \
             scripts/run-ci-local.sh \
             scripts/ci-install-test.sh \
             tests/shell/run.sh \
@@ -171,6 +175,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # The dev-version guard needs main and this branch's history.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v7

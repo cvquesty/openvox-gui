@@ -77,7 +77,7 @@ set -e
 #   1. --version CLI arg
 #   2. OPENVOX_VERSION environment variable
 #   3. The __OPENVOX_DEFAULT_VERSION__ placeholder (server-side render)
-#   4. Hard default of 8
+#   4. Hard default of 9 (latest published major; pass --version 8 for 8)
 
 PUPPET_SERVER="${PUPPET_SERVER:-__OPENVOX_PUPPET_SERVER__}"
 PUPPET_SERVER_PORT="${PUPPET_SERVER_PORT:-8140}"
@@ -88,7 +88,7 @@ PKG_REPO_URL="${PKG_REPO_URL:-}"
 DEFAULT_OPENVOX_VERSION="${DEFAULT_OPENVOX_VERSION:-__OPENVOX_DEFAULT_VERSION__}"
 case "$DEFAULT_OPENVOX_VERSION" in
     8|9) ;;                                        # rendered, valid
-    *)   DEFAULT_OPENVOX_VERSION="8" ;;            # placeholder or junk -> default
+    *)   DEFAULT_OPENVOX_VERSION="9" ;;            # placeholder or junk -> latest
 esac
 
 # ─── Standard agent paths (created by the openvox-agent package) ────────────
@@ -638,13 +638,53 @@ gpgcheck=1
 gpgkey=${gpg_url}
 sslverify=${sslverify_value}
 EOF
+    local curl_tls_args=""
+    if [ "${CA_TRUSTED:-false}" != "true" ]; then
+        curl_tls_args="--insecure"
+    fi
+    local pkg_rc=1
+    set +e
     if cmd dnf; then
         dnf -y --disablerepo='*' --enablerepo="openvox${OPENVOX_VERSION}" install openvox-agent
+        pkg_rc=$?
     elif cmd yum; then
         yum -y --disablerepo='*' --enablerepo="openvox${OPENVOX_VERSION}" install openvox-agent
+        pkg_rc=$?
     else
+        set -e
         fail "Neither dnf nor yum found -- can't install openvox-agent on this RHEL-family host"
     fi
+    set -e
+    if [ "$pkg_rc" -eq 0 ]; then
+        return 0
+    fi
+
+    warn "yum/dnf metadata failed; trying a direct RPM from ${repo_url}/"
+    local listing hrefs rpm
+    # shellcheck disable=SC2086
+    listing=$(curl -fsSL ${curl_tls_args} --connect-timeout 15 --max-time 90 "${repo_url}/" || true)
+    hrefs=$(printf '%s\n' "$listing" | sed -n 's/.*href="\([^"]*\)".*/\1/p' | grep -vE '^\.\./|^/' || true)
+    rpm=$(printf '%s\n' "$hrefs" \
+        | grep -E 'openvox-agent-[0-9].*\.rpm$' \
+        | grep -vE 'src\.rpm|debug' \
+        | grep -F "$PLATFORM_ARCHITECTURE" \
+        | sort -V | tail -1) || true
+    if [ -z "$rpm" ]; then
+        fail "No yum metadata and no openvox-agent RPM at ${repo_url}/
+On the console: ls /opt/openvox-pkgs/yum/openvox${OPENVOX_VERSION}/el/${PLATFORM_RELEASE}/${PLATFORM_ARCHITECTURE}/
+If that path is missing, this console never synced OpenVox ${OPENVOX_VERSION} yum (ATLC and PDXC each have their own /opt/openvox-pkgs). Mirror tab: OpenVox ${OPENVOX_VERSION} + EL ${PLATFORM_RELEASE}, Sync now."
+    fi
+    info "  rpm: ${repo_url}/${rpm}"
+    # shellcheck disable=SC2086
+    curl -fSL --connect-timeout 15 --max-time 300 ${curl_tls_args} \
+        -o /tmp/openvox-agent.rpm "${repo_url}/${rpm}" \
+        || fail "Failed to download ${repo_url}/${rpm}"
+    if cmd dnf; then
+        dnf -y localinstall /tmp/openvox-agent.rpm
+    else
+        rpm -Uvh /tmp/openvox-agent.rpm
+    fi
+    rm -f /tmp/openvox-agent.rpm
 }
 
 # Compute the apt suite name (matches a directory under apt/dists/).
@@ -796,8 +836,11 @@ If empty, run Infrastructure → Agent Install → Sync."
     curl -fSL --connect-timeout 15 --max-time 300 ${curl_tls_args} \
         -o /tmp/openvox-agent.deb "$deb_url" \
         || fail "Failed to download ${deb_url}"
-    DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/openvox-agent.deb \
-        || DEBIAN_FRONTEND=noninteractive apt-get install -y -f
+    # curl | bash: dpkg must not read the rest of this script from stdin.
+    # Keep existing puppet.conf; we rewrite it below.
+    export DEBIAN_FRONTEND=noninteractive
+    dpkg --force-confold -i /tmp/openvox-agent.deb </dev/null \
+        || apt-get install -y -f </dev/null
     rm -f /tmp/openvox-agent.deb
 }
 

@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from .utils.pkg_static import PackageStaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -353,6 +353,35 @@ if frontend_dist.exists():
 # the initial sync runs), in which case we simply skip mounting and
 # /packages/* falls through to the SPA 404 handler.
 _pkg_repo_dir = Path(os.environ.get("OPENVOX_GUI_PKG_REPO_DIR", "/opt/openvox-pkgs"))
+
+
+def _live_install_script(name: str) -> PlainTextResponse:
+    """Serve install.bash / install.ps1 with today's default version.
+
+    Agents curl /packages/install.bash (static tree). That file is
+    rendered at GUI deploy time and stays on OpenVox 8 until the next
+    deploy. Live-render so --version is not required for latest.
+    """
+    from .routers.installer import _load_install_script, _render_template
+
+    media = "text/x-shellscript" if name.endswith(".bash") else "text/plain"
+    return PlainTextResponse(
+        content=_render_template(_load_install_script(name)),
+        media_type=media,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/packages/install.bash")
+async def packages_install_bash():
+    return _live_install_script("install.bash")
+
+
+@app.get("/packages/install.ps1")
+async def packages_install_ps1():
+    return _live_install_script("install.ps1")
+
+
 if _pkg_repo_dir.exists():
     # Autoindex directories so install.bash can scrape pool/ for .debs.
     # Starlette html=True only serves index.html — it does not list files —

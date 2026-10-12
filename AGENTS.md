@@ -43,10 +43,13 @@ This rule was added after backticks in an unquoted sudoers heredoc caused instal
   - During active development of a release train: use pre-release identifiers, e.g. `3.9.0-dev.1`, `3.9.0-dev.2`, ..., `3.9.0-beta.1`, `3.9.0-beta.2`, or `3.9.0-rc.1`.
   - ovox CLI is versioned in lockstep with the GUI (single source of truth: root `VERSION` file) as of 3.7.3. `scripts/bump-version.sh` keeps `ovox/VERSION`, `ovox/ovox/__init__.py`, `ovox/pyproject.toml`, `frontend/package.json`, and doc headers/examples in sync.
   - This applies to ovox features, bolt-plugin/openvox_enc fixes, auth changes, etc.
-  - **Every meaningful push increments the pre-release counter** (via the `/commit` skill + bump script) and pairs with: update CHANGELOG.md, conventional commit (with "Assisted By: Grok AI"), **annotated tag** (`v3.9.0-dev.42`), and push (branch + tag).
-  - User explicit reminder: "remember to increment versions on every single push" + "PUSH EVERY TIME so I can deploy".
+  - **Every meaningful change that lands on `main` increments the pre-release counter** and pairs with: update CHANGELOG.md, conventional commit (with "Assisted By: Grok AI"), and an **annotated tag on `main`** (`v3.9.0-dev.42`).
+  - **Pull requests and agent branches do not bump `VERSION` and do not push tags.** The bump happens at merge time on `main`. Use `scripts/bump-version.sh next` (or an explicit version the guard accepts). Do not count upward from the `VERSION` file in a stale checkout: on 2026-10-07 a branch cut from `3.14.1-dev.1` reused `dev.2` and `dev.3`, which already existed as remote tags, so those CHANGELOG headings do not describe the tagged commits. The tags were not moved.
+  - `scripts/bump-version.sh next` sets `X.Y.Z-dev.N` to one past the maximum of remote `vX.Y.Z-dev.*` tags and `origin/main`'s `VERSION`. When `origin/main` is a final `X.Y.Z`, the next patch train starts at `X.Y.(Z+1)-dev.N`. The script refuses to write a version that is not strictly greater than `origin/main` (PEP 440 order; `dev.10` is newer than `dev.9`) or whose remote tag already exists (`v<version>` or `<version>`).
+  - CI (`scripts/ci-version-guard.sh`, run from `scripts/ci-quality.sh`) fails a pull request that changes `VERSION` to a value that is not strictly greater than `origin/main`, or that already has a remote tag. A pull request that does not change `VERSION` passes, including one branched from an older dev number.
+  - User explicit reminder: "remember to increment versions on every single push" + "PUSH EVERY TIME so I can deploy". That increment is the merge onto `main`, not a second counter on the pull-request branch.
   - Pre-commit checklist from global AGENTS.md applies in addition (docs, bump script for GUI if root VERSION moves, etc.).
-  - The project-scoped `/commit` skill (in `.grok/skills/commit/SKILL.md`) automates dev pre-release versioning, CHANGELOG, conventional commit, annotated tag, branch+tag push, active heredoc safety, and the final deploy step.
+  - On `main`, the project-scoped `/commit` skill (in `.grok/skills/commit/SKILL.md`) automates the dev-number bump, CHANGELOG, conventional commit, annotated tag, push, active heredoc safety, and the final deploy step. It is not used to bump `VERSION` or push tags from a pull-request branch.
   - Use the separate project-scoped `/release` skill (in `.grok/skills/release/SKILL.md`) to promote a completed pre-release train to a clean stable SemVer version (e.g. `3.9.0`), update CHANGELOG if needed, create the final annotated tag, push the tag, and prepare for manual GitHub Release.
 - As part of release process (per enterprise architect P1.9): generate and publish SBOM (e.g. using `syft` or `cyclonedx`), include provenance. Update installer to support --require-hashes where possible.
 
@@ -61,8 +64,8 @@ This rule was added after backticks in an unquoted sudoers heredoc caused instal
 - Never auto-create GitHub Releases from the skill or commit flow.
 
 ## Release Process (Tags vs. GitHub Releases)
-- **"Tag and push only" on every commit** for development (the standing rule for pre-release trains).
-  - The `/commit` skill handles pre-release SemVer tags (e.g. `v3.9.0-dev.42`) + push during active work.
+- **"Tag and push only" when the change lands on `main`** for development (the standing rule for pre-release trains).
+  - The `/commit` skill handles pre-release SemVer tags (e.g. `v3.9.0-dev.42`) + push of `main`. Pull-request branches do not push tags.
   - **Do not create a GitHub Release** (`gh release create`, polished notes, etc.) at commit time. The `/commit` and `/release` skills explicitly exclude this.
 - Use the `/release` skill to promote a completed pre-release train to a stable SemVer tag (e.g. `v3.9.0`).
 - GitHub Releases are a **separate, deliberate, atomic step**.
@@ -114,7 +117,7 @@ Add a short clarifying sentence in any summary or release notes when discussing 
 
 ## Using the Commit Skill
 
-Use `/commit` (the project-scoped skill in `.grok/skills/commit/SKILL.md`) to handle version increment, CHANGELOG update, conventional commit (with "Assisted By: Grok AI"), annotated tag, and push (branch + tag). It enforces the rules in the sections above plus the global pre-commit checklist, including active heredoc safety enforcement for shell script changes and driving the final deploy step.
+On `main`, `/commit` (the project-scoped skill in `.grok/skills/commit/SKILL.md`) handles the dev-number bump, CHANGELOG update, conventional commit (with "Assisted By: Grok AI"), annotated tag, and push. Pull-request and agent branches do not bump `VERSION` or push tags. The skill also enforces the rules in the sections above plus the global pre-commit checklist, including active heredoc safety enforcement for shell script changes and driving the final deploy step.
 
 GitHub Releases remain a separate, deliberate, manual step performed only when a tag is clean, tested, and explicitly "ready to ship".
 
@@ -123,7 +126,7 @@ The goal is to keep the development cadence fast (tag+push on every change) whil
 ## Continuous Integration
 
 - Workflow: `.github/workflows/ci.yml` (push/PR/`workflow_dispatch` on `main`).
-- Jobs: backend pytest + ruff, frontend typecheck/vitest/build, shell syntax, bolt-plugin Ruby tests, VERSION lockstep / leak scan.
+- Jobs: backend pytest + ruff, frontend typecheck/vitest/build, shell syntax, bolt-plugin Ruby tests, VERSION lockstep / dev-version guard / leak scan.
 - Security audits remain in `.github/workflows/security.yml`.
 - Local equivalent: `./scripts/run-ci-local.sh`. Map: [docs/TESTING.md](docs/TESTING.md).
 - A `/commit` that adds or changes tests must leave CI green on GitHub; iterate on the workflow until it is.
