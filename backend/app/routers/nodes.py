@@ -527,11 +527,25 @@ async def get_node_reports(certname: str, limit: int = 20):
     query string to prevent injection.
     """
     certname = validate_pql_value(certname, "certname")
+    # The node page renders status, time, environment, and version only.
+    limit = max(1, min(int(limit or 20), 100))
+    query = f'["=", "certname", "{certname}"]'
     try:
-        reports = await puppetdb_service.get_reports(
-            query=f'["=", "certname", "{certname}"]',
-            limit=limit,
-        )
+        try:
+            reports = await puppetdb_service.get_reports_lean(
+                query=query,
+                limit=limit,
+                fields=puppetdb_service._SUMMARY_REPORT_FIELDS,
+            )
+        except Exception as lean_err:
+            logger.warning(
+                "node report list lean extract failed (%s); falling back to full reports",
+                lean_err,
+            )
+            reports = await puppetdb_service.get_reports(
+                query=query,
+                limit=limit,
+            )
         return reports
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
