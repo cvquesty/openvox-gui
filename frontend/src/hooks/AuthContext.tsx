@@ -8,6 +8,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { auth } from '../services/api';
 import { loadAccessMode } from '../utils/accessMode';
+import { browserReturnTo, rememberReturnTo } from '../utils/returnTo';
 import { onSessionEvent, resetSessionGate } from '../utils/sessionGate';
 
 interface User {
@@ -62,10 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Soft session expiry (no full page reload).
+  // Soft session expiry (no full page reload). Keep the deep link so
+  // the login mode can return there instead of the dashboard.
   useEffect(() => {
     return onSessionEvent((event) => {
       if (event === 'expired') {
+        rememberReturnTo(browserReturnTo());
         setUser(null);
         setToken(null);
       }

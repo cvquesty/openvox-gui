@@ -12,7 +12,7 @@
  * - Version checker monitors for application updates
  * 
  * **Route Structure:**
- * - /login - Authentication page (public)
+ * - (no /login route) — signed-out sessions render Login in place
  * - / - Dashboard (protected)
  * - /nodes - Node list and status (protected)
  * - /nodes/:certname - Node detail view (protected)
@@ -22,21 +22,24 @@
  * - /config/* - Configuration pages (protected)
  * 
  * **Security:**
- * - All routes except /login require authentication
- * - Unauthenticated users are redirected to /login
+ * - Login is a mode: when there is no session, Login replaces the routes
+ *   and the current URL is remembered as the post-login destination
+ * - Viewer-hidden mutate routes render a read-only empty state
  * - Token is validated on every page load
  */
 
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useLocation } from 'react-router';
 import { Loader, Center, Stack, Text } from '@mantine/core';
 import { AuthProvider, useAuth } from './hooks/AuthContext';
 import { ActivityProvider } from './hooks/ActivityContext';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RequireAccess } from './components/RequireAccess';
 import { LoginPage } from './pages/Login';
 import { AppShellLayout } from './components/AppShell';
 import { lazyWithRetry } from './utils/lazyWithRetry';
+import { destinationFromLocation, rememberReturnTo } from './utils/returnTo';
 import { versionChecker } from './utils/versionCheck';
 
 // ─── Code-split all pages via React.lazy with error handling ────────────────────
@@ -91,6 +94,7 @@ function PageLoader() {
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   // Start version checker when app loads
   useEffect(() => {
@@ -101,6 +105,14 @@ function AppRoutes() {
       versionChecker.stop();
     };
   }, [user]);
+
+  // Signed-out render keeps the address bar. Save that path (or ?next= / state.from)
+  // so login can restore it if the URL is later only "/".
+  useEffect(() => {
+    if (!loading && !user) {
+      rememberReturnTo(destinationFromLocation(location));
+    }
+  }, [loading, user, location]);
 
   if (loading) {
     return <Center h="100vh"><Loader size="xl" /></Center>;
@@ -114,6 +126,7 @@ function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route element={<AppShellLayout />}>
+          <Route element={<RequireAccess />}>
           {/* Monitoring */}
           <Route path="/" element={<DashboardPage />} />
           <Route path="/nodes" element={<NodesPage />} />
@@ -178,6 +191,7 @@ function AppRoutes() {
 
           {/* Default: redirect any unknown route to Dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Route>
       </Routes>
     </Suspense>

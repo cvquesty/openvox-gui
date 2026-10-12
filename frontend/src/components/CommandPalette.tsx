@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, TextInput, ScrollArea, UnstyledButton, Text, Group, Kbd, Stack } from '@mantine/core';
 import { useNavigate } from 'react-router';
 import { IconSearch } from '@tabler/icons-react';
+import { canAccessPaletteAction } from '../utils/canAccess';
 import { prefetchRoute } from '../utils/routePrefetch';
 
 export type PaletteAction = {
@@ -75,22 +76,27 @@ export function CommandPalette({
   opened,
   onClose,
   extraActions = [],
+  role,
 }: {
   opened: boolean;
   onClose: () => void;
   extraActions?: PaletteAction[];
+  /** Current GUI role. Viewer-hidden paths are omitted, including recents. */
+  role?: string | null;
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [recent, setRecent] = useState<PaletteAction[]>([]);
   const actions = useMemo(() => {
-    const base = [...DEFAULT_ACTIONS, ...extraActions];
-    if (!q.trim() && recent.length > 0) {
-      const recentTagged = recent.map((r) => ({ ...r, id: `recent-${r.id}`, label: `Recent: ${r.label}` }));
-      return [...recentTagged, ...base.filter((a) => !recent.some((r) => r.id === a.id || r.path === a.path))];
+    const allow = (a: PaletteAction) => canAccessPaletteAction(a, role);
+    const base = [...DEFAULT_ACTIONS, ...extraActions].filter(allow);
+    const visibleRecent = recent.filter(allow);
+    if (!q.trim() && visibleRecent.length > 0) {
+      const recentTagged = visibleRecent.map((r) => ({ ...r, id: `recent-${r.id}`, label: `Recent: ${r.label}` }));
+      return [...recentTagged, ...base.filter((a) => !visibleRecent.some((r) => r.id === a.id || r.path === a.path))];
     }
     return base.filter((a) => fuzzy(q, a));
-  }, [q, extraActions, recent]);
+  }, [q, extraActions, recent, role]);
 
   useEffect(() => {
     if (opened) {
@@ -100,6 +106,10 @@ export function CommandPalette({
   }, [opened]);
 
   const go = (a: PaletteAction) => {
+    if (a.path && !canAccessPaletteAction(a, role)) {
+      onClose();
+      return;
+    }
     const store = { ...a, id: a.id.replace(/^recent-/, '') };
     pushRecent(store);
     if (a.run) a.run();
