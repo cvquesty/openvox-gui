@@ -13,7 +13,7 @@ Thank you to everyone who has helped make OpenVox GUI better! Whether through te
 - **Ben Ford** ([@binford2k](https://github.com/binford2k)) — Interface review
 - **Martin Alfke** — Usability and design suggestions, interface review, and project feedback
 - **Tim Meusel** ([@bastelfreak](https://github.com/bastelfreak)) — Project review and feedback
-- **Michael Harp** ([@miharp](https://github.com/miharp)) — Installer, clustered-console, and Bolt bug reports with reproduction and suggested fixes (#45, #63, #64, #65)
+- **Michael Harp** ([@miharp](https://github.com/miharp)) — Installer, clustered-console, and Bolt bug reports with reproduction and suggested fixes (#45, #63, #64, #65). Nodes page double-count (#104), including the report and root-cause analysis.
 
 ## How to Contribute
 

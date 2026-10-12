@@ -18,6 +18,7 @@ parameters, they are validated with a strict hex-only regex before
 interpolation to prevent PQL injection.
 """
 import asyncio
+import json
 import re
 import httpx
 import ssl
@@ -25,6 +26,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from copy import deepcopy
 from ..config import settings
+from .fleet_insights import compute_status_counts
 from ..utils.ttl_cache import get_or_set as cache_get_or_set
 from ..utils.jolokia import (
     escape_jolokia_path,
@@ -89,6 +91,34 @@ def _fold_newest_report(out: Dict[str, Dict], row: Any) -> None:
     prev = out.get(key)
     if prev is None or _report_ts(row) >= _report_ts(prev):
         out[key] = row
+
+
+def _project_rows(rows: Any, fields_json: str) -> List[Dict]:
+    """Normalize PuppetDB ``extract`` rows to dicts.
+
+    Some PuppetDB versions return a list of maps; others return positional
+    arrays in the same order as the extract field list. Callers that only
+    read a few columns must not depend on which shape came back.
+    """
+    if not isinstance(rows, list):
+        return []
+    try:
+        keys = json.loads(fields_json)
+    except (TypeError, ValueError):
+        keys = []
+    if not isinstance(keys, list):
+        keys = []
+    out: List[Dict] = []
+    for row in rows:
+        if isinstance(row, dict):
+            out.append(row)
+            continue
+        if isinstance(row, (list, tuple)) and keys:
+            out.append({
+                str(keys[i]): row[i]
+                for i in range(min(len(keys), len(row)))
+            })
+    return out
 
 
 def _pick_report_for_node(certname: str, by_exact: Dict[str, Dict]) -> Optional[Dict]:
@@ -389,7 +419,9 @@ class PuppetDBService:
                 raise last_404
             return {}
         if isinstance(result, dict):
-            await self._overlay_latest_report_status([result])
+            # Per-certname newest report is enough for one node. The fleet
+            # overlay (latest_report? + 48h window + every peer) is the
+            # bulk-list path; only use it when this node's query misses.
             newest = await self.get_newest_report_for_certname(certname)
             if newest and newest.get("status"):
                 result["node_index_status"] = result.get("node_index_status") or result.get(
@@ -407,6 +439,8 @@ class PuppetDBService:
                 result["cached_catalog_status"] = newest.get("cached_catalog_status")
                 result["report_producer"] = newest.get("producer")
                 result["status_source"] = "newest_report"
+            else:
+                await self._overlay_latest_report_status([result])
         return result
 
     async def _query_node_collection(self, kind: str, certname: str) -> List[Dict]:
@@ -558,7 +592,10 @@ class PuppetDBService:
             key = (certname or "").strip().lower()
             if not key:
                 return False
-            nodes = await self.get_nodes(include_inactive=True)
+            # Membership only. Report overlay scans the fleet (latest_report?
+            # plus a 48h window and every peer) and this method never reads
+            # status. Deactivate polling calls this in a tight loop.
+            nodes = await self.get_nodes(include_inactive=True, overlay_reports=False)
             for n in nodes:
                 if str(n.get("certname", "")).strip().lower() != key:
                     continue
@@ -788,6 +825,13 @@ class PuppetDBService:
         '"corrective_change"]'
     )
 
+    # List/detail summary tables. Still no logs, metrics, or resource_events.
+    _SUMMARY_REPORT_FIELDS = (
+        '["certname", "hash", "status", "environment", "noop", '
+        '"puppet_version", "configuration_version", "corrective_change", '
+        '"receive_time", "start_time", "end_time"]'
+    )
+
     async def get_reports_lean(
         self,
         query: Optional[str] = None,
@@ -795,18 +839,21 @@ class PuppetDBService:
         offset: int = 0,
         order_by: str = "receive_time",
         order_dir: str = "desc",
+        fields: Optional[str] = None,
     ) -> List[Dict]:
         """Projected report rows — no metrics/logs/events payloads."""
+        extract_fields = fields or self._LEAN_REPORT_FIELDS
         if query:
-            ast = f'["extract", {self._LEAN_REPORT_FIELDS}, {query}]'
+            ast = f'["extract", {extract_fields}, {query}]'
         else:
-            ast = f'["extract", {self._LEAN_REPORT_FIELDS}]'
+            ast = f'["extract", {extract_fields}]'
         params = {
             "limit": str(limit),
             "offset": str(offset),
             "order_by": f'[{{"field": "{order_by}", "order": "{order_dir}"}}]',
         }
-        return await self._query("reports", query=ast, params=params)
+        rows = await self._query("reports", query=ast, params=params)
+        return _project_rows(rows, extract_fields)
 
     async def get_pdb_metrics_bulk(self, names: Dict[str, str]) -> Dict[str, Any]:
         """One Jolokia POST for many mbeans. Fallback: per-bean GET."""
@@ -937,19 +984,47 @@ class PuppetDBService:
                 _fold_newest_report(out, row)
         except Exception as e:
             logger.warning("peer %s latest_report? failed: %s", host, e)
+        # Same 48h projected window as the primary. A bare reports query
+        # returns full documents (logs, metrics, events) — up to 2000 of
+        # them per peer on every live-fleet rebuild.
         try:
+            from datetime import datetime, timedelta, timezone
+
+            cutoff = (
+                datetime.now(timezone.utc) - timedelta(hours=48)
+            ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            window = f'[">", "receive_time", "{cutoff}"]'
+            ast = f'["extract", {self._LEAN_REPORT_FIELDS}, {window}]'
             recent = await self._query_host(
                 host,
                 "reports",
+                query=ast,
                 params={
-                    "limit": "2000",
+                    "limit": "10000",
                     "order_by": '[{"field": "receive_time", "order": "desc"}]',
                 },
             ) or []
-            for row in recent:
+            for row in _project_rows(recent, self._LEAN_REPORT_FIELDS):
                 _fold_newest_report(out, row)
         except Exception as e:
-            logger.warning("peer %s recent reports failed: %s", host, e)
+            logger.warning(
+                "peer %s lean recent reports failed (%s); falling back to full rows",
+                host,
+                e,
+            )
+            try:
+                recent = await self._query_host(
+                    host,
+                    "reports",
+                    params={
+                        "limit": "2000",
+                        "order_by": '[{"field": "receive_time", "order": "desc"}]',
+                    },
+                ) or []
+                for row in recent:
+                    _fold_newest_report(out, row)
+            except Exception as e2:
+                logger.warning("peer %s recent reports failed: %s", host, e2)
         return out
 
     async def _lookup_report(self, h: str) -> Dict:
@@ -1075,21 +1150,14 @@ class PuppetDBService:
     # ─── Metrics / Dashboard ────────────────────────────────
 
     async def get_node_status_counts(self) -> Dict[str, int]:
-        """Get node status distribution."""
+        """Node status distribution for the rows ``get_nodes`` returns.
+
+        ``total`` is the number of distinct certnames, and each node is in
+        exactly one bucket (``compute_status_counts``). Do not sum the
+        buckets to invent a second total.
+        """
         nodes = await self.get_nodes()
-        counts = {"changed": 0, "unchanged": 0, "failed": 0,
-                  "unreported": 0, "noop": 0, "total": len(nodes)}
-        for node in nodes:
-            status = node.get("latest_report_status")
-            if node.get("latest_report_noop"):
-                counts["noop"] += 1
-            elif status in counts:
-                counts[status] += 1
-            elif status is None:
-                counts["unreported"] += 1
-            else:
-                counts["unchanged"] += 1
-        return counts
+        return compute_status_counts(nodes)
 
     async def get_report_trends(self, hours: int = 24) -> List[Dict]:
         """Get report status trends over time."""
@@ -1421,11 +1489,13 @@ class PuppetDBService:
         raw = await self._query("inventory") or []
 
         results: List[Dict] = []
+        seen: set[str] = set()
         for item in raw:
             certname = item.get("certname", "") or ""
             key = certname.strip().lower()
-            if not key or key not in active_keys:
+            if not key or key not in active_keys or key in seen:
                 continue
+            seen.add(key)
             facts = item.get("facts") or {}
 
             # OS

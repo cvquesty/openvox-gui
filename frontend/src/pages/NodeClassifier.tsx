@@ -31,6 +31,7 @@ import {
 } from '../utils/cacheKeys';
 import { loadAvailableClasses, readEncClassCache } from '../utils/encClassCache';
 import { readSessionCache, writeSessionCache } from '../utils/sessionCache';
+import { countActiveClassified, countFleetNodes } from '../utils/fleetCounts';
 
 /** Shared shape for ENC environments + groups across Classification tabs. */
 type EncCatalog = {
@@ -422,20 +423,28 @@ function HierarchyTab({ reloadToken = 0 }: { reloadToken?: number }) {
       cacheValidate: (rows) => Array.isArray(rows),
     },
   );
-  const puppetNodes = (Array.isArray(fleet) ? fleet : []).map((x: any) => x.certname).filter(Boolean).sort();
+  const fleetReady = Array.isArray(fleet);
+  const puppetNodes = (fleetReady ? fleet : []).map((x: any) => x.certname).filter(Boolean).sort();
 
   if (loading && !data) return <Center h={300}><Loader size="xl" /></Center>;
   if (!data) return <Alert color="red">Failed to load hierarchy</Alert>;
 
-  // Filter hierarchy nodes to only those active in PuppetDB
-  const puppetSet = new Set(puppetNodes.map((cn) => cn.toLowerCase()));
-  const activeHierarchyNodes = (data.nodes || []).filter((n: any) =>
-    puppetSet.has(n.certname.toLowerCase())
+  // Fleet and ENC hierarchy are separate requests. Until the fleet list
+  // arrives, the intersection is unknown — not zero.
+  const activeCount = countActiveClassified(
+    (data.nodes || []).map((n: any) => n.certname),
+    fleetReady ? puppetNodes : null,
   );
+  const puppetSet = new Set(puppetNodes.map((cn: string) => cn.toLowerCase()));
+  const activeHierarchyNodes = activeCount == null
+    ? []
+    : (data.nodes || []).filter((n: any) =>
+        puppetSet.has(String(n.certname || '').toLowerCase())
+      );
 
   const layers = [
     { level: 4, label: 'Node', icon: IconServer, color: 'red',
-      desc: 'Per-node overrides (highest priority)', count: activeHierarchyNodes.length },
+      desc: 'Per-node overrides (highest priority)', count: activeCount },
     { level: 3, label: 'Group', icon: IconTags, color: 'orange',
       desc: 'Logical groupings — webservers, databases, etc.', count: data.groups?.length || 0 },
     { level: 2, label: 'Environment', icon: IconWorld, color: 'blue',
@@ -472,7 +481,9 @@ function HierarchyTab({ reloadToken = 0 }: { reloadToken?: number }) {
                       <Group justify="space-between">
                         <Text fw={700} size="sm">Layer {layer.level}: {layer.label}</Text>
                         <Badge size="sm" variant="outline" color={layer.color}>
-                          {layer.count} {layer.count === 1 ? 'entry' : 'entries'}
+                          {layer.count == null
+                            ? '…'
+                            : `${layer.count} ${layer.count === 1 ? 'entry' : 'entries'}`}
                         </Badge>
                       </Group>
                       <Text size="xs" c="dimmed">{layer.desc}</Text>
@@ -529,10 +540,14 @@ function HierarchyTab({ reloadToken = 0 }: { reloadToken?: number }) {
             </Box>
             <Divider my="sm" />
 
-            <Text fw={600} size="sm" mb={4}>Classified Nodes ({activeHierarchyNodes.length})</Text>
+            <Text fw={600} size="sm" mb={4}>
+              Classified Nodes ({activeCount == null ? '…' : activeCount})
+            </Text>
             <Box style={{ maxHeight: 600, minHeight: 0, overflow: 'hidden' }}>
               <ScrollArea h="100%" type="auto" offsetScrollbars scrollbarSize={6}>
-              {activeHierarchyNodes.map((n: any) => (
+              {activeCount == null ? (
+                <Text size="sm" c="dimmed">Loading the live fleet…</Text>
+              ) : activeHierarchyNodes.map((n: any) => (
                   <Paper key={n.certname} p="xs" mb={4} withBorder>
                     <Group justify="space-between">
                       <Group gap="xs">
@@ -545,7 +560,7 @@ function HierarchyTab({ reloadToken = 0 }: { reloadToken?: number }) {
                     </Group>
                   </Paper>
                 ))}
-                {activeHierarchyNodes.length === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
+                {activeCount === 0 && <Text size="sm" c="dimmed">No nodes classified yet</Text>}
               </ScrollArea>
             </Box>
           </Card>
@@ -1178,10 +1193,15 @@ function NodesTab({
     },
   );
   const classified = Array.isArray(classifiedRows) ? classifiedRows : [];
-  const puppetNodes = (Array.isArray(fleet) ? fleet : [])
+  const fleetReady = Array.isArray(fleet);
+  const puppetNodes = (fleetReady ? fleet : [])
     .map((x: any) => x.certname)
     .filter(Boolean)
     .sort();
+  // Unclassified comes from the fleet payload (ENC fields are joined on
+  // GET /api/nodes/). Do not subtract a second ENC request that may still
+  // be in flight — a missing roster is not "nobody is classified".
+  const fleetCounts = countFleetNodes(fleetReady ? fleet : null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [formCert, setFormCert] = useState('');
@@ -1330,16 +1350,11 @@ function NodesTab({
   //
   // Nodes in ENC that are no longer in the live fleet are "stale" but
   // remain visible so the operator can review/purge deliberately.
-  const puppetSet = new Set(puppetNodes.map((cn) => cn.toLowerCase()));
+  const puppetSet = new Set(puppetNodes.map((cn: string) => cn.toLowerCase()));
 
   const activeClassified = classified;  // all classified are shown
 
-  const classifiedNames = new Set(
-    classified.map((n) => (n.certname || '').toLowerCase())
-  );
-  const unclassified = puppetNodes.filter(
-    (cn) => cn && !classifiedNames.has(cn.toLowerCase())
-  );
+  const unclassified = fleetCounts?.unclassifiedCertnames ?? [];
 
   // Stale = in ENC but not in current live fleet (for awareness, not auto-hide)
   const staleClassified = classified.filter((n) => {
@@ -1360,8 +1375,12 @@ function NodesTab({
         with its own overrides at the highest priority.
       </Alert>
       <Card withBorder shadow="sm">
-        <Text fw={700} mb="sm">Unclassified Nodes ({unclassified.length})</Text>
-        {unclassified.length > 0 ? (
+        <Text fw={700} mb="sm">
+          Unclassified Nodes ({fleetCounts ? fleetCounts.unclassified : '…'})
+        </Text>
+        {fleetCounts == null ? (
+          <Text size="sm" c="dimmed">Loading the live fleet…</Text>
+        ) : unclassified.length > 0 ? (
           <>
             <Text size="xs" c="dimmed" mb="sm">
               On the live fleet but not yet classified. Click the name to classify.

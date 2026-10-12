@@ -26,6 +26,7 @@ import { isNeedsAttention } from '../utils/needsAttention';
 import { MeasuredArea } from '../components/MeasuredChart';
 import { isImplausibleFleetShrink } from '../utils/fleetGuard';
 import { readSessionCache } from '../utils/sessionCache';
+import { distinctNodeCount } from '../utils/fleetCounts';
 
 const ATTENTION_EXPORT_COLS = [
   'certname',
@@ -297,12 +298,15 @@ export function DashboardPage() {
     return <ErrorState title="Dashboard has no data" message="Try again." onRetry={refetch} />;
   }
 
+  // Center number is the node rows in this payload, not a stored total.
+  // Status buckets are computed from that same deduped list on the server.
+  const ringTotal = distinctNodeCount(dedupedNodes);
   const ringData = [
-    { value: ns.total ? (ns.unchanged / ns.total) * 100 : 0, color: STATUS_HEX.unchanged, tooltip: `Unchanged: ${ns.unchanged}` },
-    { value: ns.total ? (ns.changed / ns.total) * 100 : 0, color: STATUS_HEX.changed, tooltip: `Changed: ${ns.changed}` },
-    { value: ns.total ? (ns.failed / ns.total) * 100 : 0, color: STATUS_HEX.failed, tooltip: `Failed: ${ns.failed}` },
-    { value: ns.total ? (ns.noop / ns.total) * 100 : 0, color: STATUS_HEX.noop, tooltip: `Noop: ${ns.noop}` },
-    { value: ns.total ? (ns.unreported / ns.total) * 100 : 0, color: STATUS_HEX.unreported, tooltip: `Unreported: ${ns.unreported}` },
+    { value: ringTotal ? (ns.unchanged / ringTotal) * 100 : 0, color: STATUS_HEX.unchanged, tooltip: `Unchanged: ${ns.unchanged}` },
+    { value: ringTotal ? (ns.changed / ringTotal) * 100 : 0, color: STATUS_HEX.changed, tooltip: `Changed: ${ns.changed}` },
+    { value: ringTotal ? (ns.failed / ringTotal) * 100 : 0, color: STATUS_HEX.failed, tooltip: `Failed: ${ns.failed}` },
+    { value: ringTotal ? (ns.noop / ringTotal) * 100 : 0, color: STATUS_HEX.noop, tooltip: `Noop: ${ns.noop}` },
+    { value: ringTotal ? (ns.unreported / ringTotal) * 100 : 0, color: STATUS_HEX.unreported, tooltip: `Unreported: ${ns.unreported}` },
   ].filter(d => d.value > 0);
 
   const attention = attentionAll.slice(0, 25);
@@ -352,7 +356,7 @@ export function DashboardPage() {
                 thickness={24}
                 roundCaps
                 label={
-                  <Text ta="center" fw={700} size="xl">{ns.total}</Text>
+                  <Text ta="center" fw={700} size="xl">{ringTotal}</Text>
                 }
                 sections={ringData}
               />

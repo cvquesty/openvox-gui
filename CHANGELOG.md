@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   admin, operator, and certops are unchanged. Sign-in stays in the app
   and returns to the deep link (`?next=` / `location.state.from`) instead
   of hard-navigating to the dashboard. Pull request #106.
+- **Nodes page counted unclassified nodes twice (#104, pull request #122).**
+  The header added Classified group sizes to the Unclassified list. A node
+  with no ENC environment was in both, so a 3-node fleet showed Nodes (6)
+  while the dashboard and `/api/nodes/` said 3. The header, Classified,
+  and Unclassified counts are now distinct certnames from the one fleet
+  list. Reported by [@miharp](https://github.com/miharp), who also
+  diagnosed the double count in `frontend/src/pages/Nodes.tsx`.
 
 ### Changed
 - **Report lists no longer download full report documents.** The report
