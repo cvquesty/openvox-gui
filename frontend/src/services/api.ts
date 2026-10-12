@@ -882,12 +882,15 @@ export const installer = {
     }>(`/installer/files${prefix ? '?prefix=' + encodeURIComponent(prefix) : ''}`),
   getUpstream: () => fetchJSON<UpstreamInfo>('/installer/upstream'),
   getSelections: () => fetchJSON<MirrorSelections>('/installer/mirror-selections'),
-  saveSelections: (selections: MirrorSelections) =>
-    fetchJSON<SelectionUpdateResult>('/installer/mirror-selections', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(selections),
-    }),
+  saveSelections: (selections: MirrorSelections, opts?: { applySync?: boolean }) =>
+    fetchJSON<SelectionUpdateResult>(
+      `/installer/mirror-selections${opts?.applySync === false ? '?apply_sync=false' : ''}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selections),
+      },
+    ),
 };
 
 export const executionHistory = {

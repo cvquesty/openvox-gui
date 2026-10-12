@@ -53,14 +53,16 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from ..config import settings
 from ..dependencies import require_role
+from ..utils.sudo import tty_wrap_argv
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +77,14 @@ router = APIRouter(prefix="/api/installer", tags=["installer"])
 
 PKG_REPO_DIR = Path(os.environ.get("OPENVOX_GUI_PKG_REPO_DIR", "/opt/openvox-pkgs"))
 SYNC_SCRIPT  = Path(os.environ.get("OPENVOX_GUI_SYNC_SCRIPT", "/opt/openvox-gui/scripts/sync-openvox-repo.sh"))
+SYNC_LOG_PATH = Path("/opt/openvox-gui/logs/repo-sync.log")
 
 # How agents reach the local mirror. Clustered consoles serve it on the
 # GUI port (https://<this-host>:4567/packages). AIO can also use the
 # puppetserver static-content mount on 8140. Override via
 # OPENVOX_GUI_PKG_REPO_URL when the published URL must differ.
 DEFAULT_PUPPETSERVER_PORT = 8140
-DEFAULT_OPENVOX_VERSION   = "8"
+DEFAULT_OPENVOX_VERSION   = "9"
 # OpenVox 7 is no longer published (yum/apt/windows/mac). Mirror 8 + 9 only.
 SUPPORTED_OPENVOX_MAJORS = ("8", "9")
 
@@ -180,11 +183,12 @@ def _agent_install_commands(
     ca = (ca_srv or "").strip()
     noproxy = _noproxy_hosts(console, compile_srv, ca)
     ca_flag = f"--ca-server {ca} " if ca else ""
+    ver = _latest_agent_version()
     linux = (
         f"curl -k --noproxy {noproxy} {repo_url}/install.bash "
         f"| sudo bash -s -- --server {compile_srv} "
         f"{ca_flag}"
-        f"--pkg-repo-url {repo_url}"
+        f"--pkg-repo-url {repo_url} --version {ver}"
     )
     win = (
         "[System.Net.ServicePointManager]::SecurityProtocol = "
@@ -196,7 +200,7 @@ def _agent_install_commands(
         "$wc.DownloadFile($url, 'install.ps1'); "
         f".\\install.ps1 -Server '{compile_srv}'"
         + (f" -CaServer '{ca}'" if ca else "")
-        + f" -PkgRepoUrl '{repo_url}' -v"
+        + f" -PkgRepoUrl '{repo_url}' -OpenVoxVersion '{ver}' -v"
     )
     return linux, win
 
@@ -225,15 +229,53 @@ def _read_status_file() -> dict:
     return out
 
 
+def _pid_alive(pid: int) -> bool:
+    """True if *pid* exists. PermissionError still means the process is live."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
 def _sync_lock_held() -> Optional[int]:
-    """Return the PID holding the sync lock, or None if unlocked."""
+    """Return the live PID holding the sync lock, or None if unlocked.
+
+    A leftover ``.sync.lock`` from a killed sudo job used to look like a
+    running sync. The GUI then toasted the previous ``.last-sync`` success
+    and the Sync Log never moved.
+    """
     lock = PKG_REPO_DIR / ".sync.lock"
     if not lock.exists():
         return None
     try:
-        return int(lock.read_text().strip())
+        pid = int(lock.read_text().strip())
     except (ValueError, OSError):
         return None
+    if _pid_alive(pid):
+        return pid
+    try:
+        lock.unlink()
+    except OSError:
+        pass
+    return None
+
+
+def _append_sync_log(message: str) -> None:
+    """Append one line to the operator-facing sync log."""
+    line = message if message.endswith("\n") else message + "\n"
+    try:
+        SYNC_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with SYNC_LOG_PATH.open("a") as fh:
+            fh.write(line)
+    except OSError as exc:
+        logger.warning("Could not append %s: %s", SYNC_LOG_PATH, exc)
 
 
 _PLATFORM_SECTIONS = (
@@ -309,6 +351,33 @@ async def _cached_platform_inventory() -> tuple[int, list]:
     return total, platforms
 
 
+def _latest_agent_version() -> str:
+    """Highest OpenVox major actually present on this console's mirror.
+
+    Agents install this unless they pass --version / -OpenVoxVersion.
+    Disk wins over the selections JSON so we do not default to 9 when
+    only openvox8 packages have been synced.
+    """
+    majors = tuple(SUPPORTED_OPENVOX_MAJORS)
+    on_disk: list[str] = []
+    for v in majors:
+        yum = PKG_REPO_DIR / "yum" / f"openvox{v}"
+        pool = PKG_REPO_DIR / "apt" / "pool" / f"openvox{v}"
+        apt = PKG_REPO_DIR / "apt" / f"openvox{v}"
+        if yum.is_dir() or pool.is_dir() or apt.is_dir():
+            on_disk.append(v)
+    if on_disk:
+        return max(on_disk, key=int)
+    try:
+        sel = _read_selections()
+        picked = [v for v in sel.openvox_versions if v in majors]
+        if picked:
+            return max(picked, key=int)
+    except Exception:
+        pass
+    return max(majors, key=int)
+
+
 def _render_template(text: str) -> str:
     """Substitute the install-script placeholders with live values.
 
@@ -323,7 +392,7 @@ def _render_template(text: str) -> str:
         text
         .replace("__OPENVOX_PUPPET_SERVER__",    server)
         .replace("__OPENVOX_CA_SERVER__",        ca)
-        .replace("__OPENVOX_DEFAULT_VERSION__",  DEFAULT_OPENVOX_VERSION)
+        .replace("__OPENVOX_DEFAULT_VERSION__",  _latest_agent_version())
     )
 
 
@@ -407,7 +476,7 @@ async def get_installer_info(full: bool = False) -> InstallerInfo:
         puppet_server     = console,
         puppet_port       = _console_port(),
         pkg_repo_dir      = str(PKG_REPO_DIR),
-        default_version   = DEFAULT_OPENVOX_VERSION,
+        default_version   = _latest_agent_version(),
         install_url_linux = install_url_l,
         install_url_win   = install_url_w,
         linux_command     = linux_cmd,
@@ -595,7 +664,9 @@ async def trigger_sync(
             in_progress=True,
         )
 
-    cmd = ["sudo", "-n", str(SYNC_SCRIPT), "--quiet"]
+    # No extra flags: sudoers allows this path with zero arguments.
+    # Wrap with script(1) so CIS requiretty (ATLC) accepts sudo from systemd.
+    cmd = tty_wrap_argv(["sudo", "-n", str(SYNC_SCRIPT)])
     logger.info("User %s triggered repo sync: %s", user, " ".join(cmd))
 
     child_env = os.environ.copy()
@@ -611,11 +682,18 @@ async def trigger_sync(
     else:
         logger.warning("Repo sync: no HTTP proxy found in settings or .env")
 
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _append_sync_log(f"[{ts}] [INFO] GUI Sync now by {user}")
+
     try:
-        subprocess.Popen(
+        log_fh = SYNC_LOG_PATH.open("a")
+    except OSError:
+        log_fh = subprocess.DEVNULL
+    try:
+        proc = subprocess.Popen(
             cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
             env=child_env,
             start_new_session=True,
         )
@@ -625,14 +703,50 @@ async def trigger_sync(
             status_code=500,
             detail=f"Failed to launch sync script: {exc}",
         ) from exc
+    finally:
+        if log_fh is not subprocess.DEVNULL:
+            log_fh.close()
+
+    # Popen returns before sudo writes .sync.lock. The GUI used to poll
+    # once, see no lock, and toast the previous .last-sync "success".
+    for _ in range(16):
+        await asyncio.sleep(0.5)
+        holder = _sync_lock_held()
+        if holder is not None:
+            return SyncResult(
+                success=True,
+                exit_code=0,
+                output=["Sync started in the background. Watch the Sync Log tab."],
+                triggered_by=user,
+                started=True,
+                in_progress=True,
+            )
+        rc = proc.poll()
+        if rc is not None:
+            _append_sync_log(
+                f"[{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}] "
+                f"[ERROR] sync process exited {rc} before taking the lock "
+                f"(requiretty / sudoers). GUI wraps sudo with script(1)."
+            )
+            return SyncResult(
+                success=False,
+                exit_code=rc,
+                output=[
+                    f"Sync process exited {rc} before the lock appeared. "
+                    "CIS requiretty needs a TTY; see the Sync Log tab.",
+                ],
+                triggered_by=user,
+                started=False,
+                in_progress=False,
+            )
 
     return SyncResult(
         success=True,
         exit_code=0,
-        output=["Sync started in the background. Watch the Sync Log tab."],
+        output=["Sync launched; waiting for the lock. Watch the Sync Log tab."],
         triggered_by=user,
         started=True,
-        in_progress=True,
+        in_progress=_sync_lock_held() is not None,
     )
 
 
@@ -688,9 +802,6 @@ async def list_files(prefix: str = "") -> dict:
     }
 
 
-SYNC_LOG_PATH = Path("/opt/openvox-gui/logs/repo-sync.log")
-
-
 @router.get("/log")
 async def get_sync_log(lines: int = 200) -> dict:
     """Return the last *lines* lines of the sync log file."""
@@ -730,7 +841,12 @@ async def stream_sync_log(lines: int = 50):
         )
         try:
             while True:
-                line = await proc.stdout.readline()
+                try:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    # Comment events flush Apache/nginx proxy buffers.
+                    yield ": keepalive\n\n"
+                    continue
                 if not line:
                     break
                 yield f"data: {line.decode(errors='replace').rstrip()}\n\n"
@@ -835,21 +951,21 @@ MIRROR_TRANSPORTS = ("https", "rsync", "rsync_fallback")
 
 
 def _normalize_transport(value: Optional[str]) -> str:
-    t = (value or "https").strip().lower().replace("-", "_")
+    t = (value or "rsync_fallback").strip().lower().replace("-", "_")
     if t in ("https", "http", "curl"):
         return "https"
     if t == "rsync":
         return "rsync"
     if t in ("rsync_fallback", "auto", "rsync_then_https"):
         return "rsync_fallback"
-    return "https"
+    return "rsync_fallback"
 
 
 class MirrorSelections(BaseModel):
-    openvox_versions: list[str] = ["8"]
+    openvox_versions: list[str] = ["8", "9"]
     distributions: list[str] = []
     # https | rsync | rsync_fallback — how this site pulls the upstream mirror
-    transport: str = "https"
+    transport: str = "rsync_fallback"
 
 
 class SelectionUpdateResult(BaseModel):
@@ -1162,6 +1278,9 @@ def _detect_mirrored_selections() -> MirrorSelections:
                     if not rel_dir.is_dir():
                         continue
                     key = f"{fam_dir.name}/{rel_dir.name}"
+                    # EL 7 leftover on disk must not re-select itself.
+                    if fam_dir.name == "el" and rel_dir.name == "7":
+                        continue
                     if key not in dists:
                         dists.append(key)
 
@@ -1198,7 +1317,7 @@ def _detect_mirrored_selections() -> MirrorSelections:
             v for v in versions if v in SUPPORTED_OPENVOX_MAJORS
         ) or ["8", "9"],
         distributions=sorted(dists),
-        transport="https",
+        transport="rsync_fallback",
     )
 
 
@@ -1220,6 +1339,13 @@ def _write_selections(sel: MirrorSelections) -> None:
     PKG_REPO_DIR.mkdir(parents=True, exist_ok=True)
     sel.transport = _normalize_transport(sel.transport)
     SELECTIONS_FILE.write_text(json.dumps(sel.model_dump(), indent=2) + "\n")
+    logger.info(
+        "Wrote %s versions=%s dists=%d transport=%s",
+        SELECTIONS_FILE,
+        sel.openvox_versions,
+        len(sel.distributions),
+        sel.transport,
+    )
 
 
 def _mirror_arches() -> tuple[str, ...]:
@@ -1288,11 +1414,59 @@ def prune_unselected_mirror(
         for child in list(apt.iterdir()):
             if child.is_dir() and child.name.startswith("openvox"):
                 _rm(child)
+    elif apt.exists():
+        pool = apt / "pool"
+        if pool.exists():
+            for child in list(pool.iterdir()):
+                if child.is_dir() and child.name.startswith("openvox"):
+                    ver = child.name.replace("openvox", "", 1)
+                    if ver not in versions:
+                        _rm(child)
+        for child in list(apt.iterdir()):
+            if child.is_dir() and child.name.startswith("openvox"):
+                ver = child.name.replace("openvox", "", 1)
+                if ver not in versions:
+                    _rm(child)
+        dists_root = apt / "dists"
+        if dists_root.exists():
+            for dist_dir in list(dists_root.iterdir()):
+                if not dist_dir.is_dir():
+                    continue
+                for comp in list(dist_dir.iterdir()):
+                    if comp.is_dir() and comp.name.startswith("openvox"):
+                        ver = comp.name.replace("openvox", "", 1)
+                        if ver not in versions:
+                            _rm(comp)
+        for f in list(apt.glob("openvox*-release-*.deb")):
+            ver = f.name.split("-", 1)[0].replace("openvox", "", 1)
+            if ver not in versions:
+                try:
+                    f.unlink()
+                    removed.append(str(f))
+                    logger.info("Pruned unselected mirror file: %s", f)
+                except OSError as exc:
+                    logger.warning("Could not prune %s: %s", f, exc)
 
     if "windows" not in kinds:
         _rm(root / "windows")
+    else:
+        win = root / "windows"
+        if win.exists():
+            for child in list(win.iterdir()):
+                if child.is_dir() and child.name.startswith("openvox"):
+                    ver = child.name.replace("openvox", "", 1)
+                    if ver not in versions:
+                        _rm(child)
     if "mac" not in kinds:
         _rm(root / "mac")
+    else:
+        mac = root / "mac"
+        if mac.exists():
+            for child in list(mac.iterdir()):
+                if child.is_dir() and child.name.startswith("openvox"):
+                    ver = child.name.replace("openvox", "", 1)
+                    if ver not in versions:
+                        _rm(child)
 
     yum_root = root / "yum"
     if yum_root.exists():
@@ -1328,6 +1502,15 @@ def prune_unselected_mirror(
                             _rm(fam_dir)
                     except OSError:
                         pass
+            for f in list(yum_root.glob("openvox*-release-*.rpm")):
+                ver = f.name.split("-", 1)[0].replace("openvox", "", 1)
+                if ver not in versions:
+                    try:
+                        f.unlink()
+                        removed.append(str(f))
+                        logger.info("Pruned unselected mirror file: %s", f)
+                    except OSError as exc:
+                        logger.warning("Could not prune %s: %s", f, exc)
     return removed
 
 
@@ -1395,8 +1578,8 @@ async def _sync_distribution(dist_key: str, versions: list[str]) -> bool:
             )
 
         elif family in ("debian", "ubuntu"):
-            # Raw .debs from pool only — skip dists/ metadata (ephemeral / 404).
-            dest = PKG_REPO_DIR / "apt" / f"openvox{ver}"
+            # Same path install.bash uses: apt/pool/openvox{N}/o/openvox-agent/
+            dest = PKG_REPO_DIR / "apt" / "pool" / f"openvox{ver}"
             dest.mkdir(parents=True, exist_ok=True)
             ok = await _rsync_or_curl(
                 f"{RSYNC_APT}/pool/openvox{ver}/",
@@ -1517,7 +1700,7 @@ async def _rsync_or_curl(
                 ok = False
         else:
             file_url = curl_url + link
-            file_dest = os.path.join(local_dest, link)
+            file_dest = os.path.join(local_dest, unquote(link))
             if not await _fetch_file(file_url, file_dest):
                 ok = False
     return ok
@@ -1583,12 +1766,15 @@ async def get_mirror_selections() -> MirrorSelections:
 async def update_mirror_selections(
     body: MirrorSelections,
     user: str = Depends(require_role("admin", "operator")),
+    apply_sync: bool = Query(True, description="If false, write JSON and prune only; do not start a pull"),
 ) -> SelectionUpdateResult:
     """Save distribution selections and sync/remove as needed.
 
     Computes the diff between old and new selections:
     - Newly selected distributions are synced in the background.
     - Deselected distributions have their directories removed immediately.
+    - apply_sync=false: persist + prune only (used by Sync Now so one
+      full script run honors the checkboxes).
     """
     # Check sync lock
     holder = _sync_lock_held()
@@ -1645,7 +1831,7 @@ async def update_mirror_selections(
             if dist not in dists_to_sync:
                 dists_to_sync.append(dist)
 
-    if dists_to_sync:
+    if apply_sync and dists_to_sync:
         async def _background_sync():
             logger.info("Background sync starting for %d distribution(s): %s",
                         len(dists_to_sync), dists_to_sync)

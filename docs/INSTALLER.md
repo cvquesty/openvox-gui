@@ -225,10 +225,14 @@ The headline card. Header always shows the puppetserver FQDN, a
 - **Mirror Status** -- last-sync time + result, mirror size, per-
   platform breakdown table (yum / apt / windows / mac with
   package counts and bytes), and a disk-space widget on the side.
-- **Sync Log** -- tail of `/opt/openvox-gui/logs/repo-sync.log`, or
-  the captured stdout/stderr of the most recent manual sync. The
-  page auto-switches to this tab when you click "Sync now" so you
-  see what happened immediately.
+- **Sync Log** -- tail of `/opt/openvox-gui/logs/repo-sync.log`.
+  The page auto-switches to this tab when you click "Sync now".
+  A green **success** badge is the timestamp in
+  `/opt/openvox-pkgs/.last-sync` from a *completed* run. The GUI
+  only toasts success when that timestamp advances. Sync now wraps
+  ``sudo`` with ``script(1)`` so CIS ``requiretty`` (ATLC) accepts
+  it from systemd. If the log shows ``must have a tty to run sudo``,
+  that wrap is missing on the console.
 
 ### 2. Pending Certificate Requests
 

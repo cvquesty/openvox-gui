@@ -43,6 +43,11 @@ if ./scripts/ci-quality.sh >/dev/null; then
 else
   fail "ci-quality.sh"
 fi
+if bash "$REPO_ROOT/tests/shell/test_version_guard.sh"; then
+  pass "test_version_guard.sh"
+else
+  fail "test_version_guard.sh"
+fi
 if bolt-plugin/bin/run-tests --help >/dev/null; then
   pass "bolt-plugin/bin/run-tests --help"
 else

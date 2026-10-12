@@ -131,52 +131,65 @@ function CommandBlock({
 }
 
 /**
- * Live-tail sync log panel. Connects to the SSE endpoint on mount
- * and appends lines in real time. Falls back to the static syncLog
- * captured from the last manual sync if the stream hasn't produced
- * output yet.
+ * Live-tail sync log panel. Polls the log file (Apache can buffer SSE
+ * so the last 80 lines look frozen) and also listens on EventSource.
+ * streamKey remounts both after Sync now so a new run is not mixed
+ * with the previous snapshot.
  */
-function SyncLogPanel({ syncLog }: { syncLog: string[] }) {
+function SyncLogPanel({ syncLog, streamKey }: { syncLog: string[]; streamKey: number }) {
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Rely on httpOnly cookie for auth on same-origin SSE (cookies sent automatically).
-    const url = `/api/installer/log/stream?lines=80`;
-    const es = new EventSource(url);
-
-    es.onopen = () => setConnected(true);
-
-    const pending: string[] = [];
-    let flushTimer: number | null = null;
-    const flush = () => {
-      flushTimer = null;
-      if (!pending.length) return;
-      const batch = pending.splice(0, pending.length);
-      setLines((prev) => {
-        const next = prev.concat(batch);
-        return next.length > 2000 ? next.slice(-1500) : next;
-      });
-    };
-    es.onmessage = (event) => {
-      pending.push(event.data);
-      if (flushTimer == null) {
-        flushTimer = window.setTimeout(flush, 150);
+    let stopped = false;
+    const pull = async () => {
+      try {
+        const data = await installer.getLog(400);
+        if (!stopped && data.exists && data.lines.length) {
+          setLines(data.lines);
+        }
+      } catch {
+        /* keep the last snapshot */
       }
     };
-
-    es.onerror = () => {
-      setConnected(false);
-      es.close();
+    void pull();
+    const id = window.setInterval(pull, 2000);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
     };
+  }, [streamKey]);
+
+  useEffect(() => {
+    // Cookie auth on same-origin SSE. Display comes from GET /log so
+    // Apache buffering cannot freeze the last 80 lines of an old run.
+    const url = `/api/installer/log/stream?lines=1`;
+    let es: EventSource | null = null;
+    let retryTimer: number | null = null;
+    let stopped = false;
+    const connect = () => {
+      if (stopped) return;
+      es = new EventSource(url);
+      es.onopen = () => setConnected(true);
+      es.onerror = () => {
+        setConnected(false);
+        es?.close();
+        es = null;
+        if (!stopped) {
+          retryTimer = window.setTimeout(connect, 3000);
+        }
+      };
+    };
+    connect();
 
     return () => {
-      if (flushTimer != null) window.clearTimeout(flushTimer);
-      es.close();
+      stopped = true;
+      if (retryTimer != null) window.clearTimeout(retryTimer);
+      es?.close();
     };
-  }, []);
+  }, [streamKey]);
 
   // Auto-scroll to bottom when new lines arrive
   useEffect(() => {
@@ -217,13 +230,14 @@ export function InstallerPage() {
   const [error, setError]         = useState<string | null>(null);
   const [syncing, setSyncing]     = useState(false);
   const [syncLog, setSyncLog]     = useState<string[]>([]);
+  const [logEpoch, setLogEpoch]   = useState(0);
   const [activeTab, setActiveTab] = useState<string | null>('linux');
   const [mirrorReady, setMirrorReady] = useState(false);
 
   // Distribution selector state
   const [upstream, setUpstream]           = useState<UpstreamInfo | null>(null);
-  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8'], distributions: [], transport: 'https' });
-  const [draftVersions, setDraftVersions]     = useState<string[]>(['8']);
+  const [savedSelections, setSavedSelections] = useState<MirrorSelections>({ openvox_versions: ['8', '9'], distributions: [], transport: 'rsync_fallback' });
+  const [draftVersions, setDraftVersions]     = useState<string[]>(['8', '9']);
   const [draftDists, setDraftDists]           = useState<string[]>([]);
   const [draftTransport, setDraftTransport]   = useState<MirrorTransport>('https');
   const [savingSelections, setSavingSelections] = useState(false);
@@ -254,9 +268,9 @@ export function InstallerPage() {
       installer.getDiskInfo().catch(() => null),
       installer.getUpstream().catch(() => null),
       installer.getSelections().catch(() => ({
-        openvox_versions: ['8'],
+        openvox_versions: ['8', '9'],
         distributions: [],
-        transport: 'https',
+        transport: 'rsync_fallback',
       } as MirrorSelections)),
     ]);
     if (full) setInfo(full);
@@ -266,7 +280,7 @@ export function InstallerPage() {
     const vers = (s.openvox_versions || ['8', '9']).filter((v) => v !== '7');
     setDraftVersions(vers.length ? vers : ['8', '9']);
     setDraftDists(s.distributions);
-    const t = s.transport === 'rsync' || s.transport === 'rsync_fallback' ? s.transport : 'https';
+    const t = s.transport === 'rsync' ? 'rsync' : 'rsync_fallback';
     setDraftTransport(t);
     setMirrorReady(true);
   }, []);
@@ -288,8 +302,38 @@ export function InstallerPage() {
     setSyncing(true);
     setSyncLog([]);
     try {
+      // Honor the Mirror checkboxes. Sync Now used to ignore unsaved
+      // draft (EL 7 stayed in .mirror-selections.json).
+      if (mirrorReady) {
+        await installer.saveSelections(
+          {
+            openvox_versions: draftVersions,
+            distributions: draftDists,
+            transport: draftTransport,
+          },
+          { applySync: false },
+        );
+        setSavedSelections({
+          openvox_versions: draftVersions,
+          distributions: draftDists,
+          transport: draftTransport,
+        });
+      }
+      const before = await installer.getInfo();
+      const startedUtc = before.last_sync_utc || '';
       const res = await installer.triggerSync();
       setSyncLog(res.output || []);
+      setLogEpoch((n) => n + 1);
+      setActiveTab('synclog');
+      setMirrorReady(false);
+      if (res.started === false && !res.in_progress) {
+        notifications.show({
+          title: 'Sync did not start',
+          message: (res.output || []).join(' ') || 'See the Sync Log tab',
+          color: 'red',
+        });
+        return;
+      }
       notifications.show({
         title: res.started === false && res.in_progress
           ? 'Sync already running'
@@ -297,20 +341,31 @@ export function InstallerPage() {
         message: 'Watch the Sync Log tab. A full pull can take several minutes.',
         color: 'blue',
       });
-      setActiveTab('synclog');
-      setMirrorReady(false);
       let last: Awaited<ReturnType<typeof installer.getInfo>> | null = null;
+      let sawLock = !!res.in_progress;
       for (let i = 0; i < 240; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         last = await installer.getInfo();
-        if (!last.sync_in_progress) break;
+        if (last.sync_in_progress) {
+          sawLock = true;
+          continue;
+        }
+        const stampChanged = !!(last.last_sync_utc && last.last_sync_utc !== startedUtc);
+        if (stampChanged || sawLock || i >= 1) break;
       }
       await refresh();
+      const stampChanged = !!(last?.last_sync_utc && last.last_sync_utc !== startedUtc);
       const result = last?.last_sync_result || '';
-      const ok = result.startsWith('success');
+      const ok = stampChanged && result.startsWith('success');
       notifications.show({
-        title: ok ? 'Sync complete' : (last?.sync_in_progress ? 'Sync still running' : 'Sync finished'),
-        message: result || 'See the Sync Log tab',
+        title: ok
+          ? 'Sync complete'
+          : (last?.sync_in_progress
+            ? 'Sync still running'
+            : (stampChanged ? 'Sync finished' : 'Sync did not finish')),
+        message: stampChanged
+          ? (result || 'See the Sync Log tab')
+          : 'last-sync did not change — the success badge is from a previous run. See the Sync Log.',
         color: ok ? 'green' : 'orange',
       });
     } catch (e: any) {
@@ -328,7 +383,7 @@ export function InstallerPage() {
   const hasDraftChanges =
     JSON.stringify([...draftVersions].sort()) !== JSON.stringify([...savedSelections.openvox_versions].sort()) ||
     JSON.stringify([...draftDists].sort()) !== JSON.stringify([...savedSelections.distributions].sort()) ||
-    draftTransport !== (savedSelections.transport || 'https');
+    draftTransport !== (savedSelections.transport || 'rsync_fallback');
 
   const draftAdded = draftDists.filter(d => !savedSelections.distributions.includes(d));
   const draftRemoved = savedSelections.distributions.filter(d => !draftDists.includes(d));
@@ -475,22 +530,57 @@ export function InstallerPage() {
 
           {/* ── Linux one-liner ──────────────────────────────────────── */}
           <Tabs.Panel value="linux" pt="md">
-            <CommandBlock
-              title="Run as root on the agent host"
-              icon={<IconBrandUbuntu size={18} />}
-              helper="Downloads packages from this console (/packages), installs openvox-agent, and points puppet.conf at the compile server. Compilers do not serve the yum/apt mirror."
-              command={info.linux_command}
-            />
+            <Stack gap="md">
+              <Alert color="blue" title="Latest on this mirror is the default">
+                The first command installs OpenVox <Text span fw={700}>{info.default_version}</Text>
+                {' '}(newest major that is actually on this console). 8 and 9 can
+                both live in the mirror. For an older major, add{' '}
+                <Code>--version 8</Code> (or <Code>OPENVOX_VERSION=8</Code>).
+                Keep older majors checked on the Mirror tab until those nodes
+                are gone. The copy block includes <Code>--version {info.default_version}</Code>.
+              </Alert>
+              <CommandBlock
+                title={`OpenVox ${info.default_version} (default / latest)`}
+                icon={<IconBrandUbuntu size={18} />}
+                helper="Downloads packages from this console (/packages), installs openvox-agent, and points puppet.conf at the compile server. Compilers do not serve the yum/apt mirror."
+                command={info.linux_command}
+              />
+              {info.default_version !== '8' && (
+                <CommandBlock
+                  title="OpenVox 8 (older)"
+                  icon={<IconBrandUbuntu size={18} />}
+                  helper="Same one-liner with --version 8. Requires OpenVox 8 still selected on the Mirror tab."
+                  command={info.linux_command.replace(/--version \d+/, '--version 8')}
+                />
+              )}
+            </Stack>
           </Tabs.Panel>
 
           {/* ── Windows one-liner ────────────────────────────────────── */}
           <Tabs.Panel value="windows" pt="md">
-            <CommandBlock
-              title="Run in an elevated PowerShell prompt"
-              icon={<IconBrandWindows size={18} />}
-              helper="Downloads install.ps1 and the MSI from this console, then points puppet.conf at the compile server."
-              command={info.windows_command}
-            />
+            <Stack gap="md">
+              <Alert color="blue" title="Latest on this mirror is the default">
+                Default is OpenVox {info.default_version}. For 8, add{' '}
+                <Code>-OpenVoxVersion 8</Code>.
+              </Alert>
+              <CommandBlock
+                title={`OpenVox ${info.default_version} (default / latest)`}
+                icon={<IconBrandWindows size={18} />}
+                helper="Downloads install.ps1 and the MSI from this console, then points puppet.conf at the compile server."
+                command={info.windows_command}
+              />
+              {info.default_version !== '8' && (
+                <CommandBlock
+                  title="OpenVox 8 (older)"
+                  icon={<IconBrandWindows size={18} />}
+                  helper="Same script with -OpenVoxVersion 8."
+                  command={info.windows_command.replace(
+                    / -OpenVoxVersion '\d+'/,
+                    " -OpenVoxVersion '8'",
+                  )}
+                />
+              )}
+            </Stack>
           </Tabs.Panel>
 
           {/* ── Direct URLs ──────────────────────────────────────────── */}
@@ -697,7 +787,7 @@ export function InstallerPage() {
 
                 <Select
                   label="Mirror transport"
-                  description="HTTPS uses the GUI HTTP proxy (typical behind Squid). rsync talks to rsync.voxpupuli.org on port 873 and ignores the proxy."
+                  description="Use the same mode on every console. rsync-then-HTTPS: rsync to rsync.voxpupuli.org:873 (no proxy); if 873 is blocked, HTTPS via the GUI proxy. Only proxy/network should differ between sites."
                   data={[
                     { value: 'https', label: 'HTTPS (yum / apt / downloads.voxpupuli.org)' },
                     { value: 'rsync', label: 'rsync only (rsync.voxpupuli.org yum/apt/downloads)' },
@@ -711,7 +801,7 @@ export function InstallerPage() {
                 />
 
                 {/* OpenVox version toggles */}
-                <Group gap="lg" mb="md">
+                <Group gap="lg" mb={4}>
                   <Text size="sm" fw={600}>OpenVox Versions:</Text>
                   {(upstream?.openvox_versions || ['8', '9']).map(ver => (
                     <Checkbox
@@ -723,6 +813,12 @@ export function InstallerPage() {
                     />
                   ))}
                 </Group>
+                <Text size="xs" c="dimmed" mb="md">
+                  Last saved on disk: {(savedSelections.openvox_versions || []).join(', ') || '(none)'}.
+                  Sync Now writes these boxes to disk first. The agent default is
+                  the newest major that actually exists under /opt/openvox-pkgs
+                  (not merely checked). For OpenVox 8 use --version 8.
+                </Text>
 
                 {upstream ? (
                   <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
@@ -773,7 +869,7 @@ export function InstallerPage() {
 
           {/* ── Sync Log (live tail -f via SSE) ──────────────────── */}
           <Tabs.Panel value="synclog" pt="md">
-            <SyncLogPanel syncLog={syncLog} />
+            <SyncLogPanel syncLog={syncLog} streamKey={logEpoch} />
           </Tabs.Panel>
         </Tabs>
       </Card>
