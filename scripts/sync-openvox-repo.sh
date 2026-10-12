@@ -70,8 +70,9 @@
 #   RSYNC_WIN           rsync://rsync.voxpupuli.org/downloads/windows
 #
 # Exit codes:
-#   0  Success (or nothing to do)
-#   1  Generic failure
+#   0  Success, nothing to do, or partial (some packages failed; the
+#      rest of the mirror still ran). Check the log / .last-sync result.
+#   1  Generic failure (tooling missing, total transport failure)
 #   2  Lock held by another process
 #   3  Bad arguments
 ###############################################################################
@@ -274,17 +275,23 @@ rsync_tree() {
         info "DRY-RUN: rsync -av ${src} ${dest}"
         return 0
     fi
-    rsync -av -4 --timeout=60 --contimeout=15 \
+    rsync -av -4 --timeout=60 --contimeout=15 --ignore-errors \
         "$src" "$dest" 2>&1 \
         | while IFS= read -r line; do
             [ -n "$line" ] && info "  rsync: ${line}"
           done
     local rc=${PIPESTATUS[0]}
-    if [ $rc -ne 0 ]; then
-        warn "rsync failed for ${src} (exit ${rc})"
-        return 1
+    # 23 = partial transfer due to error; 24 = vanished source files.
+    # Keep going so one bad package does not abort the rest of the tree.
+    if [ $rc -eq 0 ]; then
+        return 0
     fi
-    return 0
+    if [ $rc -eq 23 ] || [ $rc -eq 24 ]; then
+        warn "rsync partial for ${src} (exit ${rc}); continuing"
+        return 0
+    fi
+    warn "rsync failed for ${src} (exit ${rc})"
+    return 1
 }
 
 # Sync only specific files from a remote directory using --include/--exclude
@@ -301,18 +308,22 @@ rsync_files() {
         info "DRY-RUN: rsync ${includes[*]} ${src} ${dest}"
         return 0
     fi
-    rsync -av -4 --timeout=60 --contimeout=15 \
+    rsync -av -4 --timeout=60 --contimeout=15 --ignore-errors \
         "${includes[@]}" --exclude='*/' --exclude='*' \
         "$src" "$dest" 2>&1 \
         | while IFS= read -r line; do
             [ -n "$line" ] && info "  rsync: ${line}"
           done
     local rc=${PIPESTATUS[0]}
-    if [ $rc -ne 0 ]; then
-        warn "rsync_files failed for ${src} (exit ${rc})"
-        return 1
+    if [ $rc -eq 0 ]; then
+        return 0
     fi
-    return 0
+    if [ $rc -eq 23 ] || [ $rc -eq 24 ]; then
+        warn "rsync_files partial for ${src} (exit ${rc}); continuing"
+        return 0
+    fi
+    warn "rsync_files failed for ${src} (exit ${rc})"
+    return 1
 }
 
 # ─── curl helpers ─────────────────────────────────────────────────────────────
@@ -331,6 +342,11 @@ curl_fetch() {
     local dest_dir="$2"
     local filename
     filename=$(basename "$url")
+    # Listings encode + as %2B. Do not call python3 here: sudo -n PATH
+    # often has no python3, leaving filename empty so curl -o writes
+    # onto the directory and every file fails with curl 23.
+    filename="${filename//%2[Bb]/+}"
+    filename="${filename%%\?*}"
     mkdir -p "$dest_dir"
 
     if [ "$DRY_RUN" = "true" ]; then
@@ -338,38 +354,45 @@ curl_fetch() {
         return 0
     fi
 
+    if [ -z "$filename" ] || [ "$filename" = "." ] || [ "$filename" = ".." ]; then
+        warn "curl_fetch: empty filename for ${url}"
+        return 1
+    fi
     local dest_path="${dest_dir}/${filename}"
-    local curl_args=(-fSL -4 --connect-timeout 30 --max-time 600 "${CURL_PROXY_ARGS[@]}" -o "$dest_path")
+    if [ -d "$dest_path" ]; then
+        warn "  ${dest_path} is a directory; removing so curl can write a file"
+        rm -rf "$dest_path"
+    fi
 
-    # Conditional GET: only download if the remote file is newer
-    # than our local copy (sends If-Modified-Since). If the file
-    # doesn't exist locally, curl does an unconditional GET.
+    local errfile
+    errfile=$(mktemp)
+    # Do not wrap curl in $( ): piping stdout makes libcurl 23
+    # "client returned ERROR on write of 8192 bytes" through some proxies.
+    local curl_args=(-fSL -4 --http1.1 --connect-timeout 30 --max-time 600
+        "${CURL_PROXY_ARGS[@]}" -o "$dest_path" -sS)
     if [ -f "$dest_path" ]; then
         curl_args+=(-z "$dest_path")
     fi
 
-    # -s: silent (no progress bar), but -S: still show errors
-    if [ "$QUIET" = "true" ]; then
-        curl_args+=(-sS)
-    else
-        curl_args+=(-sS)
-    fi
-
-    local output
-    output=$(curl "${curl_args[@]}" "$url" 2>&1)
+    curl "${curl_args[@]}" "$url" 2>"$errfile"
     local rc=$?
+    local output=""
+    [ -s "$errfile" ] && output=$(cat "$errfile")
+    rm -f "$errfile"
 
     if [ $rc -eq 0 ]; then
         [ "$QUIET" != "true" ] && info "  fetched: ${filename}"
         return 0
     fi
 
-    # curl exit 22 = HTTP error (4xx/5xx) when using -f
-    # Show the error output for diagnosis
     if [ -n "$output" ]; then
         info "  curl: ${output}"
     fi
     warn "curl failed for ${url} (exit ${rc})"
+    if [ $rc -eq 23 ]; then
+        rm -f "$dest_path"
+        warn "  curl 23 = write callback failed (not always disk full). dest=$(ls -ld "$dest_dir" 2>/dev/null || echo missing)"
+    fi
     return 1
 }
 
@@ -417,10 +440,13 @@ _curl_fetch_listed_files() {
 #   $3 = optional accept regex (e.g., '\.(rpm|xml|gz)$') -- only
 #        files matching this pattern are downloaded. Directories
 #        are always followed regardless of the filter.
+#   $4 = "required" — listing 404/empty is a failure (selected arch),
+#        not a skip (unpublished optional tree).
 curl_mirror() {
     local url="$1"
     local dest="$2"
     local accept="${3:-}"
+    local required="${4:-}"
 
     # Normalise: ensure URL ends with /
     url="${url%/}/"
@@ -438,8 +464,12 @@ curl_mirror() {
     local listing
     listing=$(curl -fsSL -4 --connect-timeout 30 --max-time 60 \
         "${CURL_PROXY_ARGS[@]}" "$url" 2>/dev/null) || {
-        warn "Could not fetch directory listing from ${url}"
-        return 1
+        if [ "$required" = "required" ]; then
+            warn "Could not fetch listing ${url} (required tree)"
+            return 1
+        fi
+        info "  (no listing at ${url} -- skipping)"
+        return 0
     }
 
     # Extract href values, skip parent-dir links, absolute paths,
@@ -450,7 +480,10 @@ curl_mirror() {
         | grep -vE '^\.\.|^/|^$|index\.html|robots\.txt')
 
     if [ -z "$entries" ]; then
-        # Not necessarily an error -- some dirs are legitimately empty
+        if [ "$required" = "required" ]; then
+            warn "Empty listing at ${url} (required tree; proxy may have swallowed yum.voxpupuli.org/openvox9/)"
+            return 1
+        fi
         info "  (no files found in ${url})"
         return 0
     fi
@@ -461,7 +494,7 @@ curl_mirror() {
         if [[ "$entry" == */ ]]; then
             local subdir="${entry%/}"
             case "$subdir" in
-                src|SRPMS|debug|debuginfo|lost+found)
+                src|SRPMS|debug|debuginfo|lost+found|ppc64le|i386|i686)
                     info "  (skip ${subdir}/)"
                     continue
                     ;;
@@ -481,7 +514,9 @@ curl_mirror() {
         fi
     done
 
-    [ $failures -gt 0 ] && return 1
+    if [ $failures -gt 0 ]; then
+        warn "  ${failures} file(s) failed under ${url}; continuing"
+    fi
     return 0
 }
 
@@ -574,7 +609,7 @@ _load_from_config() {
     parsed=$(python3 -c "
 import json, sys
 cfg = json.load(open('${SELECTIONS_FILE}'))
-versions = [v for v in cfg.get('openvox_versions', ['8','9']) if str(v) != '7']
+versions = [str(v) for v in cfg.get('openvox_versions', ['8','9']) if str(v) != '7']
 if not versions:
     versions = ['8', '9']
 dists = cfg.get('distributions', [])
@@ -612,13 +647,15 @@ deb_rels = [r.replace('debian','') for r in families.get('debian',[]) if r]
 ubu_rels = [r.replace('ubuntu','') for r in families.get('ubuntu',[]) if r]
 print('CFG_DEB=' + ','.join(deb_rels))
 print('CFG_UBU=' + ','.join(ubu_rels))
-t = str(cfg.get('transport') or 'https').strip().lower().replace('-', '_')
-if t in ('http', 'curl'):
-    t = 'https'
+t = str(cfg.get('transport') or 'rsync_fallback').strip().lower().replace('-', '_')
+if t in ('http', 'curl', 'https'):
+    # Old GUI default was https-only (ATLC). Use rsync then HTTPS so
+    # every console matches; proxy is only used if 873 is blocked.
+    t = 'rsync_fallback'
 elif t in ('auto', 'rsync_then_https'):
     t = 'rsync_fallback'
-elif t not in ('https', 'rsync', 'rsync_fallback'):
-    t = 'https'
+elif t not in ('rsync', 'rsync_fallback'):
+    t = 'rsync_fallback'
 print('CFG_TRANSPORT=' + t)
 " 2>/dev/null) || {
         warn "Could not parse ${SELECTIONS_FILE}"
@@ -666,7 +703,7 @@ fi
 
 # Transport comes from GUI Mirror selections (https | rsync | rsync_fallback).
 # PREFER_RSYNC=true still forces rsync+fallback for CLI/cron overrides.
-MIRROR_TRANSPORT="${MIRROR_TRANSPORT:-https}"
+MIRROR_TRANSPORT="${MIRROR_TRANSPORT:-rsync_fallback}"
 RSYNC_FALLBACK="true"
 case "$MIRROR_TRANSPORT" in
     rsync)
@@ -695,9 +732,21 @@ mkdir -p "$PKG_REPO_DIR"
 acquire_lock
 
 info "Starting OpenVox repo sync"
+info "  Script     : $0"
+_gui_ver=""
+for _vf in "$(dirname "$0")/../VERSION" /opt/openvox-gui/VERSION; do
+    if [ -f "$_vf" ]; then
+        _gui_ver=$(tr -d ' \n' < "$_vf")
+        break
+    fi
+done
+info "  Script rev : ${_gui_ver:-unknown}"
 info "  Target dir : ${PKG_REPO_DIR}"
 info "  Platforms  : ${PLATFORMS}"
 info "  Versions   : ${VERSIONS}"
+if [ -f "$SELECTIONS_FILE" ]; then
+    info "  JSON       : ${SELECTIONS_FILE}"
+fi
 info "  Arches     : ${ARCHES}"
 if [ -n "$_CURL_PROXY" ]; then
     info "  HTTPS proxy: $(_redact_proxy_url "$_CURL_PROXY")"
@@ -705,6 +754,16 @@ else
     info "  HTTPS proxy: (none — set Settings → Application proxy or OPENVOX_GUI_HTTPS_PROXY)"
 fi
 info "  Transport  : ${MIRROR_TRANSPORT}"
+_sync_avail=$(df -P -k "$PKG_REPO_DIR" 2>/dev/null | awk 'NR==2 { print $4 }')
+if [ -n "${_sync_avail}" ]; then
+    info "  Free space : ${_sync_avail} KiB ($(df -P "$PKG_REPO_DIR" 2>/dev/null | awk 'NR==2 { print $6 }'))"
+    if [ "${_sync_avail}" -lt 1048576 ]; then
+        warn "Less than 1 GiB free under ${PKG_REPO_DIR}. OpenVox 8 + aarch64 will not fit. Uncheck 8 and extra arches."
+    fi
+fi
+info "  EL releases: ${EL_RELEASES:-(none)}"
+info "  Debian     : ${DEB_RELEASES:-(none)}"
+info "  Ubuntu     : ${UBU_RELEASES:-(none)}"
 if [ "$HAVE_RSYNC" = "true" ]; then
     info "  Rsync yum  : ${RSYNC_YUM}"
     info "  Rsync apt  : ${RSYNC_APT}"
@@ -837,6 +896,77 @@ prune_unselected_mirror() {
             done
         done
     done
+
+    # Release RPMs at yum root (openvox8-release-el-9.noarch.rpm, etc.)
+    for f in "${yum_root}"/openvox*-release-*.rpm; do
+        [ -f "$f" ] || continue
+        base=$(basename "$f")
+        ver=${base#openvox}
+        ver=${ver%%-*}
+        if ! _csv_has "$VERSIONS" "$ver"; then
+            info "Pruning unselected ${f}"
+            rm -f "$f"
+        fi
+    done
+
+    if _csv_has "$PLATFORMS" apt; then
+        for d in "${PKG_REPO_DIR}/apt/pool"/openvox*; do
+            [ -d "$d" ] || continue
+            ver=$(basename "$d")
+            ver=${ver#openvox}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${d}"
+                rm -rf "$d"
+            fi
+        done
+        for d in "${PKG_REPO_DIR}"/apt/openvox*; do
+            [ -d "$d" ] || continue
+            ver=$(basename "$d")
+            ver=${ver#openvox}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${d}"
+                rm -rf "$d"
+            fi
+        done
+        if [ -d "${PKG_REPO_DIR}/apt/dists" ]; then
+            for dist_dir in "${PKG_REPO_DIR}/apt/dists"/*; do
+                [ -d "$dist_dir" ] || continue
+                for comp in "$dist_dir"/openvox*; do
+                    [ -d "$comp" ] || continue
+                    ver=$(basename "$comp")
+                    ver=${ver#openvox}
+                    if ! _csv_has "$VERSIONS" "$ver"; then
+                        info "Pruning unselected ${comp}"
+                        rm -rf "$comp"
+                    fi
+                done
+            done
+        fi
+        for f in "${PKG_REPO_DIR}"/apt/openvox*-release-*.deb; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            ver=${base#openvox}
+            ver=${ver%%-*}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${f}"
+                rm -f "$f"
+            fi
+        done
+    fi
+
+    for plat in mac windows; do
+        _csv_has "$PLATFORMS" "$plat" || continue
+        [ -d "${PKG_REPO_DIR}/${plat}" ] || continue
+        for d in "${PKG_REPO_DIR}/${plat}"/openvox*; do
+            [ -d "$d" ] || continue
+            ver=$(basename "$d")
+            ver=${ver#openvox}
+            if ! _csv_has "$VERSIONS" "$ver"; then
+                info "Pruning unselected ${d}"
+                rm -rf "$d"
+            fi
+        done
+    done
 }
 
 rsync_sync_yum() {
@@ -904,7 +1034,14 @@ curl_sync_yum() {
                 _curl_fetch_listed_files "$url" "$dest" || true
                 for arch in $(echo "$ARCHES" | tr ',' ' '); do
                     info "  -> ${arch}/"
-                    if ! curl_mirror "${url}${arch}/" "${dest}/${arch}"; then
+                    # Same idea as rsync_sync_yum: unpublished arch is skip, not fail.
+                    if ! curl -fsSL -4 --connect-timeout 15 --max-time 30 \
+                            -o /dev/null "${CURL_PROXY_ARGS[@]}" \
+                            "${url}${arch}/" 2>/dev/null; then
+                        info "  (no ${arch} for openvox${v}/${fam}/${rel} -- skipping)"
+                        continue
+                    fi
+                    if ! curl_mirror "${url}${arch}/" "${dest}/${arch}" "" required; then
                         SYNC_FAILURES=$((SYNC_FAILURES + 1))
                     fi
                 done
@@ -1046,9 +1183,11 @@ curl_sync_apt() {
     local v url dest
     for v in $(echo "$VERSIONS" | tr ',' ' '); do
         url="${APT_BASE}/pool/openvox${v}/"
-        dest="${PKG_REPO_DIR}/apt/openvox${v}"
-        info "  -> raw .deb from ${url}"
-        if ! curl_mirror "$url" "$dest" '\.deb$'; then
+        # Same layout as rsync_sync_apt and install.bash:
+        #   /opt/openvox-pkgs/apt/pool/openvox{N}/o/openvox-agent/*.deb
+        dest="${PKG_REPO_DIR}/apt/pool/openvox${v}"
+        info "  -> raw .deb from ${url} -> ${dest}"
+        if ! curl_mirror "$url" "$dest" '\.deb$' required; then
             warn "Could not walk ${url}"
             SYNC_FAILURES=$((SYNC_FAILURES + 1))
         fi
@@ -1064,6 +1203,18 @@ write_apt_file_indexes() {
         "${PKG_REPO_DIR}"/apt/openvox*/o/openvox-agent
     do
         [ -d "$d" ] || continue
+        python3 - "$d" <<'PY'
+from pathlib import Path
+from urllib.parse import unquote
+import sys
+root = Path(sys.argv[1])
+for p in root.iterdir():
+    if not p.is_file() or "%" not in p.name:
+        continue
+    dest = p.with_name(unquote(p.name))
+    if dest != p and not dest.exists():
+        p.rename(dest)
+PY
         if ls -1 "$d"/*.deb >/dev/null 2>&1; then
             # shellcheck disable=SC2012
             ls -1 "$d" | grep -E '\.deb$' > "${d}/index.txt" || true
@@ -1293,6 +1444,35 @@ for platform in $(echo "$PLATFORMS" | tr ',' ' '); do
     esac
 done
 
+# Selected majors must actually land on disk. HTTPS listing 404/empty
+# used to return 0, so ATLC could log "success" with yum/openvox9 empty.
+_assert_selected_versions_on_disk() {
+    local v n
+    for v in $(echo "$VERSIONS" | tr ',' ' '); do
+        [ -n "$v" ] || continue
+        if _csv_has "$PLATFORMS" yum; then
+            n=$(find "${PKG_REPO_DIR}/yum/openvox${v}" -name '*.rpm' 2>/dev/null | wc -l | tr -d ' ')
+            if [ "${n:-0}" -eq 0 ]; then
+                warn "yum/openvox${v} has 0 RPMs after sync (JSON Versions=${VERSIONS}; proxy/listing may have skipped openvox${v})"
+                SYNC_FAILURES=$((SYNC_FAILURES + 1))
+            else
+                info "  yum/openvox${v}: ${n} RPM(s) on disk"
+            fi
+        fi
+        if _csv_has "$PLATFORMS" apt; then
+            n=$(find "${PKG_REPO_DIR}/apt" -path "*/openvox${v}/*" -name '*.deb' 2>/dev/null | wc -l | tr -d ' ')
+            if [ "${n:-0}" -eq 0 ]; then
+                warn "apt openvox${v} has 0 debs after sync"
+                SYNC_FAILURES=$((SYNC_FAILURES + 1))
+            else
+                info "  apt openvox${v}: ${n} deb(s) on disk"
+            fi
+        fi
+    done
+}
+
+_assert_selected_versions_on_disk
+
 # ─── Permissions ─────────────────────────────────────────────────────────────
 if [ "$DRY_RUN" != "true" ]; then
     if id -u "${PKG_REPO_OWNER%%:*}" >/dev/null 2>&1; then
@@ -1312,7 +1492,6 @@ fi
 
 write_status "$OVERALL_RESULT"
 
-if [ $SYNC_FAILURES -gt 0 ]; then
-    exit 1
-fi
+# Partial sync is still a completed update. Exit 0 so systemd timers
+# and install.sh do not treat one missing package as a full abort.
 exit 0

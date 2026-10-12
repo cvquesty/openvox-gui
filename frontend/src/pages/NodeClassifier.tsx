@@ -1220,12 +1220,23 @@ function NodesTab({
       const payload = { certname: formCert, environment: formEnv,
         classes: classListToDict(formClasses), parameters: rowsToDict(formParams),
         group_ids: formGroupIds.map(Number) };
-      if (editing) {
-        await enc.updateNode(editing.certname, payload);
+      const already = classified.some((n) => n.certname === formCert);
+      if (editing || already) {
+        await enc.updateNode(editing?.certname || formCert, payload);
         notifications.show({ title: 'Updated', message: `Node '${formCert}' updated`, color: 'green' });
       } else {
-        await enc.createNode(payload);
-        notifications.show({ title: 'Created', message: `Node '${formCert}' classified`, color: 'green' });
+        try {
+          await enc.createNode(payload);
+          notifications.show({ title: 'Created', message: `Node '${formCert}' classified`, color: 'green' });
+        } catch (e: any) {
+          const msg = String(e?.message || e);
+          if (/duplicate key|UniqueViolation|already exists/i.test(msg)) {
+            await enc.updateNode(formCert, payload);
+            notifications.show({ title: 'Updated', message: `Node '${formCert}' updated`, color: 'green' });
+          } else {
+            throw e;
+          }
+        }
       }
       setModalOpen(false); load();
     } catch (e: any) { notifications.show({ title: 'Error', message: e.message, color: 'red' }); }

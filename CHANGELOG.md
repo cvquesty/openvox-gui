@@ -9,6 +9,226 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.27] - 2026-10-12
+
+### Fixed
+- **Dependabot lockfile regen.** `.github/workflows/regen-lockfile.yml`
+  no longer pushes commits onto Dependabot pull requests. Dependabot
+  already updates `package-lock.json`. A commit from this workflow
+  (committer `openvox-gui-ci`) on those branches stops Dependabot from
+  rebasing them; that is what stuck the vite update (PR #109). Human
+  pull requests that change `frontend/package.json` still get a Node 22
+  lockfile commit.
+- **Reused dev numbers.** `scripts/ci-version-guard.sh` fails a pull
+  request that changes `VERSION` to a value that is not strictly newer
+  than `origin/main`, or that already has a remote tag.
+  `scripts/bump-version.sh next` takes the next `dev` number from remote
+  tags and `origin/main`, and refuses to write a version whose tag
+  already exists. See the note directly above the `3.14.1-dev.3`
+  heading for the 2026-10-07 collision this closes.
+
+## [3.14.1-dev.26] - 2026-10-08
+
+### Fixes
+- **ATLC Sync now: ``sudo: sorry, you must have a tty to run sudo``.**
+  3.14.1-dev.14+ fires ``sudo -n`` in the background so Apache does
+  not time out. That has no TTY. CIS ``Defaults requiretty`` on ATLC
+  rejects it; CA/r10k already wrap with ``script(1)``. Sync now uses
+  the same wrap. ``--quiet`` is dropped so sudoers matches the
+  zero-argument rule.
+
+## [3.14.1-dev.25] - 2026-10-08
+
+### Fixes
+- **Sync now no longer toasts a previous success while the log is frozen.**
+  The green panel was ``/opt/openvox-pkgs/.last-sync`` from an earlier
+  run. The GUI returned before sudo wrote ``.sync.lock``, polled once,
+  saw no lock, and treated that old result as this click. Apache can
+  also buffer SSE, so the panel stayed on the last 80 lines of the old
+  file. Sync now waits for a live lock (or a failed sudo), ignores
+  dead ``.sync.lock`` files, polls ``GET /log`` for the panel, and
+  only toasts success when ``last_sync_utc`` advances.
+
+## [3.14.1-dev.24] - 2026-10-08
+
+### Fixes
+- **Same mirror transport on every console.** Default is rsync, then
+  HTTPS if port 873 is blocked. Stored ``https`` is treated as
+  rsync-then-HTTPS so ATLC matches PDXC except proxy/network.
+
+## [3.14.1-dev.23] - 2026-10-08
+
+### Fixes
+- **ATLC curl 23 on every RPM.** ``curl_fetch`` used python3 to unquote
+  ``%2B``. ``sudo -n`` PATH has no python3, filename was empty, curl
+  wrote onto the arch **directory**. Decode ``%2B`` in bash instead.
+  PDXC was fine because it uses rsync.
+
+## [3.14.1-dev.22] - 2026-10-08
+
+### Fixes
+- **curl 23 is not treated as disk full.** Capturing ``curl -o file`` in
+  ``$(...)`` made libcurl fail writes through the ATLC proxy (64G free).
+  curl now writes the file directly, uses HTTP/1.1, and continues.
+
+## [3.14.1-dev.21] - 2026-10-08
+
+### Fixes
+- **curl exit 23 aborts the sync.** Write errors (disk full) used to
+  spam hundreds of failed RPMs. Now logs ``df -h`` and stops. Start
+  of sync also prints free space under the package dir.
+
+## [3.14.1-dev.20] - 2026-10-08
+
+### Fixes
+- **Do not call yum/apt sync a success when a selected major is empty.**
+  HTTPS listing 404/empty on a required arch is a failure. After the
+  pull, each selected version must have RPMs/debs on disk or the run
+  is partial. ATLC could log success with ``yum/openvox9`` missing.
+
+## [3.14.1-dev.19] - 2026-10-08
+
+### Fixes
+- **RHEL install if yum repodata is 404.** After dnf fails on missing
+  ``repomd.xml``, install.bash lists the arch dir and ``dnf localinstall``s
+  the newest ``openvox-agent`` RPM. Clear error if ATLC has no
+  ``yum/openvox9/el/9/x86_64`` at all.
+
+## [3.14.1-dev.18] - 2026-10-08
+
+### Fixes
+- **``curl | bash`` + dpkg no longer eats the rest of install.bash.**
+  ``dpkg --force-confold -i … </dev/null`` keeps puppet.conf and does
+  not steal stdin (the ``RSION}: command not found`` crash).
+- **Apt debs named with ``+`` not ``%2B``.** Listing hrefs are unquoted
+  when saving so install.bash does not request ``%252B``.
+
+## [3.14.1-dev.17] - 2026-10-08
+
+### Fixes
+- **Prune unselected OpenVox majors everywhere.** Unchecking 8 (or 7)
+  now deletes ``apt/pool/openvox8``, leftover ``apt/openvox8``,
+  ``windows/openvox8``, ``mac/openvox8``, and ``openvox8-release-*.rpm``
+  / ``.deb`` files, not only ``yum/openvox8``.
+
+## [3.14.1-dev.16] - 2026-10-08
+
+### Fixes
+- Sync log ``Script rev`` reads the GUI ``VERSION`` file so it matches
+  the version panel (was a hardcoded 3.14.1-dev.14 string).
+
+## [3.14.1-dev.15] - 2026-10-08
+
+### Fixes
+- **Sync Log SSE reconnects.** A proxy drop used to close EventSource
+  forever and leave the badge on ``disconnected``. Retry every 3s.
+
+## [3.14.1-dev.14] - 2026-10-08
+
+### Fixes
+- Sync log prints ``Script rev`` so ATLC vs PDXC can tell whether
+  ``/opt/openvox-gui/scripts/sync-openvox-repo.sh`` was actually
+  deployed (git pull in ~/openvox-gui is not enough).
+
+## [3.14.1-dev.13] - 2026-10-08
+
+### Fixes
+- **``/packages/install.bash`` is live-rendered.** Agents curl that URL
+  (not ``/api/installer/script/``), so a static copy baked at deploy
+  kept defaulting to 8. The one-liner now includes ``--version N`` for
+  the newest major on disk.
+
+## [3.14.1-dev.12] - 2026-10-08
+
+### Fixes
+- **OpenVox 9 apt path on Apply Changes.** Background dist sync wrote
+  ``apt/openvox9/``; install.bash looks in ``apt/pool/openvox9/``.
+  Mirror tab shows last-saved versions so ATLC can see if 9 was
+  actually written to ``.mirror-selections.json``.
+
+## [3.14.1-dev.11] - 2026-10-08
+
+### Fixes
+- **Agent default is latest on the mirror.** The one-liner installs the
+  newest major actually present (9 when ``openvox9`` is synced). Pass
+  ``--version 8`` / ``-OpenVoxVersion 8`` for OpenVox 8.
+
+## [3.14.1-dev.10] - 2026-10-08
+
+### Fixes
+- **HTTPS apt mirror writes ``pool/openvox{N}/``.** install.bash looks
+  there for OpenVox 9. The curl path had been writing
+  ``apt/openvox{N}/``, so ``--version 9`` 404'd even after a sync.
+  Also stringify ``openvox_versions`` so JSON ``[8, 9]`` is not dropped.
+
+## [3.14.1-dev.9] - 2026-10-08
+
+### Fixes
+- **Agent Install page:** Linux and Windows tabs show copy-able OpenVox 8
+  and OpenVox 9 one-liners, plus a note that the Mirror version boxes
+  only control what is stored, not which major the agent installs.
+
+## [3.14.1-dev.8] - 2026-10-08
+
+### Fixes
+- **CI:** ``package.json`` matches the Mantine 9 / Recharts 3 lockfile
+  (merge had left 7.x pins). ``PyJWT`` 2.15.0. npm ``source-map-js``
+  1.2.2 and ``postcss-selector-parser`` 7.1.6 for audit.
+
+## [3.14.1-dev.7] - 2026-10-08
+
+### Fixes
+- **Mirror versions 8 and 9 together.** They are not exclusive. Defaults
+  and empty-selection fallback are ``["8", "9"]`` (was ``["8"]`` only),
+  matching the sync script. Agent install one-liner still defaults to 8;
+  pass ``--version 9`` for OpenVox 9.
+
+## [3.14.1-dev.6] - 2026-10-08
+
+### Fixes
+- **Mirror Sync Now honors checkboxes.** Unchecking EL 7 (or any dist)
+  and hitting Sync Now writes ``.mirror-selections.json`` first, so the
+  pull no longer keeps syncing leftover ``el/7``. Leftover EL 7 on disk
+  is not auto-selected.
+
+## [3.14.1-dev.5] - 2026-10-08
+
+### Fixes
+- **Yum HTTPS skip unpublished arches.** ``el/7/aarch64`` (and similar
+  missing trees) is a skip, not a sync failure. Directory-listing 404s
+  no longer mark the whole pull as failed.
+
+## [3.14.1-dev.4] - 2026-10-08
+
+Train bump for merge to `main`. Includes ENC node upsert (dev.2) and
+mirror sync continue-on-package-failure (dev.3).
+
+> **Note (version collision, 2026-10-07):** Tags `v3.14.1-dev.2` and
+> `v3.14.1-dev.3` were already on the remote when the two headings below
+> were numbered. `v3.14.1-dev.2` still points at `c756f0d` (2026-09-22,
+> packaging pins). `v3.14.1-dev.3` still points at `1ba92ac` (2026-09-24,
+> viewer route gate). A branch cut from `3.14.1-dev.1` counted up from
+> its own `VERSION` and reused those numbers for the ENC upsert and the
+> mirror-sync change described here. The tags were not moved or deleted,
+> so these headings do not describe the tagged commits.
+
+## [3.14.1-dev.3] - 2026-10-08
+
+### Fixes
+- **Mirror sync keeps going.** One failed or vanished package no longer
+  aborts the rest of the tree. rsync uses ``--ignore-errors`` and treats
+  exit 23/24 as partial success. curl_mirror logs per-file failures and
+  continues. The sync script exits 0 after a partial run so systemd
+  timers and install.sh do not treat it as a full abort.
+
+## [3.14.1-dev.2] - 2026-10-07
+
+### Fixes
+- **ENC classify upsert.** POST `/enc/nodes` no longer 400s with
+  `UniqueViolationError` / `enc_nodes_pkey` when the certname already
+  exists (re-classify or change environment). `save_node` updates the
+  row. The classifier retries as PUT if create hits a duplicate key.
+
 ## [3.14.0] - 2026-09-21 (stable — clustered ops, lean PDB, agent installer)
 
 Stable promotion of the **3.13.0-rc.1–rc.32** train (which itself

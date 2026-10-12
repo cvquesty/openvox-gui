@@ -4,6 +4,11 @@ name: Regen frontend lockfile
 # CI installs with `npm ci` on Node 22. When package.json pins change,
 # this job writes a lockfile on that same runner and commits it back.
 #
+# Dependabot already commits package-lock.json. Pushing a second commit
+# (author openvox-gui-ci) onto a dependabot/* branch makes Dependabot
+# stop rebasing that PR. Those jobs are skipped. Human PRs still get a
+# lockfile commit. A manual run onto a dependabot/* branch is skipped too.
+#
 # GITHUB_TOKEN pushes do not start a new CI run. After this job succeeds
 # (it already ran npm ci + typecheck + test + build), re-run the CI
 # workflow on the branch if you want the PR checks green.
@@ -14,7 +19,7 @@ on:
         description: Branch to regenerate frontend/package-lock.json on
         required: true
         type: string
-        default: chore/3.14.1-dev.2
+        default: main
   pull_request:
     paths:
       - frontend/package.json
@@ -32,9 +37,23 @@ jobs:
     name: Regen package-lock.json (Node 22)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Skip dependabot[bot] (actor or PR author) and any dependabot/* head.
+    # Verified on PR #109: author dependabot[bot], then this workflow
+    # pushed "chore(frontend): regenerate package-lock.json for CI npm ci"
+    # with committer openvox-gui-ci. That non-Dependabot commit stops
+    # Dependabot from rebasing the branch.
     if: >-
-      github.event_name == 'workflow_dispatch'
-      || github.event.pull_request.head.repo.full_name == github.repository
+      (
+        github.event_name == 'workflow_dispatch'
+        && !startsWith(github.event.inputs.branch || '', 'dependabot/')
+      )
+      || (
+        github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && github.actor != 'dependabot[bot]'
+        && github.event.pull_request.user.login != 'dependabot[bot]'
+        && !startsWith(github.head_ref || '', 'dependabot/')
+      )
     defaults:
       run:
         working-directory: frontend
@@ -57,7 +76,7 @@ jobs:
         run: npm install --no-fund --no-audit
 
       - name: Commit package-lock.json if it changed
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(frontend): regenerate package-lock.json for CI npm ci"
           file_pattern: frontend/package-lock.json
@@ -76,3 +95,28 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  # Keeps the workflow green when regen is skipped. Dependabot PRs are
+  # not pushed to. This job does not check out the branch or commit.
+  dependabot-skip:
+    name: Dependabot lockfile left untouched
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >-
+      (
+        github.event_name == 'workflow_dispatch'
+        && startsWith(github.event.inputs.branch || '', 'dependabot/')
+      )
+      || (
+        github.event_name == 'pull_request'
+        && (
+          github.actor == 'dependabot[bot]'
+          || github.event.pull_request.user.login == 'dependabot[bot]'
+          || startsWith(github.head_ref || '', 'dependabot/')
+        )
+      )
+    steps:
+      - name: Do not commit onto Dependabot branches
+        run: >-
+          echo "Dependabot already updates package-lock.json.
+          Not pushing a commit onto this branch."
