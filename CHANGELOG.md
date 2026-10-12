@@ -9,16 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [Unreleased]
+## [3.14.1-dev.28] - 2026-10-12
 
 ### Fixed
-- **Nodes page counted unclassified nodes twice (#104).** The header
-  added Classified group sizes to the Unclassified list. A node with
-  no ENC environment was in both, so a 3-node fleet showed Nodes (6)
+- **Viewer mutate routes.** Hiding Orchestration, Code Deployment, Agent
+  Install, Hiera data files, and OpenVox/Application configuration in the
+  sidebar no longer leaves those URLs and the command palette open. A
+  viewer sees a read-only empty state and the page does not mount.
+  admin, operator, and certops are unchanged. Sign-in stays in the app
+  and returns to the deep link (`?next=` / `location.state.from`) instead
+  of hard-navigating to the dashboard. Pull request #106.
+- **Nodes page counted unclassified nodes twice (#104, pull request #122).**
+  The header added Classified group sizes to the Unclassified list. A node
+  with no ENC environment was in both, so a 3-node fleet showed Nodes (6)
   while the dashboard and `/api/nodes/` said 3. The header, Classified,
   and Unclassified counts are now distinct certnames from the one fleet
   list. Reported by [@miharp](https://github.com/miharp), who also
   diagnosed the double count in `frontend/src/pages/Nodes.tsx`.
+
+### Changed
+- **Report lists no longer download full report documents.** The report
+  list, node report history, and the fleet-health snapshot trend request
+  summary columns, with a full-document fallback if PuppetDB rejects
+  `extract`. Node detail uses the per-certname newest report and only
+  falls back to the fleet overlay on a miss. Peer live-fleet merges use
+  the same 48-hour lean extract as the primary. Pull request #105.
+- **Frontend dev tooling.** vite 8.2.2 → 8.3.2 (pull request #109).
+  vitest 4.1.11 → 5.0.3 (pull request #108). The vitest 5 suite is the
+  current frontend tests with no config change.
 
 ## [3.14.1-dev.27] - 2026-10-12
 
