@@ -8,8 +8,8 @@ description = "Development tooling metadata for OpenVox GUI (not published)"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["backend/tests", "tests/ovox"]
-pythonpath = ["backend"]
+testpaths = ["backend/tests", "tests/ovox", "tests/scripts"]
+pythonpath = ["backend", "scripts"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = [
