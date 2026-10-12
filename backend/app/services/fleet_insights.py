@@ -83,17 +83,63 @@ def display_status(node: Dict) -> str:
     return "unreported"
 
 
+def distinct_node_rows(nodes: Optional[List[Dict]]) -> List[Dict]:
+    """One row per certname (case-insensitive). First row wins.
+
+    Totals are the length of this list. Do not add status buckets or
+    environment slices on top of ``len(nodes)`` from a list that still
+    contains duplicate certnames.
+    """
+    seen: set[str] = set()
+    unique: List[Dict] = []
+    for node in nodes or []:
+        key = str(node.get("certname") or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        unique.append(node)
+    return unique
+
+
+def fact_tally_by_certname(rows: List[Dict[str, Any]]) -> Dict[str, str]:
+    """One fact value per node.
+
+    PuppetDB can return more than one fact document for a certname.
+    Counting those rows and summing the buckets reports documents, not
+    nodes. Identity is the stripped lower-case certname; the displayed
+    name is the first casing seen; the value is the last one seen.
+    """
+    by_key: Dict[str, Dict[str, str]] = {}
+    for row in rows or []:
+        raw = str(row.get("certname") or "").strip()
+        key = raw.lower()
+        if not key:
+            continue
+        value = row.get("value")
+        if value is None:
+            continue
+        if isinstance(value, (dict, list)):
+            value = str(value)
+        slot = by_key.get(key)
+        if slot is None:
+            by_key[key] = {"certname": raw, "value": str(value)}
+        else:
+            slot["value"] = str(value)
+    return {slot["certname"]: slot["value"] for slot in by_key.values()}
+
+
 def compute_status_counts(nodes: List[Dict]) -> Dict[str, int]:
-    """Categorise nodes by display_status (dashboard + Monitoring parity)."""
+    """Categorise distinct nodes by display_status (dashboard + Monitoring parity)."""
+    unique = distinct_node_rows(nodes)
     counts = {
         "changed": 0,
         "unchanged": 0,
         "failed": 0,
         "unreported": 0,
         "noop": 0,
-        "total": len(nodes),
+        "total": len(unique),
     }
-    for node in nodes:
+    for node in unique:
         status = display_status(node)
         counts[status] = counts.get(status, 0) + 1
     return counts
@@ -101,6 +147,7 @@ def compute_status_counts(nodes: List[Dict]) -> Dict[str, int]:
 
 def partition_display_nodes(nodes: List[Dict]) -> Dict[str, List[Dict]]:
     """Same buckets as compute_status_counts, with node rows."""
+    nodes = distinct_node_rows(nodes)
     out: Dict[str, List[Dict]] = {
         "changed": [],
         "unchanged": [],

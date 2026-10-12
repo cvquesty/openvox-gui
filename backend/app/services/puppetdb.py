@@ -26,6 +26,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from copy import deepcopy
 from ..config import settings
+from .fleet_insights import compute_status_counts
 from ..utils.ttl_cache import get_or_set as cache_get_or_set
 from ..utils.jolokia import (
     escape_jolokia_path,
@@ -1149,21 +1150,14 @@ class PuppetDBService:
     # ─── Metrics / Dashboard ────────────────────────────────
 
     async def get_node_status_counts(self) -> Dict[str, int]:
-        """Get node status distribution."""
+        """Node status distribution for the rows ``get_nodes`` returns.
+
+        ``total`` is the number of distinct certnames, and each node is in
+        exactly one bucket (``compute_status_counts``). Do not sum the
+        buckets to invent a second total.
+        """
         nodes = await self.get_nodes()
-        counts = {"changed": 0, "unchanged": 0, "failed": 0,
-                  "unreported": 0, "noop": 0, "total": len(nodes)}
-        for node in nodes:
-            status = node.get("latest_report_status")
-            if node.get("latest_report_noop"):
-                counts["noop"] += 1
-            elif status in counts:
-                counts[status] += 1
-            elif status is None:
-                counts["unreported"] += 1
-            else:
-                counts["unchanged"] += 1
-        return counts
+        return compute_status_counts(nodes)
 
     async def get_report_trends(self, hours: int = 24) -> List[Dict]:
         """Get report status trends over time."""
@@ -1495,11 +1489,13 @@ class PuppetDBService:
         raw = await self._query("inventory") or []
 
         results: List[Dict] = []
+        seen: set[str] = set()
         for item in raw:
             certname = item.get("certname", "") or ""
             key = certname.strip().lower()
-            if not key or key not in active_keys:
+            if not key or key not in active_keys or key in seen:
                 continue
+            seen.add(key)
             facts = item.get("facts") or {}
 
             # OS

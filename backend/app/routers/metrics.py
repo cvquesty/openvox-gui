@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ..dependencies import require_role, READ_ROLES
+from ..services.fleet_insights import distinct_node_rows, fact_tally_by_certname
 from ..services.puppetdb import puppetdb_service
 from ..services.puppetserver import puppetserver_service
 from ..database import get_db
@@ -127,7 +128,7 @@ async def get_compliance(
         all_nodes = await puppetdb_service.get_live_nodes()
     except Exception:
         all_nodes = await puppetdb_service.get_nodes()
-    nodes = filter_nodes_by_scope(all_nodes, scope_result)
+    nodes = distinct_node_rows(filter_nodes_by_scope(all_nodes, scope_result))
     parts = partition_display_nodes(nodes)
     compliant = parts["compliant"]
     drifted = parts["drifted"]
@@ -253,16 +254,18 @@ async def get_fact_distribution(
 
     facts = await puppetdb_service.get_facts(fact_name=base_fact)
 
-    counts: Counter = Counter()
+    normalized: List[Dict[str, Any]] = []
     for f in facts:
         value = f.get("value")
         if nested_path:
             value = get_nested_value(value, nested_path)
             if value is None:
                 continue
-        if isinstance(value, (dict, list)):
-            value = str(value)
-        counts[str(value)] += 1
+        normalized.append({"certname": f.get("certname"), "value": value})
+    # One value per certname. Summing fact documents double-counts a node
+    # that PuppetDB returned twice.
+    node_values = fact_tally_by_certname(normalized)
+    counts: Counter = Counter(node_values.values())
 
     full_distribution = sorted(
         [{"value": k, "count": v} for k, v in counts.items()],
@@ -282,7 +285,7 @@ async def get_fact_distribution(
 
     return {
         "fact": fact_path,
-        "total_nodes": sum(c["count"] for c in full_distribution),
+        "total_nodes": len(node_values),
         "unique_values": len(full_distribution),
         "distribution": full_distribution,
         "chart_distribution": chart_distribution,
@@ -316,25 +319,21 @@ async def get_fact_overview(_user: str = Depends(_AUTH)):
             nested_path = ".".join(parts[1:]) if len(parts) > 1 else None
 
             facts = await puppetdb_service.get_facts(fact_name=base_fact)
-            counts: Counter = Counter()
-            node_values: Dict[str, str] = {}
-
+            normalized: List[Dict[str, Any]] = []
             for f in facts:
                 value = f.get("value")
                 if nested_path:
                     value = get_nested_value(value, nested_path)
                     if value is None:
                         continue
-                if isinstance(value, (dict, list)):
-                    value = str(value)
-                val_str = str(value)
-                counts[val_str] += 1
-                node_values[f.get("certname", "")] = val_str
+                normalized.append({"certname": f.get("certname"), "value": value})
+            node_values = fact_tally_by_certname(normalized)
+            counts: Counter = Counter(node_values.values())
 
             if not counts:
                 continue
 
-            total = sum(counts.values())
+            total = len(node_values)
             unique = len(counts)
 
             # Skip uniform facts (only 1 value = boring)
@@ -917,7 +916,7 @@ async def get_node_heatmap(_user: str = Depends(_AUTH)):
     """Node status grid for heatmap visualization."""
     from ..services.fleet_insights import display_status
 
-    nodes = await puppetdb_service.get_live_nodes()
+    nodes = distinct_node_rows(await puppetdb_service.get_live_nodes())
     grid = []
     for node in nodes:
         grid.append({
@@ -938,7 +937,7 @@ async def get_environment_comparison(_user: str = Depends(_AUTH)):
     """Compare metrics across Puppet environments."""
     from ..services.fleet_insights import display_status
 
-    nodes = await puppetdb_service.get_live_nodes()
+    nodes = distinct_node_rows(await puppetdb_service.get_live_nodes())
     envs: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
         "total": 0, "changed": 0, "unchanged": 0, "failed": 0, "noop": 0, "unreported": 0,
     })
@@ -1021,7 +1020,7 @@ async def get_node_health(_user: str = Depends(_AUTH)):
         return cached
     try:
         # Same source of truth as GET /api/nodes/ (Overview | Nodes)
-        nodes = await puppetdb_service.get_live_nodes()
+        nodes = distinct_node_rows(await puppetdb_service.get_live_nodes())
         fleet_keys = {
             str(n.get("certname", "")).strip().lower()
             for n in nodes

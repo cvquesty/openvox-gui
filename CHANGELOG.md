@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased]
+
+### Fixed
+- **Nodes page counted unclassified nodes twice (#104).** The header
+  added Classified group sizes to the Unclassified list. A node with
+  no ENC environment was in both, so a 3-node fleet showed Nodes (6)
+  while the dashboard and `/api/nodes/` said 3. The header, Classified,
+  and Unclassified counts are now distinct certnames from the one fleet
+  list. Reported by [@miharp](https://github.com/miharp), who also
+  diagnosed the double count in `frontend/src/pages/Nodes.tsx`.
+
 ## [3.14.1-dev.27] - 2026-10-12
 
 ### Fixed

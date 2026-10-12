@@ -32,6 +32,12 @@ import { isPuppetAgentSuccess } from '../utils/puppetAgentExit';
 import { CACHE_NODES } from '../utils/cacheKeys';
 import { isImplausibleFleetShrink } from '../utils/fleetGuard';
 import { readSessionCache } from '../utils/sessionCache';
+import {
+  countFleetNodes,
+  groupClassifiedNodes,
+  isClassifiedNode,
+  distinctByCertname,
+} from '../utils/fleetCounts';
 
 /** Columns for All Nodes export (CSV / JSON / text) — mirrors Inventory ExportActions. */
 const NODES_EXPORT_COLS = [
@@ -159,13 +165,6 @@ function NodeOVision() {
       <text x="260" y="212" textAnchor="middle" fill="#556677" fontSize="8" fontFamily="monospace">watching your servers so you don't have to</text>
     </svg>
   );
-}
-
-// Grouped nodes interface
-interface GroupedNodes {
-  [groupName: string]: {
-    nodes: NodeSummary[];
-  };
 }
 
 export function NodesPage() {
@@ -308,85 +307,26 @@ export function NodesPage() {
     setRunningCert(null);
   };
 
-  // Build grouped nodes by node groups
-  // Classification data (enc_groups, enc_environment) is attached server-side
-  // from the single ENC source of truth. Overview | Nodes no longer has a
-  // separate direct reference to /enc/hierarchy for the node list.
-  const groupedNodes: GroupedNodes = useMemo(() => {
-    if (!nodeList) return {};
-
-    const groups: GroupedNodes = {};
-
-    // Build group → nodes map from the enc_groups attached to nodes
-    const groupNodes: Record<string, NodeSummary[]> = {};
-
-    nodeList.forEach((node: NodeSummary) => {
-      const nodeGroups: string[] = (node as any).enc_groups || [];
-      if (nodeGroups.length > 0) {
-        nodeGroups.forEach((g: string) => {
-          if (!groupNodes[g]) groupNodes[g] = [];
-          // Avoid duplicates
-          if (!groupNodes[g].some((n) => n.certname === node.certname)) {
-            groupNodes[g].push(node);
-          }
-        });
-      } else {
-        // Node without explicit group
-        if (!groupNodes["Ungrouped"]) groupNodes["Ungrouped"] = [];
-        if (!groupNodes["Ungrouped"].some((n) => n.certname === node.certname)) {
-          groupNodes["Ungrouped"].push(node);
-        }
-      }
-    });
-
-    // If no groups at all, "All Nodes"
-    if (Object.keys(groupNodes).length === 0 && nodeList.length > 0) {
-      groupNodes["All Nodes"] = [...nodeList];
-    }
-
-    Object.entries(groupNodes).forEach(([groupName, nodeArr]) => {
-      groups[groupName] = { nodes: nodeArr };
-    });
-
-    return groups;
-  }, [nodeList]);
-
-  // Unclassified = nodes in the live fleet that have no ENC classification attached
-  const unclassifiedNodes = useMemo(() => {
-    if (!nodeList) return [];
-    return nodeList
-      .filter((node) => !(node as any).enc_environment)
-      .sort((a, b) => a.certname.localeCompare(b.certname));
-  }, [nodeList]);
-
-  // Filter groups and nodes by search + status chips (sruiux2 P1-1 FilterBar)
-  const filteredGroups = useMemo(() => {
-    if (!search && !statusFilter) return groupedNodes;
-    const searchLower = (search || '').toLowerCase();
-    const filtered: GroupedNodes = {};
-    Object.entries(groupedNodes).forEach(([groupName, data]) => {
-      const matchingNodes = data.nodes.filter(matchesNodeFilters);
-      if (
-        (searchLower && groupName.toLowerCase().includes(searchLower) && matchingNodes.length === data.nodes.length) ||
-        matchingNodes.length > 0
-      ) {
-        filtered[groupName] = { nodes: matchingNodes };
-      }
-    });
-    return filtered;
-  }, [groupedNodes, search, statusFilter]);
-
-  // Filter unclassified nodes
-  const filteredUnclassified = useMemo(
-    () => unclassifiedNodes.filter(matchesNodeFilters),
-    [unclassifiedNodes, search, statusFilter]
-  );
-
-  // All nodes filtered (for the All Nodes section)
+  // One list: GET /api/nodes/ already joins ENC onto each node object.
+  // Header, Classified, and Unclassified counts are sizes of slices of
+  // that list (distinct certnames). They are not added to each other.
   const filtered = useMemo(() => {
     if (!nodeList) return [];
-    return nodeList.filter(matchesNodeFilters);
+    return distinctByCertname(nodeList.filter(matchesNodeFilters));
   }, [nodeList, search, statusFilter]);
+
+  const filteredGroups = useMemo(
+    () => groupClassifiedNodes(filtered),
+    [filtered],
+  );
+
+  const filteredUnclassified = useMemo(
+    () =>
+      filtered
+        .filter((node) => !isClassifiedNode(node))
+        .sort((a, b) => a.certname.localeCompare(b.certname)),
+    [filtered],
+  );
 
   // Plain rows for ExportActions (current search/status filters, same set as OpsTable)
   const allNodesExportRows = useMemo(
@@ -410,8 +350,11 @@ export function NodesPage() {
   }
 
   const groupNames = Object.keys(filteredGroups);
-  const classifiedCount = Object.values(filteredGroups).reduce((sum, g) => sum + g.nodes.length, 0);
-  const totalNodes = classifiedCount + filteredUnclassified.length;
+  // countFleetNodes reads the filtered node objects. Classified is "has an
+  // ENC environment", not the sum of group memberships (those overlap).
+  const fleetCounts = countFleetNodes(filtered);
+  const classifiedCount = fleetCounts?.classified ?? 0;
+  const totalNodes = fleetCounts?.total ?? 0;
 
   const dismissGhost = async (certname: string) => {
     setDismissing(true);
