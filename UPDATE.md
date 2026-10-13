@@ -1,6 +1,6 @@
 # Update Guide
 
-**OpenVox GUI Version 3.14.1-dev.29**
+**OpenVox GUI Version 3.14.1-dev.30**
 
 This guide explains how to update your existing OpenVox GUI installation to the latest version. Updates bring new features, bug fixes, and security improvements.
 
@@ -75,13 +75,14 @@ Think of updating like changing the oil in your car - you want to prepare first:
 no 3.13.0 GitHub Release). After `update_local.sh` / `update_remote.sh`:
 
 1. **Hard-refresh browsers** so Monitoring charts pick up the measured-width fix.
-2. **Clustered consoles:** set `OPENVOX_GUI_PUPPET_CA_HOST` to the CA VIP
-   (not the compiler VIP). New agents will fail CSR if this is missing.
-   3.14.1-dev.29+ (`#103`): `update_local.sh` / `deploy.sh` read that
-   key from `config/.env` when rendering `/opt/openvox-pkgs/install.bash`.
-   If `grep '^CA_SERVER=' /opt/openvox-pkgs/install.bash` shows the
-   compiler VIP after a 3.14.0 upgrade, re-run `update_local.sh` on
-   this build.
+2. **Clustered consoles:** set `OPENVOX_GUI_PUPPET_CA_HOST` to the
+   global CA VIP (not the compiler VIP), **or** list that VIP under
+   Settings → Cluster **CA VIP FQDNs**. New agents will fail CSR if
+   both are missing. 3.14.1-dev.30+ (`#103`): render prefers the
+   `.env` CA host, then the fewest-label `ca_vips` entry, and never
+   bakes a compiler hostname into `/opt/openvox-pkgs/install.bash`.
+   If `grep '^CA_SERVER=' /opt/openvox-pkgs/install.bash` shows a
+   compiler host, re-run `update_local.sh` on this build.
 3. **Package mirror:** if `/opt/openvox-pkgs` already filled the disk,
    prune unselected trees (see TROUBLESHOOTING) then Sync now. EL9/EL10
    + OpenVox 8/9 only needs ~9 GB, not 50+.
@@ -209,7 +210,7 @@ The script automatically:
 curl -k https://localhost:4567/health
 
 # Should show something like:
-# {"status":"ok","version":"3.14.1-dev.29"}
+# {"status":"ok","version":"3.14.1-dev.30"}
 ```
 
 Open your browser and refresh the page. You might need to clear your browser cache:

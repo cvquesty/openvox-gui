@@ -298,12 +298,15 @@ Things the command quietly does:
   console's `/packages` mount. `install.bash` will also try to
   recover the download origin from `/proc/net/tcp` (ports 4567,
   443, then 8140) if `--pkg-repo-url` is omitted.
-- **`--ca-server`** is the CA VIP from `OPENVOX_GUI_PUPPET_CA_HOST`.
-  The Agent Install one-liner always appends it from settings.
-  `update_local.sh` / `deploy.sh` also bake it into
-  `/opt/openvox-pkgs/install.bash` (read from `config/.env`, `#103`)
-  so a bare `curl …/packages/install.bash | sudo bash` on a clustered
-  console does not send the CSR to a compiler.
+- **`--ca-server`** is the CA VIP from `OPENVOX_GUI_PUPPET_CA_HOST`,
+  or (when that is empty) the master VIP in Settings → Cluster
+  **CA VIP FQDNs** (fewest DNS labels). The Agent Install one-liner
+  always appends it from settings. `update_local.sh` / `deploy.sh` /
+  `install.sh` bake the same value into
+  `/opt/openvox-pkgs/install.bash` so a bare
+  `curl …/packages/install.bash | sudo bash` on a clustered console
+  does not send the CSR to a compiler. A compiler hostname is never
+  used as `CA_SERVER`.
 
 The script then:
 

@@ -211,6 +211,71 @@ def is_compiler_haproxy_agent(certname: Optional[str]) -> bool:
     return bool(n) and n.split(".", 1)[0] == "ovcompilers"
 
 
+def looks_like_compiler_host(host: Optional[str]) -> bool:
+    """True if *host* is a compile VIP or compiler backend (CA disabled).
+
+    Matches any FQDN whose labels contain ``compiler`` (``ovcompilers.*``,
+    ``ovcompiler1.*``, ``compiler01.*``). CA VIPs (``ovca.*``) do not match.
+
+    Keep in sync with ``scripts/pick_ca_server.py``.
+    """
+    n = (host or "").strip().strip("\"'").lower()
+    return bool(n) and "compiler" in n
+
+
+def pick_master_ca_vip(vips: Optional[List[str]]) -> str:
+    """Choose the global/master CA VIP from cluster ``ca_vips``.
+
+    Agents use one stable ``ca_server`` — the DNS name that follows the
+    active CA writer — not a site-local VIP and never a compiler.
+    Prefer the fewest DNS labels (shared/global VIP), then shorter
+    length, then lexical order.
+
+    Keep in sync with ``scripts/pick_ca_server.py``.
+    """
+    cleaned: List[str] = []
+    seen = set()
+    for v in vips or []:
+        n = str(v or "").strip().strip("\"'").lower()
+        if not n or looks_like_compiler_host(n) or n in seen:
+            continue
+        seen.add(n)
+        cleaned.append(n)
+    if not cleaned:
+        return ""
+    cleaned.sort(key=lambda h: (h.count("."), len(h), h))
+    return cleaned[0]
+
+
+def resolve_agent_ca_server(
+    *,
+    explicit: Optional[str] = None,
+    compile_host: Optional[str] = None,
+    ca_vips: Optional[List[str]] = None,
+) -> str:
+    """Hostname for agent ``ca_server=`` / install.bash ``CA_SERVER``.
+
+    Order:
+      1. Explicit ``OPENVOX_GUI_PUPPET_CA_HOST`` (ignored if it looks
+         like a compiler)
+      2. Master VIP from cluster ``ca_vips`` (fewest DNS labels)
+      3. Compile host only when it is not a compiler (AIO)
+      4. Empty — never bake a compiler hostname
+
+    Keep in sync with ``scripts/pick_ca_server.py``.
+    """
+    exp = (explicit or "").strip().strip("\"'")
+    if exp and not looks_like_compiler_host(exp):
+        return exp
+    vip = pick_master_ca_vip(ca_vips)
+    if vip:
+        return vip
+    compile_n = (compile_host or "").strip().strip("\"'")
+    if compile_n and not looks_like_compiler_host(compile_n):
+        return compile_n
+    return ""
+
+
 def fleet_excluded_certnames() -> Set[str]:
     """DNS-only RR names that must not appear as live-fleet *nodes*.
 

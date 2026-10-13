@@ -197,7 +197,8 @@ for script in \
     cluster-preflight.sh \
     estate-health-check.sh \
     ensure-puppetdb-spock.sh \
-    seed-bolt-known-hosts.sh
+    seed-bolt-known-hosts.sh \
+    pick_ca_server.py
 do
     if [ -f "${REPO_DIR}/scripts/${script}" ]; then
         cp "${REPO_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
@@ -448,6 +449,42 @@ if [ -f "${INSTALL_DIR}/config/.env" ]; then
 fi
 [ -z "$PUPPET_SERVER_HOST" ] && PUPPET_SERVER_HOST=$(hostname -f)
 
+# Resolve CA VIP. Never bake a compiler hostname as CA_SERVER.
+# Prefer .env OPENVOX_GUI_PUPPET_CA_HOST, then cluster_config.json
+# ca_vips (fewest-label / master VIP).
+_PICK_CA=""
+for _cand in \
+    "${REPO_DIR}/scripts/pick_ca_server.py" \
+    "${INSTALL_DIR}/scripts/pick_ca_server.py" \
+    "${SCRIPT_DIR}/pick_ca_server.py"
+do
+    if [ -f "$_cand" ]; then
+        _PICK_CA="$_cand"
+        break
+    fi
+done
+CA_RENDER=""
+if [ -n "$_PICK_CA" ]; then
+    CA_RENDER=$(python3 "$_PICK_CA" \
+        --explicit "${PUPPET_CA_HOST:-${OPENVOX_GUI_PUPPET_CA_HOST:-}}" \
+        --compile "${PUPPET_SERVER_HOST}" \
+        --env-file "${INSTALL_DIR}/config/.env" \
+        --cluster-config "${INSTALL_DIR}/data/cluster_config.json" \
+        2>/dev/null || true)
+fi
+unset _PICK_CA _cand
+if [ -z "$CA_RENDER" ]; then
+    case "${PUPPET_SERVER_HOST}" in
+        *compiler*)
+            echo "  WARN: CA_SERVER not set; Cluster ca_vips / OPENVOX_GUI_PUPPET_CA_HOST empty. Not baking compiler VIP ${PUPPET_SERVER_HOST}."
+            CA_RENDER="__OPENVOX_CA_SERVER__"
+            ;;
+        *)
+            CA_RENDER="${PUPPET_CA_HOST:-${OPENVOX_GUI_PUPPET_CA_HOST:-$PUPPET_SERVER_HOST}}"
+            ;;
+    esac
+fi
+
 # 5b. Ensure the mirror directory tree exists.
 # 3.3.5-2 layout: one tree per upstream source (yum, apt, windows, mac)
 # rather than per logical platform. The old per-platform dirs (redhat,
@@ -468,7 +505,7 @@ for script in install.bash install.ps1; do
     if [ -f "${INSTALL_DIR}/packages/${script}" ]; then
         sed \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
-            -e "s|__OPENVOX_CA_SERVER__|${PUPPET_CA_HOST:-${OPENVOX_GUI_PUPPET_CA_HOST:-$PUPPET_SERVER_HOST}}|g" \
+            -e "s|__OPENVOX_CA_SERVER__|${CA_RENDER}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/${script}" > "${PKG_REPO_DIR}/${script}"
         if [ "$script" = "install.bash" ]; then

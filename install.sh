@@ -624,9 +624,21 @@ if [ "$SILENT" != "true" ]; then
     
     echo -e "${BOLD}Puppet Settings${NC}"
     echo "  Clustered estates: set PuppetServer hostname to the *compiler VIP*"
-    echo "  (agents compile there). Set CA host to the CA VIP if different."
+    echo "  (agents compile there). Set CA host to the *global CA VIP*"
+    echo "  (never a compiler). Blank uses Cluster ca_vips, then PuppetServer."
     prompt PUPPET_SERVER_HOST "PuppetServer hostname (compiler VIP if clustered)" "$PUPPET_SERVER_HOST"
-    prompt PUPPET_CA_HOST "CA hostname (blank = same as PuppetServer)" "$PUPPET_CA_HOST"
+    if [ -z "$PUPPET_CA_HOST" ] && [ -f "${INSTALL_DIR}/data/cluster_config.json" ]; then
+        _pick="${SCRIPT_DIR}/scripts/pick_ca_server.py"
+        if [ -f "$_pick" ]; then
+            PUPPET_CA_HOST=$(python3 "$_pick" \
+                --compile "${PUPPET_SERVER_HOST}" \
+                --cluster-config "${INSTALL_DIR}/data/cluster_config.json" \
+                --env-file "${INSTALL_DIR}/config/.env" \
+                2>/dev/null || true)
+        fi
+        unset _pick
+    fi
+    prompt PUPPET_CA_HOST "CA VIP (blank = Cluster ca_vips or same as PuppetServer)" "$PUPPET_CA_HOST"
     prompt PUPPETDB_HOST "PuppetDB hostname" "$PUPPETDB_HOST"
     prompt PUPPET_SSL_CERT "SSL client certificate" "$PUPPET_SSL_CERT"
     prompt PUPPET_SSL_KEY "SSL client private key" "$PUPPET_SSL_KEY"
@@ -800,7 +812,8 @@ for script in \
     cluster-preflight.sh \
     estate-health-check.sh \
     ensure-puppetdb-spock.sh \
-    seed-bolt-known-hosts.sh
+    seed-bolt-known-hosts.sh \
+    pick_ca_server.py
 do
     if [ -f "${SCRIPT_DIR}/scripts/${script}" ]; then
         cp "${SCRIPT_DIR}/scripts/${script}" "${INSTALL_DIR}/scripts/${script}"
@@ -1605,14 +1618,46 @@ if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
     # 3.3.5-5+: install.bash/install.ps1 only need __OPENVOX_PUPPET_SERVER__
     # baked in -- the package mirror URL is derived from the server FQDN
     # at agent runtime, so PKG_REPO_URL is no longer rendered server-side.
+    _PICK_CA=""
+    for _cand in \
+        "${SCRIPT_DIR}/scripts/pick_ca_server.py" \
+        "${INSTALL_DIR}/scripts/pick_ca_server.py"
+    do
+        if [ -f "$_cand" ]; then
+            _PICK_CA="$_cand"
+            break
+        fi
+    done
+    CA_RENDER=""
+    if [ -n "$_PICK_CA" ]; then
+        CA_RENDER=$(python3 "$_PICK_CA" \
+            --explicit "${PUPPET_CA_HOST:-}" \
+            --compile "${PUPPET_SERVER_HOST}" \
+            --env-file "${INSTALL_DIR}/config/.env" \
+            --cluster-config "${INSTALL_DIR}/data/cluster_config.json" \
+            2>/dev/null || true)
+    fi
+    unset _PICK_CA _cand
+    if [ -z "$CA_RENDER" ]; then
+        case "${PUPPET_SERVER_HOST}" in
+            *compiler*)
+                log_warn "CA_SERVER not set; Cluster ca_vips / OPENVOX_GUI_PUPPET_CA_HOST empty. Not baking compiler VIP ${PUPPET_SERVER_HOST}."
+                CA_RENDER="__OPENVOX_CA_SERVER__"
+                ;;
+            *)
+                CA_RENDER="${PUPPET_CA_HOST:-$PUPPET_SERVER_HOST}"
+                ;;
+        esac
+    fi
+
     if [ -f "${INSTALL_DIR}/packages/install.bash" ]; then
         sed \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
-            -e "s|__OPENVOX_CA_SERVER__|${PUPPET_CA_HOST:-$PUPPET_SERVER_HOST}|g" \
+            -e "s|__OPENVOX_CA_SERVER__|${CA_RENDER}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/install.bash" > "${PKG_REPO_DIR}/install.bash"
         chmod 0755 "${PKG_REPO_DIR}/install.bash"
-        log_ok "Installed Linux agent installer at ${PKG_REPO_DIR}/install.bash"
+        log_ok "Installed Linux agent installer at ${PKG_REPO_DIR}/install.bash (CA_SERVER=${CA_RENDER})"
     else
         log_warn "Source install.bash not found -- skipping"
     fi
@@ -1620,7 +1665,7 @@ if [ "$CONFIGURE_PKG_REPO" = "true" ]; then
     if [ -f "${INSTALL_DIR}/packages/install.ps1" ]; then
         sed \
             -e "s|__OPENVOX_PUPPET_SERVER__|${PUPPET_SERVER_HOST}|g" \
-            -e "s|__OPENVOX_CA_SERVER__|${PUPPET_CA_HOST:-$PUPPET_SERVER_HOST}|g" \
+            -e "s|__OPENVOX_CA_SERVER__|${CA_RENDER}|g" \
             -e "s|__OPENVOX_DEFAULT_VERSION__|8|g" \
             "${INSTALL_DIR}/packages/install.ps1" > "${PKG_REPO_DIR}/install.ps1"
         chmod 0644 "${PKG_REPO_DIR}/install.ps1"

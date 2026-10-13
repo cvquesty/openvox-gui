@@ -151,7 +151,7 @@ function ApplicationTab({ onSwitchToServices }: { onSwitchToServices: () => void
     app_name:            { label: 'Application Name',    description: 'Display name shown in the header and login page', editable: true },
     puppet_server_host:  { label: 'OpenVox Server Host',  description: 'FQDN of the OpenVox Server for API communication', editable: true },
     puppet_server_port:  { label: 'OpenVox Server Port',  description: 'OpenVox Server HTTPS API port (usually 8140)', editable: true, type: 'number' },
-    puppet_ca_host:      { label: 'OpenVox CA Host',      description: 'FQDN of the CA (clustered consoles only; empty means same as OpenVox Server Host)', editable: true },
+    puppet_ca_host:      { label: 'OpenVox CA Host',      description: 'Global CA VIP for agent ca_server. Empty uses Settings → Cluster CA VIP FQDNs (fewest-label / master VIP). Never a compiler host.', editable: true },
     puppet_ca_port:      { label: 'OpenVox CA Port',      description: 'CA HTTPS API port (usually 8140)', editable: true, type: 'number' },
     puppetdb_host:       { label: 'OpenVox DB Host',      description: 'FQDN of the OpenVoxDB server', editable: true },
     puppetdb_port:       { label: 'OpenVox DB Port',      description: 'OpenVoxDB HTTPS API port (usually 8081)', editable: true, type: 'number' },
@@ -720,7 +720,7 @@ function ClusterTab() {
               />
               <Textarea
                 label="CA VIP FQDNs (optional)"
-                description="e.g. ca.site.example.com, ca.example.com — health on :8140. Also hidden from Overview | Nodes (not agents)."
+                description="Global/master CA VIP (fewest DNS labels is baked as agent ca_server), then site-local names. Health on :8140. Hidden from Nodes. Never a compiler host."
                 minRows={2}
                 value={caVips}
                 onChange={(e) => setCaVips(e.currentTarget.value)}

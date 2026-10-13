@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.30] - 2026-10-13
+
+### Fixes
+- **Clustered ``install.bash`` still baked the compiler VIP (#103).**
+  3.14.1-dev.29 read ``OPENVOX_GUI_PUPPET_CA_HOST`` from ``.env``,
+  but a clustered console often leaves that key empty and lists the
+  global CA VIP under Settings → Cluster **CA VIP FQDNs**
+  (``ca_vips``). ``install.sh`` / ``update_local.sh`` / ``deploy.sh``
+  then still substituted the compiler host. Render now prefers the
+  ``.env`` CA host, then the fewest-label ``ca_vips`` entry (the
+  master/global CA VIP), and never bakes a hostname containing
+  ``compiler``. Saving Cluster or Application CA settings rewrites
+  ``/opt/openvox-pkgs/install.bash``. Re-run ``update_local.sh``
+  after upgrade and confirm ``grep '^CA_SERVER='`` shows the CA VIP.
+
 ## [3.14.1-dev.29] - 2026-10-13
 
 ### Fixes

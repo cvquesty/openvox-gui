@@ -141,22 +141,27 @@ def _puppet_server_fqdn() -> str:
 def _ca_server_fqdn() -> str:
     """CA FQDN for agent puppet.conf. Compilers have CA disabled.
 
-    Never silently reuse the compiler VIP. Clustered consoles must set
-    OPENVOX_GUI_PUPPET_CA_HOST (or PUPPET_CA_HOST). AIO (console ==
-    compiler) may omit it.
+    Prefer OPENVOX_GUI_PUPPET_CA_HOST, then the master VIP in
+    cluster_config.json ``ca_vips`` (fewest DNS labels). Never return
+    a compiler hostname — clustered consoles must list the CA VIP.
     """
+    from ..services.cluster_config import load_cluster_config, resolve_agent_ca_server
+
     explicit = (
         (getattr(settings, "puppet_ca_host", None) or "").strip()
         or (os.environ.get("OPENVOX_GUI_PUPPET_CA_HOST") or "").strip()
         or (os.environ.get("PUPPET_CA_HOST") or "").strip()
     )
-    compile_srv = _puppet_server_fqdn()
-    if explicit:
-        return explicit
-    console = _local_fqdn()
-    if compile_srv and console and compile_srv.lower() != console.lower():
-        return ""
-    return compile_srv or ""
+    ca_vips: list = []
+    try:
+        ca_vips = list(load_cluster_config().get("ca_vips") or [])
+    except Exception:
+        ca_vips = []
+    return resolve_agent_ca_server(
+        explicit=explicit,
+        compile_host=_puppet_server_fqdn(),
+        ca_vips=ca_vips,
+    )
 
 
 def _noproxy_hosts(console: str, compile_srv: str, ca_srv: str | None = None) -> str:
@@ -430,6 +435,31 @@ def _load_install_script(name: str) -> str:
         detail=f"Install script {name} not found.  Expected one of: "
                + ", ".join(str(c) for c in candidates),
     )
+
+
+def write_rendered_install_scripts() -> None:
+    """Re-bake /opt/openvox-pkgs/install.bash and install.ps1.
+
+    Called after Settings saves the CA host or Cluster ``ca_vips`` so
+    the on-disk copy (puppetserver :8140/packages) matches live
+    settings without waiting for ``update_local.sh``.
+    """
+    if not PKG_REPO_DIR.is_dir():
+        return
+    ca = _ca_server_fqdn()
+    if not ca:
+        logger.warning(
+            "Not baking a compiler hostname as CA_SERVER; set "
+            "OPENVOX_GUI_PUPPET_CA_HOST or Cluster CA VIP FQDNs"
+        )
+    for name in ("install.bash", "install.ps1"):
+        try:
+            body = _render_template(_load_install_script(name))
+            dest = PKG_REPO_DIR / name
+            dest.write_text(body)
+            dest.chmod(0o755 if name.endswith(".bash") else 0o644)
+        except Exception as exc:
+            logger.warning("Could not re-render %s: %s", name, exc)
 
 
 # ─── Status / discovery endpoints ───────────────────────────────────────────

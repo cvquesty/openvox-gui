@@ -619,6 +619,12 @@ async def update_cluster_config(
         )
     if env_notes:
         out["restart_required"] = env_notes
+    try:
+        from .installer import write_rendered_install_scripts
+
+        write_rendered_install_scripts()
+    except Exception:
+        logger.debug("install.bash re-render after cluster save skipped", exc_info=True)
     return out
 
 
@@ -1542,6 +1548,14 @@ async def update_app_config(
             new_lines.append(f"{env_var}={write_value}")
 
     env_path.write_text("\n".join(new_lines) + "\n")
+
+    if key in ("puppet_ca_host", "puppet_server_host"):
+        try:
+            from .installer import write_rendered_install_scripts
+
+            write_rendered_install_scripts()
+        except Exception:
+            logger.debug("install.bash re-render after app config skipped", exc_info=True)
 
     needs_restart = key not in ("skip_adhoc_confirm_dialogs",)
     msg = (

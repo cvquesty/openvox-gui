@@ -44,3 +44,32 @@ def test_api_script_re_renders_live_ca_over_baked_mirror(tmp_path: Path, monkeyp
     body = inst._render_template(inst._load_install_script("install.bash"))
     assert 'CA_SERVER="${CA_SERVER:-ovca.example.com}"' in body
     assert 'CA_SERVER="${CA_SERVER:-compiler01.example.com}"' not in body
+
+
+def test_ca_server_fqdn_uses_cluster_ca_vips(monkeypatch):
+    monkeypatch.setattr(inst.settings, "puppet_ca_host", "")
+    monkeypatch.delenv("OPENVOX_GUI_PUPPET_CA_HOST", raising=False)
+    monkeypatch.delenv("PUPPET_CA_HOST", raising=False)
+    monkeypatch.setattr(inst, "_puppet_server_fqdn", lambda: "ovcompilers.site-a.example.com")
+    monkeypatch.setattr(
+        "app.services.cluster_config.load_cluster_config",
+        lambda: {
+            "ca_vips": [
+                "ovca.site-a.example.com",
+                "ovca.example.com",
+            ]
+        },
+    )
+    assert inst._ca_server_fqdn() == "ovca.example.com"
+
+
+def test_ca_server_fqdn_never_returns_compiler(monkeypatch):
+    monkeypatch.setattr(inst.settings, "puppet_ca_host", "")
+    monkeypatch.delenv("OPENVOX_GUI_PUPPET_CA_HOST", raising=False)
+    monkeypatch.delenv("PUPPET_CA_HOST", raising=False)
+    monkeypatch.setattr(inst, "_puppet_server_fqdn", lambda: "ovcompilers.site-a.example.com")
+    monkeypatch.setattr(
+        "app.services.cluster_config.load_cluster_config",
+        lambda: {"ca_vips": []},
+    )
+    assert inst._ca_server_fqdn() == ""

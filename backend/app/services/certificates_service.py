@@ -171,13 +171,25 @@ def is_protected_certname(certname: str) -> bool:
 def resolve_ca_host() -> str:
     """CA HTTPS hostname.
 
-    Clustered consoles must set OPENVOX_GUI_PUPPET_CA_HOST (e.g. ovca.corp)
-    because OPENVOX_GUI_PUPPET_SERVER_HOST is the *compiler* VIP (CA disabled).
-    Co-located installs leave puppet_ca_host empty and reuse puppet_server_host.
+    Clustered consoles must set OPENVOX_GUI_PUPPET_CA_HOST or list the
+    global CA VIP in Settings → Cluster ``ca_vips``. Compilers have CA
+    disabled. Co-located installs leave puppet_ca_host empty and reuse
+    puppet_server_host.
     """
-    host = (getattr(settings, "puppet_ca_host", None) or "").strip()
-    if host:
-        return host
+    from .cluster_config import load_cluster_config, resolve_agent_ca_server
+
+    ca_vips: list = []
+    try:
+        ca_vips = list(load_cluster_config().get("ca_vips") or [])
+    except Exception:
+        ca_vips = []
+    picked = resolve_agent_ca_server(
+        explicit=getattr(settings, "puppet_ca_host", None) or "",
+        compile_host="",
+        ca_vips=ca_vips,
+    )
+    if picked:
+        return picked
     return (settings.puppet_server_host or "localhost").strip()
 
 
