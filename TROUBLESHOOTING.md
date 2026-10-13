@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**OpenVox GUI Version 3.14.1-dev.28**
+**OpenVox GUI Version 3.14.1-dev.29**
 
 This guide helps you solve common problems with OpenVox GUI. Think of it as your "fix-it" manual - we'll start with the most common issues and work our way to more complex ones.
 
@@ -132,7 +132,7 @@ If these don't fix your problem, continue to the specific sections below.
 5. **Try accessing locally first:**
    ```bash
    curl -k https://localhost:4567/health
-   # Should return: {"status":"ok","version":"3.14.1-dev.28"}
+   # Should return: {"status":"ok","version":"3.14.1-dev.29"}
    ```
 
 ### Problem: Forgot Admin Password
@@ -782,6 +782,37 @@ Live-fleet rules and HAProxy vs DNS RR: [docs/FEATURES.md](docs/FEATURES.md#live
    `bolt@` SSH + sudo works. If Sign works but the modal shows
    `sudo: sorry, you must have a tty`, the CSR is already signed —
    refresh Pending. On each ovca: `Defaults:bolt !requiretty`.
+
+### Problem: New agents send CSR to a compiler (clustered)
+
+**Cause:** On 3.14.0, `update_local.sh` / `deploy.sh` rendered
+`/opt/openvox-pkgs/install.bash` with the compiler VIP as
+`CA_SERVER`. They read `OPENVOX_GUI_PUPPET_SERVER_HOST` from
+`config/.env` but not `OPENVOX_GUI_PUPPET_CA_HOST`, so the sed
+fallback used the compile host (#103). Compilers have CA disabled,
+so the CSR never lands on the CA. The Agent Install page one-liner
+was already correct (it passes `--ca-server` from settings).
+
+**Check:**
+
+```bash
+grep -n '^CA_SERVER=' /opt/openvox-pkgs/install.bash
+grep '^OPENVOX_GUI_PUPPET_CA_HOST=' /opt/openvox-gui/config/.env
+```
+
+If `.env` has the CA VIP and `install.bash` has the compiler, this
+is the bug.
+
+**Fix:** Upgrade to 3.14.1-dev.29 or later, then re-render:
+
+```bash
+sudo ./scripts/update_local.sh --force --skip-backup
+grep -n '^CA_SERVER=' /opt/openvox-pkgs/install.bash
+```
+
+Confirm `CA_SERVER` is the CA VIP. Agents already installed with
+the wrong `ca_server` need `puppet config set ca_server <ca-vip>`
+(or a re-run of `install.bash` with `--ca-server`).
 
 ### Problem: Certificate Expiration Warnings
 

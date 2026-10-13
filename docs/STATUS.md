@@ -104,6 +104,8 @@ is a later-train item.
 - Code Deploy / Hiera Lookup / Agent Install do not need compiler sudo TTY
 - Hiera Lookup uses a throwaway confdir (`storeconfigs = false`, facter facts)
 - Agent one-liner passes `--ca-server` from `OPENVOX_GUI_PUPPET_CA_HOST`
+- `update_local.sh` / `deploy.sh` read that same key from `.env` when
+  rendering `/opt/openvox-pkgs/install.bash` (#103)
 - ENC menus list live r10k environments; Bolt inventory is `openvox_enc`
 
 ### Lean PDB + last-good fleet

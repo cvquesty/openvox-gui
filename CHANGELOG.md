@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.29] - 2026-10-13
+
+### Fixes
+- **Clustered ``install.bash`` CA host (#103, @miharp).**
+  ``update_local.sh`` / ``deploy.sh`` baked
+  ``OPENVOX_GUI_PUPPET_SERVER_HOST`` (the compiler VIP) into
+  ``/opt/openvox-pkgs/install.bash`` as ``CA_SERVER`` because they
+  never read ``OPENVOX_GUI_PUPPET_CA_HOST`` from ``config/.env``.
+  Agents that curl the mirror copy (or the GUI
+  ``/api/installer/script/install.bash`` route after that copy
+  exists) sent CSRs to a compiler with CA disabled. The one-liner
+  from Agent Install was already correct (it appends ``--ca-server``
+  from settings). Both scripts now read the CA VIP from ``.env``.
+  The API route prefers the unrendered template so live settings
+  win over a stale mirror copy. Re-run ``update_local.sh`` after
+  upgrade to re-render the on-disk scripts.
+
 ## [Unreleased]
 
 ### Fixed

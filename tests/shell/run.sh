@@ -79,6 +79,14 @@ else
 fi
 
 echo
+echo "── update_local.sh CA host from .env (#103) ──"
+if bash "$REPO_ROOT/tests/shell/test_update_local_ca_host.sh"; then
+  pass "test_update_local_ca_host.sh"
+else
+  fail "test_update_local_ca_host.sh"
+fi
+
+echo
 echo "── ci-install-test image candidates (AlmaLinux 10) ──"
 candidates=$(bash -c '
   eval "$(sed -n "/^_image_candidates()/,/^}/p" scripts/ci-install-test.sh)"

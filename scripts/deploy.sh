@@ -433,13 +433,18 @@ PKG_REPO_DIR="${OPENVOX_GUI_PKG_REPO_DIR:-/opt/openvox-pkgs}"
 
 # 5a. Pull puppetserver host/port from the deployed .env so the
 # rendered install.bash / install.ps1 know where to point agents.
+# OPENVOX_GUI_PUPPET_CA_HOST must be read here too: the sed below
+# only sees shell variables, so a .env-only CA VIP used to fall
+# through to the compiler (#103, @miharp).
 PUPPET_SERVER_HOST=""
 PUPPET_SERVER_PORT="8140"
 if [ -f "${INSTALL_DIR}/config/.env" ]; then
     PSH_LINE=$(grep "^OPENVOX_GUI_PUPPET_SERVER_HOST=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
     PSP_LINE=$(grep "^OPENVOX_GUI_PUPPET_SERVER_PORT=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
+    PCH_LINE=$(grep "^OPENVOX_GUI_PUPPET_CA_HOST=" "${INSTALL_DIR}/config/.env" 2>/dev/null || true)
     [ -n "$PSH_LINE" ] && PUPPET_SERVER_HOST="${PSH_LINE#*=}"
     [ -n "$PSP_LINE" ] && PUPPET_SERVER_PORT="${PSP_LINE#*=}"
+    [ -n "$PCH_LINE" ] && OPENVOX_GUI_PUPPET_CA_HOST="${PCH_LINE#*=}"
 fi
 [ -z "$PUPPET_SERVER_HOST" ] && PUPPET_SERVER_HOST=$(hostname -f)
 

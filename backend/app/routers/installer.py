@@ -399,21 +399,32 @@ def _render_template(text: str) -> str:
 def _load_install_script(name: str) -> str:
     """Locate install.bash / install.ps1 on disk and return its contents.
 
-    Search order:
-      1. ``PKG_REPO_DIR/<name>``     (canonical location, served by
-         puppetserver after sync)
-      2. ``<install_dir>/packages/<name>`` (where install.sh stages
-         the templates initially)
-      3. Repository root packages/ directory (development convenience).
+    Prefer a copy that still has ``__OPENVOX_CA_SERVER__`` so
+    ``_render_template`` can apply live settings. ``update_local.sh``
+    used to bake the compiler VIP into ``PKG_REPO_DIR`` when
+    ``OPENVOX_GUI_PUPPET_CA_HOST`` lived only in ``.env`` (#103).
+
+    Search order (placeholder-bearing files win):
+      1. ``<install_dir>/packages/<name>`` (templates staged by install.sh)
+      2. Repository root ``packages/`` (development convenience)
+      3. ``PKG_REPO_DIR/<name>`` (already rendered for puppetserver :8140)
     """
     candidates = [
-        PKG_REPO_DIR / name,
         Path("/opt/openvox-gui/packages") / name,
         Path(__file__).resolve().parent.parent.parent.parent / "packages" / name,
+        PKG_REPO_DIR / name,
     ]
+    fallback = None
     for c in candidates:
-        if c.is_file():
-            return c.read_text()
+        if not c.is_file():
+            continue
+        text = c.read_text()
+        if "__OPENVOX_CA_SERVER__" in text:
+            return text
+        if fallback is None:
+            fallback = text
+    if fallback is not None:
+        return fallback
     raise HTTPException(
         status_code=404,
         detail=f"Install script {name} not found.  Expected one of: "
