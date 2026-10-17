@@ -86,7 +86,7 @@ function CertUploadZone({
       <Group justify="space-between" mb={4}>
         <Text size="sm" fw={600}>{label} {!required && <Text span c="dimmed" size="xs">(optional)</Text>}</Text>
         {file && (
-          <ActionIcon size="sm" variant="subtle" color="red" onClick={onClear}>
+          <ActionIcon size="sm" variant="subtle" color="red" onClick={onClear} aria-label={`Clear ${label}`}>
             <IconX size={14} />
           </ActionIcon>
         )}
@@ -463,7 +463,7 @@ Thank you!`}
                                 <Code>{leResult.txt_value}</Code>
                                 <CopyButton value={leResult.txt_value || ''}>
                                   {({ copied, copy }) => (
-                                    <ActionIcon size="sm" variant="subtle" onClick={copy}>
+                                    <ActionIcon size="sm" variant="subtle" onClick={copy} aria-label={copied ? 'Copied' : 'Copy DNS value'}>
                                       {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
                                     </ActionIcon>
                                   )}

@@ -6,6 +6,7 @@ import { Modal, TextInput, ScrollArea, UnstyledButton, Text, Group, Kbd, Stack }
 import { useNavigate } from 'react-router';
 import { IconSearch } from '@tabler/icons-react';
 import { canAccessPaletteAction } from '../utils/canAccess';
+import { stepPaletteIndex } from '../utils/paletteKeyboard';
 import { prefetchRoute } from '../utils/routePrefetch';
 
 export type PaletteAction = {
@@ -15,6 +16,9 @@ export type PaletteAction = {
   path?: string;
   run?: () => void;
 };
+
+/** Catalog of metric pages. /insights itself is the monitoring wallboard. */
+export const INSIGHTS_HUB_PALETTE_PATH = '/insights/all';
 
 const DEFAULT_ACTIONS: PaletteAction[] = [
   { id: 'dash', label: 'Dashboard', path: '/', keywords: 'home overview' },
@@ -42,6 +46,11 @@ const DEFAULT_ACTIONS: PaletteAction[] = [
 ];
 
 const RECENT_KEY = 'openvox-gui-palette-recent';
+const LIST_ID = 'ov-command-palette-list';
+
+function optionDomId(id: string): string {
+  return `ov-palette-opt-${id.replace(/[^A-Za-z0-9_-]/g, '-')}`;
+}
 
 function loadRecent(): PaletteAction[] {
   try {
@@ -86,6 +95,7 @@ export function CommandPalette({
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<PaletteAction[]>([]);
   const actions = useMemo(() => {
     const allow = (a: PaletteAction) => canAccessPaletteAction(a, role);
@@ -101,9 +111,25 @@ export function CommandPalette({
   useEffect(() => {
     if (opened) {
       setQ('');
+      setActive(0);
       setRecent(loadRecent());
     }
   }, [opened]);
+
+  useEffect(() => {
+    setActive(0);
+  }, [q]);
+
+  const index = actions.length === 0 ? 0 : Math.min(active, actions.length - 1);
+  const activeId = actions[index] ? optionDomId(actions[index].id) : undefined;
+
+  useEffect(() => {
+    if (!opened || !activeId) return;
+    const node = document.getElementById(activeId);
+    if (node && typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ block: 'nearest' });
+    }
+  }, [opened, activeId]);
 
   const go = (a: PaletteAction) => {
     if (a.path && !canAccessPaletteAction(a, role)) {
@@ -115,6 +141,19 @@ export function CommandPalette({
     if (a.run) a.run();
     else if (a.path) navigate(a.path);
     onClose();
+  };
+
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const next = stepPaletteIndex(index, actions.length, e.key);
+    if (next != null) {
+      e.preventDefault();
+      setActive(next);
+      return;
+    }
+    if (e.key === 'Enter' && actions[index]) {
+      e.preventDefault();
+      go(actions[index]);
+    }
   };
 
   return (
@@ -136,29 +175,39 @@ export function CommandPalette({
       <Stack gap="sm">
         <TextInput
           placeholder="Go to… (nodes, bolt, pql, deploy…)"
+          aria-label="Go to"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={opened}
+          aria-controls={LIST_ID}
+          aria-activedescendant={activeId}
           leftSection={<IconSearch size={16} />}
           value={q}
           onChange={(e) => setQ(e.currentTarget.value)}
           data-autofocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && actions[0]) {
-              e.preventDefault();
-              go(actions[0]);
-            }
-          }}
+          onKeyDown={onInputKeyDown}
         />
         <ScrollArea h={320} type="auto">
-          <Stack gap={4}>
+          <Stack gap={4} role="listbox" id={LIST_ID} aria-label="Commands">
             {actions.length === 0 && (
               <Text size="sm" c="dimmed" ta="center" py="md">
                 No matches
               </Text>
             )}
-            {actions.map((a) => (
+            {actions.map((a, i) => (
               <UnstyledButton
                 key={a.id}
+                id={optionDomId(a.id)}
+                role="option"
+                aria-selected={i === index}
+                tabIndex={-1}
+                data-active={i === index ? 'true' : 'false'}
+                className="ov-palette-option"
                 onClick={() => go(a)}
-                onMouseEnter={() => { if (a.path) prefetchRoute(a.path); }}
+                onMouseEnter={() => {
+                  setActive(i);
+                  if (a.path) prefetchRoute(a.path);
+                }}
                 p="sm"
                 style={{
                   borderRadius: 8,
@@ -178,7 +227,7 @@ export function CommandPalette({
           </Stack>
         </ScrollArea>
         <Text size="xs" c="dimmed">
-          Tip: press Enter to open the first result. Close with Esc.
+          Tip: arrow keys move, Enter opens the highlighted result. Close with Esc.
         </Text>
       </Stack>
     </Modal>

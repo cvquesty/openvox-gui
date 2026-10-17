@@ -312,6 +312,7 @@ export function PQLConsolePage() {
         <Tooltip label="Copy link to this query">
           <ActionIcon
             variant="light"
+            aria-label="Copy link to this query"
             onClick={async () => {
               try {
                 await copyLink();

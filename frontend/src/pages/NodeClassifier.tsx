@@ -241,7 +241,7 @@ function ParamEditor({
               size="xs"
               style={{ flex: 2 }}
             />
-            <ActionIcon size="sm" variant="subtle" color="red" onClick={() => removeRow(idx)}>
+            <ActionIcon size="sm" variant="subtle" color="red" aria-label="Remove parameter" onClick={() => removeRow(idx)}>
               <IconX size={14} />
             </ActionIcon>
           </Group>
@@ -951,7 +951,7 @@ function EnvironmentsTab({
                   <Table.Td>
                     <Group gap="xs" justify="flex-end">
                       <Tooltip label="Apply classes and parameters">
-                        <ActionIcon variant="subtle" color="blue" onClick={() => openEdit(e)}>
+                        <ActionIcon variant="subtle" color="blue" aria-label={`Edit environment ${e.name || ''}`} onClick={() => openEdit(e)}>
                           <IconPencil size={16} />
                         </ActionIcon>
                       </Tooltip>
@@ -1116,8 +1116,8 @@ function GroupsTab({
                 <Table.Td><ParamBadges params={g.parameters} color="yellow" /></Table.Td>
                 <Table.Td>
                   <Group gap="xs" justify="flex-end">
-                    <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(g)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                    <Tooltip label="Delete"><ActionIcon variant="subtle" color="red" onClick={() => setPendingDeleteGroup({ id: g.id, name: g.name })}><IconTrash size={16} /></ActionIcon></Tooltip>
+                    <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" aria-label={`Edit group ${g.name}`} onClick={() => openEdit(g)}><IconPencil size={16} /></ActionIcon></Tooltip>
+                    <Tooltip label="Delete"><ActionIcon variant="subtle" color="red" aria-label={`Delete group ${g.name}`} onClick={() => setPendingDeleteGroup({ id: g.id, name: g.name })}><IconTrash size={16} /></ActionIcon></Tooltip>
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -1450,8 +1450,8 @@ function NodesTab({
                   <Table.Td><ParamBadges params={n.parameters} color="pink" /></Table.Td>
                   <Table.Td>
                     <Group gap="xs" justify="flex-end">
-                      <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" onClick={() => openEdit(n)}><IconPencil size={16} /></ActionIcon></Tooltip>
-                      <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" onClick={() => setPendingDeleteNode(n.certname)}><IconTrash size={16} /></ActionIcon></Tooltip>
+                      <Tooltip label="Edit"><ActionIcon variant="subtle" color="blue" aria-label={`Edit node ${n.certname}`} onClick={() => openEdit(n)}><IconPencil size={16} /></ActionIcon></Tooltip>
+                      <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" aria-label={`Remove node ${n.certname}`} onClick={() => setPendingDeleteNode(n.certname)}><IconTrash size={16} /></ActionIcon></Tooltip>
                     </Group>
                   </Table.Td>
                 </Table.Tr>

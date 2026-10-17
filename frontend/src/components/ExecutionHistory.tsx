@@ -185,14 +185,16 @@ export function ExecutionHistory() {
           </Group>
           <Group>
             <Tooltip label={autoRefresh ? "Auto-refresh enabled (10s)" : "Auto-refresh disabled"}>
-              <ActionIcon 
+              <ActionIcon
                 variant={autoRefresh ? "filled" : "default"}
+                aria-label={autoRefresh ? "Stop auto-refresh" : "Start auto-refresh"}
+                aria-pressed={autoRefresh}
                 onClick={() => setAutoRefresh(!autoRefresh)}
               >
                 <IconRefresh size={16} />
               </ActionIcon>
             </Tooltip>
-            <ActionIcon onClick={loadHistory} disabled={loading}>
+            <ActionIcon onClick={loadHistory} disabled={loading} aria-label="Refresh history">
               <IconRefresh size={16} />
             </ActionIcon>
           </Group>
@@ -346,6 +348,7 @@ export function ExecutionHistory() {
                         <ActionIcon
                           size="sm"
                           variant="subtle"
+                          aria-label="View execution details"
                           onClick={() => setSelectedEntry(entry)}
                         >
                           <IconEye size={16} />
@@ -356,6 +359,7 @@ export function ExecutionHistory() {
                           size="sm"
                           variant="subtle"
                           color="red"
+                          aria-label="Delete execution"
                           onClick={() => handleDelete(entry.id)}
                         >
                           <IconTrash size={16} />

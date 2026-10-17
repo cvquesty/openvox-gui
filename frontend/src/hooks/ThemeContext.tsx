@@ -28,13 +28,18 @@ export function useAppTheme() {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<AppTheme>(() => {
     const stored = localStorage.getItem('openvox_theme');
+    let initial: AppTheme = 'light';
     if (stored === 'light' || stored === 'dark' || stored === 'robots') {
-      return stored;
+      initial = stored;
+    } else if (stored === 'casual') {
+      initial = 'robots';
+    } else if (stored === 'formal') {
+      initial = 'light';
     }
-    // Migration from old theme names
-    if (stored === 'casual') return 'robots';
-    if (stored === 'formal') return 'light';
-    return 'light';
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.ovTheme = initial;
+    }
+    return initial;
   });
 
   const setTheme = (t: AppTheme) => {
@@ -47,6 +52,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ theme: t }),
     }).catch(() => {});
   };
+
+  useEffect(() => {
+    document.documentElement.dataset.ovTheme = theme;
+  }, [theme]);
 
   // Dynamically update the favicon based on theme for better theme-specific branding.
   // Light theme uses black logo; Dark and Robots!! use orange.

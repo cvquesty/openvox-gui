@@ -51,6 +51,7 @@ export function OutputPane({
         <Group gap="xs">
           <TextInput
             size="xs"
+            aria-label="Filter output lines"
             placeholder="Filter lines…"
             leftSection={<IconSearch size={14} />}
             value={filter}

@@ -7,7 +7,17 @@ import {
   Table, Group, Text, Select, ScrollArea, UnstyledButton, Box,
 } from '@mantine/core';
 import { IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
+import { Link } from 'react-router';
 import { EmptyState } from './StateComponents';
+
+/** Real link stretched across a table row. Pair with class ov-row-hit on the tr. */
+export function RowLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link to={to} className="ov-row-link">
+      {children}
+    </Link>
+  );
+}
 
 export type OpsColumn<T> = {
   key: string;
@@ -45,6 +55,7 @@ export function OpsTable<T>({
   emptyTitle = 'No rows',
   emptyDescription,
   onRowClick,
+  rowHref,
   minHeight = 200,
 }: {
   columns: OpsColumn<T>[];
@@ -56,6 +67,8 @@ export function OpsTable<T>({
   emptyTitle?: string;
   emptyDescription?: string;
   onRowClick?: (row: T) => void;
+  /** In-app path. Renders a real link over the row (preferred over onRowClick). */
+  rowHref?: (row: T) => string;
   minHeight?: number | string;
 }) {
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -106,7 +119,11 @@ export function OpsTable<T>({
                   {col.sortable === false ? (
                     col.header
                   ) : (
-                    <UnstyledButton onClick={() => toggleSort(col.key, col.sortable)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <UnstyledButton
+                      aria-label={`Sort by ${col.header}`}
+                      onClick={() => toggleSort(col.key, col.sortable)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
                       <Text span size="sm" fw={600}>
                         {col.header}
                       </Text>
@@ -118,17 +135,32 @@ export function OpsTable<T>({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {pageRows.map((row) => (
-              <Table.Tr
-                key={rowKey(row)}
-                style={onRowClick ? { cursor: 'pointer' } : undefined}
-                onClick={() => onRowClick?.(row)}
-              >
-                {columns.map((col) => (
-                  <Table.Td key={col.key}>{col.render(row)}</Table.Td>
-                ))}
-              </Table.Tr>
-            ))}
+            {pageRows.map((row) => {
+              const href = rowHref?.(row);
+              const clickable = Boolean(href || onRowClick);
+              return (
+                <Table.Tr
+                  key={rowKey(row)}
+                  className={href ? 'ov-row-hit' : undefined}
+                  style={clickable ? { cursor: 'pointer' } : undefined}
+                  tabIndex={!href && onRowClick ? 0 : undefined}
+                  role={!href && onRowClick ? 'button' : undefined}
+                  onClick={() => { if (!href) onRowClick?.(row); }}
+                  onKeyDown={!href && onRowClick ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onRowClick(row);
+                    }
+                  } : undefined}
+                >
+                  {columns.map((col, i) => (
+                    <Table.Td key={col.key}>
+                      {href && i === 0 ? <RowLink to={href}>{col.render(row)}</RowLink> : col.render(row)}
+                    </Table.Td>
+                  ))}
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       </ScrollArea>
@@ -142,6 +174,7 @@ export function OpsTable<T>({
             Page size
           </Text>
           <Select
+            aria-label="Page size"
             size="xs"
             w={90}
             data={pageSizeOptions}
@@ -153,6 +186,7 @@ export function OpsTable<T>({
             allowDeselect={false}
           />
           <Select
+            aria-label="Page"
             size="xs"
             w={110}
             data={Array.from({ length: totalPages }, (_, i) => ({

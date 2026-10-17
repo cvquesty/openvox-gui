@@ -9,7 +9,7 @@ import {
   Alert, Badge, Tooltip, Table, ActionIcon, Select, Switch, Button,
 } from '@mantine/core';
 import { IconEye, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
@@ -21,6 +21,7 @@ import { useAppTheme } from '../hooks/ThemeContext';
 import type { NodeSummary } from '../types';
 import { PageHeader } from '../components/PageHeader';
 import { ExportActions } from '../components/ExportActions';
+import { RowLink } from '../components/OpsTable';
 import { STATUS_HEX, statusMantine } from '../utils/statusTheme';
 import { isNeedsAttention } from '../utils/needsAttention';
 import { MeasuredArea } from '../components/MeasuredChart';
@@ -369,15 +370,17 @@ export function DashboardPage() {
                 { label: 'Noop', status: 'noop' },
                 { label: 'Unreported', status: 'unreported' },
               ].map((s) => (
-                <Group
+                <Link
                   key={s.status}
-                  gap={4}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => navigate(`/nodes?status=${s.status}`)}
+                  to={`/nodes?status=${s.status}`}
+                  className="ov-inline-link"
+                  style={{ display: 'inline-flex' }}
                 >
-                  <Badge color={statusMantine(s.status)} size="xs" circle />
-                  <Text size="xs" td="underline">{s.label}</Text>
-                </Group>
+                  <Group gap={4}>
+                    <Badge color={statusMantine(s.status)} size="xs" circle />
+                    <Text size="xs" td="underline">{s.label}</Text>
+                  </Group>
+                </Link>
               ))}
             </Group>
             <Text size="xs" c="dimmed" ta="center" mt="xs">Click a status to open Nodes with that filter</Text>
@@ -489,17 +492,26 @@ export function DashboardPage() {
           </Table.Thead>
           <Table.Tbody>
             {attention.map((node) => (
-              <Table.Tr key={node.certname} style={{ cursor: 'pointer' }}
-                onClick={() => navigate(`/nodes/${node.certname}`)}>
-                <Table.Td><Text fw={500} size="sm">{node.certname}</Text></Table.Td>
+              <Table.Tr key={node.certname} className="ov-row-hit" style={{ cursor: 'pointer' }}>
+                <Table.Td>
+                  <RowLink to={`/nodes/${node.certname}`}>
+                    <Text fw={500} size="sm">{node.certname}</Text>
+                  </RowLink>
+                </Table.Td>
                 <Table.Td><StatusBadge status={node.latest_report_status} /></Table.Td>
                 <Table.Td><Text size="sm">{nodeTimeAgo(node.report_timestamp)}</Text></Table.Td>
                 <Table.Td>
                   <Tooltip label="View details">
-                    <ActionIcon variant="subtle" onClick={(e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      navigate(`/nodes/${node.certname}`);
-                    }}>
+                    <ActionIcon
+                      variant="subtle"
+                      aria-label={`View ${node.certname}`}
+                      data-row-action
+                      onClick={(e: React.MouseEvent) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/nodes/${node.certname}`);
+                      }}
+                    >
                       <IconEye size={18} />
                     </ActionIcon>
                   </Tooltip>
