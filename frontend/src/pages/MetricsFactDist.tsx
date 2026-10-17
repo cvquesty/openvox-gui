@@ -311,7 +311,7 @@ export function MetricsFactDistPage() {
           Query any fact path (e.g., networking.domain, disks.sda.size, processors.models).
         </Text>
         <Group>
-          <TextInput placeholder="Type a fact path..." leftSection={<IconSearch size={14} />}
+          <TextInput aria-label="Fact path" placeholder="Type a fact path..." leftSection={<IconSearch size={14} />}
             value={customFact} onChange={(e) => setCustomFact(e.currentTarget.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCustomQuery()} style={{ flex: 1 }} />
           <Button onClick={handleCustomQuery} loading={customLoading}>Query</Button>

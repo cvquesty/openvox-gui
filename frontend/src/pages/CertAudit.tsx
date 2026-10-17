@@ -313,7 +313,13 @@ export function CertAuditPage() {
       {/* Healthy Certificates (collapsible) — OpsTable */}
       <Card withBorder shadow="sm" padding="md" style={{ overflow: 'hidden' }}>
         <Group style={{ cursor: 'pointer' }} onClick={() => setShowHealthy(!showHealthy)}>
-          <ActionIcon variant="subtle" size="sm">
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            aria-expanded={showHealthy}
+            aria-label={showHealthy ? 'Collapse healthy certificates' : 'Expand healthy certificates'}
+            onClick={(e) => { e.stopPropagation(); setShowHealthy(!showHealthy); }}
+          >
             {showHealthy ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
           </ActionIcon>
           <Title order={4}>Healthy Certificates ({active.length})</Title>
@@ -326,7 +332,7 @@ export function CertAuditPage() {
             defaultPageSize={100}
             maxHeight={420}
             emptyTitle="No healthy certificates"
-            onRowClick={(cert) => navigate(`/nodes/${cert.certname}`)}
+            rowHref={(cert) => `/nodes/${cert.certname}`}
             columns={[
               {
                 key: 'certname',

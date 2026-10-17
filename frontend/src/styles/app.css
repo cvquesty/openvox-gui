@@ -35,6 +35,73 @@ body {
   --ov-line: rgba(255, 255, 255, 0.07);
 }
 
+/*
+ * Focus ring. #0b5ed7 on the light canvas is about 5.8:1.
+ * #ffb562 and #ffd19a on the dark canvas are above 7:1.
+ * data-ov-theme distinguishes robots from dark (both use Mantine dark scheme).
+ */
+:root,
+[data-ov-theme='light'] {
+  --ov-focus: #0b5ed7;
+  --ov-palette-active: rgba(13, 110, 253, 0.12);
+}
+[data-ov-theme='dark'] {
+  --ov-focus: #ffb562;
+  --ov-palette-active: rgba(255, 181, 98, 0.18);
+}
+[data-ov-theme='robots'] {
+  --ov-focus: #ffd19a;
+  --ov-palette-active: rgba(255, 209, 154, 0.2);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ov-focus);
+  outline-offset: 2px;
+}
+
+.ov-skip-link {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 10000;
+  padding: 8px 12px;
+  background: var(--ov-header, #fff);
+  color: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--ov-line);
+  transform: translateY(-160%);
+}
+.ov-skip-link:focus {
+  transform: none;
+}
+
+.ov-inline-link {
+  color: inherit;
+  text-decoration: inherit;
+  border-radius: 4px;
+}
+
+.ov-row-hit {
+  position: relative;
+}
+.ov-row-link {
+  color: inherit;
+  text-decoration: none;
+}
+.ov-row-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.ov-row-hit :is(button, input, select, textarea, [data-row-action]) {
+  position: relative;
+  z-index: 1;
+}
+
+.ov-palette-option[data-active='true'] {
+  background: var(--ov-palette-active);
+}
+
 .ov-app-main {
   background: var(--ov-canvas);
   min-height: calc(100vh - var(--ov-header-h));

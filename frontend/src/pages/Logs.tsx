@@ -423,13 +423,15 @@ export function LogsPage() {
                 size="lg"
                 variant={autoRefresh ? 'filled' : 'light'}
                 color={autoRefresh ? 'green' : 'gray'}
+                aria-label={autoRefresh ? 'Stop auto-refresh' : 'Auto-refresh every 5 seconds'}
+                aria-pressed={autoRefresh}
                 onClick={() => setAutoRefresh(prev => !prev)}
               >
                 {autoRefresh ? <IconPlayerStop size={16} /> : <IconRefresh size={16} />}
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Download as .log file">
-              <ActionIcon size="lg" variant="light" onClick={handleDownload} disabled={!currentData?.lines?.length}>
+              <ActionIcon size="lg" variant="light" onClick={handleDownload} disabled={!currentData?.lines?.length} aria-label="Download logs">
                 <IconDownload size={16} />
               </ActionIcon>
             </Tooltip>

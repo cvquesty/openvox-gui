@@ -94,6 +94,7 @@ export function MetricsHeatmapPage() {
           {refreshing && <Badge variant="outline" color="gray" size="sm">Refreshing…</Badge>}
         </Group>
         <Select
+          aria-label="Filter environment"
           placeholder="Filter environment"
           data={envOptions}
           value={envFilter || ''}

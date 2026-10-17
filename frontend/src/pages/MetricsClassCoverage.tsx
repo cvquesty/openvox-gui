@@ -118,6 +118,7 @@ export function MetricsClassCoveragePage() {
         <Group justify="space-between" mb="md">
           <Title order={4}>All Classes</Title>
           <TextInput
+            aria-label="Search classes"
             placeholder="Search classes..."
             leftSection={<IconSearch size={16} />}
             value={search}

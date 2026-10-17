@@ -569,6 +569,7 @@ export function CertificatesPage() {
 
             <Group mb="sm" wrap="wrap" align="flex-end">
               <TextInput
+                aria-label="Filter by certname or value"
                 placeholder="Filter by certname or value…"
                 leftSection={<IconSearch size={14} />}
                 value={tfSearch}
@@ -577,6 +578,7 @@ export function CertificatesPage() {
                 size="sm"
               />
               <Select
+                aria-label="Extension key"
                 placeholder="Extension key"
                 clearable
                 searchable
@@ -763,7 +765,7 @@ export function CertificatesPage() {
                   <Table.Td>
                     <Group gap="xs" justify="flex-end">
                       <Tooltip label="Certificate details">
-                        <ActionIcon variant="subtle" color="blue" onClick={() => handleInfo(cert.name)}>
+                        <ActionIcon variant="subtle" color="blue" aria-label={`Certificate details for ${cert.name}`} onClick={() => handleInfo(cert.name)}>
                           <IconInfoCircle size={16} />
                         </ActionIcon>
                       </Tooltip>
@@ -778,6 +780,7 @@ export function CertificatesPage() {
                           variant="subtle"
                           color="yellow"
                           disabled={!canAct}
+                          aria-label={`Revoke ${cert.name}`}
                           onClick={() => requestRevoke(cert.name)}
                         >
                           <IconX size={16} />
@@ -794,6 +797,7 @@ export function CertificatesPage() {
                           variant="subtle"
                           color="red"
                           disabled={!canAct}
+                          aria-label={`Clean ${cert.name}`}
                           onClick={() => requestClean(cert.name)}
                         >
                           <IconTrash size={16} />

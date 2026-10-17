@@ -668,6 +668,7 @@ export function ReportsPage() {
             <Tooltip label="Copy link to this filtered view">
               <ActionIcon
                 variant="light"
+                aria-label="Copy link to this filtered view"
                 onClick={async () => {
                   try {
                     await copyLink();
@@ -740,7 +741,13 @@ export function ReportsPage() {
               <Card key={groupName} withBorder shadow="sm" style={{ overflow: 'hidden' }}>
                 <Group justify="space-between" style={{ cursor: 'pointer' }} onClick={() => toggleGroup(groupName)}>
                   <Group>
-                    <ActionIcon variant="subtle" size="sm">
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? `Collapse ${groupName}` : `Expand ${groupName}`}
+                      onClick={(e) => { e.stopPropagation(); toggleGroup(groupName); }}
+                    >
                       {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
                     </ActionIcon>
                     <Text fw={700}>{groupName}</Text>
@@ -758,10 +765,7 @@ export function ReportsPage() {
                       defaultPageSize={50}
                       maxHeight={420}
                       emptyTitle="No nodes for this group"
-                      onRowClick={(r) => {
-                        if (r.report?.hash) navigate(`/reports/${r.report.hash}`);
-                        else navigate(`/nodes/${r.certname}`);
-                      }}
+                      rowHref={(r) => (r.report?.hash ? `/reports/${r.report.hash}` : `/nodes/${r.certname}`)}
                       columns={[
                         {
                           key: 'certname',
@@ -922,6 +926,7 @@ export function ReportsPage() {
                         <ActionIcon
                           color="red"
                           variant="subtle"
+                          aria-label={`Remove recipient ${rec.email}`}
                           onClick={() => removeExecutiveRecipient(rec.id)}
                           title="Remove recipient"
                         >

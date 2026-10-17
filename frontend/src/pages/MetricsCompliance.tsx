@@ -75,7 +75,13 @@ function NodeList({ title, nodes, color }: { title: string; nodes: any[]; color:
         onClick={() => setOpen((o) => !o)}
       >
         <Group gap="xs">
-          <ActionIcon variant="subtle" size="sm">
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            aria-expanded={open}
+            aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
+            onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+          >
             {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </ActionIcon>
           <Badge color={color} variant="light">{title}</Badge>
