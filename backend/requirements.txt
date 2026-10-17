@@ -6,7 +6,7 @@ pydantic==2.14.0
 # pydantic-settings==2.15.0 (Dependabot #67). 2.14.2 was GHSA-4xgf-cpjx-pc3j.
 # Supply chain: use pip install --require-hashes in production; hashes not pinned here for dev flexibility.
 pydantic-settings==2.15.0
-sqlalchemy==2.0.52
+sqlalchemy==2.1.4
 aiosqlite==0.22.1
 asyncpg==0.32.0
 psycopg2-binary==2.9.13
