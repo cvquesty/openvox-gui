@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { RowLink } from '../components/OpsTable';
 import {
   Title, Card, Loader, Stack, Group, Text, Badge,
   Table, Tabs, Grid, Code, Paper, Button, ScrollArea,
@@ -495,12 +496,12 @@ export function NodeDetailPage() {
               </Table.Thead>
               <Table.Tbody>
                 {reportList?.map((r: any) => (
-                  <Table.Tr
-                    key={r.hash}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/reports/${r.hash}`)}
-                  >
-                    <Table.Td><StatusBadge status={r.status} /></Table.Td>
+                  <Table.Tr key={r.hash} className="ov-row-hit" style={{ cursor: 'pointer' }}>
+                    <Table.Td>
+                      <RowLink to={`/reports/${r.hash}`}>
+                        <StatusBadge status={r.status} />
+                      </RowLink>
+                    </Table.Td>
                     <Table.Td>{new Date(r.start_time).toLocaleString()}</Table.Td>
                     <Table.Td>{r.environment}</Table.Td>
                     <Table.Td>{r.puppet_version}</Table.Td>

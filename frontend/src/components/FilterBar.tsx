@@ -45,6 +45,7 @@ export function FilterBar({
       <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
         <Group gap="sm" align="flex-end" style={{ flex: 1, minWidth: 240 }}>
           <TextInput
+            aria-label={searchPlaceholder}
             placeholder={searchPlaceholder}
             leftSection={<IconSearch size={16} />}
             value={search}

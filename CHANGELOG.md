@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.31] - 2026-10-17
+
+### Fixed
+- **Keyboard access.** Node, report, and OpsTable rows that open another
+  page are real links. Dashboard status chips and activity items are
+  links too. Rows that only run an action respond to Enter and Space.
+- **Focus and landmarks.** Light, dark, and Robots themes share a
+  visible focus ring. A skip link moves to the main content, and the
+  sidebar is labeled as primary navigation.
+- **Icon buttons and search fields.** Icon-only buttons have accessible
+  names. Search and filter fields that only had placeholder text now
+  have a label.
+- **Command palette.** Arrow keys, Home, and End move the highlight.
+  Enter opens the highlighted command. The Insights hub entry opens
+  `/insights/all`.
+
+Not deployed to the lab server or to production.
+
 ## [3.14.1-dev.30] - 2026-10-13
 
 ### Fixes

@@ -482,7 +482,7 @@ export function InstallerPage() {
         </div>
         <Group gap="xs">
           <Tooltip label="Reload status">
-            <ActionIcon variant="subtle" onClick={refresh}>
+            <ActionIcon variant="subtle" onClick={refresh} aria-label="Reload status">
               <IconRefresh size={18} />
             </ActionIcon>
           </Tooltip>
@@ -592,7 +592,7 @@ export function InstallerPage() {
                   <Code>{info.install_url_linux}</Code>
                   <CopyButton value={info.install_url_linux}>
                     {({ copied, copy }) => (
-                      <ActionIcon size="sm" variant="subtle" onClick={copy}>
+                      <ActionIcon size="sm" variant="subtle" onClick={copy} aria-label={copied ? 'Copied Linux installer URL' : 'Copy Linux installer URL'}>
                         {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
                       </ActionIcon>
                     )}
@@ -605,7 +605,7 @@ export function InstallerPage() {
                   <Code>{info.install_url_win}</Code>
                   <CopyButton value={info.install_url_win}>
                     {({ copied, copy }) => (
-                      <ActionIcon size="sm" variant="subtle" onClick={copy}>
+                      <ActionIcon size="sm" variant="subtle" onClick={copy} aria-label={copied ? 'Copied Windows installer URL' : 'Copy Windows installer URL'}>
                         {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
                       </ActionIcon>
                     )}
@@ -618,7 +618,7 @@ export function InstallerPage() {
                   <Code>{info.pkg_repo_url}</Code>
                   <CopyButton value={info.pkg_repo_url}>
                     {({ copied, copy }) => (
-                      <ActionIcon size="sm" variant="subtle" onClick={copy}>
+                      <ActionIcon size="sm" variant="subtle" onClick={copy} aria-label={copied ? 'Copied mirror URL' : 'Copy mirror URL'}>
                         {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
                       </ActionIcon>
                     )}

@@ -17,7 +17,7 @@ import { nodes, bolt } from '../services/api';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState } from '../components/StateComponents';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { OpsTable, OpsColumn } from '../components/OpsTable';
+import { OpsTable, OpsColumn, RowLink } from '../components/OpsTable';
 import { ExportActions } from '../components/ExportActions';
 import { FilterBar } from '../components/FilterBar';
 import { useUrlFilters } from '../hooks/useUrlFilters';
@@ -374,12 +374,13 @@ export function NodesPage() {
   };
 
   const actionCell = (node: NodeSummary, opts?: { ghost?: boolean }) => (
-    <Group gap={4} onClick={(e) => e.stopPropagation()}>
+    <Group gap={4} data-row-action onClick={(e) => e.stopPropagation()}>
       {canPlay && (
       <Tooltip label="Run OpenVox (puppet agent -t as root)">
         <ActionIcon
           variant="subtle"
           color="green"
+          aria-label={`Run OpenVox on ${node.certname}`}
           loading={runningCert === node.certname}
           onClick={() => (skipConfirm ? runOpenVox(node.certname) : setRunTarget(node.certname))}
         >
@@ -392,6 +393,7 @@ export function NodesPage() {
           <ActionIcon
             variant="subtle"
             color="red"
+            aria-label={`Remove ghost ${node.certname}`}
             onClick={() => setDismissTarget(node.certname)}
           >
             <IconTrash size={18} />
@@ -399,7 +401,11 @@ export function NodesPage() {
         </Tooltip>
       )}
       <Tooltip label="View details">
-        <ActionIcon variant="subtle" onClick={() => navigate(`/nodes/${node.certname}`)}>
+        <ActionIcon
+          variant="subtle"
+          aria-label={`View ${node.certname}`}
+          onClick={() => navigate(`/nodes/${node.certname}`)}
+        >
           <IconEye size={18} />
         </ActionIcon>
       </Tooltip>
@@ -425,6 +431,7 @@ export function NodesPage() {
           <Tooltip label="Copy link to this filtered view">
             <ActionIcon
               variant="light"
+              aria-label="Copy link to this filtered view"
               onClick={async () => {
                 try {
                   await copyLink();
@@ -487,7 +494,13 @@ export function NodesPage() {
               <Card key={groupName} withBorder shadow="sm" style={{ overflow: 'hidden' }}>
                 <Group justify="space-between" style={{ cursor: 'pointer' }} onClick={() => toggleGroup(groupName)}>
                   <Group>
-                    <ActionIcon variant="subtle" size="sm">
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? `Collapse ${groupName}` : `Expand ${groupName}`}
+                      onClick={(e) => { e.stopPropagation(); toggleGroup(groupName); }}
+                    >
                       {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
                     </ActionIcon>
                     <Text fw={700}>{groupName}</Text>
@@ -515,10 +528,14 @@ export function NodesPage() {
                               groupNodes.map((node) => (
                                 <Table.Tr
                                   key={node.certname}
+                                  className="ov-row-hit"
                                   style={{ cursor: 'pointer' }}
-                                  onClick={() => navigate(`/nodes/${node.certname}`)}
                                 >
-                                  <Table.Td><Text fw={500}>{node.certname}</Text></Table.Td>
+                                  <Table.Td>
+                                    <RowLink to={`/nodes/${node.certname}`}>
+                                      <Text fw={500}>{node.certname}</Text>
+                                    </RowLink>
+                                  </Table.Td>
                                   <Table.Td>
                                     <Tooltip
                                       multiline
@@ -596,7 +613,7 @@ export function NodesPage() {
           maxHeight="calc(100vh - 320px)"
           emptyTitle="No nodes found"
           emptyDescription={search ? 'No nodes match the current search.' : 'No nodes reported to PuppetDB yet.'}
-          onRowClick={(n) => navigate(`/nodes/${n.certname}`)}
+          rowHref={(n) => `/nodes/${n.certname}`}
           columns={[
             {
               key: 'certname',
@@ -662,7 +679,7 @@ export function NodesPage() {
           maxHeight={480}
           emptyTitle="All known nodes are classified"
           emptyDescription={search || statusFilter ? 'No unclassified nodes match the current search/filters.' : 'Trash icon removes a ghost that no longer exists.'}
-          onRowClick={(n) => navigate(`/nodes/${n.certname}`)}
+          rowHref={(n) => `/nodes/${n.certname}`}
           columns={[
             {
               key: 'certname',

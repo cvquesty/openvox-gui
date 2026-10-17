@@ -230,6 +230,7 @@ export function ResourceExplorerPage() {
             </Group>
             <Group gap="xs">
               <TextInput
+                aria-label="Filter results"
                 placeholder="Filter results..."
                 leftSection={<IconSearch size={14} />}
                 value={searchText}

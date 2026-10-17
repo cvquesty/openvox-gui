@@ -189,6 +189,7 @@ export function MetricsNodeHealthPage() {
 
       {/* Search */}
       <TextInput
+        aria-label="Filter nodes"
         placeholder="Filter nodes (name or env)..."
         leftSection={<IconSearch size={16} />}
         value={search}

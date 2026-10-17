@@ -4,7 +4,7 @@
  * Component documentation to be expanded.
  */
 import { useState, useEffect, ReactNode } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router';
 import {
   AppShell as MantineAppShell,
   NavLink,
@@ -68,7 +68,7 @@ import { canAccessPath } from '../utils/canAccess';
 import { prefetchRoute } from '../utils/routePrefetch';
 import { dashboard, config, nodes as nodesApi } from '../services/api';
 import { APP_VERSION } from '../version';
-import type { PaletteAction } from './CommandPalette';
+import { INSIGHTS_HUB_PALETTE_PATH, type PaletteAction } from './CommandPalette';
 
 // Navigation item type (supports nested sub-items)
 interface NavItem {
@@ -267,7 +267,7 @@ export function AppShellLayout() {
   }, []);
 
   const paletteExtra: PaletteAction[] = [
-    { id: 'insights-hub', label: 'Insights hub (all metrics)', path: '/insights', keywords: 'metrics catalog launcher' },
+    { id: 'insights-hub', label: 'Insights hub (all metrics)', path: INSIGHTS_HUB_PALETTE_PATH, keywords: 'metrics catalog launcher' },
     ...nodeNames.map((cn) => ({
       id: `node-${cn}`,
       label: `Node: ${cn}`,
@@ -408,10 +408,17 @@ export function AppShellLayout() {
       navbar={{ width: 248, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="lg"
     >
+      <a className="ov-skip-link" href="#main-content">Skip to content</a>
       <MantineAppShell.Header className="ov-app-header">
         <Group h="100%" px="lg" justify="space-between">
           <Group gap="xs">
-            <Burger opened={opened} onClick={() => setOpened(!opened)} hiddenFrom="sm" size="sm" />
+            <Burger
+              opened={opened}
+              onClick={() => setOpened(!opened)}
+              hiddenFrom="sm"
+              size="sm"
+              aria-label={opened ? 'Close navigation' : 'Open navigation'}
+            />
             <Group gap={12} wrap="nowrap" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
               <img src={logoSrc} alt="OpenVox" style={{ height: 30, width: 30, flexShrink: 0, display: 'block' }} />
               <Title order={4} c={titleColor} style={{ fontWeight: 650, whiteSpace: 'nowrap', letterSpacing: '-0.02em' }}>
@@ -441,19 +448,37 @@ export function AppShellLayout() {
                     <Text size="xs" c="dimmed">No runs this session yet</Text>
                   ) : (
                     <Stack gap={4}>
-                      {activityItems.slice(0, 8).map((a) => (
-                        <Text
-                          key={a.id}
-                          size="xs"
-                          c={a.status === 'error' ? 'red' : a.status === 'running' ? 'orange' : undefined}
-                          style={a.href ? { cursor: 'pointer', textDecoration: 'underline' } : undefined}
-                          onClick={() => a.href && navigate(a.href)}
-                        >
-                          {a.status === 'running' ? '… ' : a.status === 'error' ? '✗ ' : '✓ '}
-                          {a.label}
-                          {a.detail ? ` — ${a.detail}` : ''}
-                        </Text>
-                      ))}
+                      {activityItems.slice(0, 8).map((a) => {
+                        const label = (
+                          <>
+                            {a.status === 'running' ? '… ' : a.status === 'error' ? '✗ ' : '✓ '}
+                            {a.label}
+                            {a.detail ? ` — ${a.detail}` : ''}
+                          </>
+                        );
+                        const color = a.status === 'error'
+                          ? 'var(--mantine-color-red-6)'
+                          : a.status === 'running'
+                            ? 'var(--mantine-color-orange-6)'
+                            : 'inherit';
+                        if (a.href) {
+                          return (
+                            <Link
+                              key={a.id}
+                              to={a.href}
+                              className="ov-inline-link"
+                              style={{ fontSize: 'var(--mantine-font-size-xs)', color, textDecoration: 'underline' }}
+                            >
+                              {label}
+                            </Link>
+                          );
+                        }
+                        return (
+                          <Text key={a.id} size="xs" c={a.status === 'error' ? 'red' : a.status === 'running' ? 'orange' : undefined}>
+                            {label}
+                          </Text>
+                        );
+                      })}
                     </Stack>
                   )}
                 </HoverCard.Dropdown>
@@ -493,7 +518,7 @@ export function AppShellLayout() {
                 </Group>
               </Badge>
               <Tooltip label="Sign out">
-                <ActionIcon variant="subtle" color="gray" onClick={logout}>
+                <ActionIcon variant="subtle" color="gray" onClick={logout} aria-label="Sign out">
                   <IconLogout size={18} />
                 </ActionIcon>
               </Tooltip>
@@ -502,7 +527,7 @@ export function AppShellLayout() {
         </Group>
       </MantineAppShell.Header>
 
-      <MantineAppShell.Navbar p="sm" className="ov-app-nav">
+      <MantineAppShell.Navbar p="sm" className="ov-app-nav" aria-label="Primary">
         <MantineAppShell.Section grow component={ScrollArea}>
           {renderNavGroup('Overview', IconDashboard, overviewNav)}
           {renderNavGroup('Infrastructure', IconCertificate, filterNavForRole(infrastructureNav, user?.role))}
@@ -563,7 +588,7 @@ export function AppShellLayout() {
         </MantineAppShell.Section>
       </MantineAppShell.Navbar>
 
-      <MantineAppShell.Main className="ov-app-main">
+      <MantineAppShell.Main id="main-content" tabIndex={-1} className="ov-app-main">
         <Outlet />
       </MantineAppShell.Main>
 

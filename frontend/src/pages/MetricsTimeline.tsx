@@ -145,6 +145,7 @@ export function MetricsTimelinePage() {
         </Alert>
         <Group gap="sm">
           <Select
+            aria-label="Filter status"
             size="sm"
             data={STATUS_OPTIONS}
             value={status}

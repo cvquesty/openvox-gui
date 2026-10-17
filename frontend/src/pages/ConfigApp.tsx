@@ -252,10 +252,10 @@ function ApplicationTab({ onSwitchToServices }: { onSwitchToServices: () => void
                   <Table.Td style={{ textAlign: 'right' }}>
                     {meta?.editable && (isEditing ? (
                       <Group gap={4} justify="flex-end">
-                        <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => handleCancel(key)}><IconX size={14} /></ActionIcon>
-                        <ActionIcon size="sm" variant="filled" color="green" onClick={() => handleSave(key)} loading={saving === key}><IconDeviceFloppy size={14} /></ActionIcon>
+                        <ActionIcon size="sm" variant="subtle" color="gray" aria-label={`Cancel ${key}`} onClick={() => handleCancel(key)}><IconX size={14} /></ActionIcon>
+                        <ActionIcon size="sm" variant="filled" color="green" aria-label={`Save ${key}`} onClick={() => handleSave(key)} loading={saving === key}><IconDeviceFloppy size={14} /></ActionIcon>
                       </Group>
-                    ) : (<ActionIcon size="sm" variant="subtle" onClick={() => handleEdit(key, value)}><IconEdit size={14} /></ActionIcon>))}
+                    ) : (<ActionIcon size="sm" variant="subtle" aria-label={`Edit ${key}`} onClick={() => handleEdit(key, value)}><IconEdit size={14} /></ActionIcon>))}
                   </Table.Td>
                 </Table.Tr>
               );
@@ -826,7 +826,7 @@ function ClusterTab() {
                         <Table.Td>{s.description}</Table.Td>
                         <Table.Td>{s.updated_by} {s.updated_at || ''}</Table.Td>
                         <Table.Td>
-                          <ActionIcon color="red" variant="subtle" onClick={async () => {
+                          <ActionIcon color="red" variant="subtle" aria-label={`Delete secret ${s.name}`} onClick={async () => {
                             try {
                               await config.deleteClusterSecret(s.name);
                               refetchSecrets();
@@ -1417,18 +1417,18 @@ function UserManagerTab() {
                   <Group gap="xs" justify="flex-end">
                     {(u.auth_source || 'local') === 'local' && (
                       <Tooltip label="Change password">
-                        <ActionIcon variant="subtle" color="blue" onClick={() => { setPwUser(u.username); setPwValue(''); setPwOpen(true); }}>
+                        <ActionIcon variant="subtle" color="blue" aria-label={`Change password for ${u.username}`} onClick={() => { setPwUser(u.username); setPwValue(''); setPwOpen(true); }}>
                           <IconKey size={16} />
                         </ActionIcon>
                       </Tooltip>
                     )}
                     <Tooltip label="Change auth source">
-                      <ActionIcon variant="subtle" color="grape" onClick={() => { setAuthSrcUser(u.username); setAuthSrcValue(u.auth_source || 'local'); setAuthSrcOpen(true); }}>
+                      <ActionIcon variant="subtle" color="grape" aria-label={`Change auth source for ${u.username}`} onClick={() => { setAuthSrcUser(u.username); setAuthSrcValue(u.auth_source || 'local'); setAuthSrcOpen(true); }}>
                         <IconSwitchHorizontal size={16} />
                       </ActionIcon>
                     </Tooltip>
-                    <Tooltip label="Change role"><ActionIcon variant="subtle" color="orange" onClick={() => { setRoleUser(u.username); setRoleValue(u.role); setRoleOpen(true); }}><IconShield size={16} /></ActionIcon></Tooltip>
-                    {u.username !== currentUser?.username && (<Tooltip label="Delete user"><ActionIcon variant="subtle" color="red" onClick={() => setDeleteUser(u.username)}><IconTrash size={16} /></ActionIcon></Tooltip>)}
+                    <Tooltip label="Change role"><ActionIcon variant="subtle" color="orange" aria-label={`Change role for ${u.username}`} onClick={() => { setRoleUser(u.username); setRoleValue(u.role); setRoleOpen(true); }}><IconShield size={16} /></ActionIcon></Tooltip>
+                    {u.username !== currentUser?.username && (<Tooltip label="Delete user"><ActionIcon variant="subtle" color="red" aria-label={`Delete user ${u.username}`} onClick={() => setDeleteUser(u.username)}><IconTrash size={16} /></ActionIcon></Tooltip>)}
                   </Group>
                 </Table.Td>
               </Table.Tr>

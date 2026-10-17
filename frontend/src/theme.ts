@@ -51,6 +51,8 @@ const shadows = {
 function baseTheme(primary: 'vpblue' | 'vporange'): MantineThemeOverride {
   return {
     primaryColor: primary,
+    // Keyboard ring color is --ov-focus in styles/app.css (light, dark, robots).
+    focusRing: 'auto',
     fontFamily: FONT,
     fontFamilyMonospace: MONO,
     defaultRadius: 'md',
