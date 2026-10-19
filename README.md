@@ -4,9 +4,9 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.14.1--dev.32-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.14.1--dev.33-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![SQLite](https://img.shields.io/badge/SQLite-AIO%20default-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](INSTALL.md)
@@ -179,7 +179,7 @@ You need a Linux server with:
 - **Operating System**: Red Hat 8+, CentOS 8+, Ubuntu 20.04+, or similar
 - **Memory**: At least 2GB RAM (4GB recommended)
 - **Disk Space**: 1GB free space
-- **Python**: Version 3.10 or newer (3.11+ recommended)
+- **Python**: Version 3.11 or newer (3.12 recommended on EL8/EL9)
 - **Network**: Access to your OpenVox Server and OpenVoxDB
 
 ### What Gets Installed

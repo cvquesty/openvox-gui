@@ -1,6 +1,6 @@
 # Installation Guide
 
-**OpenVox GUI Version 3.14.1-dev.32**
+**OpenVox GUI Version 3.14.1-dev.33**
 
 This guide will walk you through installing OpenVox GUI on your server. Don't worry if you're new to this - we'll explain everything step by step!
 
@@ -45,11 +45,11 @@ Let's make sure your server is ready. Run these commands:
 # Check your operating system version
 cat /etc/os-release
 
-# Check Python is installed (need version 3.10 or newer)
+# Check Python is installed (need version 3.11 or newer)
 python3 --version
-# EL8/EL9: default python3 is 3.6/3.9. Use the AppStream package:
-#   sudo dnf install -y python3.12
-#   PYTHON_BIN=/usr/bin/python3.12 in install.conf
+# EL8/EL9: default python3 is 3.6/3.9. install.sh installs python3.12
+# from AppStream for you (INSTALL_PYTHON=true, the default). To do it
+# yourself first: sudo dnf install -y python3.12 python3.12-pip
 
 # Check you have sudo access
 sudo echo "I have sudo access!"
@@ -247,9 +247,9 @@ sudo yum update -y        # For Red Hat/CentOS
 # OR
 sudo apt update && sudo apt upgrade -y   # For Ubuntu/Debian
 
-# Install required packages (Python >= 3.10)
-# EL8/EL9: default python3 is too old — install python3.12 and set
-# PYTHON_BIN=/usr/bin/python3.12 in install.conf
+# Install required packages (Python >= 3.11)
+# EL8/EL9: default python3 is too old. install.sh installs python3.12
+# itself when no 3.11+ is found; pre-installing it is optional:
 sudo dnf install -y python3.12 python3.12-pip git   # EL8/EL9
 # EL10 / Fedora: default python3 is already 3.12+
 # sudo dnf install -y python3 python3-pip git
@@ -341,7 +341,7 @@ sudo systemctl status openvox-gui
 curl -k https://localhost:4567/health
 ```
 
-You should see `{"status":"ok","version":"3.14.1-dev.32"}` if everything is working.
+You should see `{"status":"ok","version":"3.14.1-dev.33"}` if everything is working.
 
 ---
 
@@ -461,22 +461,25 @@ sudo ./install.sh   # Correct
 ./install.sh        # Wrong - needs sudo
 ```
 
-#### Problem: "Python >= 3.10 is required"
+#### Problem: "Python >= 3.11 is required"
 
-The backend pins (FastAPI / pydantic / cryptography) need Python 3.10
+The backend pins (SQLAlchemy 2.1 / FastAPI / pydantic) need Python 3.11
 or newer. EL8 default `python3` is 3.6; EL9 is 3.9. The installer now
-fails in preflight instead of later inside pip.
+picks `python3.13`/`python3.12`/`python3.11` automatically when one is installed and `PYTHON_BIN` is unset. If none is installed it installs one from the OS repos: `dnf`/`yum install -y python3.12 python3.12-pip` on EL, or `apt-get install -y python3.12 python3.12-venv` (falling back to `python3.11 python3.11-venv` on Ubuntu 22.04). You only see this error when that install fails, `INSTALL_PYTHON=false` is set, or `PYTHON_BIN` points at an old interpreter.
 
-**Solution:** Install a parallel interpreter and point the installer at it:
+**Solution:** Let the installer reach the OS repos, or install a parallel interpreter yourself and re-run:
 
 ```bash
 # EL8 / EL9 (Alma, Rocky, RHEL):
-sudo dnf install -y python3.12
-# in install.conf:
+sudo dnf install -y python3.12 python3.12-pip
+# optional, in install.conf:
 # PYTHON_BIN="/usr/bin/python3.12"
 
-# Ubuntu 20.04 / 22.04: system python3 is already 3.8 / 3.10.
-# On 20.04 install 3.10+ from deadsnakes or use 22.04+.
+# Ubuntu 22.04: sudo apt-get install -y python3.11 python3.11-venv
+#   (or python3.12 from the deadsnakes PPA). Ubuntu 20.04: deadsnakes or 24.04+.
+
+# Air-gapped hosts: set INSTALL_PYTHON=false and the installer stops with
+# the exact package command instead of reaching for the network.
 ```
 
 #### Problem: "Cannot connect to OpenVoxDB"

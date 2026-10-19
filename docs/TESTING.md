@@ -13,7 +13,7 @@ on every push and pull request to `main`:
 
 | Job | Stack | What it proves |
 | --- | --- | --- |
-| **backend** | Python 3.10 + 3.11 | pytest + ruff (undefined names) |
+| **backend** | Python 3.11 + 3.12 | pytest + ruff (undefined names) |
 | **frontend** | Node 22 + Vitest | typecheck, unit tests, Vite build |
 | **shell** | bash + ShellCheck | `bash -n`, helper `--help`, error-level lint |
 | **bolt-plugin** | Ruby 3.2 | `openvox_enc` inventory plugin tests |
@@ -29,7 +29,7 @@ Dependency vulnerability scans stay in
 From the repository root:
 
 ```bash
-# One-shot (needs Python 3.10+, Node 22, Ruby optional)
+# One-shot (needs Python 3.11+, Node 22, Ruby optional)
 python3 -m pip install -r backend/requirements.txt \
   -r backend/requirements-dev.txt
 (cd frontend && npm ci)

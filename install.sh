@@ -13,7 +13,7 @@
 #   ./install.sh --help             # Show help
 #
 # Requirements:
-#   - Python 3.8+ with venv module
+#   - Python 3.11+ with venv module
 #   - Node.js 18+ and npm (for frontend build, or use pre-built dist/)
 #   - Access to PuppetServer SSL certs
 #   - Root or sudo privileges
@@ -46,9 +46,13 @@ APP_HOST="::"
 UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
-# Interpreter used to create the venv. Backend pins need Python >= 3.10.
-# EL8/EL9 default python3 is older; set PYTHON_BIN=/usr/bin/python3.12
-# (environment or install.conf). Both families ship python3.12 in AppStream.
+# Interpreter used to create the venv. Backend pins need Python >= 3.11
+# (SQLAlchemy 2.1). EL8/EL9 default python3 is older; when PYTHON_BIN is
+# unset and python3 is too old, step 4 auto-picks python3.13/3.12/3.11 if
+# installed, and otherwise installs python3.12 with dnf/yum (EL AppStream)
+# or apt (python3.12 + python3.12-venv, else 3.11) unless INSTALL_PYTHON=false.
+# Override with PYTHON_BIN=/usr/bin/python3.12 (environment or install.conf).
+PYTHON_BIN_EXPLICIT="${PYTHON_BIN:+yes}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 PUPPET_SERVER_HOST="$(hostname -f)"
@@ -101,6 +105,9 @@ CONFIGURE_FIREWALL="true"
 CONFIGURE_SELINUX="false"
 BUILD_FRONTEND="true"
 INSTALL_NODEJS="true"
+# Install python3.12 from the OS repos when no Python >= 3.11 is found
+# (dnf/yum or apt). Set false on air-gapped hosts to get the command instead.
+INSTALL_PYTHON="true"
 CONFIGURE_BOLT="true"
 
 # Package mirror / agent installer (3.3.5-1+)
@@ -507,7 +514,9 @@ Options:
 Answer File:
   Copy install.conf.example to install.conf and edit it.
   All variables are optional; defaults are used for any not specified.
-  On EL8/EL9 set PYTHON_BIN=/usr/bin/python3.12 (default python3 is too old).
+  Python >= 3.11 is required. When PYTHON_BIN is unset and python3 is older,
+  an installed python3.13/3.12/3.11 is used; failing that, python3.12 is
+  installed from the OS repos (set INSTALL_PYTHON=false to skip that).
 
 EOF
     exit 0
@@ -992,15 +1001,88 @@ fi
 
 log_step 4 "Python Virtual Environment"
 
+_py_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; }
+# PYTHON_BIN may have been set by install.conf after the default above.
+if [[ "$PYTHON_BIN_EXPLICIT" != "yes" && "$PYTHON_BIN" == "python3" ]] && ! _py_ok python3; then
+    for _cand in python3.13 python3.12 python3.11; do
+        if command -v "$_cand" &>/dev/null && _py_ok "$_cand"; then
+            log_info "Default python3 is older than 3.11; using $(command -v "$_cand")"
+            PYTHON_BIN="$(command -v "$_cand")"
+            break
+        fi
+    done
+fi
+
+# No usable interpreter yet: install python3.12 from the OS repos.
+install_python312() {
+    local pkgs
+    if command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+        local pm
+        pm="$(command -v dnf 2>/dev/null || command -v yum)"
+        # EL8/EL9 AppStream. -pip supplies the ensurepip wheels the venv needs.
+        pkgs="python3.12 python3.12-pip"
+        if [ "$INSTALL_PYTHON" != "true" ]; then
+            log_err "No Python >= 3.11 found and INSTALL_PYTHON=false."
+            log_err "Install it manually:  ${pm##*/} install -y ${pkgs}"
+            return 1
+        fi
+        log_info "No Python >= 3.11 found; installing ${pkgs} with ${pm##*/}..."
+        # shellcheck disable=SC2086
+        "$pm" install -y $pkgs || return 1
+    elif command -v apt-get &>/dev/null; then
+        pkgs="python3.12 python3.12-venv"
+        if [ "$INSTALL_PYTHON" != "true" ]; then
+            log_err "No Python >= 3.11 found and INSTALL_PYTHON=false."
+            log_err "Install it manually:  apt-get install -y ${pkgs}"
+            return 1
+        fi
+        log_info "No Python >= 3.11 found; installing ${pkgs} with apt-get..."
+        apt-get update -qq || true
+        if ! apt-cache show python3.12 &>/dev/null; then
+            # Ubuntu 22.04 universe ships python3.11 but not 3.12.
+            if apt-cache show python3.11 &>/dev/null && apt-cache show python3.11-venv &>/dev/null; then
+                pkgs="python3.11 python3.11-venv"
+                log_info "python3.12 is not in this host's apt sources; using ${pkgs} instead."
+            else
+                log_err "python3.12 is not available from this host's apt sources."
+                log_err "Ubuntu 22.04: add the deadsnakes PPA (add-apt-repository ppa:deadsnakes/ppa),"
+                log_err "then apt-get install python3.12 python3.12-venv, or upgrade to Ubuntu 24.04+ / Debian 13+."
+                return 1
+            fi
+        fi
+        # shellcheck disable=SC2086
+        DEBIAN_FRONTEND=noninteractive apt-get install -y $pkgs || return 1
+    else
+        log_err "No Python >= 3.11 found and no dnf/yum/apt-get to install one."
+        return 1
+    fi
+}
+
+if [[ "$PYTHON_BIN_EXPLICIT" != "yes" && "$PYTHON_BIN" == "python3" ]] && ! _py_ok python3; then
+    if ! install_python312; then
+        log_err "Install Python 3.11+ and re-run, or set PYTHON_BIN (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
+        exit 1
+    fi
+    # Re-run detection now that python3.12 should be on PATH.
+    hash -r
+    for _cand in python3.13 python3.12 python3.11; do
+        if command -v "$_cand" &>/dev/null && _py_ok "$_cand"; then
+            PYTHON_BIN="$(command -v "$_cand")"
+            log_ok "Installed and using ${PYTHON_BIN}"
+            break
+        fi
+    done
+fi
+
 if ! command -v "$PYTHON_BIN" &>/dev/null; then
     log_err "Python interpreter '${PYTHON_BIN}' not found. Install it (plus its venv module), or set PYTHON_BIN (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
     exit 1
 fi
 
 # Fail here, not inside pip's Requires-Python wall (EL8/EL9 default python3).
-if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
     PY_VER=$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "unknown")
-    log_err "Python >= 3.10 is required; '${PYTHON_BIN}' is ${PY_VER}. Set PYTHON_BIN to a newer interpreter (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
+    log_err "Python >= 3.11 is required; '${PYTHON_BIN}' is ${PY_VER}. Set PYTHON_BIN to a newer interpreter (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
     exit 1
 fi
 

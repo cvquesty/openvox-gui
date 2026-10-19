@@ -6,7 +6,7 @@ pydantic==2.14.0
 # pydantic-settings==2.15.0 (Dependabot #67). 2.14.2 was GHSA-4xgf-cpjx-pc3j.
 # Supply chain: use pip install --require-hashes in production; hashes not pinned here for dev flexibility.
 pydantic-settings==2.15.0
-sqlalchemy==2.0.52
+sqlalchemy[asyncio]==2.1.4
 aiosqlite==0.22.1
 asyncpg==0.32.0
 psycopg2-binary==2.9.13
@@ -38,8 +38,7 @@ python-dotenv==1.2.4
 pyhocon>=0.3.63
 
 # Fleet Health PDF report generation (matplotlib for chart recreation matching UI, fpdf2 for fixed-layout one-page PDF assembly)
-# 3.8/3.9 are EOL. 3.11.x needs Python >=3.11 and drops the 3.10 floor.
-# 3.10.9 is the latest line that still ships cp310 wheels (cycler/eval + latex/ps hardening).
-matplotlib>=3.10.9,<3.11
+# Python floor is 3.11 (SQLAlchemy 2.1), so the old <3.11 hold for cp310 wheels is gone.
+matplotlib>=3.10.9
 fpdf2>=2.7
 Pillow==12.3.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)

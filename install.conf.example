@@ -16,8 +16,8 @@ UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
 # Python interpreter used to create the virtualenv. Backend requires
-# Python >= 3.10. On EL8/EL9 the default python3 is older; install
-# python3.12 from AppStream and point this at it.
+# Python >= 3.11. Leave unset to auto-pick python3.13/3.12/3.11, or (with
+# INSTALL_PYTHON=true) have the installer add python3.12 from the OS repos.
 #PYTHON_BIN="/usr/bin/python3.12"
 
 # ─── PuppetServer Settings ────────────────────────────────────
@@ -100,6 +100,13 @@ BUILD_FRONTEND="true"
 # Uses dnf module (RHEL 8+) or NodeSource repo (RHEL 7, Debian/Ubuntu).
 # Set to "false" if you prefer to install Node.js manually first.
 INSTALL_NODEJS="true"
+
+# Install python3.12 from the OS repos (dnf/yum: python3.12 python3.12-pip;
+# apt: python3.12 python3.12-venv, or python3.11 on Ubuntu 22.04) when
+# PYTHON_BIN is unset and no
+# Python >= 3.11 is installed. Set to "false" on air-gapped hosts; the
+# installer then stops and prints the package command to run yourself.
+INSTALL_PYTHON="true"
 
 # ─── Proxy Settings ────────────────────────────────────────────
 # DEFAULT: No proxy (direct connections). This is the normal case for

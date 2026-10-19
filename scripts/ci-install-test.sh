@@ -107,12 +107,13 @@ case "$IMAGE" in
     RUN_IMAGE="$PULL_IMAGE"
     INIT="/sbin/init"
     # hostname: 'hostname -f' is used throughout install.sh.
-    # python3.12: EL9's default python3 is 3.9 (too old).
     # curl: EL9 images ship curl-minimal, which conflicts with curl.
+    # Python: not pre-installed and PYTHON_BIN left unset. EL9's python3 is
+    # 3.9, so install.sh must install python3.12 itself (INSTALL_PYTHON);
+    # EL10's python3 is 3.12 and is used as-is.
     PREP="dnf install -y -q sudo openssl diffutils hostname openssh-clients shadow-utils >/dev/null; \
-      if [ ! -x /usr/bin/python3.12 ]; then dnf install -y -q python3.12 >/dev/null || dnf install -y -q python3 >/dev/null; fi; \
       command -v curl >/dev/null || dnf install -y -q curl >/dev/null"
-    PYTHON_BIN="/usr/bin/python3.12"
+    PYTHON_BIN=""
     ;;
 esac
 
@@ -127,21 +128,20 @@ SCHEME=http
 
 "$ENGINE" exec "$NAME" bash -euo pipefail -c "
   $PREP
-  if [ ! -x ${PYTHON_BIN} ]; then
-    if [ -x /usr/bin/python3.12 ]; then PY=/usr/bin/python3.12
-    elif [ -x /usr/bin/python3 ]; then PY=/usr/bin/python3
-    else echo 'FAIL: no suitable python3'; exit 1
-    fi
+  PY='${PYTHON_BIN}'
+  if [ -n \"\$PY\" ]; then
+    echo \"Using Python: \$PY (\$(\"\$PY\" --version 2>&1))\"
+    PY_LINE=\"PYTHON_BIN=\$PY\"
   else
-    PY=${PYTHON_BIN}
+    echo \"PYTHON_BIN unset; install.sh detects (or installs) Python. python3: \$(python3 --version 2>&1 || echo none)\"
+    PY_LINE='INSTALL_PYTHON=true'
   fi
-  echo \"Using Python: \$PY (\$(\"\$PY\" --version 2>&1))\"
 
   cp -a /src /root/src
 
   cat > /root/install.conf <<CONF
 APP_HOST=0.0.0.0
-PYTHON_BIN=\${PY}
+\${PY_LINE}
 AUTH_BACKEND=local
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=ci-install-secret
@@ -167,6 +167,7 @@ CONF
   bash install.sh -c /root/install.conf > /root/install.log 2>&1 \
     || { echo 'FAIL: install.sh exited non-zero'; tail -n 80 /root/install.log; exit 1; }
   echo 'PASS: install.sh exit 0'
+  echo \"venv Python: \$(/opt/openvox-gui/venv/bin/python --version 2>&1)\"
 
   [ \"\$(systemctl is-active openvox-gui)\" = active ] \
     || { echo 'FAIL: service not active'; journalctl -u openvox-gui -n 40 --no-pager; tail -n 40 /root/install.log; exit 1; }
