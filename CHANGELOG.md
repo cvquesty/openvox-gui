@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.33] - 2026-10-18
+
+### Changed
+- **SQLAlchemy 2.1.4; Python floor is now 3.11.** Supersedes Dependabot
+  PR #129. `backend/requirements.txt` pins `sqlalchemy[asyncio]==2.1.4`
+  (2.1 no longer pulls in `greenlet`, which `sqlalchemy.ext.asyncio`
+  needs). SQLAlchemy 2.1 requires Python >= 3.11, so Python 3.10 is
+  dropped: CI pytest and pip-audit now run on 3.11 + 3.12, and the
+  `matplotlib<3.11` hold that kept cp310 wheels is relaxed.
+- **install.sh:** preflight requires Python >= 3.11. When `PYTHON_BIN`
+  is unset and the default `python3` is older (EL8/EL9), the installer
+  now picks `python3.13`, `python3.12` or `python3.11` if one is
+  installed. README, INSTALL, SECURITY and TESTING docs read 3.11+.
+
 ## [3.14.1-dev.32] - 2026-10-17
 
 ### Fixed

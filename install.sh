@@ -13,7 +13,7 @@
 #   ./install.sh --help             # Show help
 #
 # Requirements:
-#   - Python 3.8+ with venv module
+#   - Python 3.11+ with venv module
 #   - Node.js 18+ and npm (for frontend build, or use pre-built dist/)
 #   - Access to PuppetServer SSL certs
 #   - Root or sudo privileges
@@ -46,9 +46,12 @@ APP_HOST="::"
 UVICORN_WORKERS="2"
 APP_DEBUG="false"
 
-# Interpreter used to create the venv. Backend pins need Python >= 3.10.
-# EL8/EL9 default python3 is older; set PYTHON_BIN=/usr/bin/python3.12
-# (environment or install.conf). Both families ship python3.12 in AppStream.
+# Interpreter used to create the venv. Backend pins need Python >= 3.11
+# (SQLAlchemy 2.1). EL8/EL9 default python3 is older; when PYTHON_BIN is
+# unset and python3 is too old, step 4 auto-picks python3.13/3.12/3.11 if
+# installed. Override with PYTHON_BIN=/usr/bin/python3.12 (environment or
+# install.conf). Both EL families ship python3.12 in AppStream.
+PYTHON_BIN_EXPLICIT="${PYTHON_BIN:+yes}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 PUPPET_SERVER_HOST="$(hostname -f)"
@@ -507,7 +510,8 @@ Options:
 Answer File:
   Copy install.conf.example to install.conf and edit it.
   All variables are optional; defaults are used for any not specified.
-  On EL8/EL9 set PYTHON_BIN=/usr/bin/python3.12 (default python3 is too old).
+  Python >= 3.11 is required. On EL8/EL9 install python3.12; it is auto-picked
+  when PYTHON_BIN is unset (or set PYTHON_BIN=/usr/bin/python3.12).
 
 EOF
     exit 0
@@ -992,15 +996,27 @@ fi
 
 log_step 4 "Python Virtual Environment"
 
+_py_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; }
+# PYTHON_BIN may have been set by install.conf after the default above.
+if [[ "$PYTHON_BIN_EXPLICIT" != "yes" && "$PYTHON_BIN" == "python3" ]] && ! _py_ok python3; then
+    for _cand in python3.13 python3.12 python3.11; do
+        if command -v "$_cand" &>/dev/null && _py_ok "$_cand"; then
+            log_info "Default python3 is older than 3.11; using $(command -v "$_cand")"
+            PYTHON_BIN="$(command -v "$_cand")"
+            break
+        fi
+    done
+fi
+
 if ! command -v "$PYTHON_BIN" &>/dev/null; then
     log_err "Python interpreter '${PYTHON_BIN}' not found. Install it (plus its venv module), or set PYTHON_BIN (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
     exit 1
 fi
 
 # Fail here, not inside pip's Requires-Python wall (EL8/EL9 default python3).
-if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
     PY_VER=$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "unknown")
-    log_err "Python >= 3.10 is required; '${PYTHON_BIN}' is ${PY_VER}. Set PYTHON_BIN to a newer interpreter (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
+    log_err "Python >= 3.11 is required; '${PYTHON_BIN}' is ${PY_VER}. Set PYTHON_BIN to a newer interpreter (e.g. PYTHON_BIN=/usr/bin/python3.12 in install.conf)."
     exit 1
 fi
 

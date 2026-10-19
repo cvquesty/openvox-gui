@@ -16,16 +16,16 @@ We actively support security and operational updates for the latest stable and p
 
 **Default recommendation:** run the latest **stable** (**[v3.14.0](https://github.com/cvquesty/openvox-gui/releases/tag/v3.14.0)**). Track [docs/STATUS.md](docs/STATUS.md).
 
-**CI (every push/PR to `main`):** GitHub Actions workflow **CI** (`.github/workflows/ci.yml`) runs pytest (Python 3.10/3.11), ruff error-class rules, frontend typecheck + Vitest + Vite build, `bash -n` / ShellCheck, the Bolt ENC plugin tests, and VERSION lockstep. See [docs/TESTING.md](docs/TESTING.md).
+**CI (every push/PR to `main`):** GitHub Actions workflow **CI** (`.github/workflows/ci.yml`) runs pytest (Python 3.11/3.12), ruff error-class rules, frontend typecheck + Vitest + Vite build, `bash -n` / ShellCheck, the Bolt ENC plugin tests, and VERSION lockstep. See [docs/TESTING.md](docs/TESTING.md).
 
 **Dependency audits:** GitHub Actions workflow **Security audits** (`.github/workflows/security.yml`) runs on push/PR (path-filtered), weekly Mondays, and `workflow_dispatch`:
 
 | Job | What |
 |-----|------|
-| **pip-audit** | `scripts/ci-pip-audit.sh` on Ubuntu, Python 3.10 + 3.11; installs `backend/requirements.txt` with `--only-binary=psycopg2-binary` (manylinux wheel, no `pg_config`), then `pip-audit --strict` on the full environment |
+| **pip-audit** | `scripts/ci-pip-audit.sh` on Ubuntu, Python 3.11 + 3.12; installs `backend/requirements.txt` with `--only-binary=psycopg2-binary` (manylinux wheel, no `pg_config`), then `pip-audit --strict` on the full environment |
 | **npm audit** | `npm ci` + `npm audit --audit-level=high` in `frontend/` |
 
-Local: `./scripts/ci-pip-audit.sh` (needs a Python that has a `psycopg2-binary` wheel — typically Linux CI or macOS with 3.10–3.13, not always 3.14). Backend pin of note: `cryptography==50.0.0` (PYSEC-2026-3552/3553/3554).
+Local: `./scripts/ci-pip-audit.sh` (needs a Python that has a `psycopg2-binary` wheel — typically Linux CI or macOS with 3.11–3.13, not always 3.14). Backend pin of note: `cryptography==50.0.0` (PYSEC-2026-3552/3553/3554).
 
 ## Reporting a Vulnerability
 
