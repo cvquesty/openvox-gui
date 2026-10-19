@@ -243,6 +243,29 @@ sudo ./install.sh
 
 ---
 
+### Problem: `install.sh` stops at "Python >= 3.11 is required" / "No Python >= 3.11 found"
+
+From 3.14.1-dev.33 the backend needs Python 3.11+ (SQLAlchemy 2.1). When
+`PYTHON_BIN` is unset, install.sh uses an installed `python3.13`/`3.12`/`3.11`,
+and if there is none it installs one: `dnf`/`yum install -y python3.12
+python3.12-pip` on EL8/EL9, `apt-get install -y python3.12 python3.12-venv`
+(or `python3.11 python3.11-venv` on Ubuntu 22.04) on Debian/Ubuntu. It stops
+with this error when that package install fails (no repo access, no
+AppStream, no package in apt sources) or `INSTALL_PYTHON=false` is set.
+
+```bash
+# EL8 / EL9 (needs AppStream, or a local mirror of it on air-gapped hosts)
+sudo dnf install -y python3.12 python3.12-pip
+# Ubuntu 22.04 (universe), or python3.12 via ppa:deadsnakes/ppa
+sudo apt-get install -y python3.11 python3.11-venv
+# then re-run, optionally pinning the interpreter
+sudo PYTHON_BIN=/usr/bin/python3.12 ./install.sh -c install.conf
+```
+
+Upgrading a host whose venv was built on Python 3.10 (for example Ubuntu
+22.04): remove `/opt/openvox-gui/venv` and re-run install.sh so it rebuilds on
+3.11+.
+
 ## Service Won't Start
 
 ### Problem: Service Fails to Start
