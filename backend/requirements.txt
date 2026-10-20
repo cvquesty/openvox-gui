@@ -2,7 +2,7 @@ fastapi==0.141.1
 starlette==1.7.0
 uvicorn[standard]==0.52.4
 httpx==0.28.1
-pydantic==2.14.0
+pydantic==2.14.1
 # pydantic-settings==2.15.0 (Dependabot #67). 2.14.2 was GHSA-4xgf-cpjx-pc3j.
 # Supply chain: use pip install --require-hashes in production; hashes not pinned here for dev flexibility.
 pydantic-settings==2.15.0
