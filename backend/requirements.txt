@@ -41,4 +41,4 @@ pyhocon>=0.3.63
 # Python floor is 3.11 (SQLAlchemy 2.1), so the old <3.11 hold for cp310 wheels is gone.
 matplotlib>=3.10.9
 fpdf2>=2.7
-Pillow==12.3.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)
+Pillow==13.0.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)
