@@ -21,7 +21,7 @@ bcrypt==5.0.0
 # 50.0.0: PYSEC-2026-3552/3553/3554 (PKCS#7 oracle, path-build DoS, nameConstraints wildcard)
 # 50.0.1: latest OpenSSL 4.0.2 wheels; no published advisories
 cryptography==50.0.1
-certifi==2026.7.22
+certifi==2026.10.19
 prometheus-client==0.26.0
 # 3.2.1 is GHSA-wmxh-pxcx-9w24 / CVE-2025-27607 (dev-extra RCE range).
 # No in-repo JsonFormatter import; 4.2.0 is latest and Snyk-clean.
@@ -41,4 +41,4 @@ pyhocon>=0.3.63
 # Python floor is 3.11 (SQLAlchemy 2.1), so the old <3.11 hold for cp310 wheels is gone.
 matplotlib>=3.10.9
 fpdf2>=2.7
-Pillow==12.3.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)
+Pillow==13.0.0  # fleet PDF/image assembly; pin for OSV-clean (not >=10.0)
