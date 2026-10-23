@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.45] - 2026-10-23
+
+### Fixed
+- **Puppetfile SSH used the puppet account.** ``/home/jsheets/.ssh``
+  is not readable by the service user. When ``jsheets`` exists, git
+  runs as that user (``sudo -n -H -u jsheets``) so the keys already
+  used for GitHub are offered. ``OPENVOX_GUI_GIT_USER`` overrides the
+  name. Sudoers allows the service user to run ``/usr/bin/git`` as
+  ``jsheets``.
+
 ## [3.14.1-dev.44] - 2026-10-23
 
 ### Fixed

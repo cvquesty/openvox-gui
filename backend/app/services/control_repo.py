@@ -33,8 +33,26 @@ def checkout_dir(repo: str) -> Path:
 
 
 def remote_url(repo: str) -> str:
-    """SSH remote. The console uses its own deploy key. No token in the URL."""
+    """SSH remote. No token in the URL."""
     return f"git@github.com:{repo}.git"
+
+
+def git_identity() -> str:
+    """Unix account whose ``~/.ssh`` can read the control repo.
+
+    The GUI runs as ``puppet``. That account does not see
+    ``/home/jsheets/.ssh``. When ``jsheets`` exists, git runs as that
+    user so the keys already used for GitHub are the ones offered.
+    """
+    override = os.environ.get("OPENVOX_GUI_GIT_USER", "").strip()
+    if override:
+        return override
+    try:
+        import pwd
+        pwd.getpwnam("jsheets")
+    except KeyError:
+        return ""
+    return "jsheets"
 
 
 def _public_git_error(detail: str) -> str:
@@ -44,9 +62,10 @@ def _public_git_error(detail: str) -> str:
         or "could not read from remote" in low
         or "host key verification failed" in low
     ):
+        who = git_identity() or "the console user"
         return (
-            "SSH to github.com failed. The console user needs a key that "
-            "can read the control repo over git@github.com."
+            f"SSH to github.com failed as {who}. "
+            "That account needs a key that can read the control repo."
         )
     return detail or "git failed"
 
@@ -65,9 +84,14 @@ async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
         "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "
         f"-o ConnectTimeout={connect}"
     )
+    who = git_identity()
+    argv = ["git", *args]
+    if who and who != os.environ.get("USER", ""):
+        # -H sets HOME so ssh reads that user's keys, not puppet's.
+        argv = ["sudo", "-n", "-H", "-u", who, *argv]
+        env["HOME"] = f"/home/{who}"
     proc = await asyncio.create_subprocess_exec(
-        "git",
-        *args,
+        *argv,
         cwd=str(cwd),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -80,7 +104,7 @@ async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
         await proc.wait()
         raise ControlRepoError(
             f"git {' '.join(args[:3])} timed out after {int(timeout)}s. "
-            "The console must reach github.com on port 22 with the puppet user's key."
+            "The console must reach github.com on port 22."
         ) from exc
     if proc.returncode != 0:
         detail = (stderr or stdout or b"").decode("utf-8", "replace").strip()
@@ -92,6 +116,12 @@ async def ensure_checkout(repo: str, branch: str) -> Path:
     """Clone or fast-forward ``branch`` over SSH. Return the checkout path."""
     root = checkout_dir(repo)
     root.parent.mkdir(parents=True, exist_ok=True)
+    # jsheets must be able to write the checkout it clones into.
+    if git_identity():
+        try:
+            os.chmod(root.parent, 0o1777)
+        except OSError:
+            pass
     remote = remote_url(repo)
     if not (root / ".git").is_dir():
         if root.exists():

@@ -22,6 +22,21 @@ def test_checkout_dir_rejects_path_tricks(monkeypatch, tmp_path):
         checkout_dir("../etc/passwd")
 
 
+def test_git_identity_uses_jsheets_when_present(monkeypatch):
+    import pwd
+
+    class Fake:
+        pass
+
+    monkeypatch.delenv("OPENVOX_GUI_GIT_USER", raising=False)
+    monkeypatch.setattr(pwd, "getpwnam", lambda name: Fake() if name == "jsheets" else (_ for _ in ()).throw(KeyError(name)))
+    from app.services.control_repo import git_identity
+    assert git_identity() == "jsheets"
+
+    monkeypatch.setenv("OPENVOX_GUI_GIT_USER", "deploy")
+    assert git_identity() == "deploy"
+
+
 def test_remote_is_ssh():
     url = remote_url("xai-org/itsys-control_repo")
     assert url == "git@github.com:xai-org/itsys-control_repo.git"
