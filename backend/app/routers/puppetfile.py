@@ -227,7 +227,7 @@ def _bolt_puppetfile(text: str) -> Optional[Dict[str, str]]:
 async def _read_via_compiler(repo: str, path: str, ref: str) -> Dict[str, str]:
     """Read the Puppetfile on a compiler. The console cannot reach GitHub."""
     from ..services.cluster_config import deploy_targets
-    from ..services.command_execution import command_execution_service
+    from ..services.command_execution import default_service
 
     targets = deploy_targets()
     if not targets:
@@ -241,7 +241,7 @@ async def _read_via_compiler(repo: str, path: str, ref: str) -> Dict[str, str]:
     script = compiler_read_script(repo, path, ref)
     errors: List[str] = []
     for target in targets[:4]:
-        result = await command_execution_service.run_bolt_cli(
+        result = await default_service.run_bolt_cli(
             ["command", "run", script, "--targets", target],
             timeout=60,
             executed_by="puppetfile",

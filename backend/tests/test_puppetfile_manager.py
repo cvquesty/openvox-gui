@@ -75,6 +75,14 @@ def test_repository_list_includes_default_and_extra_sources():
     assert rows[0]["label"] == "itsys — xai-org/itsys-control_repo"
 
 
+def test_compiler_read_script_is_one_shell_line():
+    from app.services.github_contents import compiler_read_script
+
+    script = compiler_read_script("xai-org/itsys-control_repo", "Puppetfile", "staging")
+    assert "\n" not in script
+    assert script.startswith("python3 -c ")
+
+
 def test_bolt_stdout_keeps_the_puppetfile_after_noise():
     text = "Started on compiler.example\nabc1234\tmod 'puppet-chrony', '5.0.0'\nmod 'kea',\n"
     parsed = _bolt_puppetfile(text)

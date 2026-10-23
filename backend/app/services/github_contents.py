@@ -13,7 +13,6 @@ instead of overwriting that commit.
 from __future__ import annotations
 
 import base64
-import shlex
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
@@ -131,25 +130,20 @@ class GitHubContents:
 
 
 def compiler_read_script(repo: str, path: str, ref: str) -> str:
-    """Shell that prints the Puppetfile from a compiler's r10k git cache.
+    """One-line command that prints the Puppetfile from the r10k cache.
 
     r10k already cloned that repo onto the compiler. The console cannot
     open api.github.com, and it must not send a token to the compiler.
     The compiler's own git credential does the fetch.
 
-    stdout is ``sha<TAB>body``. A fetch failure still prints the file
-    that is already in the cache.
+    The program is base64 so Bolt does not have to carry a heredoc.
+    stdout is ``sha<TAB>body``. ``ref`` and ``origin/ref`` are both tried.
     """
-    safe_repo = shlex.quote(repo)
-    safe_path = shlex.quote(path)
-    safe_ref = shlex.quote(ref)
-    return f"""
-repo={safe_repo}
-want={safe_path}
-ref={safe_ref}
-python3 - "$repo" "$want" "$ref" <<'PY'
+    program = f"""
 import os, subprocess, sys
-repo, want, ref = sys.argv[1:]
+repo = {repo!r}
+want = {path!r}
+ref = {ref!r}
 
 def git_dirs():
     for base in ("/opt/puppetlabs/puppet/cache/r10k", "/var/cache/r10k"):
@@ -186,22 +180,27 @@ if not found:
     sys.exit(3)
 
 def run(args):
-    return subprocess.run(
-        ["git", "--git-dir", found, *args],
-        capture_output=True,
-    )
+    return subprocess.run(["git", "--git-dir", found] + args, capture_output=True)
 
 run(["fetch", "--quiet", "origin", ref])
-body = run(["show", "%s:%s" % (ref, want)])
-if body.returncode != 0:
-    sys.stderr.write(body.stderr.decode("utf-8", "replace"))
-    sys.exit(body.returncode)
-sha = run(["rev-parse", "%s:%s" % (ref, want)])
+body = None
+spec = ""
+for candidate in (ref, "origin/" + ref):
+    spec = candidate + ":" + want
+    body = run(["show", spec])
+    if body.returncode == 0:
+        break
+if body is None or body.returncode != 0:
+    err = body.stderr.decode("utf-8", "replace") if body else "no output"
+    sys.stderr.write(err)
+    sys.exit(body.returncode if body else 4)
+sha = run(["rev-parse", spec])
 if sha.returncode != 0:
     sys.stderr.write(sha.stderr.decode("utf-8", "replace"))
     sys.exit(sha.returncode)
 blob = sha.stdout.decode("ascii", "replace").strip()
 sys.stdout.buffer.write(blob.encode("ascii") + b"\\t")
 sys.stdout.buffer.write(body.stdout)
-PY
 """
+    encoded = base64.b64encode(program.encode("utf-8")).decode("ascii")
+    return f"python3 -c \"import base64; exec(base64.b64decode('{encoded}'))\""
