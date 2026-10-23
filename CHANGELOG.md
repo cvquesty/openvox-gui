@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.42] - 2026-10-23
+
+### Fixed
+- **Puppetfile clone put the saved secret in the URL.** A value that
+  is not a personal access token (characters such as ``[``) made curl
+  report ``Bad hostname`` and printed that secret. The remote is now
+  ``https://x-access-token@github.com/<repo>.git``. Git asks a local
+  askpass script for the token. A password is rejected before git runs.
+
 ## [3.14.1-dev.41] - 2026-10-23
 
 ### Fixed

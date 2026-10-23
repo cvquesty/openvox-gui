@@ -11,12 +11,22 @@ import asyncio
 import hashlib
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Dict
 
 from ..config import settings
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+# Fine-grained tokens start with github_pat_. Classic tokens start with ghp_.
+# A GitHub password is not a token and must not be handed to git.
+_PAT_RE = re.compile(r"(?:github_pat_|ghp_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]{16,}")
+_ASKPASS = """#!/bin/sh
+case "$1" in
+  Username*) printf '%s\\n' x-access-token ;;
+  *) printf '%s\\n' "$OPENVOX_GIT_TOKEN" ;;
+esac
+"""
 
 
 class ControlRepoError(Exception):
@@ -31,19 +41,67 @@ def checkout_dir(repo: str) -> Path:
     return Path(settings.data_dir) / "control-repos" / f"{owner}--{name}"
 
 
-def _remote(repo: str, token: str) -> str:
-    return f"https://x-access-token:{token}@github.com/{repo}.git"
+def token_is_pat(value: str) -> bool:
+    """True when ``value`` is a GitHub personal access token."""
+    return bool(_PAT_RE.fullmatch(value or ""))
 
 
-async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
+def remote_url(repo: str) -> str:
+    """Clone URL with the GitHub username and no secret.
+
+    The token is not part of the URL. Characters such as ``[`` in a
+    mistyped password make curl reject the hostname, and the error
+    string then shows that password.
+    """
+    return f"https://x-access-token@github.com/{repo}.git"
+
+
+def _askpass_path(parent: Path) -> Path:
+    path = parent / "askpass.sh"
+    path.write_text(_ASKPASS, encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def _public_git_error(detail: str, token: str) -> str:
+    if token:
+        detail = detail.replace(token, "***")
+    low = detail.lower()
+    if (
+        "authentication failed" in low
+        or "invalid username or token" in low
+        or "terminal prompts disabled" in low
+        or "bad hostname" in low
+        or "url rejected" in low
+    ):
+        return (
+            "GitHub rejected the saved token. "
+            "Save a personal access token (github_pat_… or ghp_…), not a password."
+        )
+    return detail or "git failed"
+
+
+async def _git(
+    cwd: Path,
+    *args: str,
+    timeout: float = 60.0,
+    token: str = "",
+    askpass: Path | None = None,
+) -> str:
     """Run git in ``cwd``. Raise ControlRepoError with stderr on failure."""
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    if token:
+        env["OPENVOX_GIT_TOKEN"] = token
+    if askpass is not None:
+        env["GIT_ASKPASS"] = str(askpass)
     proc = await asyncio.create_subprocess_exec(
         "git",
         *args,
         cwd=str(cwd),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        env=env,
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
@@ -52,37 +110,61 @@ async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
         raise ControlRepoError(f"git {' '.join(args[:2])} timed out") from exc
     if proc.returncode != 0:
         detail = (stderr or stdout or b"").decode("utf-8", "replace").strip()
-        detail = re.sub(r"x-access-token:[^@\s]+@", "x-access-token:***@", detail)
-        raise ControlRepoError(detail or f"git exited {proc.returncode}")
+        raise ControlRepoError(_public_git_error(detail, token))
     return (stdout or b"").decode("utf-8", "replace")
 
 
 async def ensure_checkout(repo: str, token: str, branch: str) -> Path:
     """Clone or fast-forward ``branch``. Return the checkout path.
 
-    The remote URL always carries the token so a later fetch uses the
-    credential that was just saved. It is not written to a second file.
+    Git asks ``askpass.sh`` for the password. The remote URL only
+    carries the username ``x-access-token``.
     """
+    if not token_is_pat(token):
+        raise ControlRepoError(
+            "Save a GitHub personal access token (github_pat_… or ghp_…). "
+            "A password will not work."
+        )
     root = checkout_dir(repo)
     root.parent.mkdir(parents=True, exist_ok=True)
-    remote = _remote(repo, token)
+    askpass = _askpass_path(root.parent)
+    remote = remote_url(repo)
     if not (root / ".git").is_dir():
         if root.exists():
-            raise ControlRepoError(f"{root} exists and is not a git checkout")
-        parent = root.parent
-        await _git(
-            parent,
-            "clone",
-            "--branch",
-            branch,
-            "--single-branch",
-            remote,
-            root.name,
-            timeout=120.0,
-        )
+            shutil.rmtree(root)
+        try:
+            await _git(
+                root.parent,
+                "-c",
+                "credential.helper=",
+                "clone",
+                "--branch",
+                branch,
+                "--single-branch",
+                remote,
+                root.name,
+                timeout=120.0,
+                token=token,
+                askpass=askpass,
+            )
+        except ControlRepoError:
+            shutil.rmtree(root, ignore_errors=True)
+            raise
         return root
     await _git(root, "remote", "set-url", "origin", remote)
-    await _git(root, "fetch", "--depth", "1", "origin", branch, timeout=120.0)
+    await _git(
+        root,
+        "-c",
+        "credential.helper=",
+        "fetch",
+        "--depth",
+        "1",
+        "origin",
+        branch,
+        timeout=120.0,
+        token=token,
+        askpass=askpass,
+    )
     await _git(root, "checkout", "--force", "FETCH_HEAD")
     return root
 
