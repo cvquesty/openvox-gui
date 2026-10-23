@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.47] - 2026-10-23
+
+### Fixed
+- **Puppetfile sudoers failed visudo.** ``Defaults:puppet !/usr/bin/git``
+  names a user and a command on one line, which sudo rejects. The
+  tag is now ``Defaults!/usr/bin/git !requiretty``.
+
 ## [3.14.1-dev.46] - 2026-10-23
 
 ### Fixed

@@ -142,7 +142,8 @@ Defaults:${SERVICE_USER} !requiretty
 Defaults:${SERVICE_USER} lecture=never
 # CIS sudoers sets Defaults requiretty later in the read order, which
 # beats the service-user !requiretty above. A command tag is applied
-# when the rule is matched, so it wins for this one command.
+# when the rule is matched. Defaults cannot name a user and a command
+# on the same line, so the tag is the command alone.
 
 # r10k code deployment
 # Method: wrapper script (r10k-deploy.sh) that safely invokes r10k with
@@ -150,7 +151,7 @@ Defaults:${SERVICE_USER} lecture=never
 # Puppetfile Resolve clones the control repo as jsheets so git uses
 # /home/jsheets/.ssh. The service user cannot read that directory.
 ${SERVICE_USER} ALL=(jsheets) NOPASSWD:SETENV: /usr/bin/git
-Defaults:${SERVICE_USER} !/usr/bin/git !requiretty
+Defaults!/usr/bin/git !requiretty
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-stage-activate.sh
 
