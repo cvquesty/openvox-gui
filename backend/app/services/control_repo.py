@@ -52,11 +52,18 @@ def _public_git_error(detail: str) -> str:
 
 
 async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
-    """Run git in ``cwd``. Raise ControlRepoError with stderr on failure."""
+    """Run git in ``cwd``. Raise ControlRepoError with stderr on failure.
+
+    SSH gets its own deadline. Without it a firewalled github.com:22
+    sits until the whole clone is killed and the only message is
+    "timed out".
+    """
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
+    connect = max(5, min(20, int(timeout // 6) or 5))
     env["GIT_SSH_COMMAND"] = (
-        "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+        "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "
+        f"-o ConnectTimeout={connect}"
     )
     proc = await asyncio.create_subprocess_exec(
         "git",
@@ -70,7 +77,11 @@ async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
     except asyncio.TimeoutError as exc:
         proc.kill()
-        raise ControlRepoError(f"git {' '.join(args[:2])} timed out") from exc
+        await proc.wait()
+        raise ControlRepoError(
+            f"git {' '.join(args[:3])} timed out after {int(timeout)}s. "
+            "The console must reach github.com on port 22 with the puppet user's key."
+        ) from exc
     if proc.returncode != 0:
         detail = (stderr or stdout or b"").decode("utf-8", "replace").strip()
         raise ControlRepoError(_public_git_error(detail))
@@ -89,19 +100,21 @@ async def ensure_checkout(repo: str, branch: str) -> Path:
             await _git(
                 root.parent,
                 "clone",
+                "--depth",
+                "1",
                 "--branch",
                 branch,
                 "--single-branch",
                 remote,
                 root.name,
-                timeout=120.0,
+                timeout=300.0,
             )
         except ControlRepoError:
             shutil.rmtree(root, ignore_errors=True)
             raise
         return root
     await _git(root, "remote", "set-url", "origin", remote)
-    await _git(root, "fetch", "--depth", "1", "origin", branch, timeout=120.0)
+    await _git(root, "fetch", "--depth", "1", "origin", branch, timeout=300.0)
     await _git(root, "checkout", "--force", "FETCH_HEAD")
     return root
 

@@ -43,6 +43,7 @@ def test_ensure_checkout_clones_then_fetches(monkeypatch, tmp_path):
     root = asyncio.run(ensure_checkout("xai-org/itsys-control_repo", "staging"))
     clone_args = calls[0][1]
     assert clone_args[0] == "clone"
+    assert "--depth" in clone_args
     assert remote_url("xai-org/itsys-control_repo") in clone_args
     assert "staging" in clone_args
 

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.44] - 2026-10-23
+
+### Fixed
+- **Puppetfile clone timed out.** The first checkout fetched the
+  whole history and was killed at 120 seconds with no git output.
+  The clone is now ``--depth 1``, the deadline is 300 seconds, and
+  SSH itself fails after a short connect timeout so a blocked port
+  22 is reported instead of a silent hang.
+
 ## [3.14.1-dev.43] - 2026-10-23
 
 ### Changed
