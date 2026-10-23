@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Button,
-  Badge, TextInput, Checkbox, Code, Select,
+  Badge, TextInput, Textarea, Checkbox, Code, Select,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconFileCode, IconRefresh } from '@tabler/icons-react';
@@ -43,7 +43,7 @@ type Connection = {
   repo: string;
   branch: string;
   path: string;
-  token_set: boolean;
+  key_set: boolean;
   repositories: RepoChoice[];
 };
 
@@ -63,7 +63,7 @@ export function PuppetfileManagerPage() {
   const [repo, setRepo] = useState('xai-org/itsys-control_repo');
   const [branch, setBranch] = useState('staging');
   const [path, setPath] = useState('Puppetfile');
-  const [token, setToken] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
   const [report, setReport] = useState<Report | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -112,12 +112,12 @@ export function PuppetfileManagerPage() {
         repo: repo.trim(),
         branch: branch.trim() || 'staging',
         path: path.trim() || 'Puppetfile',
-        token: token.trim() ? token.trim() : undefined,
+        private_key: privateKey.trim() ? privateKey.trim() : undefined,
       });
       if (saved.repositories?.length) setRepositories(saved.repositories);
       setConnection(saved);
       setRepo(saved.repo || repositories[0]?.repo || 'xai-org/itsys-control_repo');
-      setToken('');
+      setPrivateKey('');
       notifications.show({ color: 'green', message: 'Puppetfile connection saved' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save settings');
@@ -214,7 +214,7 @@ export function PuppetfileManagerPage() {
           leftSection={<IconRefresh size={16} />}
           onClick={() => resolve()}
           loading={loading}
-          disabled={!connection?.repo}
+          disabled={!connection?.key_set || !connection.repo}
         >
           Resolve
         </Button>
@@ -226,10 +226,10 @@ export function PuppetfileManagerPage() {
         <Stack gap="sm">
           <Text fw={600}>GitHub</Text>
           <Text size="sm" c="dimmed">
-            Resolve clones git@github.com with the console SSH key. No token is
-            needed to read. A personal access token (github_pat_… or ghp_…) with
-            Contents write is only used when you commit. A password will not work.
-            The token is stored encrypted and is not shown again.
+            Paste the private half of a GitHub deploy key. The public half
+            belongs on the control repo with write access. The key is stored
+            on this console and is not shown again. Resolve and commit both
+            use git@github.com with that key.
             Commits go to staging. Promote that branch to production with the usual pull request.
           </Text>
           <Group grow align="flex-end">
@@ -255,18 +255,21 @@ export function PuppetfileManagerPage() {
               disabled={!canWrite}
             />
           </Group>
-          <TextInput
-            label={connection?.token_set ? 'Token (saved — enter a new one to replace it)' : 'Token'}
-            placeholder="github_pat_..."
-            type="password"
-            value={token}
-            onChange={(event) => setToken(event.currentTarget.value)}
+          <Textarea
+            label={connection?.key_set ? 'Deploy key (saved — paste a new one to replace it)' : 'Deploy key'}
+            description="Private key, empty passphrase. Starts with -----BEGIN."
+            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+            autosize
+            minRows={3}
+            maxRows={8}
+            value={privateKey}
+            onChange={(event) => setPrivateKey(event.currentTarget.value)}
             disabled={!canWrite}
           />
           {canWrite && (
             <Group>
               <Button onClick={saveSettings} loading={saving}>Save connection</Button>
-              {connection?.token_set && <Badge color="green" variant="light">Token saved</Badge>}
+              {connection?.key_set && <Badge color="green" variant="light">Key saved</Badge>}
             </Group>
           )}
         </Stack>

@@ -148,10 +148,6 @@ Defaults:${SERVICE_USER} lecture=never
 # r10k code deployment
 # Method: wrapper script (r10k-deploy.sh) that safely invokes r10k with
 #         controlled arguments. We allow only the wrapper, not raw r10k.
-# Puppetfile Resolve clones the control repo as jsheets so git uses
-# /home/jsheets/.ssh. The service user cannot read that directory.
-${SERVICE_USER} ALL=(jsheets) NOPASSWD:SETENV: /usr/bin/git
-Defaults!/usr/bin/git !requiretty
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-deploy.sh
 ${SERVICE_USER} ALL=(root) NOPASSWD: ${INSTALL_DIR}/scripts/r10k-stage-activate.sh
 

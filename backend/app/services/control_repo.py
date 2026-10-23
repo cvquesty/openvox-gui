@@ -2,7 +2,9 @@
 
 Compilers already have r10k copies of this repo. Those copies are
 the deployed environment, not the branch the operator is editing.
-Resolve reads and updates this checkout instead of Bolt.
+Resolve reads and commits this checkout over SSH. The private key
+is one the operator pasted; the service user cannot see
+``/home/jsheets/.ssh``.
 """
 
 from __future__ import annotations
@@ -18,6 +20,9 @@ from typing import Dict
 from ..config import settings
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+_PRIVATE_KEY = re.compile(
+    r"-----BEGIN (?:OPENSSH|RSA|EC|DSA|ED25519)? ?PRIVATE KEY-----",
+)
 
 
 class ControlRepoError(Exception):
@@ -37,22 +42,48 @@ def remote_url(repo: str) -> str:
     return f"git@github.com:{repo}.git"
 
 
-def git_identity() -> str:
-    """Unix account whose ``~/.ssh`` can read the control repo.
+def key_path() -> Path:
+    """Private key the operator pasted. Mode 0600, owned by this user.
 
-    The GUI runs as ``puppet``. That account does not see
-    ``/home/jsheets/.ssh``. When ``jsheets`` exists, git runs as that
-    user so the keys already used for GitHub are the ones offered.
+    Kept next to the checkout directory, not inside it. A key inside
+    the parent makes ``git clone`` refuse to write a new checkout there.
     """
-    override = os.environ.get("OPENVOX_GUI_GIT_USER", "").strip()
-    if override:
-        return override
-    try:
-        import pwd
-        pwd.getpwnam("jsheets")
-    except KeyError:
+    return Path(settings.data_dir) / "control-repo-key" / "id_control_repo"
+
+
+def public_key_comment(private_key: str) -> str:
+    """Fingerprint comment for the page. Empty when the text is not a key."""
+    text = (private_key or "").strip()
+    if not _PRIVATE_KEY.search(text):
         return ""
-    return "jsheets"
+    return "deploy key saved"
+
+
+def install_key(private_key: str) -> None:
+    """Write the pasted key where ssh can read it. Reject anything else."""
+    text = (private_key or "").strip()
+    if not _PRIVATE_KEY.search(text):
+        raise ControlRepoError(
+            "Paste a private key that starts with "
+            "'-----BEGIN OPENSSH PRIVATE KEY-----' or "
+            "'-----BEGIN RSA PRIVATE KEY-----'."
+        )
+    if "ENCRYPTED" in text.splitlines()[0]:
+        raise ControlRepoError("The key must have an empty passphrase.")
+    path = key_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text + "\n", encoding="utf-8")
+    os.chmod(path, 0o600)
+
+
+def key_is_installed() -> bool:
+    path = key_path()
+    if not path.is_file():
+        return False
+    try:
+        return bool(_PRIVATE_KEY.search(path.read_text(encoding="utf-8")))
+    except OSError:
+        return False
 
 
 def _public_git_error(detail: str) -> str:
@@ -62,10 +93,10 @@ def _public_git_error(detail: str) -> str:
         or "could not read from remote" in low
         or "host key verification failed" in low
     ):
-        who = git_identity() or "the console user"
         return (
-            f"SSH to github.com failed as {who}. "
-            "That account needs a key that can read the control repo."
+            "GitHub refused the pasted deploy key. "
+            "Add its public half as a deploy key on the control repo "
+            "with write access if you will commit."
         )
     return detail or "git failed"
 
@@ -80,18 +111,19 @@ async def _git(cwd: Path, *args: str, timeout: float = 60.0) -> str:
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
     connect = max(5, min(20, int(timeout // 6) or 5))
+    key = key_path()
+    if not key.is_file():
+        raise ControlRepoError(
+            "Paste the private deploy key on this page before resolving."
+        )
     env["GIT_SSH_COMMAND"] = (
-        "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "
+        f"ssh -i {key} -o IdentitiesOnly=yes -o BatchMode=yes "
+        "-o StrictHostKeyChecking=accept-new "
         f"-o ConnectTimeout={connect}"
     )
-    who = git_identity()
-    argv = ["git", *args]
-    if who and who != os.environ.get("USER", ""):
-        # -H sets HOME so ssh reads that user's keys, not puppet's.
-        argv = ["sudo", "-n", "-H", "-u", who, *argv]
-        env["HOME"] = f"/home/{who}"
     proc = await asyncio.create_subprocess_exec(
-        *argv,
+        "git",
+        *args,
         cwd=str(cwd),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -116,12 +148,6 @@ async def ensure_checkout(repo: str, branch: str) -> Path:
     """Clone or fast-forward ``branch`` over SSH. Return the checkout path."""
     root = checkout_dir(repo)
     root.parent.mkdir(parents=True, exist_ok=True)
-    # jsheets must be able to write the checkout it clones into.
-    if git_identity():
-        try:
-            os.chmod(root.parent, 0o1777)
-        except OSError:
-            pass
     remote = remote_url(repo)
     if not (root / ".git").is_dir():
         if root.exists():
@@ -147,6 +173,46 @@ async def ensure_checkout(repo: str, branch: str) -> Path:
     await _git(root, "fetch", "--depth", "1", "origin", branch, timeout=300.0)
     await _git(root, "checkout", "--force", "FETCH_HEAD")
     return root
+
+
+async def commit_file(
+    repo: str,
+    branch: str,
+    path: str,
+    content: str,
+    expected_sha: str,
+    message: str,
+    author: str,
+) -> Dict[str, str]:
+    """Write ``path``, commit, and push ``branch`` over the deploy key.
+
+    ``expected_sha`` is the blob from the last read. A change on the
+    remote since then makes the push fail instead of overwriting it.
+    """
+    root = await ensure_checkout(repo, branch)
+    target = (root / path).resolve()
+    if not str(target).startswith(str(root.resolve()) + os.sep):
+        raise ControlRepoError("Path escapes the checkout")
+    current = (await _git(root, "hash-object", path)).strip()
+    if current != expected_sha.strip():
+        raise ControlRepoError(
+            "The Puppetfile changed after this report. Resolve again, then commit."
+        )
+    target.write_text(content, encoding="utf-8")
+    await _git(root, "add", "--", path)
+    await _git(
+        root,
+        "-c",
+        f"user.name={author}",
+        "-c",
+        "user.email=openvox-gui@localhost",
+        "commit",
+        "-m",
+        message,
+    )
+    await _git(root, "push", "origin", f"HEAD:{branch}", timeout=120.0)
+    sha = (await _git(root, "rev-parse", "HEAD")).strip()
+    return {"sha": sha, "html_url": "", "message": message.splitlines()[0]}
 
 
 async def read_file(repo: str, branch: str, path: str) -> Dict[str, str]:

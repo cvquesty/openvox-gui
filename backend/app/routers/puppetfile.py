@@ -21,20 +21,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..dependencies import require_role, READ_ROLES
 from ..models.gui_kv import GuiKv
-from ..services.control_repo import ControlRepoError, read_file as read_control_repo
-from ..services.github_contents import (
-    GitHubContents,
-    GitHubError,
-    parse_repo,
+from ..services.control_repo import (
+    ControlRepoError,
+    commit_file as commit_control_repo,
+    install_key,
+    key_is_installed,
+    read_file as read_control_repo,
 )
+from ..services.github_contents import parse_repo
 from ..services.puppetfile_check import parse_puppetfile, pin_status, rewrite_puppetfile
-from ..services.secrets import decrypt_secret, encrypt_secret
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/insights/puppetfile", tags=["puppetfile"])
 
-_KV_TOKEN = "puppetfile_github_token"
 _KV_REPO = "puppetfile_github_repo"
 _KV_BRANCH = "puppetfile_github_branch"
 _KV_PATH = "puppetfile_github_path"
@@ -56,7 +56,7 @@ class SettingsIn(BaseModel):
     repo: str = Field(..., min_length=3, max_length=200)
     branch: str = Field(default=_DEFAULT_BRANCH, max_length=200)
     path: str = Field(default=_DEFAULT_PATH, max_length=200)
-    token: Optional[str] = Field(default=None, max_length=500)
+    private_key: Optional[str] = Field(default=None, max_length=20000)
 
 
 class CommitIn(BaseModel):
@@ -115,17 +115,16 @@ async def _kv_set(db: AsyncSession, key: str, value: str) -> None:
 
 
 async def _load_settings(db: AsyncSession) -> Dict[str, str]:
-    token = decrypt_secret(await _kv_get(db, _KV_TOKEN) or "")
     repo = (await _kv_get(db, _KV_REPO) or "").strip()
     branch = (await _kv_get(db, _KV_BRANCH) or _DEFAULT_BRANCH).strip()
     path = (await _kv_get(db, _KV_PATH) or _DEFAULT_PATH).strip()
     if not repo:
         repo = await _repo_from_r10k()
     return {
-        "token": token,
         "repo": repo,
         "branch": branch or _DEFAULT_BRANCH,
         "path": path or _DEFAULT_PATH,
+        "key_set": "yes" if key_is_installed() else "",
     }
 
 
@@ -199,22 +198,11 @@ async def _repo_from_r10k() -> str:
     return repos[0]["repo"]
 
 
-def _client(settings: Dict[str, str]) -> GitHubContents:
-    if not settings["token"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Save a GitHub token with contents write on the control repo to commit.",
-        )
-    if not settings["repo"]:
-        raise HTTPException(status_code=400, detail="Set the control repo as owner/name.")
-    return GitHubContents(settings["token"], settings["repo"])
-
-
 async def _read_puppetfile(saved: Dict[str, str]) -> Dict[str, str]:
     """Read the branch from the console checkout over SSH.
 
-    The remote is ``git@github.com:<owner>/<name>.git``. The console
-    user's key authenticates. No token is required to resolve.
+    The remote is ``git@github.com:<owner>/<name>.git``. The pasted
+    deploy key authenticates.
     """
     if not saved["repo"]:
         raise HTTPException(status_code=400, detail="Set the control repo as owner/name.")
@@ -251,13 +239,13 @@ async def get_settings(
     _user: str = _READ,
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Repo, branch, path, and the repository list. The token is never returned."""
+    """Repo, branch, path, and whether a deploy key is saved. The key is never returned."""
     saved = await _load_settings(db)
     return {
         "repo": saved["repo"],
         "branch": saved["branch"],
         "path": saved["path"],
-        "token_set": bool(saved["token"]),
+        "key_set": bool(saved["key_set"]),
         "repositories": await _discover_repositories(),
     }
 
@@ -268,21 +256,24 @@ async def put_settings(
     _user: str = _WRITE,
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Store the GitHub connection. Omit token to keep the saved one."""
+    """Store the connection. Omit the key to keep the saved one."""
     repo = _clean_repo(body.repo)
     branch = _clean_branch(body.branch)
     path = _clean_path(body.path)
     await _kv_set(db, _KV_REPO, repo)
     await _kv_set(db, _KV_BRANCH, branch)
     await _kv_set(db, _KV_PATH, path)
-    if body.token is not None and body.token.strip():
-        await _kv_set(db, _KV_TOKEN, encrypt_secret(body.token.strip()))
+    if body.private_key is not None and body.private_key.strip():
+        try:
+            install_key(body.private_key)
+        except ControlRepoError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     saved = await _load_settings(db)
     return {
         "repo": saved["repo"],
         "branch": saved["branch"],
         "path": saved["path"],
-        "token_set": bool(saved["token"]),
+        "key_set": bool(saved["key_set"]),
         "repositories": await _discover_repositories(),
     }
 
@@ -331,8 +322,8 @@ async def commit_updates(
 ) -> Dict[str, Any]:
     """Commit selected pin updates back to the configured branch.
 
-    ``sha`` is the blob SHA from the report. GitHub rejects the commit
-    when the file changed after that read.
+    ``sha`` is the blob SHA from the report. The push is rejected when
+    the file changed after that read.
     """
     saved = await _load_settings(db)
     slugs: List[str] = []
@@ -386,16 +377,18 @@ async def commit_updates(
         "Assisted By: Grok AI\n"
     )
     try:
-        result = await _client(saved).commit_file(
+        result = await commit_control_repo(
+            saved["repo"],
+            saved["branch"],
             saved["path"],
             new_text,
             fetched["sha"],
-            saved["branch"],
             message,
+            user,
         )
-    except GitHubError as exc:
-        status = 409 if exc.status == 409 else 502
-        raise HTTPException(status_code=status, detail=exc.detail) from exc
+    except ControlRepoError as exc:
+        status = 409 if "changed after" in str(exc) else 502
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
     logger.info("Puppetfile commit on %s by %s: %s", saved["branch"], user, summary)
     return {
         "changed": changed,

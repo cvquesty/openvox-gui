@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.48] - 2026-10-23
+
+### Changed
+- **Puppetfile Manager takes a deploy key.** The token field is
+  gone. Paste the private half of a GitHub deploy key; it is stored
+  at ``/opt/openvox-gui/data/control-repo-key/id_control_repo`` mode
+  0600 and is not shown again. Resolve and commit both use
+  ``git@github.com`` with that key. Add the public half to the
+  control repo with write access. The sudo-as-jsheets git rule is
+  removed.
+
 ## [3.14.1-dev.47] - 2026-10-23
 
 ### Fixed

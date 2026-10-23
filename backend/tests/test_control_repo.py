@@ -8,6 +8,8 @@ from app.services.control_repo import (
     ControlRepoError,
     checkout_dir,
     ensure_checkout,
+    install_key,
+    key_is_installed,
     read_file,
     remote_url,
 )
@@ -22,19 +24,19 @@ def test_checkout_dir_rejects_path_tricks(monkeypatch, tmp_path):
         checkout_dir("../etc/passwd")
 
 
-def test_git_identity_uses_jsheets_when_present(monkeypatch):
-    import pwd
+def test_install_key_rejects_a_password(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.services.control_repo.settings.data_dir", str(tmp_path))
+    with pytest.raises(ControlRepoError, match="BEGIN"):
+        install_key("not-a-private-key")
+    assert not key_is_installed()
 
-    class Fake:
-        pass
 
-    monkeypatch.delenv("OPENVOX_GUI_GIT_USER", raising=False)
-    monkeypatch.setattr(pwd, "getpwnam", lambda name: Fake() if name == "jsheets" else (_ for _ in ()).throw(KeyError(name)))
-    from app.services.control_repo import git_identity
-    assert git_identity() == "jsheets"
-
-    monkeypatch.setenv("OPENVOX_GUI_GIT_USER", "deploy")
-    assert git_identity() == "deploy"
+def test_install_key_writes_mode_600(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.services.control_repo.settings.data_dir", str(tmp_path))
+    install_key("-----BEGIN OPENSSH PRIVATE KEY-----\nYQ==\n-----END OPENSSH PRIVATE KEY-----")
+    assert key_is_installed()
+    from app.services.control_repo import key_path
+    assert key_path().stat().st_mode & 0o777 == 0o600
 
 
 def test_remote_is_ssh():

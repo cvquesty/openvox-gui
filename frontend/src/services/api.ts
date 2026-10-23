@@ -726,15 +726,15 @@ export const puppetfile = {
     repo: string;
     branch: string;
     path: string;
-    token_set: boolean;
+    key_set: boolean;
     repositories: { repo: string; label: string }[];
   }>('/insights/puppetfile/settings'),
-  saveSettings: (body: { repo: string; branch: string; path: string; token?: string }) =>
+  saveSettings: (body: { repo: string; branch: string; path: string; private_key?: string }) =>
     fetchJSON<{
       repo: string;
       branch: string;
       path: string;
-      token_set: boolean;
+      key_set: boolean;
       repositories: { repo: string; label: string }[];
     }>(
       '/insights/puppetfile/settings',
