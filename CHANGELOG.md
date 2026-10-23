@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.35] - 2026-10-23
+
+### Changed
+- **Puppetfile Manager** repository field is a dropdown. It lists every
+  GitHub source in ``r10k.yaml`` and always includes
+  ``xai-org/itsys-control_repo``, which is selected when nothing has
+  been saved.
+
 ## [3.14.1-dev.34] - 2026-10-23
 
 ### Added

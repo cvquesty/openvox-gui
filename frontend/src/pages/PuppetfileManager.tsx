@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Title, Card, Loader, Center, Alert, Stack, Group, Text, Button,
-  Badge, TextInput, Checkbox, Code,
+  Badge, TextInput, Checkbox, Code, Select,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconFileCode, IconRefresh } from '@tabler/icons-react';
@@ -34,11 +34,17 @@ type Report = {
   behind: number;
 };
 
+type RepoChoice = {
+  repo: string;
+  label: string;
+};
+
 type Connection = {
   repo: string;
   branch: string;
   path: string;
   token_set: boolean;
+  repositories: RepoChoice[];
 };
 
 function statusColor(status: string): string {
@@ -51,7 +57,10 @@ export function PuppetfileManagerPage() {
   const { user } = useAuth();
   const canWrite = user?.role === 'admin' || user?.role === 'operator';
   const [connection, setConnection] = useState<Connection | null>(null);
-  const [repo, setRepo] = useState('');
+  const [repositories, setRepositories] = useState<RepoChoice[]>([
+    { repo: 'xai-org/itsys-control_repo', label: 'xai-org/itsys-control_repo' },
+  ]);
+  const [repo, setRepo] = useState('xai-org/itsys-control_repo');
   const [branch, setBranch] = useState('staging');
   const [path, setPath] = useState('Puppetfile');
   const [token, setToken] = useState('');
@@ -64,8 +73,12 @@ export function PuppetfileManagerPage() {
 
   const loadSettings = useCallback(async () => {
     const saved = await puppetfile.settings();
+    const choices = saved.repositories?.length
+      ? saved.repositories
+      : [{ repo: 'xai-org/itsys-control_repo', label: 'xai-org/itsys-control_repo' }];
+    setRepositories(choices);
     setConnection(saved);
-    setRepo(saved.repo || '');
+    setRepo(saved.repo || choices[0].repo);
     setBranch(saved.branch || 'staging');
     setPath(saved.path || 'Puppetfile');
   }, []);
@@ -101,7 +114,9 @@ export function PuppetfileManagerPage() {
         path: path.trim() || 'Puppetfile',
         token: token.trim() ? token.trim() : undefined,
       });
+      if (saved.repositories?.length) setRepositories(saved.repositories);
       setConnection(saved);
+      setRepo(saved.repo || repositories[0]?.repo || 'xai-org/itsys-control_repo');
       setToken('');
       notifications.show({ color: 'green', message: 'Puppetfile connection saved' });
     } catch (err) {
@@ -215,11 +230,13 @@ export function PuppetfileManagerPage() {
             Commits go to staging. Promote that branch to production with the usual pull request.
           </Text>
           <Group grow align="flex-end">
-            <TextInput
+            <Select
               label="Repository"
-              placeholder="owner/control_repo"
+              description="Control repos from r10k. More than one becomes a choice."
+              data={repositories.map((item) => ({ value: item.repo, label: item.label }))}
               value={repo}
-              onChange={(event) => setRepo(event.currentTarget.value)}
+              onChange={(value) => setRepo(value || repositories[0]?.repo || '')}
+              allowDeselect={false}
               disabled={!canWrite}
             />
             <TextInput

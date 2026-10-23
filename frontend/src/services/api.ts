@@ -727,9 +727,16 @@ export const puppetfile = {
     branch: string;
     path: string;
     token_set: boolean;
+    repositories: { repo: string; label: string }[];
   }>('/insights/puppetfile/settings'),
   saveSettings: (body: { repo: string; branch: string; path: string; token?: string }) =>
-    fetchJSON<{ repo: string; branch: string; path: string; token_set: boolean }>(
+    fetchJSON<{
+      repo: string;
+      branch: string;
+      path: string;
+      token_set: boolean;
+      repositories: { repo: string; label: string }[];
+    }>(
       '/insights/puppetfile/settings',
       { method: 'PUT', body: JSON.stringify(body) },
     ),

@@ -35,6 +35,8 @@ _KV_BRANCH = "puppetfile_github_branch"
 _KV_PATH = "puppetfile_github_path"
 _DEFAULT_BRANCH = "staging"
 _DEFAULT_PATH = "Puppetfile"
+# Used when the console has no r10k.yaml. The field is never blank.
+_DEFAULT_REPOS = ("xai-org/itsys-control_repo",)
 _FORGE = "https://forgeapi.puppet.com/v3/modules"
 _BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,200}$")
 _SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*-[A-Za-z0-9][A-Za-z0-9_-]*$")
@@ -122,12 +124,53 @@ async def _load_settings(db: AsyncSession) -> Dict[str, str]:
     }
 
 
-async def _repo_from_r10k() -> str:
-    """Best-effort owner/name from the local r10k.yaml remote."""
+def merge_repositories(discovered: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """r10k sources first, then the built-in control repo if it is absent.
+
+    Each item is ``{"repo": "owner/name", "label": "..."}``. Order is
+    preserved and duplicates collapse to the first label.
+    """
+    rows: List[Dict[str, str]] = []
+    seen = set()
+    for item in discovered:
+        repo = (item.get("repo") or "").strip()
+        if not repo or repo in seen:
+            continue
+        seen.add(repo)
+        rows.append({"repo": repo, "label": item.get("label") or repo})
+    for repo in _DEFAULT_REPOS:
+        if repo not in seen:
+            rows.append({"repo": repo, "label": repo})
+            seen.add(repo)
+    return rows
+
+
+def _repos_from_r10k_text(loaded: Any) -> List[Dict[str, str]]:
+    """Every GitHub source in one r10k.yaml document."""
+    if not isinstance(loaded, dict):
+        return []
+    sources = loaded.get("sources") or {}
+    if not isinstance(sources, dict):
+        return []
+    found: List[Dict[str, str]] = []
+    for name, src in sources.items():
+        if not isinstance(src, dict):
+            continue
+        parsed = parse_repo(str(src.get("remote") or ""))
+        if not parsed:
+            continue
+        label = f"{name} — {parsed}" if name else parsed
+        found.append({"repo": parsed, "label": label})
+    return found
+
+
+async def _discover_repositories() -> List[Dict[str, str]]:
+    """Control repos from local r10k.yaml, plus the built-in default."""
     from pathlib import Path
 
     import yaml
 
+    discovered: List[Dict[str, str]] = []
     for candidate in (
         Path("/etc/puppetlabs/r10k/r10k.yaml"),
         Path("/etc/puppetlabs/code/r10k.yaml"),
@@ -138,16 +181,17 @@ async def _repo_from_r10k() -> str:
             loaded = yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
         except (OSError, yaml.YAMLError):
             continue
-        sources = loaded.get("sources") or {}
-        if not isinstance(sources, dict):
-            continue
-        for src in sources.values():
-            if not isinstance(src, dict):
-                continue
-            parsed = parse_repo(str(src.get("remote") or ""))
-            if parsed:
-                return parsed
-    return ""
+        discovered.extend(_repos_from_r10k_text(loaded))
+        break
+    return merge_repositories(discovered)
+
+
+async def _repo_from_r10k() -> str:
+    """First discovered control repo, including the built-in default."""
+    repos = await _discover_repositories()
+    if not repos:
+        return ""
+    return repos[0]["repo"]
 
 
 def _client(settings: Dict[str, str]) -> GitHubContents:
@@ -188,13 +232,14 @@ async def get_settings(
     _user: str = _READ,
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Repo, branch, and path. The token itself is never returned."""
+    """Repo, branch, path, and the repository list. The token is never returned."""
     saved = await _load_settings(db)
     return {
         "repo": saved["repo"],
         "branch": saved["branch"],
         "path": saved["path"],
         "token_set": bool(saved["token"]),
+        "repositories": await _discover_repositories(),
     }
 
 
@@ -219,6 +264,7 @@ async def put_settings(
         "branch": saved["branch"],
         "path": saved["path"],
         "token_set": bool(saved["token"]),
+        "repositories": await _discover_repositories(),
     }
 
 
