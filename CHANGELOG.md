@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased]
+
+### Fixed
+- **CI version lockstep.** ``frontend/package-lock.json`` was still
+  ``3.14.1-dev.33`` after VERSION moved to ``3.14.1-dev.35``.
+  ``scripts/ci-quality.sh`` rejects that mismatch.
+
 ## [3.14.1-dev.35] - 2026-10-23
 
 ### Changed
