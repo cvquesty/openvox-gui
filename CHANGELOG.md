@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.40] - 2026-10-23
+
+### Fixed
+- **Puppetfile Resolve still exited 3 with "no Puppetfile".** The
+  reader ran as ``bolt``. Environment directories are
+  ``puppet:puppet`` mode 0750, so the walk saw nothing. Resolve now
+  asks Bolt to run that command as root, the same way the
+  environment scan does. It reads
+  ``environments/<branch>/Puppetfile`` directly and uses
+  ``git hash-object`` for the blob SHA.
+
 ## [3.14.1-dev.39] - 2026-10-23
 
 ### Fixed

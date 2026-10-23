@@ -170,6 +170,24 @@ def emit(blob, body):
     sys.stdout.buffer.write(body if isinstance(body, bytes) else body.encode("utf-8"))
     sys.exit(0)
 
+# The deployed file is the Puppetfile r10k last wrote. Its git blob
+# sha is what the GitHub Contents API expects on the later PUT.
+# Do this before the cache walk: a checkout with no .git is still valid.
+for base in (
+    "/etc/puppetlabs/code/environments",
+    "/etc/puppetlabs/code-staging/environments",
+):
+    file_path = os.path.join(base, ref, want)
+    if not os.path.isfile(file_path):
+        continue
+    data = open(file_path, "rb").read()
+    hashed = subprocess.run(
+        ["git", "hash-object", file_path],
+        capture_output=True, text=True,
+    )
+    sha = hashed.stdout.strip() or hashlib.sha256(data).hexdigest()
+    emit(sha, data)
+
 candidates = []
 for base in (
     "/etc/puppetlabs/code-staging/environments",

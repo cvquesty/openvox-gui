@@ -241,8 +241,10 @@ async def _read_via_compiler(repo: str, path: str, ref: str) -> Dict[str, str]:
     script = compiler_read_script(repo, path, ref)
     errors: List[str] = []
     for target in targets[:4]:
+        # Environments are puppet:puppet 0750. bolt cannot see them, so
+        # the walk reports "no Puppetfile". --run-as root becomes sudo -n.
         result = await default_service.run_bolt_cli(
-            ["command", "run", script, "--targets", target],
+            ["command", "run", script, "--targets", target, "--run-as", "root"],
             timeout=60,
             executed_by="puppetfile",
             targets=target,
