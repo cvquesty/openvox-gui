@@ -40,7 +40,6 @@ from .routers import installer as installer_router
 from .routers import ssl_wizard as ssl_wizard_router
 from .routers import logs as logs_router
 from .routers import metrics as metrics_router
-from .routers import puppetfile as puppetfile_router
 from .routers import infra as infra_router
 from .routers import maintenance as maintenance_router
 from .services.puppetdb import puppetdb_service
@@ -332,7 +331,6 @@ app.include_router(installer_router.router)
 app.include_router(ssl_wizard_router.router)
 app.include_router(logs_router.router)
 app.include_router(metrics_router.router)
-app.include_router(puppetfile_router.router)
 app.include_router(infra_router.router)
 app.include_router(maintenance_router.router)
 

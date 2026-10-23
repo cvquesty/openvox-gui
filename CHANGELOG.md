@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.52] - 2026-10-23
+
+### Fixed
+- **openvox-gui failed to start after Puppetfile Manager was removed.**
+  ``main.py`` still imported the deleted router, so every worker
+  raised ``ImportError`` and the service never became healthy.
+
 ## [3.14.1-dev.50] - 2026-10-23
 
 ### Removed
