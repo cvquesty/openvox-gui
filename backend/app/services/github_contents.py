@@ -1,18 +1,19 @@
 """Read and commit one file through the GitHub Contents API.
 
 The GUI host is not a clone of the control repo. r10k deploys that
-repo onto compilers. Writing the Puppetfile here would not reach
-GitHub, and a second clone on the console would drift from the
-branch operators commit to.
+repo onto compilers. A dedicated console also cannot open
+api.github.com. Compilers can: they already fetch the control repo
+for r10k. Callers that run on the console should use
+``read_file_on_compiler`` so the GET happens on a compiler.
 
-This client reads one file and commits a replacement with the blob
-SHA GitHub returned. A push that landed after the read makes the PUT
-fail with 409 instead of overwriting that commit.
+A push that landed after the read makes the PUT fail with 409
+instead of overwriting that commit.
 """
 
 from __future__ import annotations
 
 import base64
+import shlex
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
@@ -127,3 +128,80 @@ class GitHubContents:
             "html_url": str(commit.get("html_url") or content_meta.get("html_url") or ""),
             "message": message,
         }
+
+
+def compiler_read_script(repo: str, path: str, ref: str) -> str:
+    """Shell that prints the Puppetfile from a compiler's r10k git cache.
+
+    r10k already cloned that repo onto the compiler. The console cannot
+    open api.github.com, and it must not send a token to the compiler.
+    The compiler's own git credential does the fetch.
+
+    stdout is ``sha<TAB>body``. A fetch failure still prints the file
+    that is already in the cache.
+    """
+    safe_repo = shlex.quote(repo)
+    safe_path = shlex.quote(path)
+    safe_ref = shlex.quote(ref)
+    return f"""
+repo={safe_repo}
+want={safe_path}
+ref={safe_ref}
+python3 - "$repo" "$want" "$ref" <<'PY'
+import os, subprocess, sys
+repo, want, ref = sys.argv[1:]
+
+def git_dirs():
+    for base in ("/opt/puppetlabs/puppet/cache/r10k", "/var/cache/r10k"):
+        if not os.path.isdir(base):
+            continue
+        for dirpath, dirnames, filenames in os.walk(base):
+            if "config" in filenames and "objects" in dirnames:
+                yield dirpath
+
+def remote_of(gitdir):
+    out = subprocess.run(
+        ["git", "--git-dir", gitdir, "remote", "get-url", "origin"],
+        capture_output=True, text=True,
+    )
+    return out.stdout.strip()
+
+def matches(url):
+    text = url
+    for mark in ("github.com:", "github.com/"):
+        if mark in text:
+            text = text.split(mark, 1)[1]
+    if text.endswith(".git"):
+        text = text[:-4]
+    parts = [p for p in text.split("/") if p]
+    return len(parts) >= 2 and "/".join(parts[-2:]) == repo
+
+found = ""
+for gitdir in git_dirs():
+    if matches(remote_of(gitdir)):
+        found = gitdir
+        break
+if not found:
+    sys.stderr.write("r10k cache has no clone of %s\\n" % repo)
+    sys.exit(3)
+
+def run(args):
+    return subprocess.run(
+        ["git", "--git-dir", found, *args],
+        capture_output=True,
+    )
+
+run(["fetch", "--quiet", "origin", ref])
+body = run(["show", "%s:%s" % (ref, want)])
+if body.returncode != 0:
+    sys.stderr.write(body.stderr.decode("utf-8", "replace"))
+    sys.exit(body.returncode)
+sha = run(["rev-parse", "%s:%s" % (ref, want)])
+if sha.returncode != 0:
+    sys.stderr.write(sha.stderr.decode("utf-8", "replace"))
+    sys.exit(sha.returncode)
+blob = sha.stdout.decode("ascii", "replace").strip()
+sys.stdout.buffer.write(blob.encode("ascii") + b"\\t")
+sys.stdout.buffer.write(body.stdout)
+PY
+"""

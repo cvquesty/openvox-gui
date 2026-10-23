@@ -9,12 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [Unreleased]
+## [3.14.1-dev.36] - 2026-10-23
 
 ### Fixed
-- **CI version lockstep.** ``frontend/package-lock.json`` was still
-  ``3.14.1-dev.33`` after VERSION moved to ``3.14.1-dev.35``.
-  ``scripts/ci-quality.sh`` rejects that mismatch.
+- **Puppetfile Manager Resolve returned 502.** A dedicated console
+  cannot open ``api.github.com``. Resolve now reads the Puppetfile
+  from the r10k git cache on a compiler. The console does not send
+  a GitHub token to that host.
 
 ## [3.14.1-dev.35] - 2026-10-23
 

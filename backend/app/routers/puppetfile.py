@@ -21,7 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..dependencies import require_role, READ_ROLES
 from ..models.gui_kv import GuiKv
-from ..services.github_contents import GitHubContents, GitHubError, parse_repo
+from ..services.github_contents import (
+    GitHubContents,
+    GitHubError,
+    compiler_read_script,
+    parse_repo,
+)
 from ..services.puppetfile_check import parse_puppetfile, pin_status, rewrite_puppetfile
 from ..services.secrets import decrypt_secret, encrypt_secret
 
@@ -205,6 +210,79 @@ def _client(settings: Dict[str, str]) -> GitHubContents:
     return GitHubContents(settings["token"], settings["repo"])
 
 
+def _bolt_puppetfile(text: str) -> Optional[Dict[str, str]]:
+    """Pull ``sha<TAB>body`` out of Bolt stdout. None when it is absent."""
+    for line in text.splitlines(keepends=True):
+        head, sep, tail = line.partition("\t")
+        if not sep:
+            continue
+        sha = head.strip()
+        if len(sha) < 7 or any(ch not in "0123456789abcdef" for ch in sha):
+            continue
+        rest = text.split(line, 1)[1] if line in text else ""
+        return {"content": tail + rest, "sha": sha, "html_url": ""}
+    return None
+
+
+async def _read_via_compiler(repo: str, path: str, ref: str) -> Dict[str, str]:
+    """Read the Puppetfile on a compiler. The console cannot reach GitHub."""
+    from ..services.cluster_config import deploy_targets
+    from ..services.command_execution import command_execution_service
+
+    targets = deploy_targets()
+    if not targets:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "This console cannot reach api.github.com. Add a compiler "
+                "under Cluster so Resolve can read the r10k cache there."
+            ),
+        )
+    script = compiler_read_script(repo, path, ref)
+    errors: List[str] = []
+    for target in targets[:4]:
+        result = await command_execution_service.run_bolt_cli(
+            ["command", "run", script, "--targets", target],
+            timeout=60,
+            executed_by="puppetfile",
+            targets=target,
+            execution_type="puppetfile_read",
+        )
+        if result.get("returncode") != 0:
+            err = (result.get("stderr") or result.get("stdout") or "").strip()
+            errors.append(f"{target}: {err[:300] or 'bolt failed'}")
+            continue
+        parsed = _bolt_puppetfile(result.get("stdout") or "")
+        if parsed is None:
+            errors.append(f"{target}: compiler returned no Puppetfile")
+            continue
+        return parsed
+    raise HTTPException(
+        status_code=502,
+        detail="Could not read the Puppetfile from a compiler. " + " | ".join(errors),
+    )
+
+
+async def _read_puppetfile(saved: Dict[str, str]) -> Dict[str, str]:
+    """Compiler cache first. Direct GitHub only if that is unavailable."""
+    from ..services.cluster_config import deploy_targets
+
+    if deploy_targets():
+        return await _read_via_compiler(saved["repo"], saved["path"], saved["branch"])
+    client = _client(saved)
+    try:
+        return await client.read_file(saved["path"], saved["branch"])
+    except GitHubError as exc:
+        status = 404 if exc.status == 404 else 502
+        detail = exc.detail
+        if "api.github.com" in detail or "ConnectError" in detail or "timed out" in detail:
+            detail = (
+                "This console cannot reach api.github.com. Add a compiler "
+                "under Cluster, or run the GUI on a host that can."
+            )
+        raise HTTPException(status_code=status, detail=detail) from exc
+
+
 async def _forge_latest(slug: str) -> tuple[Optional[str], Optional[str]]:
     url = f"{_FORGE}/{slug}"
     try:
@@ -275,12 +353,7 @@ async def report(
 ) -> Dict[str, Any]:
     """Read the branch and resolve Forge versions. Does not commit."""
     saved = await _load_settings(db)
-    client = _client(saved)
-    try:
-        fetched = await client.read_file(saved["path"], saved["branch"])
-    except GitHubError as exc:
-        status = 404 if exc.status == 404 else 502
-        raise HTTPException(status_code=status, detail=exc.detail) from exc
+    fetched = await _read_puppetfile(saved)
 
     forge, git_modules = parse_puppetfile(fetched["content"])
     lookups = await asyncio.gather(*[_forge_latest(slug) for slug, _pinned in forge])
@@ -321,7 +394,6 @@ async def commit_updates(
     when the file changed after that read.
     """
     saved = await _load_settings(db)
-    client = _client(saved)
     slugs: List[str] = []
     for slug in body.slugs:
         cleaned = slug.strip()
@@ -330,10 +402,7 @@ async def commit_updates(
         if cleaned not in slugs:
             slugs.append(cleaned)
 
-    try:
-        fetched = await client.read_file(saved["path"], saved["branch"])
-    except GitHubError as exc:
-        raise HTTPException(status_code=502, detail=exc.detail) from exc
+    fetched = await _read_puppetfile(saved)
     if fetched["sha"] != body.sha.strip():
         raise HTTPException(
             status_code=409,
