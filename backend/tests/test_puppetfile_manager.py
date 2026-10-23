@@ -1,6 +1,5 @@
 """Puppetfile pin compare, rewrite, and GitHub remote parsing."""
 from app.routers.puppetfile import (
-    _bolt_puppetfile,
     _repos_from_r10k_text,
     merge_repositories,
 )
@@ -73,23 +72,6 @@ def test_repository_list_includes_default_and_extra_sources():
         "xai-org/team-control",
     ]
     assert rows[0]["label"] == "itsys — xai-org/itsys-control_repo"
-
-
-def test_compiler_read_script_is_one_shell_line():
-    from app.services.github_contents import compiler_read_script
-
-    script = compiler_read_script("xai-org/itsys-control_repo", "Puppetfile", "staging")
-    assert "\n" not in script
-    assert script.startswith("python3 -c ")
-
-
-def test_bolt_stdout_keeps_the_puppetfile_after_noise():
-    text = "Started on compiler.example\nabc1234\tmod 'puppet-chrony', '5.0.0'\nmod 'kea',\n"
-    parsed = _bolt_puppetfile(text)
-    assert parsed is not None
-    assert parsed["sha"] == "abc1234"
-    assert "puppet-chrony" in parsed["content"]
-    assert _bolt_puppetfile("no tab here\n") is None
 
 
 def test_repository_list_defaults_when_r10k_is_absent():

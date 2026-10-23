@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.41] - 2026-10-23
+
+### Fixed
+- **Puppetfile Resolve no longer asks compilers.** A dedicated
+  console keeps its own checkout of the control repo under
+  ``/opt/openvox-gui/data/control-repos/``. Resolve fetches the
+  saved branch there and reads the Puppetfile from that tree.
+  Commit still uses the GitHub Contents API.
+
 ## [3.14.1-dev.40] - 2026-10-23
 
 ### Fixed

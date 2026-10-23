@@ -21,10 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..dependencies import require_role, READ_ROLES
 from ..models.gui_kv import GuiKv
+from ..services.control_repo import ControlRepoError, read_file as read_control_repo
 from ..services.github_contents import (
     GitHubContents,
     GitHubError,
-    compiler_read_script,
     parse_repo,
 )
 from ..services.puppetfile_check import parse_puppetfile, pin_status, rewrite_puppetfile
@@ -210,79 +210,23 @@ def _client(settings: Dict[str, str]) -> GitHubContents:
     return GitHubContents(settings["token"], settings["repo"])
 
 
-def _bolt_puppetfile(text: str) -> Optional[Dict[str, str]]:
-    """Pull ``sha<TAB>body`` out of Bolt stdout. None when it is absent."""
-    for line in text.splitlines(keepends=True):
-        head, sep, tail = line.partition("\t")
-        if not sep:
-            continue
-        sha = head.strip()
-        if len(sha) < 7 or any(ch not in "0123456789abcdef" for ch in sha):
-            continue
-        rest = text.split(line, 1)[1] if line in text else ""
-        return {"content": tail + rest, "sha": sha, "html_url": ""}
-    return None
-
-
-async def _read_via_compiler(repo: str, path: str, ref: str) -> Dict[str, str]:
-    """Read the Puppetfile on a compiler. The console cannot reach GitHub."""
-    from ..services.cluster_config import deploy_targets
-    from ..services.command_execution import default_service
-
-    targets = deploy_targets()
-    if not targets:
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "This console cannot reach api.github.com. Add a compiler "
-                "under Cluster so Resolve can read the r10k cache there."
-            ),
-        )
-    script = compiler_read_script(repo, path, ref)
-    errors: List[str] = []
-    for target in targets[:4]:
-        # Environments are puppet:puppet 0750. bolt cannot see them, so
-        # the walk reports "no Puppetfile". --run-as root becomes sudo -n.
-        result = await default_service.run_bolt_cli(
-            ["command", "run", script, "--targets", target, "--run-as", "root"],
-            timeout=60,
-            executed_by="puppetfile",
-            targets=target,
-            execution_type="puppetfile_read",
-        )
-        if result.get("returncode") != 0:
-            err = (result.get("stderr") or result.get("stdout") or "").strip()
-            errors.append(f"{target}: {err[:300] or 'bolt failed'}")
-            continue
-        parsed = _bolt_puppetfile(result.get("stdout") or "")
-        if parsed is None:
-            errors.append(f"{target}: compiler returned no Puppetfile")
-            continue
-        return parsed
-    raise HTTPException(
-        status_code=502,
-        detail="Could not read the Puppetfile from a compiler. " + " | ".join(errors),
-    )
-
-
 async def _read_puppetfile(saved: Dict[str, str]) -> Dict[str, str]:
-    """Compiler cache first. Direct GitHub only if that is unavailable."""
-    from ..services.cluster_config import deploy_targets
+    """Read the branch from the console checkout of the control repo.
 
-    if deploy_targets():
-        return await _read_via_compiler(saved["repo"], saved["path"], saved["branch"])
-    client = _client(saved)
+    The checkout lives under the GUI data directory and is fetched on
+    each Resolve. Compilers are not asked. GitHub Contents is the
+    fallback when this host has no git binary.
+    """
+    _client(saved)
     try:
-        return await client.read_file(saved["path"], saved["branch"])
-    except GitHubError as exc:
-        status = 404 if exc.status == 404 else 502
-        detail = exc.detail
-        if "api.github.com" in detail or "ConnectError" in detail or "timed out" in detail:
-            detail = (
-                "This console cannot reach api.github.com. Add a compiler "
-                "under Cluster, or run the GUI on a host that can."
-            )
-        raise HTTPException(status_code=status, detail=detail) from exc
+        return await read_control_repo(
+            saved["repo"],
+            saved["token"],
+            saved["branch"],
+            saved["path"],
+        )
+    except ControlRepoError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 async def _forge_latest(slug: str) -> tuple[Optional[str], Optional[str]]:

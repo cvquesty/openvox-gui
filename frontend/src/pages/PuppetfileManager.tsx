@@ -206,7 +206,8 @@ export function PuppetfileManagerPage() {
             <Title order={2}>Puppetfile Manager</Title>
           </Group>
           <Text c="dimmed" size="sm" mt={4}>
-            Resolves Forge pins on the control-repo branch. Nothing is written until you commit.
+            Resolves Forge pins from a checkout of the control repo on this console.
+            Nothing is written until you commit.
           </Text>
         </div>
         <Button
