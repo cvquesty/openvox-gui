@@ -130,77 +130,98 @@ class GitHubContents:
 
 
 def compiler_read_script(repo: str, path: str, ref: str) -> str:
-    """One-line command that prints the Puppetfile from the r10k cache.
+    """One-line command that prints the Puppetfile from a compiler.
 
-    r10k already cloned that repo onto the compiler. The console cannot
-    open api.github.com, and it must not send a token to the compiler.
-    The compiler's own git credential does the fetch.
+    r10k's deployed tree is ``<basedir>/<environment>/<path>``. That
+    directory is a git checkout of the control-repo branch. The bare
+    cache under the r10k cachedir often has no ``origin`` remote, which
+    is why a cache-only search reported "no clone".
 
     The program is base64 so Bolt does not have to carry a heredoc.
-    stdout is ``sha<TAB>body``. ``ref`` and ``origin/ref`` are both tried.
+    stdout is ``sha<TAB>body``. The sha is the blob of the file when
+    git can name it, otherwise a hash of the bytes.
     """
     program = f"""
-import os, subprocess, sys
+import hashlib, os, subprocess, sys
 repo = {repo!r}
 want = {path!r}
 ref = {ref!r}
 
-def git_dirs():
-    for base in ("/opt/puppetlabs/puppet/cache/r10k", "/var/cache/r10k"):
-        if not os.path.isdir(base):
-            continue
-        for dirpath, dirnames, filenames in os.walk(base):
-            if "config" in filenames and "objects" in dirnames:
-                yield dirpath
-
-def remote_of(gitdir):
-    out = subprocess.run(
-        ["git", "--git-dir", gitdir, "remote", "get-url", "origin"],
-        capture_output=True, text=True,
-    )
-    return out.stdout.strip()
-
-def matches(url):
-    text = url
+def repo_of(url):
+    text = url or ""
     for mark in ("github.com:", "github.com/"):
         if mark in text:
             text = text.split(mark, 1)[1]
     if text.endswith(".git"):
         text = text[:-4]
     parts = [p for p in text.split("/") if p]
-    return len(parts) >= 2 and "/".join(parts[-2:]) == repo
+    if len(parts) >= 2:
+        return "/".join(parts[-2:])
+    return ""
 
-found = ""
-for gitdir in git_dirs():
-    if matches(remote_of(gitdir)):
-        found = gitdir
-        break
-if not found:
-    sys.stderr.write("r10k cache has no clone of %s\\n" % repo)
-    sys.exit(3)
+def git(gitdir, args):
+    return subprocess.run(
+        ["git", "--git-dir", gitdir] + args,
+        capture_output=True, text=True,
+    )
 
-def run(args):
-    return subprocess.run(["git", "--git-dir", found] + args, capture_output=True)
+def emit(blob, body):
+    sys.stdout.buffer.write(blob.encode("ascii") + b"\\t")
+    sys.stdout.buffer.write(body if isinstance(body, bytes) else body.encode("utf-8"))
+    sys.exit(0)
 
-run(["fetch", "--quiet", "origin", ref])
-body = None
-spec = ""
-for candidate in (ref, "origin/" + ref):
-    spec = candidate + ":" + want
-    body = run(["show", spec])
-    if body.returncode == 0:
-        break
-if body is None or body.returncode != 0:
-    err = body.stderr.decode("utf-8", "replace") if body else "no output"
-    sys.stderr.write(err)
-    sys.exit(body.returncode if body else 4)
-sha = run(["rev-parse", spec])
-if sha.returncode != 0:
-    sys.stderr.write(sha.stderr.decode("utf-8", "replace"))
-    sys.exit(sha.returncode)
-blob = sha.stdout.decode("ascii", "replace").strip()
-sys.stdout.buffer.write(blob.encode("ascii") + b"\\t")
-sys.stdout.buffer.write(body.stdout)
+candidates = []
+for base in (
+    "/etc/puppetlabs/code-staging/environments",
+    "/etc/puppetlabs/code/environments",
+):
+    checkout = os.path.join(base, ref)
+    if os.path.isdir(os.path.join(checkout, ".git")):
+        candidates.append(os.path.join(checkout, ".git"))
+
+for cache in ("/opt/puppetlabs/puppet/cache/r10k", "/var/cache/r10k"):
+    if not os.path.isdir(cache):
+        continue
+    for dirpath, dirnames, filenames in os.walk(cache):
+        if "config" in filenames and "objects" in dirnames:
+            candidates.append(dirpath)
+
+tried = []
+for gitdir in candidates:
+    url = git(gitdir, ["remote", "get-url", "origin"]).stdout.strip()
+    if not url:
+        url = git(gitdir, ["config", "--get", "remote.origin.url"]).stdout.strip()
+    owner = repo_of(url)
+    tried.append(owner or os.path.basename(gitdir))
+    if owner and owner != repo:
+        continue
+    if not owner and repo.split("/")[-1] not in os.path.basename(gitdir):
+        # Deployed environment checkouts often have no remote. Read
+        # the file when the directory is the requested environment.
+        work = os.path.dirname(gitdir)
+        if os.path.basename(work) != ref:
+            continue
+    for spec in (ref + ":" + want, "HEAD:" + want):
+        shown = subprocess.run(
+            ["git", "--git-dir", gitdir, "show", spec],
+            capture_output=True,
+        )
+        if shown.returncode != 0:
+            continue
+        sha = git(gitdir, ["rev-parse", spec]).stdout.strip()
+        if not sha:
+            sha = hashlib.sha256(shown.stdout).hexdigest()
+        emit(sha, shown.stdout)
+    work = os.path.dirname(gitdir)
+    file_path = os.path.join(work, want)
+    if os.path.isfile(file_path):
+        data = open(file_path, "rb").read()
+        emit(hashlib.sha256(data).hexdigest(), data)
+
+sys.stderr.write(
+    "no Puppetfile for %s branch %s (looked at %s)\\n" % (repo, ref, ", ".join(tried) or "nowhere")
+)
+sys.exit(3)
 """
     encoded = base64.b64encode(program.encode("utf-8")).decode("ascii")
     return f"python3 -c \"import base64; exec(base64.b64decode('{encoded}'))\""

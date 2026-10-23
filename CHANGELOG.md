@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.39] - 2026-10-23
+
+### Fixed
+- **Puppetfile Resolve reported "r10k cache has no clone".** The
+  compilers keep the branch as a checkout under
+  ``/etc/puppetlabs/code-staging/environments/<branch>``, not as a
+  bare cache with an origin URL. Resolve now reads that checkout,
+  then the live codedir, then the bare cache.
+
 ## [3.14.1-dev.38] - 2026-10-23
 
 ### Fixed
