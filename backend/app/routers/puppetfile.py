@@ -445,7 +445,7 @@ async def commit_updates(
         "Assisted By: Grok AI\n"
     )
     try:
-        result = await client.commit_file(
+        result = await _client(saved).commit_file(
             saved["path"],
             new_text,
             fetched["sha"],

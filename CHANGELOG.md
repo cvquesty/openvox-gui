@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.37] - 2026-10-23
+
+### Fixed
+- **CI ruff F821.** The Puppetfile commit path still called
+  ``client`` after the read moved to the compiler. The write uses
+  the GitHub client again.
+
 ## [3.14.1-dev.36] - 2026-10-23
 
 ### Fixed
