@@ -718,6 +718,40 @@ export const metrics = {
     }),
 };
 
+// ─── Puppetfile Manager ─────────────────────────────────────
+// Lives under Insights. Reading resolves Forge pins. Commit is separate.
+
+export const puppetfile = {
+  settings: () => fetchJSON<{
+    repo: string;
+    branch: string;
+    path: string;
+    token_set: boolean;
+  }>('/insights/puppetfile/settings'),
+  saveSettings: (body: { repo: string; branch: string; path: string; token?: string }) =>
+    fetchJSON<{ repo: string; branch: string; path: string; token_set: boolean }>(
+      '/insights/puppetfile/settings',
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  report: () => fetchJSON<{
+    repo: string;
+    branch: string;
+    path: string;
+    sha: string;
+    html_url: string;
+    modules: { slug: string; pinned: string; latest: string | null; status: string }[];
+    git_modules: string[];
+    behind: number;
+  }>('/insights/puppetfile'),
+  commit: (body: { slugs: string[]; sha: string; message?: string }) =>
+    fetchJSON<{
+      changed: number;
+      branch: string;
+      updates: { slug: string; from: string; to: string }[];
+      commit: { sha: string; html_url: string; message: string };
+    }>('/insights/puppetfile/commit', { method: 'POST', body: JSON.stringify(body) }),
+};
+
 // ─── Log Viewer ─────────────────────────────────────────────
 
 export const logs = {

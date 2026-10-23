@@ -49,6 +49,7 @@ const NodeDetailPage = lazyWithRetry(() => import('./pages/NodeDetail').then(m =
 const ReportsPage = lazyWithRetry(() => import('./pages/Reports').then(m => ({ default: m.ReportsPage })));
 const ReportDetailPage = lazyWithRetry(() => import('./pages/ReportDetail').then(m => ({ default: m.ReportDetailPage })));
 const InsightsHubPage = lazyWithRetry(() => import('./pages/InsightsHub').then(m => ({ default: m.InsightsHubPage })));
+const PuppetfileManagerPage = lazyWithRetry(() => import('./pages/PuppetfileManager').then(m => ({ default: m.PuppetfileManagerPage })));
 const MonitoringDashboardPage = lazyWithRetry(() => import('./pages/MonitoringDashboard').then(m => ({ default: m.MonitoringDashboardPage })));
 const CodeDeploymentPage = lazyWithRetry(() => import('./pages/CodeDeployment').then(m => ({ default: m.CodeDeploymentPage })));
 const NodeClassifierPage = lazyWithRetry(() => import('./pages/NodeClassifier').then(m => ({ default: m.NodeClassifierPage })));
@@ -183,6 +184,7 @@ function AppRoutes() {
           <Route path="/insights/heatmap" element={<MetricsHeatmapPage />} />
           <Route path="/insights/environments" element={<MetricsEnvironmentsPage />} />
           <Route path="/insights/classes" element={<MetricsClassCoveragePage />} />
+          <Route path="/insights/puppetfile" element={<PuppetfileManagerPage />} />
 
           {/* Configuration */}
           <Route path="/config/puppet" element={<ConfigPuppetPage />} />

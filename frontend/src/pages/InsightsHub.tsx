@@ -20,6 +20,7 @@ import {
   IconLayoutDashboard,
   IconArrowLeft,
   IconServer2,
+  IconFileCode,
 } from '@tabler/icons-react';
 
 const CARDS: { path: string; title: string; description: string; icon: any; color: string }[] = [
@@ -36,6 +37,7 @@ const CARDS: { path: string; title: string; description: string; icon: any; colo
   { path: '/insights/heatmap', title: 'Node Heatmap', description: 'Visual density of node outcomes', icon: IconGridDots, color: 'lime' },
   { path: '/insights/environments', title: 'Environments', description: 'Nodes and activity by environment', icon: IconWorld, color: 'green' },
   { path: '/insights/classes', title: 'Class Coverage', description: 'Which classes are applied where', icon: IconStack2, color: 'yellow' },
+  { path: '/insights/puppetfile', title: 'Puppetfile Manager', description: 'Forge pins on the control-repo branch, and a staging commit when you choose modules', icon: IconFileCode, color: 'blue' },
 ];
 
 export function InsightsHubPage() {

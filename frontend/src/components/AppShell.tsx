@@ -53,6 +53,7 @@ import {
   IconWorld as IconWorldNav,
   IconStack2,
   IconListDetails,
+  IconFileCode,
   IconHeartbeat,
   IconKeyboard,
   IconSun,
@@ -116,6 +117,7 @@ const insightsNav: NavItem[] = [
   { label: 'Insights catalog', icon: IconGridDots, path: '/insights/all' },
   { label: 'Inventory', icon: IconListDetails, path: '/inventory' },
   { label: 'Log Viewer', icon: IconFileText, path: '/logs' },
+  { label: 'Puppetfile Manager', icon: IconFileCode, path: '/insights/puppetfile' },
 ];
 
 const configNav: NavItem[] = [

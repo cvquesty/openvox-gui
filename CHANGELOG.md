@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.34] - 2026-10-23
+
+### Added
+- **Puppetfile Manager** under Insights. Reads the control-repo
+  Puppetfile from GitHub (staging by default), resolves each Forge
+  pin, and commits only the modules an admin or operator selects.
+  The page does not write until Commit. Production is rejected.
+  A fine-grained token is stored encrypted. This does not deploy;
+  r10k still has to deploy the branch.
+
 ## [3.14.1-dev.33] - 2026-10-18
 
 ### Changed

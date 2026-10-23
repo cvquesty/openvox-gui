@@ -32,6 +32,7 @@ describe('canAccessPath', () => {
       '/config/ssl',
       '/insights',
       '/insights/all',
+      '/insights/compliance',
       '/pql',
       '/installer-notes',
     ]) {

@@ -41,6 +41,7 @@ const DEFAULT_ACTIONS: PaletteAction[] = [
   { id: 'config-app', label: 'Application Configuration', path: '/config/app', keywords: 'settings users ldap' },
   { id: 'insights-monitor', label: 'Monitoring dashboard', path: '/insights', keywords: 'noc wallboard trends metrics health pane' },
   { id: 'insights-catalog', label: 'Insights catalog', path: '/insights/all', keywords: 'metrics catalog launcher health' },
+  { id: 'puppetfile', label: 'Puppetfile Manager', path: '/insights/puppetfile', keywords: 'forge modules versions staging commit' },
   { id: 'insights-compliance', label: 'Fleet Compliance', path: '/insights/compliance', keywords: 'metrics health' },
   { id: 'insights-node-health', label: 'Node Health', path: '/insights/node-health', keywords: 'metrics' },
 ];

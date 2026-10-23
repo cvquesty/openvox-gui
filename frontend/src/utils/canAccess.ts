@@ -15,6 +15,7 @@ export const VIEWER_HIDDEN_PATHS: readonly string[] = [
   '/data/hiera',
   '/config/puppet',
   '/config/app',
+  '/insights/puppetfile',
 ];
 
 const VIEWER_HIDDEN = new Set<string>(VIEWER_HIDDEN_PATHS);

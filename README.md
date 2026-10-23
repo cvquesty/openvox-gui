@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.14.1--dev.33-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.14.1--dev.34-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -130,6 +130,7 @@ That's it! For detailed installation instructions, see the [Installation Guide](
 - PQL console, Fact / Resource explorers, Package Inventory + export actions
 
 ### Insights — Monitoring, catalog, Inventory, Logs
+- **Puppetfile Manager**: Forge pin report for the control-repo Puppetfile on GitHub. Commit selected updates to staging. Does not deploy.
 - NOC **Monitoring** wallboard + 13-page metrics catalog (compliance, performance, Server/DB health, **Host Health**, …)
 - Only **Host Health** time series persist on server disk (`data/host_metrics/`); other series are RAM/browser/OpenVoxDB — see FEATURES.md
 - Log Viewer: journal/file; clustered **CA vs compiler** tabs
