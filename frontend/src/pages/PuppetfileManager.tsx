@@ -214,7 +214,7 @@ export function PuppetfileManagerPage() {
           leftSection={<IconRefresh size={16} />}
           onClick={() => resolve()}
           loading={loading}
-          disabled={!connection?.token_set || !connection.repo}
+          disabled={!connection?.repo}
         >
           Resolve
         </Button>
@@ -226,8 +226,9 @@ export function PuppetfileManagerPage() {
         <Stack gap="sm">
           <Text fw={600}>GitHub</Text>
           <Text size="sm" c="dimmed">
-            Use a personal access token (github_pat_… or ghp_…) with Contents
-            read and write on this repository. A GitHub password will not work.
+            Resolve clones git@github.com with the console SSH key. No token is
+            needed to read. A personal access token (github_pat_… or ghp_…) with
+            Contents write is only used when you commit. A password will not work.
             The token is stored encrypted and is not shown again.
             Commits go to staging. Promote that branch to production with the usual pull request.
           </Text>

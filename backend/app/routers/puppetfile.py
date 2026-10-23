@@ -203,7 +203,7 @@ def _client(settings: Dict[str, str]) -> GitHubContents:
     if not settings["token"]:
         raise HTTPException(
             status_code=400,
-            detail="Save a GitHub token with contents read and write on the control repo.",
+            detail="Save a GitHub token with contents write on the control repo to commit.",
         )
     if not settings["repo"]:
         raise HTTPException(status_code=400, detail="Set the control repo as owner/name.")
@@ -211,20 +211,15 @@ def _client(settings: Dict[str, str]) -> GitHubContents:
 
 
 async def _read_puppetfile(saved: Dict[str, str]) -> Dict[str, str]:
-    """Read the branch from the console checkout of the control repo.
+    """Read the branch from the console checkout over SSH.
 
-    The checkout lives under the GUI data directory and is fetched on
-    each Resolve. Compilers are not asked. GitHub Contents is the
-    fallback when this host has no git binary.
+    The remote is ``git@github.com:<owner>/<name>.git``. The console
+    user's key authenticates. No token is required to resolve.
     """
-    _client(saved)
+    if not saved["repo"]:
+        raise HTTPException(status_code=400, detail="Set the control repo as owner/name.")
     try:
-        return await read_control_repo(
-            saved["repo"],
-            saved["token"],
-            saved["branch"],
-            saved["path"],
-        )
+        return await read_control_repo(saved["repo"], saved["branch"], saved["path"])
     except ControlRepoError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
