@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.1-dev.50] - 2026-10-23
+
+### Removed
+- **Puppetfile Manager.** The page, the Insights menu entry, the
+  catalog card, the route, and the backend that cloned the control
+  repo are gone.
+
 ## [3.14.1-dev.48] - 2026-10-23
 
 ### Changed

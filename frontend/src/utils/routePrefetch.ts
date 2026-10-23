@@ -45,7 +45,6 @@ export const ROUTE_LOADERS: RouteLoader[] = [
   { id: 'insights-heatmap', match: (p) => p.startsWith('/insights/heatmap'), load: () => import('../pages/MetricsHeatmap') },
   { id: 'insights-environments', match: (p) => p.startsWith('/insights/environments'), load: () => import('../pages/MetricsEnvironments') },
   { id: 'insights-classes', match: (p) => p.startsWith('/insights/classes'), load: () => import('../pages/MetricsClassCoverage') },
-  { id: 'insights-puppetfile', match: (p) => p.startsWith('/insights/puppetfile'), load: () => import('../pages/PuppetfileManager') },
   { id: 'config-puppet', match: (p) => p.startsWith('/config/puppet'), load: () => import('../pages/ConfigPuppet') },
   { id: 'config-app', match: (p) => p.startsWith('/config/app'), load: () => import('../pages/ConfigApp') },
   { id: 'config-ssl', match: (p) => p.startsWith('/config/ssl'), load: () => import('../pages/ConfigSSL') },
