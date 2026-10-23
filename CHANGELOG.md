@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.2] - 2026-10-23 (stable)
+
+Stable promotion of the **3.14.1-dev.1–dev.52** train on `main`.
+This is the next stable after **3.14.0**. Per-commit detail stays in
+the dev entries below.
+
+### Highlights
+- **Agent install talks to the CA.** Clustered `install.bash` bakes
+  the CA VIP from `.env` or Cluster **CA VIP FQDNs**, and never the
+  compiler VIP. Saving those settings rewrites the on-disk script.
+- **Fresh installs can run Bolt.** `install.sh` copies
+  `bolt-plugin/` so `openvox_enc` is installed. Upgrades refresh it.
+- **The package mirror keeps going.** A single package failure, a
+  missing yum arch, or a full disk no longer leaves a half-sync that
+  looks successful. OpenVox 8 and 9 are selected together. Sync now
+  works when sudo requires a TTY.
+- **Python 3.11 is the floor.** SQLAlchemy 2.1.4. The installer
+  picks or installs Python 3.12 when the system `python3` is older.
+- **The Nodes count matches the fleet.** Classified and unclassified
+  lists no longer count the same certname twice.
+- **Keyboard access.** Node and report rows are links. Icon buttons
+  and search fields have names. The command palette moves with the
+  arrow keys.
+- **Viewers stay on read-only pages.** Orchestration, Code Deploy,
+  Agent Install, Hiera files, and configuration URLs no longer mount
+  for the viewer role.
+
+### Upgrade
+```bash
+sudo /opt/openvox-gui/scripts/update_local.sh
+```
+Hard-refresh browsers once. On a clustered console, confirm
+`grep '^CA_SERVER=' /opt/openvox-pkgs/install.bash` shows the CA VIP.
+Hosts on Python 3.10 need 3.11 or newer before this upgrade.
+
 ## [3.14.1-dev.52] - 2026-10-23
 
 ### Fixed

@@ -4,17 +4,17 @@
 - **Default branch is `main`** — staging branch has been removed
 - All development and releases go through `main`
 
-### 3.14.0 stable (current on `main` — 2026-09-21)
+### 3.14.2 stable (current on `main` — 2026-10-23)
 
-- **Current stable:** **3.14.0** (`v3.14.0`). Promotes the 3.13.0-rc.1–rc.32 train (no 3.13.0 GitHub Release).
+- **Current stable:** **3.14.2** (`v3.14.2`). Promotes the 3.14.1-dev.1–dev.52 train.
 - **AIO first:** most installs are all-in-one on the OpenVox Server host (SQLite OK).
 - **Clustered optional:** dual console + VIP sessions, fleet exclude, ovox estate health, Bolt estate inventory, shared Postgres `openvox_gui`, `OPENVOX_GUI_PUPPET_CA_HOST`. See [docs/STATUS.md](docs/STATUS.md).
-- **Next train:** after 3.14.0, daily work uses `3.14.1-dev.N` (or `3.15.0-rc.N` for a new minor). PEP 440 only. Never put `gamma` in `VERSION`.
+- **Next train:** after 3.14.2, daily work uses `3.14.3-dev.N` (or `3.15.0-rc.N` for a new minor). PEP 440 only. Never put `gamma` in `VERSION`.
 - Pre-release counter on every meaningful push via bump + CHANGELOG + tag + **push branch and tags** + **lab deploy** to `openvox.questy.org` (`10.0.100.225`).
 
 ### Stable baseline and history
 
-- **Current stable:** **3.14.0**. Live fleet = **`get_live_nodes()`** (active PuppetDB; DNS RR hide only; peer report merge) plus last-good VIP cache, lean PDB extract, agent-installer prune, Monitoring charts.
+- **Current stable:** **3.14.2**. Live fleet = **`get_live_nodes()`** (active PuppetDB; DNS RR hide only; peer report merge) plus last-good VIP cache, lean PDB extract, agent-installer prune, Monitoring charts. Python floor is 3.11.
 - **3.12.0:** prior clustered-console stable. **3.10.6:** prior AIO performance stable. **3.11.x:** historical clustered betas.
 - **Prior stables:** **3.10.4**, **3.10.2**; old train markers are archaeology only.
 - **Estate strategy (clustered):** build/validate the **new** multi-server estate; migrate nodes; repurpose legacy singleton as lab/dev. Do not treat in-place “upgrade production singleton to clustered” as the default path.

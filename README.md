@@ -4,7 +4,7 @@
 
 **A web-based management interface for OpenVox/Puppet infrastructure**
 
-[![Version](https://img.shields.io/badge/version-3.14.1--dev.52-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
+[![Version](https://img.shields.io/badge/version-3.14.2-orange?style=for-the-badge)](https://github.com/cvquesty/openvox-gui/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/react-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -248,10 +248,18 @@ sudo /opt/openvox-gui/venv/bin/python /opt/openvox-gui/scripts/manage_users.py l
 
 ## Current train (3.14) and versioning
 
-**Current stable:** **3.14.0** (`v3.14.0`).  
+**Current stable:** **3.14.2** (`v3.14.2`).  
 Full map: [docs/STATUS.md](docs/STATUS.md) · features: [docs/FEATURES.md](docs/FEATURES.md) · history: [CHANGELOG.md](CHANGELOG.md).
 
-### 3.14.0 headlines (AIO + clustered)
+### 3.14.2 headlines
+- **Agent install uses the CA VIP** — clustered `install.bash` no longer bakes the compiler
+- **Bolt on a fresh install** — `openvox_enc` is copied and installed
+- **Package mirror** — one failed package does not abort the rest; OpenVox 8 and 9 together
+- **Python 3.11+** — the installer supplies 3.12 when the system Python is older
+- **Nodes count** — classified and unclassified lists no longer double-count a certname
+- **Keyboard access** — rows, icon buttons, and the command palette
+
+### 3.14.0 headlines (still in the product)
 - **AIO still first** — install on the OpenVox Server; SQLite; local services
 - **Clustered ops** — Code Deploy / Hiera / Agent Install without compiler sudo TTY; `OPENVOX_GUI_PUPPET_CA_HOST` is the CA VIP
 - **Lean PDB + last-good fleet** — one PuppetDB VIP, lean report extract, VIP probe cannot wipe a known fleet
@@ -263,8 +271,8 @@ Full map: [docs/STATUS.md](docs/STATUS.md) · features: [docs/FEATURES.md](docs/
 - **3.12.0** clustered consoles / one fleet status · **3.10.6** performance / SWR · **3.7** Insights / maintenance · **3.6** agent installer, SSL wizard, RBAC
 
 ### How we version
-- **Stable:** `MAJOR.MINOR.PATCH` (e.g. **3.14.0**)
-- **Pre-release:** `3.14.1-dev.N` / `3.15.0-rc.N` (PEP 440 only — not `gamma`) · ovox lockstep with GUI
+- **Stable:** `MAJOR.MINOR.PATCH` (e.g. **3.14.2**)
+- **Pre-release:** `3.14.3-dev.N` / `3.15.0-rc.N` (PEP 440 only — not `gamma`) · ovox lockstep with GUI
 - **Branch:** `main` only · GitHub Releases only for intentional stables
 
 > **Metrics:** [docs/METRICS.md](docs/METRICS.md) · Host Health: [docs/HOST_HEALTH.md](docs/HOST_HEALTH.md)
