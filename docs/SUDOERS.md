@@ -179,8 +179,9 @@ puppet ALL=(root) NOPASSWD: /usr/bin/systemctl daemon-reload
 puppet ALL=(root) NOPASSWD: /opt/puppetlabs/bin/puppetserver ca import
 puppet ALL=(root) NOPASSWD: /usr/local/bin/certbot renew
 puppet ALL=(root) NOPASSWD: /usr/bin/ls /etc/letsencrypt/live
-# Replace the domain below with your Puppet server's actual FQDN
-# (usually the output of `hostname -f` on the Puppet server where the GUI is installed).
+# Replace the domain below with this GUI host's FQDN (`hostname -f`).
+# All-in-one: that is the OpenVox Server. Dedicated console: the console
+# name, not the compiler.
 puppet ALL=(root) NOPASSWD: /usr/bin/cat /etc/letsencrypt/live/openvox.example.com/fullchain.pem
 ```
 
@@ -297,8 +298,8 @@ everything on the box.
 
 Exactly the commands used when an operator installs or renews a
 certificate through the UI (tee the unit file, daemon-reload, certbot
-renew, ls the live directory, cat the specific fullchain for the
-server's FQDN).
+renew, ls the live directory, cat the specific fullchain for this
+host's FQDN — the GUI hostname).
 
 All of these choices were made after real security audits and after
 removing several overly broad wildcards that had existed in earlier

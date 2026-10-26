@@ -19,8 +19,10 @@ Both are clients of one FastAPI backend. There is no separate public vs internal
 
 | Deployment | GUI host | App DB | Code / CA |
 |------------|----------|--------|-----------|
-| **single** | OpenVox Server (co-located) | SQLite or Postgres | Local fs, local CA tools |
+| **single** | OpenVox Server (all-in-one) | SQLite or Postgres | Local codedir, local CA tools |
 | **clustered** | Dedicated console(s) | **Postgres `openvox_gui` required** | Compilers via Bolt/HTTP; CA via `OPENVOX_GUI_PUPPET_CA_HOST` |
+
+**single** is the GUI on the OpenVox Server: local codedir, local `puppetserver ca`, local server and database conf. **clustered** is one or more dedicated consoles. A console is a supported install and is not a compiler. It needs an agent certificate signed by the estate CA, HTTPS to the CA VIP (`:8140`), the compiler VIP (`:8140`), and OpenVoxDB (`:8081`), and Bolt SSH for r10k and orchestration. It does not keep a cadir or a control-repo checkout. The full list, including the operations that still read or write only the console’s own files, is in [INSTALL.md](../INSTALL.md#what-a-separate-console-needs).
 
 **Live fleet rule:** `get_live_nodes()` = active OpenVoxDB `/nodes` (catalogs) minus DNS RR names (`ovca.example.com`, `ovdb.example.com`). HAProxy frontends (`ovcompilers.<site>-it.…`) are real agents and stay visible. Certificates page remains CA-authoritative. Two Postgres databases (`puppetdb` vs `openvox_gui`) and two Spock meshes: [CLUSTERED_SHARED_DB.txt](CLUSTERED_SHARED_DB.txt). See [FEATURES.md](FEATURES.md#live-fleet-membership-cross-cutting-rule).
 
@@ -54,7 +56,7 @@ Both are clients of one FastAPI backend. There is no separate public vs internal
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              │ mTLS / sudo / Bolt / local FS
+                              │ mTLS / Bolt / sudo on this host
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    External Systems & Data                      │
@@ -64,7 +66,8 @@ Both are clients of one FastAPI backend. There is no separate public vs internal
 │   • OpenVox CA (certificate_status HTTP or local ca CLI)        │
 │   • OpenVoxDB (facts, reports, PQL) — not the GUI app DB        │
 │   • Bolt / OpenBolt (tasks, plans, commands, inventory)         │
-│   • Filesystem (Hiera, conf, logs, host_metrics/, package mirror)│
+│   • Files on this host: agent SSL, Bolt project, logs, mirror   │
+│   • All-in-one also: local codedir, CA CLI, server/PDB conf     │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```

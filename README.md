@@ -181,7 +181,8 @@ You need a Linux server with:
 - **Memory**: At least 2GB RAM (4GB recommended)
 - **Disk Space**: 1GB free space
 - **Python**: Version 3.11 or newer (3.12 recommended on EL8/EL9)
-- **Network**: Access to your OpenVox Server and OpenVoxDB
+- **Host**: the OpenVox Server (all-in-one), or a dedicated console with an agent certificate signed by your CA. A machine with no Puppet SSL is not a supported console. Requirements: [INSTALL.md](INSTALL.md#what-a-separate-console-needs).
+- **Network**: Access to your OpenVox Server (or compiler VIP), the CA, and OpenVoxDB
 
 ### What Gets Installed
 

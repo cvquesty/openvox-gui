@@ -52,7 +52,7 @@ What we do now on Dashboard:
 
 Return visits in the same tab paint the last-good snapshot immediately, then refresh in the background (“Refreshing…”). Auto-refresh no longer blanks charts.
 
-If Dashboard is still slow on **first** login of the day, the remaining cost is co-located PuppetDB/CA latency for `get_live_nodes()` (active nodes ∩ signed certs). Check `ovox infra health` and PDB heap before raising GUI workers further.
+If Dashboard is still slow on **first** login of the day, the remaining cost is the PuppetDB and CA round-trips inside `get_live_nodes()` (active nodes ∩ signed certs). On an all-in-one host those calls stay on the box. On a dedicated console they cross the network to OpenVoxDB and the CA. Check `ovox infra health` and PDB heap before raising GUI workers further.
 
 ### VIP flap must not show a one-node estate
 
@@ -105,16 +105,16 @@ OPENVOX_GUI_UVICORN_WORKERS=4
 
 Then re-run deploy/update so the unit is rewritten, or edit ExecStart and `systemctl daemon-reload && systemctl restart openvox-gui`.
 
-**Guidance (co-located with Puppet Server + PuppetDB):**
+**Worker guidance.** The first three rows are an all-in-one host that also runs Puppet Server and PuppetDB. The last row is a dedicated console.
 
 | Host CPUs | Suggested GUI workers | Notes |
 |-----------|----------------------|--------|
-| 2 | 1–2 | Lab / tiny |
+| 2 | 1–2 | Lab / tiny all-in-one |
 | 4 | 2 | Leave CPU for Server/PDB |
-| 8+ | 3–4 | Cap at 4–6 unless GUI is dedicated |
+| 8+ | 3–4 | Cap at 4–6 when the JVMs share the box |
 | Dedicated GUI host | `min(8, nproc-1)` | Watch RAM |
 
-**Do not** set workers so high that Puppet Server JRuby + PDB + GUI starve each other. Prefer `ovox infra recommend` for the Java side first.
+On an all-in-one host, keep worker count low enough that Puppet Server JRuby, PuppetDB, and the GUI can run together. A dedicated console does not share CPUs with those JVMs; use the last row. Prefer `ovox infra recommend` for the Java side, applied on each compiler and OpenVoxDB node. Tune apply from a clustered console is refused (it would change only the GUI host). See [TUNING.md](TUNING.md).
 
 ### Optional one-shot override during update
 

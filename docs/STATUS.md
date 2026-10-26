@@ -186,6 +186,13 @@ Install: `sudo ./install.sh` on the server.
 [ OpenVoxDB ]  Spock mesh / site HAProxy
 ```
 
+A console in that picture is its own host. It needs an agent cert
+signed by the estate CA, HTTPS to the CA VIP (`:8140`), the compiler
+VIP (`:8140`), and OpenVoxDB (`:8081`), Bolt SSH as `bolt` to the
+compilers, and Postgres `openvox_gui`. It does not run puppetserver
+and it does not keep a copy of the control repo. Full list:
+[INSTALL.md](../INSTALL.md#what-a-separate-console-needs).
+
 See [CLUSTERED_SHARED_DB.txt](CLUSTERED_SHARED_DB.txt).
 
 ---

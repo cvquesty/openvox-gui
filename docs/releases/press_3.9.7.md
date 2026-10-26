@@ -1,5 +1,7 @@
 # openvox-gui 3.9.7 -- Announcement Copy
 
+> **Historical copy for 3.9.7.** Paste blocks below describe that release. Where they say the GUI runs on the Puppet server, that was the install path then. Current installs also support a dedicated console: [INSTALL.md](../../INSTALL.md#what-a-separate-console-needs).
+
 > **Release:** v3.9.7 (current download) -- Stable release delivering comprehensive Metrics documentation, security/dependency updates, and major sudoers management safety improvements.
 > **Generated:** 2026-06-24
 > **Canonical URLs:**

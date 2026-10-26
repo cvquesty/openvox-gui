@@ -190,6 +190,8 @@ The same tuning data and capabilities are available in the web interface under t
 
 ## Limitations & Future Work
 
+On a dedicated console, `ovox infra tune` and `settings set` are refused. Those commands edit files on the host where `ovox` is talking to the API, and a clustered console has no `puppetserver.conf` or PuppetDB conf to tune. `settings show` reads the remote files over Bolt when the local copies are missing. Apply JRuby, heap, and pool changes on each compiler and OpenVoxDB node. The comparison table at the top of this page is the short version.
+
 Current version focuses on the highest-impact settings:
 
 - JRuby worker count

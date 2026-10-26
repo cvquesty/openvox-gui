@@ -17,7 +17,7 @@ This is the canonical “what does the product do?” inventory. Installation an
 | **ovox CLI** | Thin noun-verb client of the same FastAPI API; version lockstep with root `VERSION` |
 | **Backend** | FastAPI + uvicorn (multi-worker), systemd `openvox-gui`, runs as service user (usually `puppet`) |
 | **App DB** | SQLite (singleton) or Postgres **`openvox_gui`** (required for clustered / dual console) — **never** the `puppetdb` database |
-| **Data plane** | OpenVox Server / CA HTTP, OpenVoxDB (PQL + reports), Bolt/OpenBolt, local FS (Hiera, conf, logs), optional package mirror |
+| **Data plane** | CA, compiler, and OpenVoxDB HTTP (mTLS with this host’s agent cert), Bolt/OpenBolt, optional package mirror. All-in-one also uses the local codedir and `puppetserver ca`. A dedicated console does not. |
 
 **Deployment modes**
 
@@ -181,13 +181,12 @@ Groups match `frontend/src/components/AppShell.tsx`. Expand/collapse is remember
 
 ### Hiera Data Files (`/data/hiera`)
 
-- Browse/edit/create/delete Hiera YAML (and related) under configured codedir/datadir
-- Backups before write; syntax-aware editing where applicable
-- Clustered consoles may be limited vs co-located control-repo layouts — prefer compilers for code content when dedicated console has no control repo
+- Read-only view of environment Hiera YAML. All-in-one reads the local codedir. A dedicated console reads the live codedir on the first code-deploy target via Bolt. Leave the control repo on the compilers. The stock `/etc/puppetlabs/puppet/hiera.yaml` on the console is unused.
 
 ### Hiera Lookup (`/data/lookup`)
 
-- `puppet lookup` style explain against a node/key
+- `puppet lookup --explain` against a node/key
+- All-in-one runs it on this host. A dedicated console runs it on a compiler via Bolt. When a node is selected, that lookup uses facts from this console’s OpenVoxDB.
 - Debugging hierarchy merges
 
 ---
@@ -269,7 +268,8 @@ Full Jolokia/auth setup: [METRICS.md](METRICS.md). Host Health: [HOST_HEALTH.md]
 
 ### OpenVox Configuration (`/config/puppet`)
 
-- Edit puppet-related conf (puppet.conf, puppetserver, puppetdb, sysconfig, etc. as allowed)
+- Edit puppet-related conf that exists on **this** host (agent `puppet.conf`; puppetserver, puppetdb, and sysconfig when those directories are here)
+- A dedicated console has the agent files only. Compiler and OpenVoxDB conf stay on those machines. `ovox infra tune` refuses a local apply in clustered mode. See [TUNING.md](TUNING.md).
 - Service restart helpers where sudoers permit
 - Warns that Puppet may overwrite unmanaged files on next agent run
 

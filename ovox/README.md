@@ -6,7 +6,7 @@
 
 - **CLI first, noun-verb style** (like `gh`, `kubectl`, `git`): `ovox nodes list --failed`, `ovox certs sign web01.example.com`
 - Thin client — zero new server logic. Everything goes through the existing FastAPI REST API that powers the web GUI.
-- Works locally (on the OpenVox server) or remotely (point at any OpenVox GUI instance).
+- Works on the GUI host, or from another machine pointed at any OpenVox GUI instance. The GUI itself may be an all-in-one OpenVox Server or a dedicated console.
 - Future TUI (`ovox tui`) for interactive dashboards, PQL REPL, log tailing, etc. using Textual.
 
 ## Installation

@@ -93,10 +93,12 @@ authorization: {
 }
 ```
 
-Using `allow: "*"` is acceptable here because:
-- The GUI is on the same host.
-- It is using the master's own CA-signed certificate.
-- These are read-only internal endpoints.
+Using `allow: "*"` is acceptable here because these are read-only internal endpoints.
+
+Who presents the client certificate depends on where the GUI runs:
+
+- **All-in-one:** the GUI is on the OpenVox Server and uses that host’s agent certificate.
+- **Dedicated console:** the GUI is on its own host. The caller is the **console** agent certificate, over the network. Allow that certname (every console, if you have two). `allow: "*"` still covers only these read-only paths.
 
 #### Alternative: Legacy Ruby-style auth.conf
 
@@ -124,9 +126,9 @@ Common locations to check / adjust:
 - Jetty or webserver configuration (certificate allowlists)
 - `/etc/puppetlabs/puppetdb/conf.d/auth.conf` (if present)
 
-If you see 403 responses from PuppetDB's `/metrics/v2`, ensure the master's certificate (or `localhost`) is allowed for the metrics paths.
+If you see 403 responses from PuppetDB's `/metrics/v2`, allow the certificate the GUI presents: this host’s agent cert on an all-in-one install, or the console agent certname when the GUI is separate. `localhost` matters only for curls run on the OpenVoxDB host itself.
 
-In most default OpenVox/PuppetDB installs on the same machine as Puppet Server, the mTLS connection from the local agent cert works without extra changes.
+On an all-in-one host the mTLS connection from that host’s agent cert usually works without an extra allow entry. On a dedicated console, allow the console certname the same way you allow any other client of `/metrics/v2`.
 
 ## 3. Restart Services
 
@@ -145,33 +147,41 @@ sudo systemctl restart openvox-gui
 
 ## 4. Verify the Endpoints Work
 
-Run these commands **on the OpenVox Server** as root (or sudo):
+Use the certificate the GUI will present. On an all-in-one host that is local. On a dedicated console, run the same curls **from the console** against the compiler VIP and the OpenVoxDB host (`localhost:8140` / `localhost:8081` are not those services).
 
 ```bash
 CERT=$(puppet config print hostcert)
 KEY=$(puppet config print hostprivkey)
 CA=$(puppet config print localcacert)
 
+# All-in-one: localhost. Dedicated console: the compiler VIP.
+SERVER=localhost
+# SERVER=ovcompilers.example.com
+
 echo "=== Puppet Server status (debug) ==="
 curl -sS --cert "$CERT" --key "$KEY" --cacert "$CA" \
-  "https://localhost:8140/status/v1/services/master?level=debug" | head -c 2000
+  "https://${SERVER}:8140/status/v1/services/master?level=debug" | head -c 2000
 
 echo
 echo "=== Puppet Server metrics list ==="
 curl -sS --cert "$CERT" --key "$KEY" --cacert "$CA" \
-  "https://localhost:8140/metrics/v2/list" | head -c 1000
+  "https://${SERVER}:8140/metrics/v2/list" | head -c 1000
+
+# All-in-one: localhost. Dedicated console: the OpenVoxDB VIP.
+PDB=localhost
+# PDB=ovdb.example.com
 
 echo
 echo "=== PuppetDB metrics list ==="
 curl -sS --cert "$CERT" --key "$KEY" --cacert "$CA" \
-  "https://localhost:8081/metrics/v2/list" | head -c 1000
+  "https://${PDB}:8081/metrics/v2/list" | head -c 1000
 ```
 
 If these return JSON (even if some fields are empty), the GUI should be able to read them.
 
 ## 5. Using the OpenVox GUI Config Editor
 
-You can edit these files directly from the web interface:
+On an **all-in-one** host the web UI can edit these files, because they are on the GUI host:
 
 1. Log in as admin/operator
 2. Go to **Settings → Application Configuration → Puppet Configuration**
@@ -183,6 +193,8 @@ You can edit these files directly from the web interface:
 The editor will create `metrics.conf` if it does not exist.
 
 Always restart `puppetserver` after changes.
+
+On a **dedicated console** those directories are not on the GUI host. The editor lists files that exist on the console (the agent `puppet.conf`). Edit `auth.conf` and `metrics.conf` on the compiler, and PuppetDB metrics auth on the OpenVoxDB hosts, then restart the service you changed.
 
 ## 6. What to Expect in the GUI
 
@@ -198,7 +210,7 @@ If charts are empty or show only zeros after configuration + restart, click the 
 | Symptom                        | Likely Cause                                      | Fix |
 |--------------------------------|---------------------------------------------------|-----|
 | Empty Server Health charts     | Missing auth rules or http-client metrics         | Add auth rules + `metrics-enabled: true` |
-| 403 on /metrics or /status     | Authorization rules blocking the master's cert    | Add the rules above with `allow: "*"` or the exact certname |
+| 403 on /metrics or /status     | Authorization rules blocking the caller cert      | Add the rules above with `allow: "*"` or the exact certname (the console’s agent certname when the GUI is separate) |
 | JMX data missing               | `metrics.conf` not present or wrong structure     | Use the registries example above |
 | Only partial data              | Using old top-level `enabled` in metrics.conf     | Switch to the nested structure |
 | Works in curl but not GUI      | GUI using wrong cert path or wrong hostname       | Check `.env` / settings for `puppet_ssl_*` paths |
@@ -215,15 +227,15 @@ ovox infra health
 
 - The `allow: "*"` rules above only affect the two read-only paths (`/metrics` and `/status`).
 - These endpoints do not allow code execution or configuration changes.
-- If you run in a high-security environment, restrict `allow` to the exact master certificate name instead of `*`.
+- If you run in a high-security environment, restrict `allow` to the certificate that calls the API. On an all-in-one host that is the OpenVox Server’s own certname. On a dedicated console it is each console’s agent certname. Include `localhost` when you also probe from the service host itself.
 
 Example tighter rule:
 
 ```hocon
-allow: [ "puppet.example.com", "localhost" ]
+allow: [ "openvox.example.com", "console.example.com", "localhost" ]
 ```
 
-Replace with your actual `puppet config print certname`.
+Replace with `puppet config print certname` on the host whose agent cert the GUI loads (`OPENVOX_GUI_PUPPET_SSL_CERT`).
 
 ---
 
