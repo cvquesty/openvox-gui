@@ -17,7 +17,7 @@ import {
 } from 'recharts';
 import { IconDatabase, IconRefresh, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { metrics } from '../services/api';
-import { CHART_LINE_TYPE, smoothTimeSeries } from '../utils/chartDefaults';
+import { CHART_LINE_TYPE, mergeByTs, smoothTimeSeries } from '../utils/chartDefaults';
 import { effectivePollIntervalMs } from '../utils/accessMode';
 
 interface HeapDataPoint {
@@ -129,6 +129,30 @@ export function MetricsPuppetDBHealthPage({ embedded = false }: { embedded?: boo
   useEffect(() => {
     if (!data) return;
     const result = data;
+    if (Array.isArray(result.history) && result.history.length > 0) {
+      const incoming: HeapDataPoint[] = result.history.map((p: any) => ({
+        time: p.time,
+        ts: typeof p.ts === 'number' ? p.ts * 1000 : Date.now(),
+        used_mb: p.used_mb ?? 0,
+        committed_mb: p.committed_mb ?? 0,
+        max_mb: p.max_mb ?? 0,
+        pct: p.pct ?? 0,
+        queue_depth: p.queue_depth ?? 0,
+        nonheap_used_mb: p.nonheap_used_mb,
+        catalog_save_mean: p.catalog_save_mean,
+        report_process_mean: p.report_process_mean,
+        replace_catalog_mean: p.replace_catalog_mean,
+        store_report_mean: p.store_report_mean,
+        replace_facts_mean: p.replace_facts_mean,
+      }));
+      setHeapHistory((prev) => {
+        const merged = mergeByTs(prev, incoming, MAX_POINTS);
+        saveHistory(merged);
+        return merged;
+      });
+      setLastRefresh(new Date());
+      return;
+    }
     const jvm = result.jvm_heap || {};
     const nh = result.jvm_nonheap || {};
     if (jvm.used_mb !== undefined || result.ps_puppetdb_metrics || result.http_client_metrics) {

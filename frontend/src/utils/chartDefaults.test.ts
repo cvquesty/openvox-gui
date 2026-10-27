@@ -8,11 +8,24 @@ import {
   jmxGaugePct,
   jmxMean,
   jmxTimerToMs,
+  mergeByTs,
   movingAverageSeries,
   prepareDurationOverlay,
   safeChartKey,
   smoothTimeSeries,
 } from './chartDefaults';
+
+describe('mergeByTs', () => {
+  it('keeps one row per timestamp and the newest max', () => {
+    const merged = mergeByTs(
+      [{ ts: 1, used: 1 }, { ts: 2, used: 2 }],
+      [{ ts: 2, used: 9 }, { ts: 3, used: 3 }, { ts: 4, used: 4 }],
+      3,
+    );
+    expect(merged.map((row) => row.ts)).toEqual([2, 3, 4]);
+    expect(merged[0].used).toBe(9);
+  });
+});
 
 describe('safeChartKey', () => {
   it('strips dots so Recharts will not treat the key as a nested path', () => {

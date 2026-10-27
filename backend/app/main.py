@@ -184,8 +184,9 @@ async def lifespan(app: FastAPI):
     # Matches desired "no wait on entry" behavior like Run Performance.
     try:
         await metrics_router.start_ps_health_collector()
+        await metrics_router.start_pdb_health_collector()
     except Exception as exc:
-        logger.warning(f"Failed to start PS health background collector: {exc}")
+        logger.warning(f"Failed to start health background collectors: {exc}")
 
     # Serving-estate host metrics (/proc + sysstat/pidstat when present; agents excluded)
     try:
@@ -228,6 +229,7 @@ async def lifespan(app: FastAPI):
     await puppetdb_service.close()
     try:
         await metrics_router.stop_ps_health_collector()
+        await metrics_router.stop_pdb_health_collector()
     except Exception:
         pass
     try:

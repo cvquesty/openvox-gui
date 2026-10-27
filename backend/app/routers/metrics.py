@@ -742,7 +742,99 @@ async def get_puppetdb_health(_user: str = Depends(_AUTH)):
     except Exception:
         pass
 
+    result["history"] = list(_pdb_health_history[-_PDB_HISTORY_MAX:])
     return result
+
+
+def _pdb_history_point(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One OpenVoxDB chart sample. None when the snapshot has no numbers."""
+    jvm = result.get("jvm_heap") or {}
+    nh = result.get("jvm_nonheap") or {}
+    pdbm = result.get("ps_puppetdb_metrics") or []
+    hcm = result.get("http_client_metrics") or []
+
+    def find_mean(rows: Any, key: str) -> Any:
+        if not isinstance(rows, list):
+            return None
+        for row in rows:
+            if key in str((row or {}).get("metric") or ""):
+                return (row or {}).get("mean")
+        return None
+
+    if (
+        jvm.get("used_mb") is None
+        and not pdbm
+        and not hcm
+    ):
+        return None
+    return {
+        "ts": _time.time(),
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "used_mb": jvm.get("used_mb"),
+        "committed_mb": jvm.get("committed_mb"),
+        "max_mb": jvm.get("max_mb"),
+        "pct": jvm.get("pct"),
+        "queue_depth": result.get("queue_depth"),
+        "nonheap_used_mb": nh.get("used_mb"),
+        "catalog_save_mean": find_mean(pdbm, "catalog_save"),
+        "report_process_mean": find_mean(pdbm, "report_process"),
+        "replace_catalog_mean": find_mean(hcm, "replace_catalog"),
+        "store_report_mean": find_mean(hcm, "store_report"),
+        "replace_facts_mean": find_mean(hcm, "replace_facts"),
+    }
+
+
+_pdb_health_history: List[Dict[str, Any]] = []
+_PDB_HISTORY_MAX = 360
+_pdb_health_collector_task: Optional[asyncio.Task] = None
+_pdb_health_stop = False
+
+
+async def _append_pdb_health_point() -> None:
+    """Sample OpenVoxDB health into the shared ring. Failures stay in the log."""
+    global _pdb_health_history
+    try:
+        snapshot = await get_puppetdb_health()
+    except Exception as e:
+        logger.debug("OpenVoxDB health collector point failed: %s", e)
+        return
+    point = _pdb_history_point(snapshot if isinstance(snapshot, dict) else {})
+    if point is None:
+        return
+    _pdb_health_history.append(point)
+    if len(_pdb_health_history) > _PDB_HISTORY_MAX:
+        del _pdb_health_history[0]
+
+
+async def _pdb_health_collector_loop() -> None:
+    """Collect every ~30s whether or not Monitoring is open."""
+    global _pdb_health_stop
+    logger.info("OpenVoxDB health collector starting")
+    await _append_pdb_health_point()
+    while not _pdb_health_stop:
+        await asyncio.sleep(30)
+        await _append_pdb_health_point()
+    logger.info("OpenVoxDB health collector stopped")
+
+
+async def start_pdb_health_collector() -> None:
+    global _pdb_health_collector_task, _pdb_health_stop
+    _pdb_health_stop = False
+    if _pdb_health_collector_task and not _pdb_health_collector_task.done():
+        return
+    _pdb_health_collector_task = asyncio.create_task(_pdb_health_collector_loop())
+
+
+async def stop_pdb_health_collector() -> None:
+    global _pdb_health_stop, _pdb_health_collector_task
+    _pdb_health_stop = True
+    if _pdb_health_collector_task:
+        _pdb_health_collector_task.cancel()
+        try:
+            await _pdb_health_collector_task
+        except Exception:
+            pass
+        _pdb_health_collector_task = None
 
 
 # ─── PuppetServer Health & Performance (Metrics | PuppetServer Health) ───

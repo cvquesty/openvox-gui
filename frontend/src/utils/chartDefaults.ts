@@ -273,6 +273,24 @@ export function movingAverageSeries<T extends Record<string, unknown>>(
   });
 }
 
+/** Keep the newest *max* samples, one row per timestamp. */
+export function mergeByTs<T extends { ts?: number }>(
+  previous: T[] | null | undefined,
+  incoming: T[] | null | undefined,
+  max: number,
+): T[] {
+  const byTs = new Map<number, T>();
+  for (const row of [...(previous || []), ...(incoming || [])]) {
+    const ts = Number(row?.ts);
+    if (!Number.isFinite(ts)) continue;
+    byTs.set(ts, row);
+  }
+  return [...byTs.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .slice(-max)
+    .map(([, row]) => row);
+}
+
 /**
  * SMA every numeric field except time/label keys. Use this before binding
  * live JMX / hourly trend rows to Recharts.

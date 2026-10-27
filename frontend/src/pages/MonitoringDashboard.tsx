@@ -259,7 +259,8 @@ export function MonitoringDashboardPage() {
       <Text size="xs" c="dimmed">
         Window applies to <strong>Fleet Compliance</strong> and <strong>Run Performance</strong> lookbacks
         (presets: 1h, 4h, 8h, 12h, 24h, 48h, 72h, 7d — or type any hours e.g. <strong>6.5</strong>).
-        Server and OpenVoxDB sections use live poll history while the page is open.
+        Server and OpenVoxDB sections draw the trailing average of samples
+        the console has already stored. Opening the page does not start the series.
       </Text>
 
       {configureOpen && (

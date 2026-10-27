@@ -26,7 +26,7 @@ import {
 import { IconServer, IconRefresh, IconTrash, IconArrowsMaximize, IconArrowsMinimize, IconChartLine } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { metrics } from '../services/api';
-import { CHART_LINE_TYPE, smoothTimeSeries } from '../utils/chartDefaults';
+import { CHART_LINE_TYPE, mergeByTs, smoothTimeSeries } from '../utils/chartDefaults';
 import { effectivePollIntervalMs } from '../utils/accessMode';
 
 interface HistoryPoint {
@@ -154,14 +154,15 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
     },
   );
 
-  // Merge server history / append live points when snapshot updates
+  // Merge the server ring with anything this browser already kept.
+  // Replacing the ring with one snapshot left every chart as a single dot.
   useEffect(() => {
     if (!data) return;
     const result = data;
-    let nextHistory: HistoryPoint[] | null = null;
     if (result.history && Array.isArray(result.history) && result.history.length > 0) {
-      nextHistory = result.history.map((p: any) => ({
+      const incoming: HistoryPoint[] = result.history.map((p: any) => ({
         time: p.time,
+        ts: typeof p.ts === 'number' ? p.ts * 1000 : undefined,
         heap_used_mb: p.heap_used_mb,
         heap_pct: p.heap_pct,
         nonheap_used_mb: p.nonheap_used_mb,
@@ -176,6 +177,11 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
         process_cpu_load: p.process_cpu_load,
         open_fds: p.open_fds,
       }));
+      setHistory((prev) => {
+        const merged = mergeByTs(prev, incoming, MAX_PS_POINTS);
+        savePSHealthHistory(merged);
+        return merged;
+      });
     } else {
       const now = Date.now();
       const point: HistoryPoint = {
@@ -199,13 +205,7 @@ export function MetricsPuppetServerHealthPage({ embedded = false }: { embedded?:
           savePSHealthHistory(trimmed);
           return trimmed;
         });
-        nextHistory = null;
       }
-    }
-    if (nextHistory) {
-      const trimmed = nextHistory.length > MAX_PS_POINTS ? nextHistory.slice(-MAX_PS_POINTS) : nextHistory;
-      setHistory(trimmed);
-      savePSHealthHistory(trimmed);
     }
     setLastRefresh(new Date());
   }, [data]);

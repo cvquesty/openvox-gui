@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.3-dev.2] - 2026-10-27
+
+### Changed
+- **Monitoring charts open with the series already drawn.** OpenVox
+  Server Health and OpenVoxDB Health keep a ring of samples while
+  the GUI is up. The wallboard merges that ring instead of replacing
+  it with the one live sample, then draws the trailing average.
+
 ## [3.14.3-dev.1] - 2026-10-27
 
 ### Changed
