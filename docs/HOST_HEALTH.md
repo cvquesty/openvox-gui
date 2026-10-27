@@ -34,7 +34,11 @@ OpenVoxDB (memory, load, mounts, agent version). On **Node Detail**,
 | OpenVoxDB facts | Compilers, OpenVoxDB, and CA. Last agent run. No SSH. |
 | Bolt `command run` | Node Detail **Live sample** only, one host, on click |
 
-### Install sysstat (recommended on the GUI host)
+### Install sysstat
+
+The Host Health page shows this only after the local sample finds
+neither `sar` nor `pidstat` on the GUI host. An installed package
+that fails a sample does not show it.
 
 ```bash
 # RHEL / Rocky / Alma

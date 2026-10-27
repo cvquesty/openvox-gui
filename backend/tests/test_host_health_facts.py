@@ -5,8 +5,22 @@ import asyncio
 
 import pytest
 
-from app.services.host_metrics import snapshot_from_facts
+from app.services.host_metrics import snapshot_from_facts, sysstat_install_hint
 from app.services.puppetdb import _census_from_fact_rows, _pql_string_list
+
+
+def test_sysstat_hint_only_when_local_sample_misses_it():
+    assert sysstat_install_hint(None) is None
+    assert sysstat_install_hint({"source": "openvoxdb", "tools": {}}) is None
+    assert sysstat_install_hint({
+        "source": "local",
+        "tools": {"sysstat": True, "pidstat": False},
+    }) is None
+    hint = sysstat_install_hint({
+        "source": "local",
+        "tools": {"proc": True, "sysstat": False, "pidstat": False},
+    })
+    assert hint == {"install": "dnf install -y sysstat"}
 
 
 def test_pql_string_list_quotes_and_dedupes():

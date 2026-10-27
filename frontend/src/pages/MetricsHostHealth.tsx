@@ -144,11 +144,15 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
 
       <Alert variant="light" color="blue" title="Serving estate only">
         {data?.scope_note ||
-          'Targets come from Settings → Cluster (plus this GUI host). Remote cards are the last agent facts. Install sysstat on the GUI host for pidstat on this console only.'}
-        {data?.tools_hint?.install && (
-          <Text size="xs" mt="xs" ff="monospace">{data.tools_hint.install}</Text>
-        )}
+          'Targets come from Settings → Cluster (plus this GUI host). Remote cards are the last agent facts.'}
       </Alert>
+
+      {data?.tools_hint?.install && (
+        <Alert variant="light" color="yellow" title="sysstat is not installed on this console">
+          <Text size="sm">Process samples are using /proc. Install sysstat for pidstat.</Text>
+          <Text size="xs" mt="xs" ff="monospace">{data.tools_hint.install}</Text>
+        </Alert>
+      )}
 
       {error && (
         <Alert color="red" icon={<IconAlertTriangle size={16} />}>{error}</Alert>

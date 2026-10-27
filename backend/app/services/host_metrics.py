@@ -355,9 +355,11 @@ async def collect_local_snapshot() -> Dict[str, Any]:
     snap.update(cpu)
     snap.update(disk)
 
-    # Optional sysstat
+    # sysstat is one package. Finding either binary means it is installed,
+    # even when a sample command fails.
     sar = _which_sync("sar")
     if sar:
+        snap["tools"]["sysstat"] = True
         rc, out, err = await _run_cmd([sar, "-u", "1", "1"], timeout=6)
         if rc == 0 and out:
             snap["tools"]["sysstat"] = True
@@ -390,18 +392,18 @@ async def collect_local_snapshot() -> Dict[str, Any]:
     pidstat = _which_sync("pidstat")
     processes: List[Dict[str, Any]] = []
     if pidstat:
+        snap["tools"]["pidstat"] = True
+        snap["tools"]["sysstat"] = True
         rc, out, err = await _run_cmd(
             [pidstat, "-u", "-h", "1", "1"],
             timeout=8,
         )
         if rc == 0 and out:
-            snap["tools"]["pidstat"] = True
             processes = _parse_pidstat_simple(out)
         else:
             # try without -h
             rc, out, err = await _run_cmd([pidstat, "-u", "1", "1"], timeout=8)
             if rc == 0 and out:
-                snap["tools"]["pidstat"] = True
                 processes = _parse_pidstat_simple(out)
             else:
                 snap["errors"].append(f"pidstat: {err or rc}")
@@ -763,11 +765,24 @@ async def collect_serving_estate(include_remote: bool = False) -> Dict[str, Any]
         "collected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "local_host": local,
         "hosts": hosts_out,
-        "tools_hint": {
-            "install": "dnf install -y sysstat  # enables sar/pidstat richer samples on the GUI host",
-            "pidstat": "pidstat is part of the sysstat package",
-        },
+        "tools_hint": sysstat_install_hint(local_snap),
     }
+
+
+def sysstat_install_hint(snap: Optional[Dict[str, Any]]) -> Optional[Dict[str, str]]:
+    """Install note only after a local sample found neither sar nor pidstat.
+
+    A missing snapshot has not been checked. An installed package that
+    failed to sample still counts as installed.
+    """
+    if not snap or snap.get("source") != "local":
+        return None
+    tools = snap.get("tools")
+    if not isinstance(tools, dict):
+        return None
+    if tools.get("sysstat") or tools.get("pidstat"):
+        return None
+    return {"install": "dnf install -y sysstat"}
 
 
 def _facts_for_host(
@@ -814,6 +829,7 @@ async def get_host_health(refresh: bool = True, include_remote: bool = False) ->
         "local_host": local,
         "hosts": hosts_out,
         "cached": True,
+        "tools_hint": sysstat_install_hint(_latest.get(local)),
     }
 
 

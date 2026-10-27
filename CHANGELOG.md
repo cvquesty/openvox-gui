@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.14.3-dev.3] - 2026-10-27
+
+### Changed
+- **Host Health mentions sysstat only when it is missing.** The
+  local sample looks for `sar` and `pidstat`. The install note
+  stays hidden until that check says neither binary is there.
+
 ## [3.14.3-dev.2] - 2026-10-27
 
 ### Changed
