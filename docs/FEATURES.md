@@ -1,6 +1,6 @@
 # OpenVox GUI — Feature Reference
 
-**Document version:** matches root `VERSION` (see repo `VERSION` file; **3.14.0** stable)  
+**Document version:** matches root `VERSION` (see repo `VERSION` file)  
 **Audience:** operators, reviewers, and release prep  
 **Scope:** every primary **page**, **capability**, and **supporting subsystem** in the product as shipped on `main`.
 
@@ -244,7 +244,7 @@ Groups match `frontend/src/components/AppShell.tsx`. Expand/collapse is remember
 
 | Series | Server disk? | Notes |
 |--------|----------------|-------|
-| **Host Health** | **Yes** | `data/host_metrics/<host>.json` ring |
+| **Host Health** | **Local host only** | `data/host_metrics/<host>.json`. Remote cards are facts. |
 | OpenVox Server / DB health history | No | In-process ring + browser `localStorage` |
 | Run performance / environments | No | Browser `localStorage` |
 | Fleet compliance charts | N/A | OpenVoxDB reports |

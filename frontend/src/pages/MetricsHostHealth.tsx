@@ -4,7 +4,8 @@
  * Scope: GUI host, catalog compilers, OpenVoxDB nodes, CA members
  * (from Settings → Cluster). Agent fleet is intentionally excluded.
  *
- * Data: /proc always; sar/pidstat when sysstat is installed; Bolt for remotes.
+ * Data: local /proc (and pidstat). Remote serving hosts use last-run
+ * OpenVoxDB facts. The page does not SSH.
  */
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
@@ -70,7 +71,7 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data, loading, refreshing, error, refetch } = useApi(
-    () => metrics.hostHealth(true, true),
+    () => metrics.hostHealth(true, false),
     [],
     { cacheKey: 'openvox_metrics_host_health_v1' },
   );
@@ -115,8 +116,8 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
               <Badge variant="light" color="cyan">Serving estate</Badge>
             </Group>
             <Text c="dimmed" size="sm" mt={4}>
-              OS saturation for OpenVox control-plane hosts (GUI, compilers, OpenVoxDB, CA).
-              Agent fleet metrics are not collected.
+              This console is live from /proc. Compilers, OpenVoxDB, and CA
+              show the last agent run stored in OpenVoxDB. No SSH.
             </Text>
           </div>
           <Group>
@@ -143,7 +144,7 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
 
       <Alert variant="light" color="blue" title="Serving estate only">
         {data?.scope_note ||
-          'Targets come from Settings → Cluster (plus this GUI host). Install sysstat on the GUI host for richer sar/pidstat samples. Remotes use Bolt when inventory reaches them.'}
+          'Targets come from Settings → Cluster (plus this GUI host). Remote cards are the last agent facts. Install sysstat on the GUI host for pidstat on this console only.'}
         {data?.tools_hint?.install && (
           <Text size="xs" mt="xs" ff="monospace">{data.tools_hint.install}</Text>
         )}
@@ -192,7 +193,10 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
                 {l.cpu_iowait_pct != null ? ` · iowait ${l.cpu_iowait_pct}%` : ''}
               </Text>
               {l.source && (
-                <Text size="xs" c="dimmed" mt={2}>source: {l.source}</Text>
+                <Text size="xs" c="dimmed" mt={2}>
+                  {l.source === 'openvoxdb' ? 'Last agent run' : `source: ${l.source}`}
+                  {l.agent_version ? ` · agent ${l.agent_version}` : ''}
+                </Text>
               )}
             </Card>
           );

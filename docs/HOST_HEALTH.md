@@ -12,7 +12,11 @@
 | **OpenVoxDB** application hosts | |
 | **CA** member hosts | |
 
-Agent-fleet host metrics are **not** collected in the background. On **Node Detail** only, investigators get an at-a-glance strip from last agent **facts**, plus optional one-shot **Live sample** (Bolt/`/proc`) — see `GET/POST /api/nodes/{certname}/health-glance`.
+The background collector samples **only the GUI host**. Compilers,
+OpenVoxDB, and CA cards are the last agent facts already in
+OpenVoxDB (memory, load, mounts, agent version). On **Node Detail**,
+**Live sample** is the one-host SSH (Bolt `/proc`). See
+`GET/POST /api/nodes/{certname}/health-glance`.
 
 ## What you see
 
@@ -25,10 +29,10 @@ Agent-fleet host metrics are **not** collected in the background. On **Node Deta
 
 | Source | Where |
 |--------|--------|
-| `/proc` (load, mem, cpu, diskstats) | Always, on the GUI host; remote via Bolt one-liner |
-| `sar` (sysstat) | GUI host when package installed — better short-interval CPU |
-| `pidstat` (sysstat) | GUI host when installed — process CPU samples |
-| Bolt `command run` | Remote compilers / ovdb / CA when inventory can reach them |
+| `/proc` (load, mem, cpu, diskstats) | GUI host, on the 15s collector |
+| `sar` / `pidstat` (sysstat) | GUI host when the package is installed |
+| OpenVoxDB facts | Compilers, OpenVoxDB, and CA. Last agent run. No SSH. |
+| Bolt `command run` | Node Detail **Live sample** only, one host, on click |
 
 ### Install sysstat (recommended on the GUI host)
 
@@ -42,7 +46,9 @@ sar -u 1 1
 pidstat -u 1 1
 ```
 
-Remote nodes do **not** require sysstat for basic load/memory/CPU ratios (Bolt uses `/proc`).
+Remote cards do not need sysstat. They show memory, load, and
+mount fill from facts. CPU percent is a local `/proc` number or a
+Live sample.
 
 ## Cluster configuration
 
@@ -56,13 +62,16 @@ Single-server installs still work: the local host is labeled `gui` + compiler/pu
 
 | Method | Path | Notes |
 |--------|------|--------|
-| GET | `/api/insights/host-health` | Full estate snapshot + history |
+| GET | `/api/insights/host-health` | Local sample plus fact cards. `include_remote=true` SSHes. |
 | GET | `/api/insights/host-health/targets` | Planned targets only |
-| POST | `/api/insights/host-health/collect` | Force collect (admin/operator) |
+| GET | `/api/insights/host-health/census` | Agent version and OS counts from facts |
+| POST | `/api/insights/host-health/collect` | Refresh facts and the local sample |
 
 ## Background collection
 
-A small asyncio loop (started with the GUI) samples the **local** host every ~15s and runs a full estate collect (including Bolt remotes) every fourth tick. History is capped (~360 points) and written under:
+A small asyncio loop (started with the GUI) samples the **local**
+host every ~15s. It does not SSH. History for that host is capped
+(~360 points) and written under:
 
 ```text
 /opt/openvox-gui/data/host_metrics/

@@ -3,12 +3,15 @@ Control-plane host metrics for Insights (sysstat / pidstat /proc).
 
 Scope: **OpenVox serving estate only** — GUI host, catalog compilers,
 OpenVoxDB nodes, and CA members from cluster config. Agent fleet
-collection is intentionally out of scope (future extension).
+collection is intentionally out of scope.
 
-Sources (best-effort, no hard failure if tools missing):
-  - /proc/loadavg, meminfo, stat, diskstats  (always)
-  - ``sar`` / ``mpstat`` / ``pidstat`` when sysstat is installed
-  - Remote hosts via Bolt command run when inventory can reach them
+Sources:
+  - Local GUI host: /proc, plus sar/pidstat when sysstat is installed.
+    The background loop samples only this host.
+  - Remote compilers, OpenVoxDB, and CA: last agent facts in
+    OpenVoxDB (memory, load_averages, mountpoints). No SSH.
+  - One-shot Live sample on Node Detail still uses Bolt for a single
+    host when an operator clicks it.
 """
 from __future__ import annotations
 
@@ -652,14 +655,73 @@ def _load_persisted() -> None:
         logger.debug("load persisted host metrics: %s", e)
 
 
-async def collect_serving_estate(include_remote: bool = True) -> Dict[str, Any]:
-    """Collect metrics for all serving-estate hosts. Local always; remote via Bolt optional."""
+def snapshot_from_facts(host: str, facts: Dict[str, Any]) -> Dict[str, Any]:
+    """Host Health card from the last agent run stored in OpenVoxDB.
+
+    CPU percent and iowait are not facts. Those stay empty here and are
+    filled only by a local /proc sample or an explicit Live sample.
+    """
+    from .node_health_glance import facts_to_glance, _fact_saturation_hint
+
+    glance = facts_to_glance(facts or {})
+    memory = glance.get("memory") or {}
+    load = glance.get("load") or {}
+    ts = time.time()
+    version = (facts or {}).get("aio_agent_version") or (facts or {}).get("clientversion")
+    snap: Dict[str, Any] = {
+        "host": host,
+        "ts": ts,
+        "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts)),
+        "source": "openvoxdb",
+        "as_of_note": glance.get("as_of_note"),
+        "tools": {"proc": False, "sysstat": False, "pidstat": False},
+        "processes": [],
+        "errors": [],
+        "load1": load.get("load1"),
+        "load5": load.get("load5"),
+        "load15": load.get("load15"),
+        "mem_used_pct": memory.get("used_pct"),
+        "cpu_used_pct": None,
+        "cpu_iowait_pct": None,
+        "agent_version": version,
+        "os": glance.get("os"),
+    }
+    snap["saturation"] = _fact_saturation_hint(glance)
+    return snap
+
+
+async def facts_for_hosts(hosts: List[str]) -> Dict[str, Dict[str, Any]]:
+    """One OpenVoxDB query for the named certnames. Empty on failure."""
+    if not hosts:
+        return {}
+    try:
+        from .puppetdb import puppetdb_service
+
+        return await puppetdb_service.facts_for_certnames(hosts)
+    except Exception as e:
+        logger.warning("Host Health fact query failed: %s", e)
+        return {}
+
+
+async def collect_serving_estate(include_remote: bool = False) -> Dict[str, Any]:
+    """Local /proc always. Remote hosts come from OpenVoxDB facts.
+
+    ``include_remote=True`` is the old Bolt scrape. The timer and the
+    Host Health page leave it false. Live sample is the one-host SSH.
+    """
     targets = serving_estate_targets()
     local = _local_hostname()
     hosts_out: List[Dict[str, Any]] = []
 
     local_snap = await collect_local_snapshot()
     _store(local_snap)
+
+    remote_hosts = [
+        t["host"]
+        for t in targets
+        if not (t["is_local"] or t["host"] == local)
+    ]
+    fact_map = await facts_for_hosts(remote_hosts)
 
     for t in targets:
         host = t["host"]
@@ -671,7 +733,6 @@ async def collect_serving_estate(include_remote: bool = True) -> Dict[str, Any]:
         if entry["is_local"]:
             entry["latest"] = local_snap
             entry["history"] = list(_history.get(local, _history.get(host, [])))[-HISTORY_MAX:]
-            # normalize history key
             if local in _history:
                 entry["history"] = list(_history[local])
         elif include_remote:
@@ -680,16 +741,24 @@ async def collect_serving_estate(include_remote: bool = True) -> Dict[str, Any]:
             entry["latest"] = snap
             entry["history"] = list(_history.get(host, []))
         else:
-            entry["latest"] = _latest.get(host)
-            entry["history"] = list(_history.get(host, []))
+            facts = _facts_for_host(fact_map, host)
+            if facts:
+                snap = snapshot_from_facts(host, facts)
+                _store(snap, persist=False)
+                entry["latest"] = snap
+                entry["history"] = []
+            else:
+                entry["latest"] = _latest.get(host)
+                entry["history"] = list(_history.get(host, []))
         hosts_out.append(entry)
 
     return {
         "scope": "serving_estate",
         "scope_note": (
-            "Metrics are collected only for the OpenVox serving estate "
-            "(GUI host, catalog compilers, OpenVoxDB nodes, CA members). "
-            "Agent fleet collection is not enabled."
+            "The GUI host is sampled from local /proc. Compilers, "
+            "OpenVoxDB, and CA hosts use the last agent facts in "
+            "OpenVoxDB. Nothing here SSHes the estate. Live sample "
+            "on a node page is the one-host SSH."
         ),
         "collected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "local_host": local,
@@ -701,7 +770,21 @@ async def collect_serving_estate(include_remote: bool = True) -> Dict[str, Any]:
     }
 
 
-async def get_host_health(refresh: bool = True, include_remote: bool = True) -> Dict[str, Any]:
+def _facts_for_host(
+    fact_map: Dict[str, Dict[str, Any]],
+    host: str,
+) -> Dict[str, Any]:
+    key = (host or "").strip().lower()
+    if key in fact_map:
+        return fact_map[key]
+    short = key.split(".")[0]
+    for certname, facts in fact_map.items():
+        if certname == short or certname.split(".")[0] == short:
+            return facts
+    return {}
+
+
+async def get_host_health(refresh: bool = True, include_remote: bool = False) -> Dict[str, Any]:
     if refresh or not _latest:
         return await collect_serving_estate(include_remote=include_remote)
     # Return cached latest without re-running bolt
@@ -723,9 +806,9 @@ async def get_host_health(refresh: bool = True, include_remote: bool = True) -> 
     return {
         "scope": "serving_estate",
         "scope_note": (
-            "Metrics are collected only for the OpenVox serving estate "
-            "(GUI host, catalog compilers, OpenVoxDB nodes, CA members). "
-            "Agent fleet collection is not enabled."
+            "The GUI host is sampled from local /proc. Compilers, "
+            "OpenVoxDB, and CA hosts use the last agent facts in "
+            "OpenVoxDB. Nothing here SSHes the estate."
         ),
         "collected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "local_host": local,
@@ -735,19 +818,14 @@ async def get_host_health(refresh: bool = True, include_remote: bool = True) -> 
 
 
 async def _collector_loop():
-    """Local every interval; full estate (Bolt remotes) every 4th tick."""
+    """Sample the local GUI host only. Remote hosts stay on OpenVoxDB facts."""
     global _collector_stop
-    logger.info("Host metrics collector started (serving estate; agents excluded)")
+    logger.info("Host metrics collector started (local /proc only; no Bolt)")
     _load_persisted()
-    tick = 0
     while not _collector_stop:
         try:
-            tick += 1
-            if tick % 4 == 0:
-                await collect_serving_estate(include_remote=True)
-            else:
-                snap = await collect_local_snapshot()
-                _store(snap)
+            snap = await collect_local_snapshot()
+            _store(snap)
         except Exception as e:
             logger.warning("Host metrics collect tick failed: %s", e)
         await asyncio.sleep(COLLECT_INTERVAL_SEC)

@@ -706,16 +706,17 @@ export const metrics = {
       body: JSON.stringify(data),
     }),
 
-  // Host Health — OpenVox serving estate only (sysstat/pidstat//proc; not agents)
-  hostHealth: (refresh: boolean = true, includeRemote: boolean = true) =>
+  // Host Health — local /proc plus OpenVoxDB facts. includeRemote SSHes.
+  hostHealth: (refresh: boolean = true, includeRemote: boolean = false) =>
     fetchJSON<any>(
       `/insights/host-health?refresh=${refresh ? 'true' : 'false'}&include_remote=${includeRemote ? 'true' : 'false'}`
     ),
   hostHealthTargets: () => fetchJSON<any>('/insights/host-health/targets'),
-  hostHealthCollect: (includeRemote: boolean = true) =>
+  hostHealthCollect: (includeRemote: boolean = false) =>
     fetchJSON<any>(`/insights/host-health/collect?include_remote=${includeRemote ? 'true' : 'false'}`, {
       method: 'POST',
     }),
+  hostHealthCensus: () => fetchJSON<any>('/insights/host-health/census'),
 };
 
 // ─── Log Viewer ─────────────────────────────────────────────

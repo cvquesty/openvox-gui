@@ -141,6 +141,88 @@ def _pick_report_for_node(certname: str, by_exact: Dict[str, Dict]) -> Optional[
     return None
 
 
+def _pql_string_list(values: List[str]) -> str:
+    """Comma-separated quoted PQL strings. Drops blanks."""
+    quoted: List[str] = []
+    seen = set()
+    for raw in values or []:
+        text = str(raw or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        safe = text.replace("\\", "\\\\").replace('"', '\\"')
+        quoted.append(f'"{safe}"')
+    return ", ".join(quoted)
+
+
+def _group_fact_rows(rows: Any) -> Dict[str, Dict[str, Any]]:
+    grouped: Dict[str, Dict[str, Any]] = {}
+    if not isinstance(rows, list):
+        return grouped
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        certname = str(row.get("certname") or "").strip().lower()
+        name = row.get("name")
+        if not certname or not name:
+            continue
+        grouped.setdefault(certname, {})[str(name)] = row.get("value")
+    return grouped
+
+
+def _census_from_fact_rows(rows: Any) -> Dict[str, Any]:
+    """Collapse fact rows into version and OS counts."""
+    from collections import Counter
+
+    per_node: Dict[str, Dict[str, Any]] = {}
+    if isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            certname = str(row.get("certname") or "").strip().lower()
+            name = row.get("name")
+            if not certname or not name:
+                continue
+            per_node.setdefault(certname, {})[str(name)] = row.get("value")
+
+    versions: Counter = Counter()
+    systems: Counter = Counter()
+    for facts in per_node.values():
+        version = facts.get("aio_agent_version") or facts.get("clientversion")
+        if version:
+            versions[str(version)] += 1
+        os_value = facts.get("os")
+        if os_value is not None:
+            systems[_os_census_label(os_value)] += 1
+
+    def _ranked(counter: Counter) -> List[Dict[str, Any]]:
+        return [
+            {"label": label, "count": count}
+            for label, count in counter.most_common()
+        ]
+
+    return {
+        "nodes": len(per_node),
+        "by_agent": _ranked(versions),
+        "by_os": _ranked(systems),
+    }
+
+
+def _os_census_label(value: Any) -> str:
+    if isinstance(value, dict):
+        name = value.get("name") or value.get("family") or "unknown"
+        release = value.get("release")
+        major = None
+        if isinstance(release, dict):
+            major = release.get("major") or release.get("full")
+        elif isinstance(release, str):
+            major = release
+        if major:
+            return f"{name} {major}"
+        return str(name)
+    return str(value or "unknown")
+
+
 class PuppetDBService:
     """Async client for PuppetDB v4 API."""
 
@@ -1128,6 +1210,56 @@ class PuppetDBService:
         """Get facts, optionally filtered by name."""
         endpoint = f"facts/{fact_name}" if fact_name else "facts"
         return await self._query(endpoint, query=query)
+
+    async def facts_for_certnames(
+        self,
+        certnames: List[str],
+        names: Optional[List[str]] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Last-run fact values for the given certnames, keyed by certname.
+
+        One OpenVoxDB query. Empty when the certname list is empty.
+        Unknown hosts are simply absent from the map.
+        """
+        hosts = _pql_string_list(certnames)
+        if not hosts:
+            return {}
+        wanted = names or [
+            "memory",
+            "load_averages",
+            "system_uptime",
+            "processors",
+            "os",
+            "mountpoints",
+            "aio_agent_version",
+            "clientversion",
+        ]
+        fact_names = _pql_string_list(wanted)
+        query = (
+            "facts[certname, name, value] { "
+            f"name in [{fact_names}] and certname in [{hosts}] "
+            "}"
+        )
+        rows = await self._query("", params={"query": query})
+        return _group_fact_rows(rows)
+
+    async def agent_census(self) -> Dict[str, Any]:
+        """Count stored agent versions and OS names. No SSH."""
+        query = (
+            'facts[certname, name, value] { '
+            'name in ["aio_agent_version", "clientversion", "os"] }'
+        )
+        try:
+            rows = await self._query("", params={"query": query})
+        except Exception as e:
+            logger.warning("Agent census query failed: %s", e)
+            return {
+                "nodes": 0,
+                "by_agent": [],
+                "by_os": [],
+                "error": str(e),
+            }
+        return _census_from_fact_rows(rows)
 
     async def get_fact_contents(self, path: List[str]) -> List[Dict]:
         """Structured-fact leaves via /fact-contents (path = ['os', 'family'])."""

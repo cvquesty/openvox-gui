@@ -1236,26 +1236,26 @@ async def check_agent_disabled_live(
         raise HTTPException(status_code=502, detail=f"Live check failed: {str(e)}")
 
 
-# ─── Host Health (serving estate: sysstat / pidstat /proc) ───
-# Scope is intentionally limited to the OpenVox control plane (GUI host,
-# compilers, OpenVoxDB, CA). Agent fleet collection is not implemented.
+# ─── Host Health (serving estate) ───
+# Local GUI host: /proc and pidstat. Remote compilers, OpenVoxDB, and CA:
+# last agent facts. include_remote=true is the old Bolt scrape and stays off.
 
 
 @router.get("/host-health")
 async def get_host_health(
-    refresh: bool = Query(True, description="Collect a fresh sample (local; remote via Bolt when due)"),
+    refresh: bool = Query(True, description="Refresh the local /proc sample and fact cards"),
     include_remote: bool = Query(
-        True,
-        description="Include Bolt collection for remote serving-estate hosts",
+        False,
+        description="SSH every remote serving host. Leave false. Live sample is one host.",
     ),
     _user: str = Depends(_AUTH),
 ):
     """
     OS-level host metrics for the OpenVox **serving estate** only.
 
-    Uses /proc always; richer samples when ``sysstat`` (sar, pidstat) is
-    installed on the GUI host. Remote compilers/ovdb/CA use Bolt when inventory
-    allows. Does **not** collect from the agent fleet.
+    The GUI host uses /proc (and pidstat when sysstat is installed).
+    Remote compilers, OpenVoxDB, and CA use the last agent facts.
+    Does **not** SSH the estate unless ``include_remote`` is true.
     """
     from ..services import host_metrics as hm
 
@@ -1276,17 +1276,27 @@ async def get_host_health_targets(_user: str = Depends(_AUTH)):
 
 @router.post("/host-health/collect")
 async def collect_host_health(
-    include_remote: bool = Query(True),
+    include_remote: bool = Query(False),
     _user: str = Depends(require_role("admin", "operator")),
 ):
-    """Force a full serving-estate collection (admin/operator)."""
+    """Refresh local /proc and fact cards. SSH only when include_remote is set."""
     from ..services import host_metrics as hm
 
     return await hm.collect_serving_estate(include_remote=include_remote)
 
 
+@router.get("/host-health/census")
+async def host_health_census(_user: str = Depends(_AUTH)):
+    """Agent version and OS counts from facts already in OpenVoxDB."""
+    from ..services.puppetdb import puppetdb_service
+
+    census = await puppetdb_service.agent_census()
+    census["source"] = "openvoxdb"
+    return census
+
+
 async def start_host_metrics_collector():
-    """Started from app lifespan — persistent local (and periodic remote) samples."""
+    """Started from app lifespan — local /proc samples only."""
     from ..services import host_metrics as hm
 
     await hm.start_host_metrics_collector()

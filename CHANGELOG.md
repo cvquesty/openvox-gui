@@ -9,10 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
-## [Unreleased]
+## [3.14.3-dev.1] - 2026-10-27
+
+### Changed
+- **Host Health no longer SSHes the estate on a timer.** The
+  collector samples the GUI host from `/proc` only. Compilers,
+  OpenVoxDB, and CA cards use the last agent facts already in
+  OpenVoxDB: memory, load averages, mounts, and agent version.
+  CPU percent stays a local sample. Node Detail **Live sample**
+  is still one host, and only when someone clicks it.
+- **Agent census.** `GET /api/insights/host-health/census` counts
+  agent versions and OS names from those stored facts.
+
+`include_remote=true` on `/api/insights/host-health` still runs
+the old Bolt scrape. The Host Health page does not send it.
 
 ### Fixed
-- **Docs: a separate console is a supported GUI host.** INSTALL’s advanced section no longer says the clustered GUI must sit on the Puppet server with local Puppet paths. The same page lists what a dedicated console needs (agent cert, CA / compiler / OpenVoxDB HTTPS, Bolt SSH, Postgres `openvox_gui`) and which operations still use only files on the console. README, ARCHITECTURE, STATUS, FEATURES, METRICS, PERFORMANCE, TUNING, and SUDOERS match that.
+- **Docs: a separate console is a supported GUI host.** INSTALL’s
+  advanced section no longer says the clustered GUI must sit on
+  the Puppet server with local Puppet paths. The same page lists
+  what a dedicated console needs (agent cert, CA / compiler /
+  OpenVoxDB HTTPS, Bolt SSH, Postgres `openvox_gui`) and which
+  operations still use only files on the console. README,
+  ARCHITECTURE, STATUS, FEATURES, METRICS, PERFORMANCE, TUNING,
+  and SUDOERS match that.
 
 ## [3.14.2] - 2026-10-23 (stable)
 

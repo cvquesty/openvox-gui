@@ -502,7 +502,7 @@ export function NodeHealthGlance({ certname }: { certname: string }) {
                 ? 'No CPU/memory time series for this host yet. The Host Health collector may not have sampled it, or history keys did not match. Click '
                 : 'Continuous graphs are only collected for the OpenVox serving estate (console / compilers / OpenVoxDB / CA). For this agent, click '}
               <Text span fw={700}>Live sample</Text>
-              {' '}to take a one-shot reading (sparklines appear after the first sample).
+              {' '}to SSH this one host (sparklines appear after the first sample).
             </Text>
           </Alert>
         )}
