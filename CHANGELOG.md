@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased]
+
+### Fixed
+- **Docs: a separate console is a supported GUI host.** INSTALL’s advanced section no longer says the clustered GUI must sit on the Puppet server with local Puppet paths. The same page lists what a dedicated console needs (agent cert, CA / compiler / OpenVoxDB HTTPS, Bolt SSH, Postgres `openvox_gui`) and which operations still use only files on the console. README, ARCHITECTURE, STATUS, FEATURES, METRICS, PERFORMANCE, TUNING, and SUDOERS match that.
+
 ## [3.14.2] - 2026-10-23 (stable)
 
 Stable promotion of the **3.14.1-dev.1–dev.52** train on `main`.
@@ -6806,7 +6811,7 @@ The 31 test-build iterations that produced this release are kept as historical e
 - **TROUBLESHOOTING.md markdown linting** (PR #8, credit: @albatrossflavour): Added blank lines between labels/headings and code blocks, removed trailing whitespace, added trailing newline at EOF
 
 ### Changed
-- **Docs: local installation requirement**: Added prominent callouts in README.md Quick Start and INSTALL.md prerequisites clarifying that OpenVox GUI requires local installation on the OpenVox Server — remote/separate-host installation is not currently supported
+- **Docs: local installation requirement**: Added prominent callouts in README.md Quick Start and INSTALL.md prerequisites clarifying that OpenVox GUI requires local installation on the OpenVox Server — remote/separate-host installation is not currently supported. Historical for 2.2.0-1. Dedicated consoles have been a supported install since the 3.11/3.12 trains; see the current [INSTALL.md](INSTALL.md#what-a-separate-console-needs).
 
 ## [2.2.0-Release] - 2026-02-25
 

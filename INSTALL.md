@@ -724,9 +724,37 @@ Now that you have OpenVox GUI installed:
 - **Multiple catalog compilers** behind a TCP load balancer (pass-through TLS).
 - **Multiple OpenVoxDB / PostgreSQL hosts** with multi-master or multi-site data strategy, fronted by a VIP for clients.
 - **CA high availability** (shared CA data, fencing, floating VIP)—GUI may report Pacemaker/DRBD **primary** and VIP placement when `pcs` (or Bolt to a CA node) is available.
-- **One OpenVox GUI** installation (still co-located with local access to Puppet paths today), configured for **clustered** mode so operators can see and drive the multi-node estate.
+- **One or more OpenVox GUI consoles**, each its own host, with **Settings → Cluster** set to **clustered** so operators can see and drive the multi-node estate. A separate console is a supported install (all-in-one on the OpenVox Server remains the default for a single-server estate). What that host needs, and what still uses only files on the console, is [What a separate console needs](#what-a-separate-console-needs).
 
 OpenVox GUI does **not** currently replace a dedicated multi-site architecture engagement. Use this product surface to **operate** a design you already own.
+
+### What a separate console needs
+
+A dedicated console is a normal `install.sh` target. Leave `openvox-server` / `puppetserver` off that machine. The GUI reaches the estate over HTTPS (the console’s Puppet agent certificate) and over Bolt. Installer defaults set the compiler and OpenVoxDB hostnames to this machine (`hostname -f`); on a console, override both. All-in-one installs skip the rest of this list: leave `PUPPET_CA_HOST` empty and the GUI uses `PUPPET_SERVER_HOST`, including local `puppetserver ca` when that binary is on the host.
+
+1. **Agent certificate signed by the estate CA.** Install the agent on the console and sign its cert. `install.sh` records `OPENVOX_GUI_PUPPET_SSL_CERT`, `OPENVOX_GUI_PUPPET_SSL_KEY`, and `OPENVOX_GUI_PUPPET_SSL_CA` from `PUPPET_SSL_*` (default `certs/$(hostname -f).pem`, the matching private key, and `certs/ca.pem`). The service user (`puppet`) has to be able to read the key. A host with no Puppet SSL material is not a supported console.
+
+2. **CA API on port 8140.** Set `OPENVOX_GUI_PUPPET_CA_HOST` to the **CA VIP** (for example `ovca.example.com`). Compilers have the CA turned off, so this must not be the compiler VIP. Certificate list, sign, revoke, and clean use `/puppet-ca/v1/…` with the console agent cert. Put the real CA members in Settings → Cluster **ca_nodes** so a write can find the Promoted node (HTTP first, Bolt to that host if the VIP answers as standby). Allow the console certname in the CA `auth.conf`. There is no local cadir on the console.
+
+3. **Compiler API on port 8140.** Set `OPENVOX_GUI_PUPPET_SERVER_HOST` to the **compiler VIP**, not the console’s own name. Environment and class discovery call `/puppet/v3/environments` and `/puppet/v3/environment_classes` on that VIP and on each compiler FQDN, then Bolt (`list-environments-remote.py`, `list-classes-remote.py`) on a code-deploy target. The console codedir is only a last resort and is empty here. PuppetDB is not an environment list (it keeps pruned branch names).
+
+4. **OpenVoxDB API on port 8081.** Set `OPENVOX_GUI_PUPPETDB_HOST` to the OpenVoxDB read VIP, same mTLS certificate. Dual consoles that should agree on Overview use that same VIP (and `OPENVOX_GUI_PUPPETDB_PEERS` when each site has its own read VIP).
+
+5. **Bolt SSH from the console.** Bolt/OpenBolt is installed on the console (`install.sh`, or `scripts/enable-console-orchestration.sh`: `bolt` user, `/etc/puppetlabs/bolt`, `id_bolt`). Compilers and agents you orchestrate authorize that key (`profiles::base::bolt_user`). **Deploy Now** in clustered mode runs `r10k deploy environment -pv` on each code-deploy target over Bolt. **Stage / Activate** uploads `r10k-stage-activate.sh` and runs it on those compilers. r10k on the console is optional and is not the clustered deploy path. `CONFIGURE_ENC=auto` writes `external_nodes` only when puppetserver is on this host; from a console, run `bootstrap-compiler-enc.sh` over Bolt. Compilers then call the console on port **4567** (`OPENVOX_GUI_API_BASE`).
+
+6. **PostgreSQL `openvox_gui`.** Saving deployment mode **clustered** requires `OPENVOX_GUI_DATABASE_URL` to be that database (ENC, users, sessions). It is not the `puppetdb` database, and it is not a shared SQLite file. Two consoles also share one `OPENVOX_GUI_SECRET_KEY`. See [docs/CLUSTERED_SHARED_DB.txt](docs/CLUSTERED_SHARED_DB.txt) and [docs/VIP_SESSIONS.md](docs/VIP_SESSIONS.md).
+
+**Files that stay on the console**
+
+- Agent SSL, the Bolt project, `/opt/openvox-gui/data/`, and the optional package mirror (`/opt/openvox-pkgs`, served from the GUI port). Agent one-liners on a clustered estate download packages from the console, and `--server` is the compiler VIP. See [docs/INSTALLER.md](docs/INSTALLER.md).
+- Host Health always samples `/proc` on the console. Compilers, OpenVoxDB, and CA members are sampled over Bolt. `sysstat` improves the console’s own charts; remote hosts do not need it for the basic sample. See [docs/HOST_HEALTH.md](docs/HOST_HEALTH.md).
+- **Settings → OpenVox Configuration** edits files on this host. A console has the agent `puppet.conf`. Compiler and OpenVoxDB conf are on those machines. Jolokia `/metrics` and `/status` rules live there too; allow the console certname. See [docs/METRICS.md](docs/METRICS.md).
+- A CA HA snapshot uses local `pcs` when this host is a Pacemaker node, and Bolt to a configured CA host otherwise.
+
+**Work that runs on the compilers, not in a console codedir**
+
+- **`ovox infra tune` and `ovox infra settings set` are refused** while deployment mode is clustered. A local write would change only the GUI host. `ovox infra settings show` reads remote conf over Bolt when the local files are missing. Apply JRuby, heap, and pool changes on each compiler and OpenVoxDB node. See [docs/TUNING.md](docs/TUNING.md).
+- **Data | Hiera Data Files** is a read-only Bolt view of the live codedir on the first code-deploy target. Leave the control repo on the compilers. The stock `/etc/puppetlabs/puppet/hiera.yaml` on the console is unused. **Hiera Lookup** runs `puppet lookup --explain` on that compiler via Bolt. When a node is selected, the facts in that lookup come from this console’s OpenVoxDB.
 
 ### Expected sizing (guidance, not a quote)
 
@@ -734,7 +762,7 @@ These ranges are **planning heuristics**. Real capacity depends on agent count, 
 
 | Scale band | Rough agent order | Compilers (typical) | OpenVoxDB / PG | Notes |
 |------------|-------------------|---------------------|----------------|-------|
-| Small / standard | up to low thousands | 1 (GUI co-located) | 1 | Default OpenVox GUI install |
+| Small / standard | up to low thousands | 1 (all-in-one) | 1 | Default OpenVox GUI install |
 | Medium | thousands–tens of thousands | 2+ behind LB | 1–2 | Cluster mode optional |
 | **Extra large** | tens–hundreds of thousands | N behind VIP(s), often multi-site | Multi-node mesh / multi-site | Cluster mode recommended in GUI; architecture review strongly advised |
 | Multi-DC / site-loss | as above + geo | Compilers per site + global DNS policy | Multi-site DB + promote story | Beyond “turn on a switch”—design before tooling |
@@ -758,13 +786,10 @@ When **Settings → Cluster** is set to **clustered**, OpenVox GUI can:
    - Configure multiple deploy targets (usually compilers).  
    - **Stage** code into a staging codedir on all targets (OpenBolt uploads `r10k-stage-activate.sh` into `/home/bolt/.bolt/tmp` — not `/tmp`, which CIS mounts `noexec` — and runs it as root on each FQDN). `install.sh` and `enable-console-orchestration.sh` create that directory on the console; compilers need the same path via `profiles::base::bolt_user` (or the one-shot `install -d` in TROUBLESHOOTING).  
    - **Activate** staged code to the live codedir so cutover is coordinated across the set.  
-   - Compilers need r10k + `r10k.yaml` and SSH as `bolt@` (`profiles::base::bolt_user`). The console is not a compiler — Stage will not silently r10k the GUI host.  
-   - **First install (manual, until Puppet owns it):** on each compiler run `scripts/bootstrap-compiler.sh` (AIO `gem install r10k`, git, Bolt tmpdir). Copy `/etc/puppetlabs/r10k/r10k.yaml` from a working compiler — the script will not invent a control-repo URL. From a console after `bolt@` works: `bolt script run /opt/openvox-gui/scripts/bootstrap-compiler.sh --targets <compilers> --run-as root --no-tty`. Optional ENC: `--enc-api-base` or `bootstrap-compiler-enc.sh`. `install.sh` also installs r10k on the console when AIO Ruby is present, and auto-wires ENC when local puppetserver is detected (`CONFIGURE_ENC=auto`).
-   - Single-host “Deploy Now” remains for classic r10k on the local box.  
-   - **Data | Hiera Data Files** on a dedicated console reads the live
-     codedir on the first code-deploy target via Bolt. Do not copy the
-     control repo onto the GUI host. The stock
-     `/etc/puppetlabs/puppet/hiera.yaml` is unused.
+   - Compilers need r10k + `r10k.yaml` and SSH as `bolt@` (`profiles::base::bolt_user`). The console is not a compiler — Stage runs on the deploy targets, not on the GUI host.  
+   - **First install (manual, until Puppet owns it):** on each compiler run `scripts/bootstrap-compiler.sh` (AIO `gem install r10k`, git, Bolt tmpdir). Copy `/etc/puppetlabs/r10k/r10k.yaml` from a working compiler — the script will not invent a control-repo URL. From a console after `bolt@` works: `bolt script run /opt/openvox-gui/scripts/bootstrap-compiler.sh --targets <compilers> --run-as root --no-tty`. Optional ENC: `--enc-api-base` or `bootstrap-compiler-enc.sh`. `install.sh` installs r10k on the console when AIO Ruby is present, and auto-wires ENC when local puppetserver is detected (`CONFIGURE_ENC=auto`). A dedicated console pushes ENC with the Bolt script instead.
+   - **Deploy Now** on a single host runs local r10k. In clustered mode the same button runs `r10k deploy environment -pv` on each code-deploy target over Bolt.
+   - **Data | Hiera Data Files** on a dedicated console is a read-only Bolt view of the live codedir on the first code-deploy target. Leave the control repo on the compilers. The stock `/etc/puppetlabs/puppet/hiera.yaml` on the console is unused.
 
 4. **Classification segmentation**  
    Seeded ENC groups such as **Puppet Compiler** and **PuppetDB**, with configured FQDNs attached, so infrastructure roles are first-class in **Classification and Code → Classification**.
@@ -776,7 +801,7 @@ When **Settings → Cluster** is set to **clustered**, OpenVox GUI can:
 
 This is the **console workflow**, not a green-field build checklist.
 
-1. **Install OpenVox GUI** the normal way on the host that has appropriate local access (see earlier sections).  
+1. **Install OpenVox GUI** on the console host. A separate console uses the same installer; meet [What a separate console needs](#what-a-separate-console-needs) (agent cert, CA / compiler / OpenVoxDB HTTPS, Bolt SSH, Postgres `openvox_gui`). All-in-one on the OpenVox Server is the same installer when the GUI and the compiler are one machine.  
 2. **Operate single-server** until compilers, DB, and CA topology are real and healthy.  
 3. Open **Settings → Cluster**, switch **Deployment mode** to **Clustered**, and enter:
    - Compiler FQDNs  
@@ -784,8 +809,8 @@ This is the **console workflow**, not a green-field build checklist.
    - CA member FQDNs (and optional CA VIPs)  
    - Optional explicit code-deploy targets  
 4. Save—optionally seeding **Puppet Compiler** / **PuppetDB** ENC groups.  
-5. Use **Settings → Services** to review local units **and** per-FQDN member health / HA primary.  
-6. Use **Code Deployment** for local deploy, or **Stage** then **Activate** when multiple targets must cut over together.  
+5. Use **Settings → Services** to review this host’s units (GUI, agent) **and** per-FQDN member health / HA primary.  
+6. Use **Code Deployment**. **Deploy Now** runs r10k on each compiler over Bolt (local r10k only while mode is still single-server). **Stage** then **Activate** when those compilers must cut over together.  
 7. Use **Classification** to manage group membership and classes for infrastructure roles.
 
 If Cluster mode is left at **Single server**, multi-host panels and stage/activate stay out of the way.

@@ -28,7 +28,7 @@ APP_DEBUG="false"
 PUPPET_SERVER_PORT="8140"
 
 # CA VIP/FQDN when the console is not the CA (clustered / multi-DC).
-# Leave empty for co-located single-server (uses PUPPET_SERVER_HOST).
+# Leave empty on an all-in-one host (uses PUPPET_SERVER_HOST).
 #PUPPET_CA_HOST="ovca.example.com"
 #PUPPET_CA_PORT="8140"
 
@@ -61,8 +61,10 @@ OPENVOX_GUI_DB_APP_PASSWORD="choose-app-password"
 PUPPETDB_PORT="8081"
 
 # ─── SSL Certificate Settings ────────────────────────────────
-# Paths to PuppetServer SSL certs (used for PuppetDB API communication)
-# Defaults assume standard Puppet SSL directory layout
+# Agent cert, key, and CA used for mTLS to the CA, compilers, and PuppetDB.
+# All-in-one: this host's agent PEMs. Dedicated console: this console's
+# agent PEMs, signed by the estate CA. The service user must be able to
+# read the key. Defaults are the standard agent ssldir for hostname -f.
 #PUPPET_SSL_CERT="/etc/puppetlabs/puppet/ssl/certs/$(hostname -f).pem"
 #PUPPET_SSL_KEY="/etc/puppetlabs/puppet/ssl/private_keys/$(hostname -f).pem"
 #PUPPET_SSL_CA="/etc/puppetlabs/puppet/ssl/certs/ca.pem"
