@@ -21,7 +21,7 @@ bcrypt==5.0.0
 # 50.0.0: PYSEC-2026-3552/3553/3554 (PKCS#7 oracle, path-build DoS, nameConstraints wildcard)
 # 50.0.1: latest OpenSSL 4.0.2 wheels; no published advisories
 cryptography==50.0.1
-certifi==2026.10.19
+certifi==2026.10.23
 prometheus-client==0.26.0
 # 3.2.1 is GHSA-wmxh-pxcx-9w24 / CVE-2025-27607 (dev-extra RCE range).
 # No in-repo JsonFormatter import; 4.2.0 is latest and Snyk-clean.
