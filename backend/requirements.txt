@@ -40,6 +40,6 @@ pyhocon>=0.3.63
 # Fleet Health PDF report generation (matplotlib for chart recreation matching UI, fpdf2 for fixed-layout one-page PDF assembly)
 # Python floor is 3.11 (SQLAlchemy 2.1), so the old <3.11 hold for cp310 wheels is gone.
 matplotlib>=3.10.9
-fpdf2>=2.7
+fpdf2>=2.8.9
 # fleet PDF/image assembly; pinned exactly for OSV-clean (do not loosen to a lower bound)
 Pillow==13.0.0
