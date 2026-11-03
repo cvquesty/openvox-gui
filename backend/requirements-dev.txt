@@ -2,7 +2,7 @@
 # Keep these unpinned to a minor so CI picks compatible wheels; bump if a
 # release breaks the suite.
 pytest>=9.1.1,<10
-pytest-asyncio>=1.4.0,<2
+pytest-asyncio>=1.4.1,<2
 pytest-cov>=7.1.0,<8
 ruff>=0.16.6,<1
 httpx>=0.28
