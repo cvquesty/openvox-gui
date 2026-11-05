@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-a.1] - 2026-11-04
+
+### Added
+- **Start of the 3.15.0 backup and restore train.** Opens
+  `feature/backup_system` for `ovox backup`/`ovox restore` and the
+  Settings | Backup page. Design lives in `docs/BACKUP.md` (coming next).
+
 ## [3.14.3-dev.3] - 2026-10-27
 
 ### Changed
