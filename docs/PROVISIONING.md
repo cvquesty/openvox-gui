@@ -212,7 +212,11 @@ card (ovbuilder's legacy ISO mode):
 Without **Install the OpenVox agent**, Continue needs no credentials; the GUI
 only disconnects the ISO. Extra service-account privileges: Virtual machine →
 Inventory → Create new; Configuration → Add new disk; Datastore → Browse
-datastore. paramiko (in `backend/requirements.txt`) provides SSH.
+datastore. SSH uses the console's OpenSSH client (`ssh`, already present for
+Bolt): passwords go through an `SSH_ASKPASS` helper reading a 0600 file and
+keys through a 0600 file in a private temp directory, so neither appears on
+a command line; the directory is removed after the step. (paramiko was not
+used: every published release carries an open advisory, PYSEC-2026-2858.)
 
 ## Build queue and the provisioner service
 

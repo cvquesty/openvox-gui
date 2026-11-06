@@ -733,3 +733,52 @@ def test_ssh_target_validation_and_scripts():
     for script in scripts:
         result = subprocess.run(["bash", "-n"], input=script.body, text=True, capture_output=True)
         assert result.returncode == 0, result.stderr
+
+
+def test_openssh_runner_keeps_secrets_off_argv(tmp_path, monkeypatch):
+    import os
+    from app.services.provisioning import ssh
+
+    log = tmp_path / "ssh.log"
+    fake = tmp_path / "ssh"
+    fake.write_text(
+        "#!/bin/bash\n"
+        'printf "ARGV:%s\\n" "$*" >> "$FAKE_SSH_LOG"\n'
+        '[ -n "$SSH_ASKPASS" ] && printf "ASKPASS:%s\\n" "$("$SSH_ASKPASS")" >> "$FAKE_SSH_LOG"\n'
+        'remote="${@: -1}"\n'
+        'if [[ "$remote" == umask* ]]; then cat >> "$FAKE_SSH_LOG.uploads"; '
+        'else printf "STDIN:%s\\n" "$(cat)" >> "$FAKE_SSH_LOG"; fi\n'
+        'echo "remote ok"\n'
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("FAKE_SSH_LOG", str(log))
+    before = set(os.listdir("/tmp"))
+    scripts = ssh.bootstrap_scripts("web01.example.com", "#!/bin/bash\necho agent challengePassword=abc123\n",
+                                    "#!/bin/bash\necho net\n")
+    report = ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="admin", password="S3cret-pw"),
+                             scripts, ssh_bin=str(fake))
+    text = log.read_text()
+    argv_lines = [line for line in text.splitlines() if line.startswith("ARGV:")]
+    assert argv_lines and all("S3cret-pw" not in line for line in argv_lines)
+    assert "ASKPASS:S3cret-pw" in text
+    assert "STDIN:S3cret-pw" in text
+    assert any("sudo -S -p ''" in line for line in argv_lines)
+    assert any("nohup bash" in line for line in argv_lines)
+    assert "StrictHostKeyChecking=accept-new" in argv_lines[0]
+    uploads = (tmp_path / "ssh.log.uploads").read_text()
+    assert "challengePassword=abc123" in uploads and "rm -f /tmp/openvox-gui-" in uploads
+    assert report.lines[0] == "hostname: exit 0"
+    assert not [d for d in set(os.listdir("/tmp")) - before if d.startswith("openvox-gui-ssh-")]
+
+    keyed = ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="root", private_key="KEYDATA"),
+                            scripts[:1], ssh_bin=str(fake))
+    assert keyed.lines[0] == "hostname: exit 0"
+    last = [line for line in log.read_text().splitlines() if line.startswith("ARGV:")][-1]
+    assert "IdentitiesOnly=yes" in last and "KEYDATA" not in last and "sudo" not in last
+
+    failing = tmp_path / "ssh-fail"
+    failing.write_text("#!/bin/bash\necho 'Permission denied (publickey,password).' >&2\nexit 255\n")
+    failing.chmod(0o755)
+    with pytest.raises(ssh.SshError, match="Permission denied"):
+        ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="admin", password="x"), scripts,
+                        ssh_bin=str(failing))

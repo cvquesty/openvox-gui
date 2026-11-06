@@ -18,7 +18,8 @@ Separate PR stacked on `feature/ovbuilder`.
   datastore ISO (pvscsi thin disk, vmxnet3 NICs, SATA CD-ROM), named after
   the FQDN; the build waits for the operator to finish the console install,
   then disconnects the ISO (`disconnect_install_media` port).
-- **SSH bootstrap** (port of ovbuilder `ssh.py`, paramiko). On **Continue**
+- **SSH bootstrap** (port of ovbuilder `ssh.py`, on the system OpenSSH
+  client; paramiko has an unfixed advisory). On **Continue**
   the operator gives a one-time login, stored Fernet-encrypted per build and
   deleted after use. The GUI sets the hostname, runs `install.bash` with the
   per-build CSR challenge, applies the static network detached, then runs
@@ -26,7 +27,7 @@ Separate PR stacked on `feature/ovbuilder`.
 - Provider interface: `install_media()`, `detach_media()`, `supports_iso`;
   ISO listing endpoint `/connections/{id}/inventory/{scope}/isos`.
 - `POST /api/provisioning/builds/{id}/continue`.
-- `paramiko` in `backend/requirements.txt`; `OPENVOX_GUI_PROVISIONING_POLL_S`.
+- `OPENVOX_GUI_PROVISIONING_POLL_S` (poll interval while a build waits).
 
 ## [3.15.0-alpha.6] - 2026-11-06
 
