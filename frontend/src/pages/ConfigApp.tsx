@@ -768,7 +768,7 @@ function ClusterTab() {
               </Alert>
               <TextInput
                 label="PostgreSQL URL (writes .env — restart required)"
-                description="postgresql+asyncpg://openvox_gui:PASSWORD@ovdb-primary-or-vip:5432/openvox_gui"
+                description="postgresql+asyncpg://openvox_gui:<password>@ovdb-primary-or-vip:5432/openvox_gui"
                 required
                 value={databaseUrl}
                 onChange={(e) => setDatabaseUrl(e.currentTarget.value)}

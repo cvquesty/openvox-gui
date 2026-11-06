@@ -18,7 +18,9 @@ The best thing about Open Source software is you can fix it yourself and contrib
    python3 -m pytest
    (cd frontend && npm test && npm run typecheck)
    ./scripts/ci-quality.sh
+   ./scripts/secret-scan.sh   # first run: ./scripts/secret-scan.sh --install
    ```
+   Do not commit passwords, tokens or keys, not even fake ones in tests; generate them at runtime. `pip install pre-commit && pre-commit install` adds the same gitleaks check to every commit.
    Installer changes should also run the container install-test (Docker or Podman):
    ```bash
    (cd frontend && npm ci && npm run build)

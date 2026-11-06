@@ -15,14 +15,14 @@
 #
 # Usage (from a machine that can reach Postgres as superuser):
 #   sudo ./scripts/bootstrap-openvox-gui-db.sh \
-#     --admin-dsn 'postgresql://postgres:SECRET@ovdb1.example.com:5432/postgres' \
-#     --app-password 'APP_SECRET' \
+#     --admin-dsn 'postgresql://postgres:<superuser-password>@ovdb1.example.com:5432/postgres' \
+#     --app-password '<app-password>' \
 #     --write-env /opt/openvox-gui/config/.env
 #
 # Multi-node (primary first in --hosts):
 #   sudo ./scripts/bootstrap-openvox-gui-db.sh \
-#     --admin-dsn 'postgresql://postgres:SECRET@ovdb1:5432/postgres' \
-#     --app-password 'APP_SECRET' \
+#     --admin-dsn 'postgresql://postgres:<superuser-password>@ovdb1:5432/postgres' \
+#     --app-password '<app-password>' \
 #     --hosts 'ovdb1.example.com,ovdb2.example.com,ovdb3.example.com,ovdb4.example.com' \
 #     --spock \
 #     --repl-user 'spock_repl' \
@@ -80,7 +80,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -n "$ADMIN_DSN" ] || die "required: --admin-dsn 'postgresql://user:pass@host:5432/postgres'"
+[ -n "$ADMIN_DSN" ] || die "required: --admin-dsn 'postgresql://<user>:<password>@host:5432/postgres'"
 [ -n "$APP_PASSWORD" ] || die "required: --app-password"
 
 # Resolve client tools
@@ -91,7 +91,7 @@ PSQL_BIN=$(command -v psql)
 PGDUMP_BIN=$(command -v pg_dump || true)
 PGRESTORE_BIN=$(command -v pg_restore || true)
 
-# Parse admin DSN roughly: postgresql://user:pass@host:port/db
+# Parse admin DSN roughly: postgresql://<user>:<password>@host:port/db
 # Use psql URI form directly — Postgres accepts it.
 admin_psql() {
   # $@ = extra psql args; SQL via -c or stdin
@@ -99,7 +99,7 @@ admin_psql() {
 }
 
 # Build per-host admin DSN by rewriting host in URI
-# Supports postgresql://user:pass@host:port/db
+# Supports postgresql://<user>:<password>@host:port/db
 dsn_for_host() {
   local host="$1"
   # shell-friendly rewrite of @host:port/

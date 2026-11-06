@@ -77,7 +77,7 @@ ENC_API_BASE=""
 # When postgresql, bootstrap-openvox-gui-db.sh provisions role, DB, schema, optional Spock.
 OPENVOX_GUI_DB_BACKEND="${OPENVOX_GUI_DB_BACKEND:-sqlite}"
 # Superuser DSN used only at install to CREATE role/database (not stored as app URL):
-#   postgresql://postgres:SECRET@ovdb1.example.com:5432/postgres
+#   postgresql://postgres:<superuser-password>@ovdb1.example.com:5432/postgres
 OPENVOX_GUI_DB_ADMIN_DSN="${OPENVOX_GUI_DB_ADMIN_DSN:-}"
 OPENVOX_GUI_DB_APP_PASSWORD="${OPENVOX_GUI_DB_APP_PASSWORD:-}"
 # Comma-separated ovdb hosts for multi-node empty DB + optional Spock (primary first)

@@ -47,13 +47,15 @@ PUPPET_SERVER_PORT="8140"
 # postgresql = provision via scripts/bootstrap-openvox-gui-db.sh at install
 OPENVOX_GUI_DB_BACKEND="postgresql"
 # Superuser DSN used ONLY at install to CREATE role/db (not stored as app URL):
-OPENVOX_GUI_DB_ADMIN_DSN="postgresql://postgres:SECRET@ovdb1.example.com:5432/postgres"
-OPENVOX_GUI_DB_APP_PASSWORD="choose-app-password"
+# Form: postgresql://postgres:<superuser-password>@ovdb1.example.com:5432/postgres
+OPENVOX_GUI_DB_ADMIN_DSN=""
+# Choose a strong password for the openvox_gui role:
+OPENVOX_GUI_DB_APP_PASSWORD=""
 # Multi-node (primary first) — empty DB on each host + optional Spock mesh:
 #OPENVOX_GUI_DB_HOSTS="ovdb1.example.com,ovdb2.example.com,ovdb3.example.com,ovdb4.example.com"
 #OPENVOX_GUI_DB_SPOCK="true"
 #OPENVOX_GUI_DB_REPL_USER="spock_repl"
-#OPENVOX_GUI_DB_REPL_PASSWORD="repl-secret"
+#OPENVOX_GUI_DB_REPL_PASSWORD=""
 
 # ─── PuppetDB Settings ───────────────────────────────────────
 # FQDN of PuppetDB (defaults to hostname -f, often same as PuppetServer)
@@ -125,7 +127,7 @@ INSTALL_PYTHON="true"
 #
 # For an AUTHENTICATED proxy, also provide:
 #PROXY_USER="proxyuser"
-#PROXY_PASSWORD="proxypass"
+#PROXY_PASSWORD=""
 #
 # Or provide full URLs (these take highest precedence):
 #HTTP_PROXY="http://proxy.example.com:8080"

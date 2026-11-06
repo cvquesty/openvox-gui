@@ -11,6 +11,9 @@ PYTHON="${PYTHON:-python3}"
 echo "==> quality"
 ./scripts/ci-quality.sh
 
+echo "==> secret scan"
+./scripts/secret-scan.sh
+
 echo "==> ruff (error-class rules)"
 if command -v ruff >/dev/null 2>&1; then
   ruff check --select E9,F821,F822,F823 backend/app backend/tests ovox/ovox tests/ovox

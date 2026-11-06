@@ -89,8 +89,8 @@ If you do need a proxy, configure it **before** running the installer:
 
 ```bash
 # Set proxy environment variables (adjust URL to your proxy)
-export HTTP_PROXY="http://username:password@proxy.example.com:3128"
-export HTTPS_PROXY="http://username:password@proxy.example.com:3128"
+export HTTP_PROXY="http://<user>:<password>@proxy.example.com:3128"
+export HTTPS_PROXY="http://<user>:<password>@proxy.example.com:3128"
 export http_proxy="$HTTP_PROXY"
 export https_proxy="$HTTPS_PROXY"
 
@@ -315,7 +315,7 @@ PUPPETDB_HOST="openvox.yourcompany.com"         # Usually same as OpenVox Server
 # Authentication
 AUTH_BACKEND="local"
 ADMIN_USERNAME="admin"
-ADMIN_PASSWORD="YourSecurePassword123!"        # Change this!
+ADMIN_PASSWORD=""                # Set your own, or leave empty to auto-generate
 
 # System settings
 CONFIGURE_FIREWALL="true"    # Open the port in the firewall

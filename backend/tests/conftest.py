@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import tempfile
 from pathlib import Path
 
@@ -14,5 +15,5 @@ os.environ.setdefault(
     "OPENVOX_GUI_DATABASE_URL",
     f"sqlite+aiosqlite:///{_tmp / 'test.db'}",
 )
-os.environ.setdefault("OPENVOX_GUI_SECRET_KEY", "ci-test-not-for-production")
+os.environ.setdefault("OPENVOX_GUI_SECRET_KEY", secrets.token_hex(32))
 os.environ.setdefault("OPENVOX_GUI_AUTH_BACKEND", "none")

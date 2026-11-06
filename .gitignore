@@ -44,3 +44,6 @@ backend/venv/
 
 # Internal audit reports -- never commit to public repo until findings are remediated
 docs/audits/
+
+# Local tool downloads (scripts/secret-scan.sh --install)
+.tools/
