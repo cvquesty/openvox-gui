@@ -84,7 +84,7 @@ def _make_csr(cn: str, challenge: str | None) -> bytes:
     builder = x509.CertificateSigningRequestBuilder().subject_name(
         x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)]))
     if challenge is not None:
-        builder = builder.add_attribute(AttributeOID.CHALLENGE_VCENTER_CRED, challenge.encode())
+        builder = builder.add_attribute(AttributeOID.CHALLENGE_PASSWORD, challenge.encode())
     return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.PEM)
 
 
