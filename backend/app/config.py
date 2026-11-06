@@ -185,6 +185,12 @@ class Settings(BaseSettings):
     vcenter_ca_bundle: str = ""
     # Development only: built-in fake provider inventory and provisioning.
     provisioning_fake: bool = False
+    # "worker": the openvox-gui-provisioner service runs queued builds.
+    # "inline": run builds inside the uvicorn worker that accepted them (dev/tests).
+    provisioning_runner: str = "worker"
+    provisioning_max_parallel: int = 2
+    provisioning_max_active_per_user: int = 3
+    provisioning_max_active_total: int = 10
 
     class Config:
         env_prefix = "OPENVOX_GUI_"

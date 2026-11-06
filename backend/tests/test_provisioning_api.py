@@ -18,7 +18,7 @@ from app.models.enc import EncEnvironment, EncNode
 from app.models.gui_kv import GuiKv
 from app.models.provision_job import ProvisionBootstrapProfile, ProvisionConnection, ProvisionJob, ProvisionPreset
 from app.routers import provisioning as prov_router
-from app.services.provisioning import config_store, csr, jobs
+from app.services.provisioning import bootstrap, config_store, csr, jobs, worker
 from app.services.provisioning.cloudinit import BootstrapTarget
 from app.services.provisioning.providers.vmware import VmwareProvider
 from app.services.provisioning.provision import BuildHooks
@@ -135,7 +135,8 @@ def api(monkeypatch):
     monkeypatch.setattr(settings, "provisioning_fake", True)
     monkeypatch.setattr(settings, "vcenter_host", "")
     VmwareProvider.reset_fake()
-    monkeypatch.setattr(prov_router, "bootstrap_target", lambda agent_version="": TARGET)
+    monkeypatch.setattr(bootstrap, "bootstrap_target", lambda agent_version="": TARGET)
+    monkeypatch.setattr(settings, "provisioning_runner", "inline")
     hooks = FakeHooks()
     monkeypatch.setattr(jobs, "app_hooks", hooks.build)
     role = {"role": "admin"}
@@ -394,3 +395,62 @@ def test_bootstrap_profiles_admin_only_and_used_by_builds(api):
     assert "--version 9" in preview["agent_command"]
     assert api.post("/api/provisioning/preview", json={**BUILD, "bootstrap_profile": "nope"}).status_code == 400
     assert api.delete("/api/provisioning/bootstrap-profiles/site-b").status_code == 204
+
+
+def test_worker_queue_claim_and_run(api, monkeypatch):
+    monkeypatch.setattr(settings, "provisioning_runner", "worker")
+    status = api.get("/api/provisioning/status").json()
+    assert status["runner"] == "worker" and status["worker"]["alive"] is False
+
+    queued = api.post("/api/provisioning/builds", json=BUILD).json()
+    assert api.get(f"/api/provisioning/builds/{queued['id']}").json()["status"] == "queued"
+    assert asyncio.run(jobs.next_queued()) == queued["id"]
+    assert asyncio.run(jobs.claim(queued["id"], "host-a:1")) is True
+    assert asyncio.run(jobs.claim(queued["id"], "host-b:1")) is False
+
+    hooks = api.hooks.build("tester", queued["id"])
+    status_out = asyncio.run(worker.run_claimed(queued["id"], hooks=hooks))
+    assert status_out == "succeeded"
+    job = api.get(f"/api/provisioning/builds/{queued['id']}").json()
+    assert job["status"] == "succeeded" and job["result"]["worker"] == "host-a:1"
+    assert api.hooks.signed == ["app01.example.com"]
+
+    asyncio.run(worker.write_heartbeat("host-a:1", []))
+    assert api.get("/api/provisioning/status").json()["worker"]["alive"] is True
+
+
+def test_cancel_queued_and_finished(api, monkeypatch):
+    monkeypatch.setattr(settings, "provisioning_runner", "worker")
+    job = api.post("/api/provisioning/builds", json=BUILD).json()
+    _as(api, "viewer")
+    assert api.post(f"/api/provisioning/builds/{job['id']}/cancel").status_code == 403
+    _as(api, "operator")
+    cancelled = api.post(f"/api/provisioning/builds/{job['id']}/cancel").json()
+    assert cancelled["status"] == "cancelled" and "before it started" in cancelled["error"]
+    assert api.post(f"/api/provisioning/builds/{job['id']}/cancel").status_code == 409
+    assert api.post("/api/provisioning/builds/nope/cancel").status_code == 404
+    assert asyncio.run(jobs.next_queued()) is None
+
+
+def test_queue_caps(api, monkeypatch):
+    monkeypatch.setattr(settings, "provisioning_runner", "worker")
+    monkeypatch.setattr(settings, "provisioning_max_active_per_user", 1)
+    assert api.post("/api/provisioning/builds", json=BUILD).status_code == 202
+    second = api.post("/api/provisioning/builds", json={**BUILD, "hostname": "app02.example.com", "ip": "192.0.2.61"})
+    assert second.status_code == 429 and "limit 1" in second.json()["detail"]
+    monkeypatch.setattr(settings, "provisioning_max_active_per_user", 5)
+    monkeypatch.setattr(settings, "provisioning_max_active_total", 1)
+    third = api.post("/api/provisioning/builds", json={**BUILD, "hostname": "app03.example.com", "ip": "192.0.2.62"})
+    assert third.status_code == 429 and "queue is full" in third.json()["detail"]
+
+
+def test_restart_marks_this_hosts_running_jobs_interrupted(api, monkeypatch):
+    monkeypatch.setattr(settings, "provisioning_runner", "worker")
+    mine = api.post("/api/provisioning/builds", json=BUILD).json()["id"]
+    other = api.post("/api/provisioning/builds", json={**BUILD, "hostname": "app09.example.com",
+                                                       "ip": "192.0.2.69"}).json()["id"]
+    asyncio.run(jobs.claim(mine, "console-a:100"))
+    asyncio.run(jobs.claim(other, "console-b:100"))
+    assert asyncio.run(jobs.mark_orphaned("console-a:200")) == [mine]
+    assert api.get(f"/api/provisioning/builds/{mine}").json()["status"] == "interrupted"
+    assert api.get(f"/api/provisioning/builds/{other}").json()["status"] == "running"

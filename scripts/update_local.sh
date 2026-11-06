@@ -822,6 +822,14 @@ fi
 # Substitute INSTALL_DIR and SERVICE_USER/GROUP (support non-default installs).
 FLEET_INSTALLED="false"
 SERVICE_GROUP="${SERVICE_GROUP:-puppet}"
+# Provisioning worker unit (runs queued builds outside uvicorn).
+if [ -f "${REPO_DIR}/config/openvox-gui-provisioner.service" ]; then
+    sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/openvox-gui-provisioner.service" \
+        | sed "s|SERVICE_USER|${SERVICE_USER}|g" \
+        | sed "s|SERVICE_GROUP|${SERVICE_GROUP:-puppet}|g" \
+        > /etc/systemd/system/openvox-gui-provisioner.service
+fi
+
 for unit in openvox-gui-fleet-health.service openvox-gui-fleet-health.timer; do
     if [ -f "${REPO_DIR}/config/${unit}" ]; then
         sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${REPO_DIR}/config/${unit}" \
@@ -935,6 +943,12 @@ fi
 log_step 7 "Restart & Verify"
 
 systemctl restart "${SERVICE_NAME}"
+if [ -f /etc/systemd/system/openvox-gui-provisioner.service ]; then
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable openvox-gui-provisioner >/dev/null 2>&1 || true
+    systemctl restart openvox-gui-provisioner >/dev/null 2>&1 \
+        || log_warn "openvox-gui-provisioner did not restart (Provisioning builds will stay queued)"
+fi
 log_info "Service restarting..."
 sleep 2
 

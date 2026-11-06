@@ -77,6 +77,12 @@ export function ProvisioningPage() {
           Install it into the GUI virtualenv (it is listed in backend/requirements.txt) and restart the service.
         </Alert>
       )}
+      {status.runner === 'worker' && !status.worker.alive && (
+        <Alert color="orange" icon={<IconAlertTriangle size={16} />} mb="md" title="The provisioner service is not running">
+          Builds are queued but nothing will run them. Start it with
+          {' '}<code>sudo systemctl enable --now openvox-gui-provisioner</code>.
+        </Alert>
+      )}
       {!status.configured && (
         <Alert color="blue" mb="md" title="No provider connection is ready">
           {isAdmin ? (

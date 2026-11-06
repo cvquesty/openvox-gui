@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.4] - 2026-11-06
+
+### Added
+- **`openvox-gui-provisioner` service.** Builds are queued and run by a
+  separate systemd service (`python -m app.services.provisioning.worker`),
+  installed and enabled by `install.sh`, `update_local.sh` and
+  `deploy.sh`. Jobs are claimed with an atomic `queued → running` update,
+  so clustered consoles can each run one. Heartbeat in `gui_kv`; the page
+  warns when no provisioner is alive. A restart marks that host's running
+  builds `interrupted`.
+- **Cancel** (`POST /api/provisioning/builds/{id}/cancel`): queued builds
+  stop at once; running builds stop at the next checkpoint.
+- **Queue caps:** `OPENVOX_GUI_PROVISIONING_MAX_ACTIVE_PER_USER` (3),
+  `_MAX_ACTIVE_TOTAL` (10), `_MAX_PARALLEL` (2); HTTP 429 over a cap.
+  `OPENVOX_GUI_PROVISIONING_RUNNER=inline` keeps the old in-process runner
+  for development.
+
 ## [3.15.0-alpha.3] - 2026-11-06
 
 ### Added

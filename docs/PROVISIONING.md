@@ -180,12 +180,40 @@ The clone reproduces ovbuilder's Terraform module without Terraform:
 
 **Preview cloud-init** on the form renders the user-data without calling vCenter.
 
+## Build queue and the provisioner service
+
+Submitting a build queues it. The **`openvox-gui-provisioner`** systemd
+service (installed and enabled by `install.sh`, `update_local.sh` and
+`deploy.sh`; same user and `.env` as `openvox-gui`) claims queued builds and
+runs them, so a GUI restart or deploy does not kill a build in progress.
+
+```bash
+sudo systemctl status openvox-gui-provisioner
+sudo journalctl -u openvox-gui-provisioner -f
+```
+
+- The claim is an atomic `queued → running` update, so two clustered consoles
+  can each run a provisioner.
+- The page warns when no provisioner has sent a heartbeat in the last 90 s.
+- If the provisioner restarts, builds it was running on that host are marked
+  `interrupted`. A build with no progress for two hours also shows `interrupted`.
+- **Cancel** on the Builds tab: a queued build is cancelled at once; a running
+  build stops at its next checkpoint (`cancelling` → `cancelled`). A VM that was
+  already created is left in vCenter and the job says so.
+
+Limits (`/opt/openvox-gui/config/.env`):
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `OPENVOX_GUI_PROVISIONING_MAX_PARALLEL` | 2 | Builds one provisioner runs at once |
+| `OPENVOX_GUI_PROVISIONING_MAX_ACTIVE_PER_USER` | 3 | Queued + running builds per user (HTTP 429 above) |
+| `OPENVOX_GUI_PROVISIONING_MAX_ACTIVE_TOTAL` | 10 | Queued + running builds on the estate |
+| `OPENVOX_GUI_PROVISIONING_RUNNER` | `worker` | `inline` runs builds inside uvicorn (development only) |
+
 ## Limits in this release
 
-- Builds run inside the uvicorn worker that accepted them. A restart stops
-  them; the job shows `interrupted` after two hours without progress.
-- No cancel, queue caps, power/snapshot/destroy, CLI, ISO installs or SSH
-  bootstrap yet ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
+- No power/snapshot/destroy, CLI, ISO installs or SSH bootstrap yet
+  ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
 - Step timeouts: guest IP 15 min, CSR 30 min, first report 30 min.
 
 ## Development and tests

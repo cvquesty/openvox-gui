@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router';
 import {
   Alert, Badge, Button, Card, Code, Grid, Group, ScrollArea, Stack, Table, Text, Timeline, Title,
 } from '@mantine/core';
-import { IconRefresh } from '@tabler/icons-react';
+import { IconPlayerStop, IconRefresh } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { provisioning, type ProvisionJob } from '../../services/api';
 import { STEP_LABELS, statusColor } from '../../utils/provisioning';
 import { timeAgo } from '../../utils/timeAgo';
@@ -56,6 +57,16 @@ export function BuildJobs({
   }, [selectedId, loadList]);
 
   const activeStep = job ? job.steps.findIndex((s) => s.state === 'pending' || s.state === 'running') : -1;
+
+  const cancel = async () => {
+    if (!job) return;
+    try {
+      setJob(await provisioning.cancel(job.id));
+      loadList();
+    } catch (e: any) {
+      notifications.show({ color: 'red', title: 'Not cancelled', message: e.message });
+    }
+  };
 
   return (
     <Grid gap="md">
@@ -119,6 +130,11 @@ export function BuildJobs({
                 ))}
               </Timeline>
               <Group gap="xs">
+                {(job.status === 'queued' || job.status === 'running') && (
+                  <Button size="xs" variant="light" color="red" leftSection={<IconPlayerStop size={14} />} onClick={cancel}>
+                    {job.status === 'queued' ? 'Cancel build' : 'Stop after current step'}
+                  </Button>
+                )}
                 {job.status === 'succeeded' || job.steps.find((s) => s.name === 'classify')?.state === 'done' ? (
                   <Button size="xs" variant="light" onClick={() => navigate('/enc')}>Open Node Classifier</Button>
                 ) : null}

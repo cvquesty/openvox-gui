@@ -5,6 +5,6 @@ Thin Python client that speaks to an OpenVox GUI FastAPI backend.
 All heavy lifting (PuppetDB, Bolt, r10k, certs, ENC, etc.) happens server-side.
 """
 
-__version__ = "3.15.0-alpha.3"
+__version__ = "3.15.0-alpha.4"
 __author__ = "Jerald Sheets"
 __license__ = "Apache-2.0"

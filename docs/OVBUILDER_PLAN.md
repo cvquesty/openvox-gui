@@ -99,7 +99,7 @@ Build / Builds / Settings (+ Machines for lifecycle).
 | Agent install | cloud-init `runcmd` runs GUI `install.bash` with a hard-coded site table | Same, with the Agent Install page's live values, `main:certname=<fqdn>`, per-build challenge |
 | Cert signing | Manual | Challenge-verified auto-sign, else manual |
 | Classification | None | Wait for first report, then optional ENC environment + groups |
-| Job runner | Celery + Redis + Postgres, caps, cancel, webhook | `provision_jobs` table; in-process runner (increment 3 moves it out of uvicorn) |
+| Job runner | Celery + Redis + Postgres, caps, cancel, webhook | `provision_jobs` queue + `openvox-gui-provisioner` service (atomic claim), caps, cancel |
 
 ## Feature parity and status
 
@@ -115,7 +115,7 @@ Build / Builds / Settings (+ Machines for lifecycle).
 | Opt-in password SSH (golden password) | Not ported on purpose |
 | Site → compiler VIP / CA mapping | Done (alpha.3): bootstrap profiles |
 | Environment → datastore-cluster mapping | Done (alpha.3): placement presets |
-| Build caps, cancel, notifications | Increment 3 |
+| Build caps, cancel | Done (alpha.4); notifications later |
 | VM lifecycle (`vmops.py`) | Increment 4 |
 | CLI | Increment 5: `ovox vm` |
 | ISO mode + media detach, SSH bootstrap | Increment 6 (separate PR on `feature/ovbuilder` if large) |
@@ -133,7 +133,7 @@ lab validation is Jerald's (not possible from CI).
    (datacenter, compute, pool, folder, storage, NIC networks, template) and
    bootstrap profiles (server, CA, mirror URL, agent major) for consoles that
    serve several compiler VIPs; the default profile stays the Agent Install values.
-3. **Queue caps, cancel, out-of-worker runner.** Per-user and global active-build
+3. **alpha.4 — queue caps, cancel, out-of-worker runner** (done). Per-user and global active-build
    caps; cancel (before provisioning: clean stop; after: VM kept, step says so);
    a separate `openvox-gui-provisioner` process claims queued jobs so builds
    survive uvicorn restarts.

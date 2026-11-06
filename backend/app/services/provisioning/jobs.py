@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from ...database import async_session
 from ...models.provision_job import ProvisionJob
@@ -265,19 +265,25 @@ async def execute(
     reporter = DbReporter(job_id)
     await reporter._update(lambda row: setattr(row, "status", "running")
                            if row.status == "queued" else None)
+    if hooks is None:
+        hooks = app_hooks(requested_by, job_id)
     try:
         status = await run_build(
             validated,
             session_factory=factory,
             reporter=reporter,
-            hooks=hooks or app_hooks(requested_by, job_id),
+            hooks=hooks,
             guest_options=guest_options,
             timing=timing,
         )
         await reporter.finish(status)
         return status
     except BuildCancelled as exc:
-        await reporter.finish("cancelled", str(exc))
+        async with async_session() as db:
+            row = await db.get(ProvisionJob, job_id)
+            created = json.loads(row.result_json or "{}").get("vm_name", "") if row else ""
+        note = f"{exc}. {created} was already created; remove it in vCenter if it is not wanted." if created else str(exc)
+        await reporter.finish("cancelled", note)
         return "cancelled"
     except BuildError as exc:
         await reporter.finish("failed", str(exc))
@@ -286,6 +292,87 @@ async def execute(
         logger.exception("provisioning job %s crashed", job_id)
         await reporter.finish("failed", f"Internal error: {exc.__class__.__name__}")
         return "failed"
+
+
+async def count_active(username: Optional[str] = None) -> int:
+    stmt = select(func.count()).select_from(ProvisionJob).where(ProvisionJob.status.in_(ACTIVE))
+    if username is not None:
+        stmt = stmt.where(ProvisionJob.requested_by == username)
+    async with async_session() as db:
+        return int((await db.execute(stmt)).scalar_one())
+
+
+async def claim(job_id: str, worker: str) -> bool:
+    """Atomically move a queued job to running. Safe with several workers."""
+    async with async_session() as db:
+        result = await db.execute(
+            update(ProvisionJob)
+            .where(ProvisionJob.id == job_id, ProvisionJob.status == "queued")
+            .values(status="running", updated_at=_now())
+        )
+        await db.commit()
+    if result.rowcount != 1:
+        return False
+    await DbReporter(job_id).set_result(worker=worker)
+    return True
+
+
+async def next_queued(exclude: Optional[set] = None) -> Optional[str]:
+    async with async_session() as db:
+        rows = (await db.execute(
+            select(ProvisionJob.id).where(ProvisionJob.status == "queued")
+            .order_by(ProvisionJob.created_at).limit(20)
+        )).scalars().all()
+    for job_id in rows:
+        if not exclude or job_id not in exclude:
+            return job_id
+    return None
+
+
+async def touch(job_ids: List[str]) -> None:
+    if not job_ids:
+        return
+    async with async_session() as db:
+        await db.execute(update(ProvisionJob).where(ProvisionJob.id.in_(job_ids)).values(updated_at=_now()))
+        await db.commit()
+
+
+async def mark_orphaned(worker: str) -> List[str]:
+    """Jobs a previous run of this worker left running: mark them interrupted."""
+    async with async_session() as db:
+        rows = (await db.execute(
+            select(ProvisionJob).where(ProvisionJob.status.in_(("running", "cancelling")))
+        )).scalars().all()
+        orphaned = []
+        for row in rows:
+            owner = json.loads(row.result_json or "{}").get("worker", "")
+            if owner.split(":")[0] == worker.split(":")[0] and owner != worker:
+                row.status = "interrupted"
+                row.error = "The provisioner restarted while this build was running"
+                row.finished_at = _now()
+                orphaned.append(row.id)
+        await db.commit()
+    return orphaned
+
+
+async def request_cancel(job_id: str, user: str) -> Optional[Dict[str, Any]]:
+    """Queued → cancelled at once; running → cancelling (the pipeline stops at its next check)."""
+    async with async_session() as db:
+        row = await db.get(ProvisionJob, job_id)
+        if row is None:
+            return None
+        if row.status == "queued":
+            row.status = "cancelled"
+            row.error = f"Cancelled by {user} before it started"
+            row.finished_at = _now()
+        elif row.status == "running":
+            row.status = "cancelling"
+        else:
+            raise BuildError(f"A {row.status} build cannot be cancelled")
+        row.updated_at = _now()
+        await db.commit()
+        await db.refresh(row)
+        return serialize(row)
 
 
 def start_inline(job_id: str, validated: ValidatedRequest, **kwargs) -> asyncio.Task:

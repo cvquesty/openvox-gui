@@ -23,22 +23,21 @@ import asyncio
 import logging
 from dataclasses import asdict, replace
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from ..config import settings as app_settings
 from ..dependencies import require_role
-from ..services.provisioning import config_store, csr, jobs, presets
+from ..services.provisioning import bootstrap, config_store, csr, jobs, presets
 from ..services.provisioning.cloudinit import (
     BootstrapTarget,
-    GuestOptions,
     agent_install_command,
     build_userdata,
     redact_proxy_url,
 )
 from ..services.provisioning.netspec import NetSpecError, prefix_to_netmask
-from ..services.provisioning.provision import STEPS, ProvisionRequest, validate_request
+from ..services.provisioning.provision import STEPS, BuildError, ProvisionRequest, validate_request
 from ..services.provisioning.providers import get_provider, provider_catalog
 from ..services.provisioning.providers.base import ProviderError
 from ..utils.audit import audit_event
@@ -130,43 +129,11 @@ class ConnectionBody(BaseModel):
 # ─── Helpers ────────────────────────────────────────────────
 
 def bootstrap_target(agent_version: str = "") -> BootstrapTarget:
-    """Same server / CA / package mirror the Agent Install page uses."""
-    from .installer import (
-        _ca_server_fqdn,
-        _latest_agent_version,
-        _noproxy_hosts,
-        _pkg_repo_url,
-        _puppet_server_fqdn,
-    )
-
-    repo = _pkg_repo_url()
-    server = _puppet_server_fqdn()
-    ca = _ca_server_fqdn()
-    console = urlparse(repo).hostname or ""
-    return BootstrapTarget(
-        server=server,
-        ca_server=ca,
-        pkg_repo_url=repo,
-        agent_version=agent_version or _latest_agent_version(),
-        noproxy_hosts=tuple(h for h in _noproxy_hosts(console, server, ca).split(",") if h),
-    )
+    return bootstrap.bootstrap_target(agent_version)
 
 
-async def _guest_options(
-    cfg: config_store.ProvisioningSettings, with_bootstrap: bool, profile: str = "",
-) -> GuestOptions:
-    target = None
-    if with_bootstrap:
-        target = await presets.resolve_profile(
-            profile, lambda: bootstrap_target(cfg.agent_version), cfg.agent_version,
-        )
-    return GuestOptions(
-        ssh_authorized_keys=tuple(cfg.ssh_authorized_keys),
-        http_proxy=await config_store.load_http_proxy(),
-        no_proxy=tuple(cfg.no_proxy),
-        dnf_groups=tuple(cfg.dnf_groups),
-        bootstrap=target,
-    )
+async def _guest_options(cfg: config_store.ProvisioningSettings, with_bootstrap: bool, profile: str = ""):
+    return await bootstrap.guest_options(cfg, with_bootstrap, profile)
 
 
 async def _with_session(connection_id: str, fn):
@@ -201,6 +168,10 @@ async def _validated(body: BuildBody, default_domain: str):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _runner() -> str:
+    return "inline" if app_settings.provisioning_runner.strip().lower() == "inline" else "worker"
+
+
 async def _connections_view() -> List[Dict[str, Any]]:
     return [await config_store.public_connection(r) for r in await config_store.list_connections()]
 
@@ -228,7 +199,22 @@ async def status(_user: str = Depends(_USE)) -> Dict[str, Any]:
         "pyvmomi_installed": pyvmomi_available(),
         "bootstrap": target,
         "steps": list(STEPS),
+        "runner": _runner(),
+        "worker": await _worker_view(),
+        "limits": {
+            "max_parallel": app_settings.provisioning_max_parallel,
+            "max_active_per_user": app_settings.provisioning_max_active_per_user,
+            "max_active_total": app_settings.provisioning_max_active_total,
+        },
     }
+
+
+async def _worker_view() -> Dict[str, Any]:
+    from ..services.provisioning.worker import read_heartbeat
+
+    beat = await read_heartbeat()
+    return {"alive": bool(beat.get("alive")), "worker": beat.get("worker", ""), "age_s": beat.get("age_s"),
+            "running": len(beat.get("running") or [])}
 
 
 @router.get("/settings")
@@ -389,6 +375,14 @@ async def submit_build(body: BuildBody, user: str = Depends(_USE)) -> Dict[str, 
     validated, rec = await _validated(body, cfg.default_domain)
     if await jobs.active_job_for(validated.certname):
         raise HTTPException(status_code=409, detail=f"A build for {validated.certname} is already running")
+    mine = await jobs.count_active(user)
+    if mine >= app_settings.provisioning_max_active_per_user:
+        raise HTTPException(status_code=429, detail=(
+            f"You already have {mine} active builds (limit {app_settings.provisioning_max_active_per_user})"))
+    total = await jobs.count_active()
+    if total >= app_settings.provisioning_max_active_total:
+        raise HTTPException(status_code=429, detail=(
+            f"The build queue is full ({total} active, limit {app_settings.provisioning_max_active_total})"))
     try:
         factory, rec = await config_store.session_factory(rec.info.id)
         options = await _guest_options(cfg, body.bootstrap_agent, body.bootstrap_profile)
@@ -399,13 +393,26 @@ async def submit_build(body: BuildBody, user: str = Depends(_USE)) -> Dict[str, 
 
     job = await jobs.create_job(validated, provider=rec.info.provider, connection_id=rec.info.id,
                                 requested_by=user)
-    jobs.start_inline(job["id"], validated, factory=factory, guest_options=options, requested_by=user)
+    if _runner() == "inline":
+        jobs.start_inline(job["id"], validated, factory=factory, guest_options=options, requested_by=user)
     audit_event(
         "provisioning_build_submit", user=user, targets=validated.certname,
         detail=f"job={job['id']} provider={rec.info.provider} connection={rec.info.id} image={body.image} "
                f"bootstrap_profile={body.bootstrap_profile or presets.INSTALLER_PROFILE} "
                f"sign={body.sign_certificate} classify={bool(body.enc_environment)}",
     )
+    return job
+
+
+@router.post("/builds/{job_id}/cancel")
+async def cancel_build(job_id: str, user: str = Depends(_USE)) -> Dict[str, Any]:
+    try:
+        job = await jobs.request_cancel(job_id, user)
+    except BuildError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if job is None:
+        raise HTTPException(status_code=404, detail="Build not found")
+    audit_event("provisioning_build_cancel", user=user, targets=job["certname"], detail=f"job={job_id}")
     return job
 
 

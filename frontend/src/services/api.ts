@@ -970,6 +970,9 @@ export interface ProvisioningStatus {
     error?: string;
   };
   steps: string[];
+  runner: 'worker' | 'inline';
+  worker: { alive: boolean; worker: string; age_s?: number | null; running: number };
+  limits: { max_parallel: number; max_active_per_user: number; max_active_total: number };
 }
 
 export interface ProvisionStep {
@@ -1068,4 +1071,6 @@ export const provisioning = {
     fetchJSON<ProvisionJob>('/provisioning/builds', { method: 'POST', body: JSON.stringify(payload) }),
   builds: () => fetchJSON<ProvisionJob[]>('/provisioning/builds'),
   build: (id: string) => fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}`),
+  cancel: (id: string) =>
+    fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
 };

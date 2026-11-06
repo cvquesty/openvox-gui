@@ -1,0 +1,24 @@
+[Unit]
+Description=OpenVox GUI provisioner (runs queued Provisioning builds)
+Documentation=file://INSTALL_DIR/docs/PROVISIONING.md
+After=network-online.target openvox-gui.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=SERVICE_USER
+Group=SERVICE_GROUP
+WorkingDirectory=INSTALL_DIR/backend
+EnvironmentFile=INSTALL_DIR/config/.env
+ExecStart=INSTALL_DIR/venv/bin/python3 -m app.services.provisioning.worker
+Restart=always
+RestartSec=10
+# Builds sign CSRs through the same sudo / CA paths as the GUI service.
+NoNewPrivileges=false
+ProtectSystem=true
+PrivateTmp=false
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
