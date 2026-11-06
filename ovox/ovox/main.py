@@ -183,7 +183,7 @@ def status(ctx: typer.Context):
 # Command groups (imported from commands/)
 # ──────────────────────────────────────────────────────────────────────────────
 
-from .commands import nodes, certs, infra, token, maintenance  # noqa: E402
+from .commands import nodes, certs, infra, token, maintenance, vm  # noqa: E402
 
 cli.add_typer(nodes.app, name="nodes", help="Node inventory, facts, reports, and Puppet runs")
 cli.add_typer(certs.app, name="certs", help="Certificate authority operations (sign, revoke, audit)")
@@ -195,6 +195,7 @@ try:
     infra.app.add_typer(maintenance.app, name="maintenance", help="GUI maintenance (enable/disable/status with themed pages and clean API behavior)")
 except Exception:
     pass  # If the infra app doesn't support late addition in this build, the top-level command is still available.
+cli.add_typer(vm.app, name="vm", help="Provisioning: build VMware VMs as OpenVox agents and manage the machines the GUI built")
 cli.add_typer(token.app, name="token", help="Manage long-lived service API tokens (for Bolt, etc.)")
 
 

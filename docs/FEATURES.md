@@ -42,6 +42,7 @@ Groups match `frontend/src/components/AppShell.tsx`. Expand/collapse is remember
 | **Infrastructure** | Certificate Authority | `/certificates` |
 | | Orchestration | `/orchestration` |
 | | Agent Install | `/installer` |
+| | Provisioning | `/provisioning` |
 | | Certificate Audit | `/cert-audit` |
 | **Classification & Code** | Classification (ENC) | `/enc` |
 | | Code Deployment | `/deployment` |
@@ -144,6 +145,17 @@ Groups match `frontend/src/components/AppShell.tsx`. Expand/collapse is remember
 - On-demand and timer-based sync
 - First paint loads only the one-liner (`GET /installer/info`). Mirror package counts, disk usage, and upstream scrape wait until the Mirror tab is opened (`?full=true`, 2-minute cache). Sync Log polls the file and SSE-tails only on that tab; a success toast requires `.last-sync` to advance.
 - Details: [INSTALLER.md](INSTALLER.md)
+
+### Provisioning (`/provisioning`)
+
+- Port of the standalone **openvox-ovbuilder** VMware provisioner (3.15.0 train, alpha). `/vmbuilder` redirects here
+- Provider-agnostic core (identity, NICs, size, bootstrap, CSR challenge, jobs, classifier); **VMware vCenter** is the first provider; bare metal is [#173](https://github.com/cvquesty/openvox-gui/issues/173)
+- Form: hostname/FQDN (also the VM name), IPv4, netmask or prefix, gateway, DNS servers and search domains, extra NICs (static or DHCP), vCPU / memory / disk
+- Live vCenter inventory: datacenter, DRS cluster or standalone ESXi host, resource pool, VM folder, datastore or Storage DRS cluster, port groups, template (default prefix `ovbuilder-`)
+- Clone with a cloud-init `guestinfo` payload; first boot runs this console's `install.bash` with the Agent Install page's server / CA / mirror
+- Auto-sign only after the CSR carries this build's one-time challenge; then optional ENC environment and groups after the first report
+- Settings (admin): provider connections (id, default, encrypted password) and guest defaults
+- **admin** and **operator** only; settings **admin** only. Details: [PROVISIONING.md](PROVISIONING.md), plan [OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)
 
 ### Certificate Audit (`/cert-audit`)
 
@@ -320,6 +332,7 @@ Full Jolokia/auth setup: [METRICS.md](METRICS.md). Host Health: [HOST_HEALTH.md]
 | `/api/performance` | Run performance bundles |
 | `/api/logs` | Log sources and tails |
 | `/api/installer` | Mirror sync, scripts |
+| `/api/provisioning` | Provider connections, inventory, build preview/submit/jobs, guest defaults |
 | `/api/ssl` | SSL wizard |
 | `/api/infra` | Health/tune surfaces for ovox infra |
 | `/api/maintenance` | Maintenance mode |

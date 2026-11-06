@@ -173,6 +173,25 @@ class Settings(BaseSettings):
     ssl_key_path: Optional[str] = None
     ssl_ca_certs: Optional[str] = None  # Optional: for client cert verification (mTLS)
 
+    # ── Provisioning (VM builder) ────────────────────────────
+    # Seed for the default vCenter connection when none is saved yet.
+    # Connections saved on Provisioning → Settings (app DB; password
+    # Fernet-encrypted) take precedence.
+    vcenter_host: str = ""
+    vcenter_port: int = 443
+    vcenter_user: str = ""
+    vcenter_password: str = ""
+    vcenter_verify_ssl: bool = True
+    vcenter_ca_bundle: str = ""
+    # Development only: built-in fake provider inventory and provisioning.
+    provisioning_fake: bool = False
+    # "worker": the openvox-gui-provisioner service runs queued builds.
+    # "inline": run builds inside the uvicorn worker that accepted them (dev/tests).
+    provisioning_runner: str = "worker"
+    provisioning_max_parallel: int = 2
+    provisioning_max_active_per_user: int = 3
+    provisioning_max_active_total: int = 10
+
     class Config:
         env_prefix = "OPENVOX_GUI_"
         env_file = "/opt/openvox-gui/config/.env"

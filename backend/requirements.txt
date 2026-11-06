@@ -29,6 +29,9 @@ python-json-logger==4.2.0
 slowapi==0.1.10
 itsdangerous==2.2.0
 ldap3==2.9.1
+# VM builder (VMware vCenter inventory + template clone). Imported lazily;
+# the GUI starts without it and the VM builder page reports it missing.
+pyvmomi>=8.0.3.0,<10
 
 # ovox CLI (shipped with the GUI; installed into the same venv)
 typer>=0.27.3

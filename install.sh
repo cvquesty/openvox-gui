@@ -557,9 +557,9 @@ if [ "$UNINSTALL" = "true" ]; then
         exit 0
     fi
     echo -e "${CYAN}→${NC} Stopping and disabling service..."
-    systemctl stop openvox-gui 2>/dev/null || true
-    systemctl disable openvox-gui 2>/dev/null || true
-    rm -f /etc/systemd/system/openvox-gui.service
+    systemctl stop openvox-gui openvox-gui-provisioner 2>/dev/null || true
+    systemctl disable openvox-gui openvox-gui-provisioner 2>/dev/null || true
+    rm -f /etc/systemd/system/openvox-gui.service /etc/systemd/system/openvox-gui-provisioner.service
     systemctl daemon-reload
     echo -e "${CYAN}→${NC} Removing sudoers rules..."
     # Per Option 1 / issue #36 policy we only remove the file(s) that
@@ -1451,6 +1451,15 @@ WantedBy=multi-user.target
 SVCEOF
 log_ok "Installed systemd service unit"
 
+# Provisioning worker (runs queued builds outside the uvicorn workers).
+if [ -f "${SCRIPT_DIR}/config/openvox-gui-provisioner.service" ]; then
+    sed "s|INSTALL_DIR|${INSTALL_DIR}|g" "${SCRIPT_DIR}/config/openvox-gui-provisioner.service" \
+        | sed "s|SERVICE_USER|${SERVICE_USER}|g" \
+        | sed "s|SERVICE_GROUP|${SERVICE_GROUP}|g" \
+        > /etc/systemd/system/openvox-gui-provisioner.service
+    log_ok "Installed openvox-gui-provisioner.service"
+fi
+
 # Belt-and-suspenders: ensure PUPPET_SERVER_HOST is defined before invoking the
 # sudoers manager (the Let's Encrypt rule references it). This mirrors the
 # early detection added to update_local.sh and deploy.sh.
@@ -1921,6 +1930,12 @@ CREDEOF
 else
     systemctl enable openvox-gui
     systemctl start openvox-gui
+fi
+
+if [ -f /etc/systemd/system/openvox-gui-provisioner.service ]; then
+    systemctl enable openvox-gui-provisioner >/dev/null 2>&1 || true
+    systemctl restart openvox-gui-provisioner >/dev/null 2>&1 \
+        || log_warn "openvox-gui-provisioner did not start (Provisioning builds will stay queued)"
 fi
 
 # Verify service is running

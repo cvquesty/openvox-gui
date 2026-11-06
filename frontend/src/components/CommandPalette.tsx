@@ -34,6 +34,7 @@ const DEFAULT_ACTIONS: PaletteAction[] = [
   { id: 'logs', label: 'Logs', path: '/logs', keywords: 'journalctl' },
   { id: 'inventory', label: 'Inventory', path: '/inventory', keywords: 'fleet inventory' },
   { id: 'installer', label: 'Agent Installer', path: '/installer', keywords: 'bootstrap packages' },
+  { id: 'provisioning', label: 'Provisioning', path: '/provisioning', keywords: 'vm builder vmware vcenter provision clone template ovbuilder bare metal' },
   { id: 'cert-audit', label: 'Certificate Audit', path: '/cert-audit', keywords: 'stale certs clean' },
   { id: 'hiera', label: 'Hiera Data Files', path: '/data/hiera', keywords: 'yaml data' },
   { id: 'lookup', label: 'Hiera Lookup', path: '/data/lookup', keywords: 'explain' },

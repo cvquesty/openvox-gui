@@ -9,6 +9,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.6] - 2026-11-06
+
+### Added
+- **`ovox vm`** — Provisioning from the terminal (thin client over
+  `/api/provisioning`): `connections`, `inventory`, `images`, `presets`,
+  `build` (flags or `--preset`, `--nic`, `--preview`, `--wait`), `builds`,
+  `status`, `cancel`, `machines`, `power`, `snapshot`, `destroy`.
+
+## [3.15.0-alpha.5] - 2026-11-06
+
+### Added
+- **Machines tab** (lifecycle of VMs this GUI built; port of ovbuilder
+  `vmops.py`). Live power state and IP; power on / guest shutdown / power
+  off / reboot and snapshot for admin and operator; destroy for admin with
+  typed-certname confirmation that also deactivates the node in OpenVoxDB,
+  cleans its CA certificate and removes its ENC node (each optional,
+  reported per step, audited). Estate server identities are refused.
+- Provider interface: `power()`, `snapshot()`, `destroy()`, `InstanceNotFound`.
+- `/api/provisioning/machines` (+ `/power`, `/snapshot`, `/destroy`).
+
+## [3.15.0-alpha.4] - 2026-11-06
+
+### Added
+- **`openvox-gui-provisioner` service.** Builds are queued and run by a
+  separate systemd service (`python -m app.services.provisioning.worker`),
+  installed and enabled by `install.sh`, `update_local.sh` and
+  `deploy.sh`. Jobs are claimed with an atomic `queued → running` update,
+  so clustered consoles can each run one. Heartbeat in `gui_kv`; the page
+  warns when no provisioner is alive. A restart marks that host's running
+  builds `interrupted`.
+- **Cancel** (`POST /api/provisioning/builds/{id}/cancel`): queued builds
+  stop at once; running builds stop at the next checkpoint.
+- **Queue caps:** `OPENVOX_GUI_PROVISIONING_MAX_ACTIVE_PER_USER` (3),
+  `_MAX_ACTIVE_TOTAL` (10), `_MAX_PARALLEL` (2); HTTP 429 over a cap.
+  `OPENVOX_GUI_PROVISIONING_RUNNER=inline` keeps the old in-process runner
+  for development.
+
+## [3.15.0-alpha.3] - 2026-11-06
+
+### Added
+- **Bootstrap profiles (admin).** Named server / CA / package mirror /
+  agent major targets for new agents, for consoles that provision for more
+  than one compiler VIP. The built-in profile is the Agent Install page's
+  values. Builds pick a profile; `/api/provisioning/bootstrap-profiles`.
+- **Placement presets (admin and operator).** Save the form's placement,
+  NIC networks, template, size and bootstrap profile per connection and
+  apply them to later builds. Identity is never stored; values are
+  re-validated at build time. `/api/provisioning/presets`.
+- Tables `provision_presets`, `provision_bootstrap_profiles` (alembic
+  `007_provisioning_presets`).
+
+## [3.15.0-alpha.2] - 2026-11-06
+
+Owner decisions on the VM builder (PR #172), plus the provider-agnostic
+restructure. Not tagged.
+
+### Changed
+- **VM Builder is now Infrastructure → Provisioning** (`/provisioning`;
+  `/vmbuilder` redirects). API `/api/provisioning/*`, backend package
+  `services/provisioning`, tables `provision_jobs` and
+  `provision_connections` (alembic `006_provisioning` replaces the unreleased
+  `006_vm_build_jobs`), dev flag `OPENVOX_GUI_PROVISIONING_FAKE`, doc
+  [docs/PROVISIONING.md](docs/PROVISIONING.md). alpha.1 settings and jobs are
+  not migrated (never deployed).
+- **Provider interface.** VMware is one provider behind
+  `providers/base.py` (connection, inventory, placement, provision, payload
+  scrub). Identity, NIC addressing, size, cloud-init, the CSR challenge,
+  jobs and the classifier handoff are shared, so bare metal (#173) can plug in.
+- **The vCenter VM name is the FQDN.** The separate VM-name field is gone.
+- **`ovbuilder-` is the default template prefix** (per connection).
+- Auto-sign is on by default on the form now that it is verified per build.
+
+### Added
+- **Per-build CSR challenge.** Auto-sign generates a one-time token,
+  delivers it to the guest as `challengePassword` in `csr_attributes.yaml`,
+  stores only its SHA-256, fetches the pending CSR from the CA and signs only
+  when CN and challenge match. Missing or wrong challenge → not signed,
+  step `rejected`, `provisioning_csr_rejected` audit. After the CSR is
+  handled the VM's `guestinfo.userdata` is blanked.
+- **Provider connections**: `provision_connections` rows with an id,
+  provider, endpoint, options and one default; passwords in
+  `cluster_secrets` as `provisioning_connection_password:<id>`. Builds and
+  inventory endpoints reference a connection; the form shows a picker when
+  there is more than one. `OPENVOX_GUI_VCENTER_*` seed the `default` connection.
+- **Multiple NICs.** Extra NICs per build: port group plus static address
+  (no gateway) or DHCP; the template's NICs are re-backed in order and
+  vmxnet3s added for the rest.
+- `certificates_service.fetch_csr_pem()`.
+- Docs: decisions, provider architecture, navigation plan and remaining
+  increments in [docs/OVBUILDER_PLAN.md](docs/OVBUILDER_PLAN.md); VLAN routes
+  to 4567 and 8140 recorded as a prerequisite.
+
+## [3.15.0-alpha.1] - 2026-11-06
+
+First pre-release of the 3.15.0 minor, cut on the `feature/ovbuilder`
+branch. Not tagged; lab validation against a real vCenter is pending.
+
+### Added
+- **VM Builder (Infrastructure → VM Builder, `/vmbuilder`).** Port of the
+  standalone openvox-ovbuilder VMware provisioner. Enter hostname/FQDN, IP,
+  netmask or prefix, gateway, DNS and size; pick datacenter, DRS cluster or
+  standalone host, resource pool, folder, datastore or Storage DRS cluster,
+  port group and template from live vCenter inventory (tables plus pickers).
+  The GUI clones the template with pyVmomi and powers it on. A cloud-init
+  `guestinfo` payload sets the hostname and static IPv4 on the template's
+  existing NIC and runs this console's `install.bash` with the Agent Install
+  page's server, CA and mirror. Optional per build: sign that node's CSR,
+  then apply an ENC environment and groups after its first report.
+- **Builds tab** with per-step progress (validate, clone, guest network,
+  certificate, classifier) and a log, stored in the new `vm_build_jobs`
+  table (alembic `006_vm_build_jobs`).
+- **VM Builder settings (admin).** vCenter host, account, TLS verification,
+  template name prefix, default domain and datacenter, SSH keys, DNF groups,
+  guest proxy. The vCenter password and proxy URL are Fernet-encrypted
+  `cluster_secrets` rows and are never returned to the browser.
+- `/api/vmbuilder/*`: inventory, preview, builds for admin and operator;
+  settings for admin. Audit lines for submit, settings, auto-sign, classify.
+- `pyvmomi` in `backend/requirements.txt` (imported lazily).
+- `OPENVOX_GUI_VMBUILDER_FAKE=true` serves an in-memory vCenter for
+  development; the page shows a banner. Tests use the same fake.
+- Docs: `docs/VM_BUILDER.md` (now [docs/PROVISIONING.md](docs/PROVISIONING.md)),
+  [docs/OVBUILDER_PLAN.md](docs/OVBUILDER_PLAN.md).
+
 ## [3.14.3-dev.3] - 2026-10-27
 
 ### Changed

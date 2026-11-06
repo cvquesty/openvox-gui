@@ -12,6 +12,11 @@ There is no 3.13.0 GitHub Release. **3.14.1-dev.4** is the current
 snapshot (ENC upsert + mirror sync continue-on-error, on top of
 3.14.1-dev.2 packaging).
 
+**Feature branch `feature/ovbuilder` (`3.15.0-alpha` train):** built-in
+Infrastructure → Provisioning (VMware provider), ported from openvox-ovbuilder.
+Alpha, lab validation pending.
+See [PROVISIONING.md](PROVISIONING.md) and [OVBUILDER_PLAN.md](OVBUILDER_PLAN.md).
+
 ---
 
 ## 1. Product intent

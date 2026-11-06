@@ -925,3 +925,188 @@ export const executionHistory = {
     fetchJSON<any>(`/execution-history/cleanup/old?days=${days}`, { method: 'DELETE' }),
 };
 
+
+// ─── Provisioning (VMware today; providers pluggable, ovbuilder port) ─────
+
+export interface ProvisioningSettings {
+  default_domain: string;
+  ssh_authorized_keys: string[];
+  dnf_groups: string[];
+  no_proxy: string[];
+  agent_version: string;
+  http_proxy_set: boolean;
+}
+
+export interface ProvisionConnection {
+  id: string;
+  provider: string;
+  provider_label: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  verify_ssl: boolean;
+  ca_bundle: string;
+  options: Record<string, any>;
+  is_default: boolean;
+  source: 'db' | 'env' | 'fake';
+  password_set: boolean;
+  configured: boolean;
+}
+
+export interface ProvisioningStatus {
+  settings: ProvisioningSettings;
+  connections: ProvisionConnection[];
+  default_connection: string;
+  configured: boolean;
+  providers: { kind: string; label: string }[];
+  fake_mode: boolean;
+  pyvmomi_installed: boolean;
+  bootstrap: {
+    server?: string;
+    ca_server?: string;
+    pkg_repo_url?: string;
+    agent_version?: string;
+    error?: string;
+  };
+  steps: string[];
+  runner: 'worker' | 'inline';
+  worker: { alive: boolean; worker: string; age_s?: number | null; running: number };
+  limits: { max_parallel: number; max_active_per_user: number; max_active_total: number };
+}
+
+export interface ProvisionStep {
+  name: string;
+  state: string;
+  message?: string;
+  at?: string;
+}
+
+export interface ProvisionJob {
+  id: string;
+  provider: string;
+  connection_id: string;
+  certname: string;
+  vm_name: string;
+  status: string;
+  steps: ProvisionStep[];
+  request: Record<string, any>;
+  result: Record<string, any>;
+  csr_verified: boolean;
+  log: string;
+  error: string;
+  requested_by: string;
+  created_at: string | null;
+  updated_at: string | null;
+  finished_at: string | null;
+}
+
+export interface ProvisionPreview {
+  certname: string;
+  vm_name: string;
+  ip: string;
+  prefix: number;
+  netmask: string;
+  nics: { network: string; ip: string; prefix: number; gateway: string }[];
+  agent_command: string;
+  userdata: string;
+}
+
+export interface ProvisionPreset {
+  id: string;
+  name: string;
+  connection_id: string;
+  placement: Record<string, string>;
+  networks: string[];
+  image: string;
+  cpus?: number;
+  memory_gb?: number;
+  disk_gb?: number;
+  bootstrap_profile: string;
+  updated_by: string;
+}
+
+export interface BootstrapProfile {
+  id: string;
+  name: string;
+  server?: string;
+  ca_server?: string;
+  pkg_repo_url?: string;
+  agent_version?: string;
+  builtin: boolean;
+  error?: string;
+}
+
+export interface ProvisionMachine {
+  job_id: string;
+  certname: string;
+  name: string;
+  instance_id: string;
+  provider: string;
+  connection_id: string;
+  build_status: string;
+  guest_ip: string;
+  requested_by: string;
+  created_at: string | null;
+  snapshots: { name: string; id: string; by: string; at: string }[];
+  last_action?: { action: string; by: string; at: string } | null;
+  live?: { power_state?: string; ip_address?: string; tools_status?: string; error?: string };
+}
+
+export interface DestroyResult {
+  job_id: string;
+  certname: string;
+  ok: boolean;
+  steps: Record<string, { ok: boolean; message: string }>;
+}
+
+type Inv = import('../utils/provisioning').InventoryItem;
+const conn = (id: string) => `/provisioning/connections/${encodeURIComponent(id)}`;
+
+export const provisioning = {
+  status: () => fetchJSON<ProvisioningStatus>('/provisioning/status'),
+  getSettings: () => fetchJSON<ProvisioningSettings>('/provisioning/settings'),
+  saveSettings: (patch: Record<string, unknown>) =>
+    fetchJSON<ProvisioningSettings>('/provisioning/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+  connections: () => fetchJSON<ProvisionConnection[]>('/provisioning/connections'),
+  saveConnection: (id: string, patch: Record<string, unknown>) =>
+    fetchJSON<ProvisionConnection>(conn(id), { method: 'PUT', body: JSON.stringify(patch) }),
+  deleteConnection: (id: string) => fetchJSON<void>(conn(id), { method: 'DELETE' }),
+  testConnection: (id: string) =>
+    fetchJSON<{ ok: boolean; scopes: string[] }>(`${conn(id)}/test`, { method: 'POST' }),
+  scopes: (id: string) => fetchJSON<Inv[]>(`${conn(id)}/scopes`),
+  inventory: <T = import('../utils/provisioning').VmwareDatacenterInventory>(id: string, scope: string) =>
+    fetchJSON<T>(`${conn(id)}/inventory/${encodeURIComponent(scope)}`),
+  images: (id: string) => fetchJSON<Inv[]>(`${conn(id)}/images`),
+  presets: (connection = '') =>
+    fetchJSON<ProvisionPreset[]>(`/provisioning/presets${connection ? `?connection=${encodeURIComponent(connection)}` : ''}`),
+  savePreset: (id: string, body: Record<string, unknown>) =>
+    fetchJSON<ProvisionPreset>(`/provisioning/presets/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deletePreset: (id: string) => fetchJSON<void>(`/provisioning/presets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  profiles: () => fetchJSON<BootstrapProfile[]>('/provisioning/bootstrap-profiles'),
+  saveProfile: (id: string, body: Record<string, unknown>) =>
+    fetchJSON<BootstrapProfile>(`/provisioning/bootstrap-profiles/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteProfile: (id: string) =>
+    fetchJSON<void>(`/provisioning/bootstrap-profiles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  preview: (payload: Record<string, unknown>) =>
+    fetchJSON<ProvisionPreview>('/provisioning/preview', { method: 'POST', body: JSON.stringify(payload) }),
+  submit: (payload: Record<string, unknown>) =>
+    fetchJSON<ProvisionJob>('/provisioning/builds', { method: 'POST', body: JSON.stringify(payload) }),
+  builds: () => fetchJSON<ProvisionJob[]>('/provisioning/builds'),
+  build: (id: string) => fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}`),
+  machines: (live = false) => fetchJSON<ProvisionMachine[]>(`/provisioning/machines${live ? '?live=true' : ''}`),
+  power: (jobId: string, action: 'on' | 'off' | 'shutdown' | 'reboot') =>
+    fetchJSON<{ power_state: string }>(`/provisioning/machines/${encodeURIComponent(jobId)}/power`, {
+      method: 'POST', body: JSON.stringify({ action }),
+    }),
+  snapshot: (jobId: string, name: string, description = '') =>
+    fetchJSON<{ snapshot: string }>(`/provisioning/machines/${encodeURIComponent(jobId)}/snapshot`, {
+      method: 'POST', body: JSON.stringify({ name, description }),
+    }),
+  destroy: (jobId: string, body: { confirm: string; deactivate: boolean; clean_cert: boolean; remove_enc: boolean }) =>
+    fetchJSON<DestroyResult>(`/provisioning/machines/${encodeURIComponent(jobId)}/destroy`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+  cancel: (id: string) =>
+    fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+};

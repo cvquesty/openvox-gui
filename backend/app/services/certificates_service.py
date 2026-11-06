@@ -313,6 +313,7 @@ async def _ca_http_request(
     json_body: Optional[dict] = None,
     timeout: int = 30,
     host: Optional[str] = None,
+    accept: str = "application/json",
 ) -> Tuple[int, Any, str]:
     """mTLS HTTPS to the CA API. Returns (http_status, json_or_none, error_text)."""
     target = (host or resolve_ca_host() or "").strip()
@@ -330,7 +331,7 @@ async def _ca_http_request(
                 method,
                 url,
                 json=json_body,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={"Accept": accept, "Content-Type": "application/json"},
             )
             body: Any = None
             text = resp.text or ""
@@ -826,6 +827,40 @@ async def cert_state_anywhere(certname: str, timeout: int = 5) -> Optional[str]:
             state = str(body.get("state") or "").strip().lower()
             if state:
                 return state
+    return None
+
+
+CA_REQUEST_DIRS = (
+    Path("/etc/puppetlabs/puppetserver/ca/requests"),
+    Path("/etc/puppetlabs/puppet/ssl/ca/requests"),
+)
+
+
+async def fetch_csr_pem(certname: str, timeout: int = 10) -> Optional[bytes]:
+    """Pending CSR PEM for *certname*: CA HTTP on each member, then the local cadir.
+
+    The CSR only exists on the promoted CA, so every member is probed.
+    Returns None when no CSR can be read (callers must then refuse to sign).
+    """
+    if not certname or "/" in certname or ".." in certname:
+        return None
+    path = f"/puppet-ca/v1/certificate_request/{quote(certname, safe='')}"
+    for host in ca_http_targets():
+        status, _body, text = await _ca_http_request(
+            "GET", path, timeout=timeout, host=host, accept="text/plain"
+        )
+        if status == 200 and "BEGIN CERTIFICATE REQUEST" in (text or ""):
+            return text.encode("utf-8")
+    for directory in CA_REQUEST_DIRS:
+        candidate = directory / f"{certname}.pem"
+        try:
+            if not candidate.parent.exists():
+                continue
+        except OSError:
+            continue
+        data = await _read_pem_bytes_async(candidate)
+        if data and b"BEGIN CERTIFICATE REQUEST" in data:
+            return data
     return None
 
 

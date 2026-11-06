@@ -72,6 +72,8 @@ release.
 These need a real OpenVox server, Bolt inventory, or operator credentials:
 
 - Live PuppetDB / CA / compiler HTTP
+- A real vCenter. Provisioning tests use the in-memory fake vCenter
+  (`backend/app/services/provisioning/providers/vmware/fake.py`); see [PROVISIONING.md](PROVISIONING.md)
 - `scripts/update_remote.sh` deploys
 - Browser end-to-end (Playwright) — not wired yet
 - Full mypy / ruff style on the historical tree (the CI ruff gate is
