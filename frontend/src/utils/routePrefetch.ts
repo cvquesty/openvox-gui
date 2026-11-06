@@ -27,7 +27,7 @@ export const ROUTE_LOADERS: RouteLoader[] = [
   { id: 'lookup', match: (p) => p.startsWith('/data/lookup'), load: () => import('../pages/DataLookup') },
   { id: 'certificates', match: (p) => p.startsWith('/certificates'), load: () => import('../pages/Certificates') },
   { id: 'installer', match: (p) => p.startsWith('/installer'), load: () => import('../pages/Installer') },
-  { id: 'vmbuilder', match: (p) => p.startsWith('/vmbuilder'), load: () => import('../pages/VmBuilder') },
+  { id: 'provisioning', match: (p) => p.startsWith('/provisioning'), load: () => import('../pages/Provisioning') },
   { id: 'logs', match: (p) => p.startsWith('/logs'), load: () => import('../pages/Logs') },
   { id: 'inventory', match: (p) => p.startsWith('/inventory'), load: () => import('../pages/Inventory') },
   { id: 'cert-audit', match: (p) => p.startsWith('/cert-audit'), load: () => import('../pages/CertAudit') },

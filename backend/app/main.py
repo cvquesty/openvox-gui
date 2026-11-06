@@ -42,7 +42,7 @@ from .routers import logs as logs_router
 from .routers import metrics as metrics_router
 from .routers import infra as infra_router
 from .routers import maintenance as maintenance_router
-from .routers import vmbuilder as vmbuilder_router
+from .routers import provisioning as provisioning_router
 from .services.puppetdb import puppetdb_service
 from .utils.exceptions import OpenVoxError
 
@@ -336,7 +336,7 @@ app.include_router(logs_router.router)
 app.include_router(metrics_router.router)
 app.include_router(infra_router.router)
 app.include_router(maintenance_router.router)
-app.include_router(vmbuilder_router.router)
+app.include_router(provisioning_router.router)
 
 # Serve React frontend static files
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"

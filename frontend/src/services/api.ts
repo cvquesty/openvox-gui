@@ -926,30 +926,42 @@ export const executionHistory = {
 };
 
 
-// ─── VM builder (VMware, ovbuilder port) ─────────────────────
+// ─── Provisioning (VMware today; providers pluggable, ovbuilder port) ─────
 
-export interface VmBuilderSettings {
-  vcenter_host: string;
-  vcenter_port: number;
-  vcenter_user: string;
-  verify_ssl: boolean;
-  ca_bundle: string;
-  template_prefix: string;
+export interface ProvisioningSettings {
   default_domain: string;
-  default_datacenter: string;
   ssh_authorized_keys: string[];
   dnf_groups: string[];
   no_proxy: string[];
   agent_version: string;
-  password_set: boolean;
   http_proxy_set: boolean;
-  fake_mode: boolean;
-  pyvmomi_installed: boolean;
+}
+
+export interface ProvisionConnection {
+  id: string;
+  provider: string;
+  provider_label: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  verify_ssl: boolean;
+  ca_bundle: string;
+  options: Record<string, any>;
+  is_default: boolean;
+  source: 'db' | 'env' | 'fake';
+  password_set: boolean;
   configured: boolean;
 }
 
-export interface VmBuilderStatus {
-  settings: VmBuilderSettings;
+export interface ProvisioningStatus {
+  settings: ProvisioningSettings;
+  connections: ProvisionConnection[];
+  default_connection: string;
+  configured: boolean;
+  providers: { kind: string; label: string }[];
+  fake_mode: boolean;
+  pyvmomi_installed: boolean;
   bootstrap: {
     server?: string;
     ca_server?: string;
@@ -960,21 +972,24 @@ export interface VmBuilderStatus {
   steps: string[];
 }
 
-export interface VmBuildStep {
+export interface ProvisionStep {
   name: string;
   state: string;
   message?: string;
   at?: string;
 }
 
-export interface VmBuildJob {
+export interface ProvisionJob {
   id: string;
+  provider: string;
+  connection_id: string;
   certname: string;
   vm_name: string;
   status: string;
-  steps: VmBuildStep[];
+  steps: ProvisionStep[];
   request: Record<string, any>;
   result: Record<string, any>;
+  csr_verified: boolean;
   log: string;
   error: string;
   requested_by: string;
@@ -983,35 +998,39 @@ export interface VmBuildJob {
   finished_at: string | null;
 }
 
-export interface VmBuildPreview {
+export interface ProvisionPreview {
   certname: string;
   vm_name: string;
   ip: string;
   prefix: number;
   netmask: string;
+  nics: { network: string; ip: string; prefix: number; gateway: string }[];
   agent_command: string;
   userdata: string;
 }
 
-export const vmbuilder = {
-  status: () => fetchJSON<VmBuilderStatus>('/vmbuilder/status'),
-  getSettings: () => fetchJSON<VmBuilderSettings>('/vmbuilder/settings'),
+type Inv = import('../utils/provisioning').InventoryItem;
+const conn = (id: string) => `/provisioning/connections/${encodeURIComponent(id)}`;
+
+export const provisioning = {
+  status: () => fetchJSON<ProvisioningStatus>('/provisioning/status'),
+  getSettings: () => fetchJSON<ProvisioningSettings>('/provisioning/settings'),
   saveSettings: (patch: Record<string, unknown>) =>
-    fetchJSON<VmBuilderSettings>('/vmbuilder/settings', { method: 'PUT', body: JSON.stringify(patch) }),
-  testConnection: () =>
-    fetchJSON<{ ok: boolean; datacenters: string[] }>('/vmbuilder/settings/test', { method: 'POST' }),
-  datacenters: () =>
-    fetchJSON<import('../utils/vmbuilder').VmInventoryItem[]>('/vmbuilder/inventory/datacenters'),
-  datacenter: (name: string) =>
-    fetchJSON<import('../utils/vmbuilder').VmDatacenterInventory>(
-      `/vmbuilder/inventory/datacenters/${encodeURIComponent(name)}`,
-    ),
-  templates: () =>
-    fetchJSON<import('../utils/vmbuilder').VmInventoryItem[]>('/vmbuilder/inventory/templates'),
+    fetchJSON<ProvisioningSettings>('/provisioning/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+  connections: () => fetchJSON<ProvisionConnection[]>('/provisioning/connections'),
+  saveConnection: (id: string, patch: Record<string, unknown>) =>
+    fetchJSON<ProvisionConnection>(conn(id), { method: 'PUT', body: JSON.stringify(patch) }),
+  deleteConnection: (id: string) => fetchJSON<void>(conn(id), { method: 'DELETE' }),
+  testConnection: (id: string) =>
+    fetchJSON<{ ok: boolean; scopes: string[] }>(`${conn(id)}/test`, { method: 'POST' }),
+  scopes: (id: string) => fetchJSON<Inv[]>(`${conn(id)}/scopes`),
+  inventory: <T = import('../utils/provisioning').VmwareDatacenterInventory>(id: string, scope: string) =>
+    fetchJSON<T>(`${conn(id)}/inventory/${encodeURIComponent(scope)}`),
+  images: (id: string) => fetchJSON<Inv[]>(`${conn(id)}/images`),
   preview: (payload: Record<string, unknown>) =>
-    fetchJSON<VmBuildPreview>('/vmbuilder/preview', { method: 'POST', body: JSON.stringify(payload) }),
+    fetchJSON<ProvisionPreview>('/provisioning/preview', { method: 'POST', body: JSON.stringify(payload) }),
   submit: (payload: Record<string, unknown>) =>
-    fetchJSON<VmBuildJob>('/vmbuilder/builds', { method: 'POST', body: JSON.stringify(payload) }),
-  builds: () => fetchJSON<VmBuildJob[]>('/vmbuilder/builds'),
-  build: (id: string) => fetchJSON<VmBuildJob>(`/vmbuilder/builds/${encodeURIComponent(id)}`),
+    fetchJSON<ProvisionJob>('/provisioning/builds', { method: 'POST', body: JSON.stringify(payload) }),
+  builds: () => fetchJSON<ProvisionJob[]>('/provisioning/builds'),
+  build: (id: string) => fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}`),
 };

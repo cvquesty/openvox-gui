@@ -1,12 +1,14 @@
 /**
- * VM builder form helpers (pure; unit-tested in vmbuilder.test.ts).
+ * Provisioning form helpers (pure; unit-tested in provisioning.test.ts).
  *
  * The backend re-validates everything. These give the operator
- * field-level errors before submit and narrow inventory pickers to what
- * the chosen compute resource can actually use.
+ * field-level errors before submit and narrow VMware inventory pickers to
+ * what the chosen compute resource can actually use. The base fields
+ * (identity, NICs, size, bootstrap) are provider-agnostic; ``placement``
+ * is provider-specific (VMware today; bare metal is issue #173).
  */
 
-export interface VmInventoryItem {
+export interface InventoryItem {
   moid: string;
   name: string;
   kind: string;
@@ -15,29 +17,38 @@ export interface VmInventoryItem {
   details: Record<string, any>;
 }
 
-export interface VmDatacenterInventory {
-  datacenter: VmInventoryItem;
-  compute: VmInventoryItem[];
-  resource_pools: VmInventoryItem[];
-  folders: VmInventoryItem[];
-  datastores: VmInventoryItem[];
-  datastore_clusters: VmInventoryItem[];
-  networks: VmInventoryItem[];
+export interface VmwareDatacenterInventory {
+  datacenter: InventoryItem;
+  compute: InventoryItem[];
+  resource_pools: InventoryItem[];
+  folders: InventoryItem[];
+  datastores: InventoryItem[];
+  datastore_clusters: InventoryItem[];
+  networks: InventoryItem[];
 }
 
 export type StorageMode = 'datastore' | 'datastore_cluster';
 
-export interface VmBuildForm {
+export interface ExtraNic {
+  network: string;
+  ip: string;
+  netmask: string;
+}
+
+export interface BuildFormState {
+  connection: string;
   hostname: string;
   ip: string;
   netmask: string;
   gateway: string;
   dns_servers: string[];
   search_domains: string[];
-  vm_name: string;
+  network: string;
+  extra_nics: ExtraNic[];
   cpus: number;
   memory_gb: number;
   disk_gb: number;
+  image: string;
   datacenter: string;
   compute: string;
   resource_pool: string;
@@ -45,8 +56,6 @@ export interface VmBuildForm {
   storage_mode: StorageMode;
   datastore: string;
   datastore_cluster: string;
-  network: string;
-  template: string;
   annotation: string;
   bootstrap_agent: boolean;
   sign_certificate: boolean;
@@ -54,17 +63,22 @@ export interface VmBuildForm {
   enc_group_ids: number[];
 }
 
-export const EMPTY_BUILD_FORM: VmBuildForm = {
+export const MAX_NICS = 8;
+
+export const EMPTY_BUILD_FORM: BuildFormState = {
+  connection: '',
   hostname: '',
   ip: '',
   netmask: '24',
   gateway: '',
   dns_servers: [],
   search_domains: [],
-  vm_name: '',
+  network: '',
+  extra_nics: [],
   cpus: 2,
   memory_gb: 4,
   disk_gb: 40,
+  image: '',
   datacenter: '',
   compute: '',
   resource_pool: '',
@@ -72,11 +86,9 @@ export const EMPTY_BUILD_FORM: VmBuildForm = {
   storage_mode: 'datastore',
   datastore: '',
   datastore_cluster: '',
-  network: '',
-  template: '',
   annotation: '',
   bootstrap_agent: true,
-  sign_certificate: false,
+  sign_certificate: true,
   enc_environment: '',
   enc_group_ids: [],
 };
@@ -98,6 +110,13 @@ export function isFqdn(value: string): boolean {
 export function isHostnameOrFqdn(value: string): boolean {
   const text = (value || '').trim().replace(/\.$/, '');
   return LABEL_RE.test(text) || isFqdn(text);
+}
+
+/** Certname / machine name the backend will use (lowercase FQDN). */
+export function certnameFor(hostname: string, defaultDomain: string): string {
+  const host = (hostname || '').trim().replace(/\.$/, '').toLowerCase();
+  if (!host) return '';
+  return host.includes('.') || !defaultDomain ? host : `${host}.${defaultDomain.toLowerCase()}`;
 }
 
 /** Prefix 1–32 from "24", "/24", "10.0.0.0/24" or "255.255.255.0"; null when invalid. */
@@ -130,14 +149,15 @@ export function sameSubnet(ip: string, other: string, prefix: number): boolean {
   return ((ipToInt(ip) & mask) >>> 0) === ((ipToInt(other) & mask) >>> 0);
 }
 
-export type FormErrors = Partial<Record<keyof VmBuildForm, string>>;
+export type FormErrors = Partial<Record<keyof BuildFormState, string>> & { nics?: Record<number, string> };
 
-export function validateBuildForm(form: VmBuildForm, defaultDomain = ''): FormErrors {
+export function validateBuildForm(form: BuildFormState, defaultDomain = ''): FormErrors {
   const errors: FormErrors = {};
   const host = form.hostname.trim();
   if (!host) errors.hostname = 'Hostname or FQDN is required';
   else if (!isHostnameOrFqdn(host)) errors.hostname = 'Invalid hostname';
   else if (!isFqdn(host) && !defaultDomain) errors.hostname = 'Enter an FQDN (no default guest domain is set)';
+  else if (certnameFor(host, defaultDomain).length > 80) errors.hostname = 'FQDN is the VM name; vCenter allows 80 characters';
 
   if (!isIpv4(form.ip)) errors.ip = 'Enter an IPv4 address';
   const prefix = parsePrefix(form.netmask);
@@ -155,9 +175,21 @@ export function validateBuildForm(form: VmBuildForm, defaultDomain = ''): FormEr
   if (badDns) errors.dns_servers = `Not an IPv4 address: ${badDns}`;
   const badSearch = form.search_domains.find((d) => !isFqdn(d) && !LABEL_RE.test(d));
   if (badSearch) errors.search_domains = `Invalid domain: ${badSearch}`;
-  if (form.vm_name.trim() && !form.vm_name.trim().split('.').every((l) => LABEL_RE.test(l))) {
-    errors.vm_name = 'Letters, digits, dots and hyphens only';
-  }
+  if (!form.network) errors.network = 'Pick a network';
+
+  const nicErrors: Record<number, string> = {};
+  const used = new Set([form.ip.trim()]);
+  form.extra_nics.forEach((nic, i) => {
+    if (!nic.network) nicErrors[i] = 'Pick a network';
+    else if (nic.ip.trim()) {
+      if (!isIpv4(nic.ip)) nicErrors[i] = 'Enter an IPv4 address or leave blank for DHCP';
+      else if (parsePrefix(nic.netmask) === null) nicErrors[i] = 'Netmask is required with a static IP';
+      else if (used.has(nic.ip.trim())) nicErrors[i] = 'IP already used by another NIC';
+      used.add(nic.ip.trim());
+    }
+  });
+  if (Object.keys(nicErrors).length) errors.nics = nicErrors;
+  if (form.extra_nics.length + 1 > MAX_NICS) errors.network = `At most ${MAX_NICS} NICs`;
 
   if (!(form.cpus >= 1 && form.cpus <= 128)) errors.cpus = '1–128';
   if (!(form.memory_gb >= 1 && form.memory_gb <= 2048)) errors.memory_gb = '1–2048 GB';
@@ -169,14 +201,26 @@ export function validateBuildForm(form: VmBuildForm, defaultDomain = ''): FormEr
   if (form.storage_mode === 'datastore_cluster' && !form.datastore_cluster) {
     errors.datastore_cluster = 'Pick a datastore cluster';
   }
-  if (!form.network) errors.network = 'Pick a network';
-  if (!form.template) errors.template = 'Pick a template';
+  if (!form.image) errors.image = 'Pick a template';
   if (form.enc_group_ids.length && !form.enc_environment) errors.enc_environment = 'Pick an environment for the groups';
   return errors;
 }
 
-/** Inventory narrowed to what the selected compute resource can use. */
-export function placementOptions(inv: VmDatacenterInventory | null, computeMoid: string) {
+export function errorCount(errors: FormErrors): number {
+  const { nics, ...rest } = errors;
+  return Object.values(rest).filter(Boolean).length + Object.keys(nics || {}).length;
+}
+
+export function firstError(errors: FormErrors): string {
+  const { nics, ...rest } = errors;
+  const field = Object.values(rest).find(Boolean);
+  if (field) return field;
+  const [idx, msg] = Object.entries(nics || {})[0] || [];
+  return msg ? `NIC ${Number(idx) + 2}: ${msg}` : '';
+}
+
+/** VMware inventory narrowed to what the selected compute resource can use. */
+export function placementOptions(inv: VmwareDatacenterInventory | null, computeMoid: string) {
   if (!inv) {
     return { compute: undefined, resourcePools: [], datastores: [], datastoreClusters: [], networks: [], folders: [] };
   }
@@ -201,17 +245,35 @@ export function placementOptions(inv: VmDatacenterInventory | null, computeMoid:
   };
 }
 
-export function buildPayload(form: VmBuildForm) {
-  const { storage_mode, ...rest } = form;
+export function buildPayload(form: BuildFormState) {
   return {
-    ...rest,
+    connection: form.connection,
     hostname: form.hostname.trim(),
     ip: form.ip.trim(),
     netmask: form.netmask.trim(),
     gateway: form.gateway.trim(),
-    vm_name: form.vm_name.trim(),
-    datastore: storage_mode === 'datastore' ? form.datastore : '',
-    datastore_cluster: storage_mode === 'datastore_cluster' ? form.datastore_cluster : '',
+    dns_servers: form.dns_servers,
+    search_domains: form.search_domains,
+    network: form.network,
+    extra_nics: form.extra_nics.map((n) => ({
+      network: n.network,
+      ip: n.ip.trim(),
+      netmask: n.ip.trim() ? n.netmask.trim() : '',
+    })),
+    image: form.image,
+    placement: {
+      datacenter: form.datacenter,
+      compute: form.compute,
+      resource_pool: form.resource_pool,
+      folder: form.folder,
+      datastore: form.storage_mode === 'datastore' ? form.datastore : '',
+      datastore_cluster: form.storage_mode === 'datastore_cluster' ? form.datastore_cluster : '',
+    },
+    cpus: form.cpus,
+    memory_gb: form.memory_gb,
+    disk_gb: form.disk_gb,
+    annotation: form.annotation,
+    bootstrap_agent: form.bootstrap_agent,
     sign_certificate: form.bootstrap_agent && form.sign_certificate,
     enc_environment: form.bootstrap_agent ? form.enc_environment : '',
     enc_group_ids: form.bootstrap_agent ? form.enc_group_ids : [],
@@ -220,7 +282,7 @@ export function buildPayload(form: VmBuildForm) {
 
 export const STEP_LABELS: Record<string, string> = {
   validate: 'Validate',
-  clone: 'Clone + power on',
+  provision: 'Create + power on',
   guest: 'Guest network',
   certificate: 'Certificate',
   classify: 'Classifier',
@@ -234,8 +296,11 @@ export function statusColor(status: string): string {
     case 'partial':
     case 'timeout':
     case 'interrupted':
+    case 'cancelled':
+    case 'cancelling':
       return 'yellow';
     case 'failed':
+    case 'rejected':
       return 'red';
     case 'running':
       return 'blue';

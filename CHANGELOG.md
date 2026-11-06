@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.2] - 2026-11-06
+
+Owner decisions on the VM builder (PR #172), plus the provider-agnostic
+restructure. Not tagged.
+
+### Changed
+- **VM Builder is now Infrastructure → Provisioning** (`/provisioning`;
+  `/vmbuilder` redirects). API `/api/provisioning/*`, backend package
+  `services/provisioning`, tables `provision_jobs` and
+  `provision_connections` (alembic `006_provisioning` replaces the unreleased
+  `006_vm_build_jobs`), dev flag `OPENVOX_GUI_PROVISIONING_FAKE`, doc
+  [docs/PROVISIONING.md](docs/PROVISIONING.md). alpha.1 settings and jobs are
+  not migrated (never deployed).
+- **Provider interface.** VMware is one provider behind
+  `providers/base.py` (connection, inventory, placement, provision, payload
+  scrub). Identity, NIC addressing, size, cloud-init, the CSR challenge,
+  jobs and the classifier handoff are shared, so bare metal (#173) can plug in.
+- **The vCenter VM name is the FQDN.** The separate VM-name field is gone.
+- **`ovbuilder-` is the default template prefix** (per connection).
+- Auto-sign is on by default on the form now that it is verified per build.
+
+### Added
+- **Per-build CSR challenge.** Auto-sign generates a one-time token,
+  delivers it to the guest as `challengePassword` in `csr_attributes.yaml`,
+  stores only its SHA-256, fetches the pending CSR from the CA and signs only
+  when CN and challenge match. Missing or wrong challenge → not signed,
+  step `rejected`, `provisioning_csr_rejected` audit. After the CSR is
+  handled the VM's `guestinfo.userdata` is blanked.
+- **Provider connections**: `provision_connections` rows with an id,
+  provider, endpoint, options and one default; passwords in
+  `cluster_secrets` as `provisioning_connection_password:<id>`. Builds and
+  inventory endpoints reference a connection; the form shows a picker when
+  there is more than one. `OPENVOX_GUI_VCENTER_*` seed the `default` connection.
+- **Multiple NICs.** Extra NICs per build: port group plus static address
+  (no gateway) or DHCP; the template's NICs are re-backed in order and
+  vmxnet3s added for the rest.
+- `certificates_service.fetch_csr_pem()`.
+- Docs: decisions, provider architecture, navigation plan and remaining
+  increments in [docs/OVBUILDER_PLAN.md](docs/OVBUILDER_PLAN.md); VLAN routes
+  to 4567 and 8140 recorded as a prerequisite.
+
 ## [3.15.0-alpha.1] - 2026-11-06
 
 First pre-release of the 3.15.0 minor, cut on the `feature/ovbuilder`
@@ -37,7 +78,7 @@ branch. Not tagged; lab validation against a real vCenter is pending.
 - `pyvmomi` in `backend/requirements.txt` (imported lazily).
 - `OPENVOX_GUI_VMBUILDER_FAKE=true` serves an in-memory vCenter for
   development; the page shows a banner. Tests use the same fake.
-- Docs: [docs/VM_BUILDER.md](docs/VM_BUILDER.md),
+- Docs: `docs/VM_BUILDER.md` (now [docs/PROVISIONING.md](docs/PROVISIONING.md)),
   [docs/OVBUILDER_PLAN.md](docs/OVBUILDER_PLAN.md).
 
 ## [3.14.3-dev.3] - 2026-10-27

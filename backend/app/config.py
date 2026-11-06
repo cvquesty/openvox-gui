@@ -173,17 +173,18 @@ class Settings(BaseSettings):
     ssl_key_path: Optional[str] = None
     ssl_ca_certs: Optional[str] = None  # Optional: for client cert verification (mTLS)
 
-    # ── VM builder (vCenter) ──────────────────────────────────
-    # Defaults for the VM builder. Values saved on the VM builder settings
-    # page (app DB; password Fernet-encrypted) take precedence.
+    # ── Provisioning (VM builder) ────────────────────────────
+    # Seed for the default vCenter connection when none is saved yet.
+    # Connections saved on Provisioning → Settings (app DB; password
+    # Fernet-encrypted) take precedence.
     vcenter_host: str = ""
     vcenter_port: int = 443
     vcenter_user: str = ""
     vcenter_password: str = ""
     vcenter_verify_ssl: bool = True
     vcenter_ca_bundle: str = ""
-    # Development only: serve a built-in fake vCenter inventory and clone.
-    vmbuilder_fake: bool = False
+    # Development only: built-in fake provider inventory and provisioning.
+    provisioning_fake: bool = False
 
     class Config:
         env_prefix = "OPENVOX_GUI_"

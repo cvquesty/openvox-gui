@@ -1,9 +1,11 @@
 /**
- * OpenVox GUI - VmBuilder.tsx
+ * OpenVox GUI - Provisioning.tsx
  *
- * VMware VM builder (port of openvox-ovbuilder): clone a vCenter template
- * with a static network identity, bootstrap it as an OpenVox agent, sign
- * its CSR and classify it. Admin/operator only; settings are admin only.
+ * Infrastructure → Provisioning (port of openvox-ovbuilder). Builds a
+ * machine through a provider (VMware vCenter today; bare metal is issue
+ * #173), applies its network identity on first boot, verifies and signs
+ * its CSR, and hands it to the classifier. Admin/operator only; connections
+ * and guest defaults are admin only.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -11,13 +13,13 @@ import { Alert, Button, Tabs } from '@mantine/core';
 import { IconAlertTriangle, IconLock } from '@tabler/icons-react';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/StateComponents';
-import { BuildForm } from '../components/vmbuilder/BuildForm';
-import { BuildJobs } from '../components/vmbuilder/BuildJobs';
-import { SettingsPanel } from '../components/vmbuilder/SettingsPanel';
+import { BuildForm } from '../components/provisioning/BuildForm';
+import { BuildJobs } from '../components/provisioning/BuildJobs';
+import { SettingsPanel } from '../components/provisioning/SettingsPanel';
 import { useAuth } from '../hooks/AuthContext';
-import { vmbuilder, type VmBuilderStatus } from '../services/api';
+import { provisioning, type ProvisioningStatus } from '../services/api';
 
-export function VmBuilderPage() {
+export function ProvisioningPage() {
   const { user } = useAuth();
   const role = user?.role;
   const canBuild = role === 'admin' || role === 'operator';
@@ -25,12 +27,12 @@ export function VmBuilderPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'build';
   const jobId = params.get('job');
-  const [status, setStatus] = useState<VmBuilderStatus | null>(null);
+  const [status, setStatus] = useState<ProvisioningStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
-      setStatus(await vmbuilder.status());
+      setStatus(await provisioning.status());
       setError(null);
     } catch (e: any) {
       setError(e.message);
@@ -51,36 +53,35 @@ export function VmBuilderPage() {
     return (
       <EmptyState
         icon={<IconLock size={40} stroke={1.25} />}
-        title="VM builder needs the operator or admin role"
-        description="Building a VM creates it in vCenter and adds it to the trusted fleet."
+        title="Provisioning needs the operator or admin role"
+        description="Building a machine creates it in the provider and adds it to the trusted fleet."
       />
     );
   }
   if (error) return <ErrorState message={error} onRetry={loadStatus} />;
-  if (!status) return <LoadingState label="Loading VM builder" />;
+  if (!status) return <LoadingState label="Loading provisioning" />;
 
-  const s = status.settings;
   return (
     <>
       <PageHeader
-        title="VM Builder"
-        description="Provision a VMware VM from a vCenter template, apply its network identity on first boot, and join it to this OpenVox estate."
+        title="Provisioning"
+        description="Build a machine from a VMware template, apply its network identity on first boot, and join it to this OpenVox estate."
       />
-      {s.fake_mode && (
-        <Alert color="yellow" icon={<IconAlertTriangle size={16} />} mb="md" title="Fake vCenter (development mode)">
-          OPENVOX_GUI_VMBUILDER_FAKE is on. Inventory and clones are simulated; nothing is created in VMware.
+      {status.fake_mode && (
+        <Alert color="yellow" icon={<IconAlertTriangle size={16} />} mb="md" title="Fake provider (development mode)">
+          OPENVOX_GUI_PROVISIONING_FAKE is on. Inventory and builds are simulated; nothing is created in VMware.
         </Alert>
       )}
-      {!s.fake_mode && !s.pyvmomi_installed && (
+      {!status.fake_mode && !status.pyvmomi_installed && (
         <Alert color="red" mb="md" title="pyvmomi is not installed">
           Install it into the GUI virtualenv (it is listed in backend/requirements.txt) and restart the service.
         </Alert>
       )}
-      {!s.configured && (
-        <Alert color="blue" mb="md" title="vCenter is not configured">
+      {!status.configured && (
+        <Alert color="blue" mb="md" title="No provider connection is ready">
           {isAdmin ? (
-            <Button size="xs" variant="light" onClick={() => go({ tab: 'settings' })}>Open VM builder settings</Button>
-          ) : 'Ask an admin to set the vCenter connection on the VM builder settings tab.'}
+            <Button size="xs" variant="light" onClick={() => go({ tab: 'settings' })}>Open Provisioning settings</Button>
+          ) : 'Ask an admin to add a vCenter connection on the Provisioning settings tab.'}
         </Alert>
       )}
       <Tabs value={tab} onChange={(v) => go({ tab: v })} keepMounted={false}>
@@ -90,7 +91,7 @@ export function VmBuilderPage() {
           {isAdmin && <Tabs.Tab value="settings">Settings</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="build">
-          {s.configured ? (
+          {status.configured ? (
             <BuildForm status={status} onSubmitted={(id) => go({ tab: 'jobs', job: id })} />
           ) : null}
         </Tabs.Panel>
@@ -99,7 +100,7 @@ export function VmBuilderPage() {
         </Tabs.Panel>
         {isAdmin && (
           <Tabs.Panel value="settings">
-            <SettingsPanel onSaved={loadStatus} />
+            <SettingsPanel status={status} onSaved={loadStatus} />
           </Tabs.Panel>
         )}
       </Tabs>

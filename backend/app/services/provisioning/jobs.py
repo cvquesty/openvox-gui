@@ -1,10 +1,11 @@
 """
-VM build jobs: persistence and the in-process runner.
+Provisioning jobs: persistence, CA / OpenVoxDB / ENC hooks, and the runner.
 
-A build runs as an asyncio task in the uvicorn worker that accepted it.
-Progress is written to ``vm_build_jobs`` after every step so any worker
-(or console behind the VIP) can show it. A job whose row stops updating
-for ``STALE_AFTER`` is reported as ``interrupted`` (worker restart).
+A job row holds the operator's request (no secrets), the provider and
+connection it targets, per-step progress, and sha256 of the per-build CSR
+token. Progress is written after every step so any worker or console
+behind the VIP can show it. A job whose row stops updating for
+``STALE_AFTER`` is reported as ``interrupted``.
 """
 from __future__ import annotations
 
@@ -12,21 +13,29 @@ import asyncio
 import json
 import logging
 import uuid
-from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select
 
 from ...database import async_session
-from ...models.vm_build_job import VmBuildJob
+from ...models.provision_job import ProvisionJob
 from ...utils.audit import audit_event
-from .guestinfo import GuestOptions
-from .provision import STEPS, BuildError, BuildHooks, ClientFactory, Timing, ValidatedRequest, run_build
+from .cloudinit import GuestOptions
+from .provision import (
+    STEPS,
+    BuildCancelled,
+    BuildError,
+    BuildHooks,
+    SessionFactory,
+    Timing,
+    ValidatedRequest,
+    run_build,
+)
 
 logger = logging.getLogger(__name__)
 
-ACTIVE = ("queued", "running")
+ACTIVE = ("queued", "running", "cancelling")
 STALE_AFTER = timedelta(hours=2)
 _LOG_LIMIT = 64 * 1024
 
@@ -43,7 +52,7 @@ def _aware(dt: Optional[datetime]) -> Optional[datetime]:
     return dt
 
 
-def serialize(job: VmBuildJob) -> Dict[str, Any]:
+def serialize(job: ProvisionJob) -> Dict[str, Any]:
     status = job.status
     updated = _aware(job.updated_at)
     if status in ACTIVE and updated is not None and _now() - updated > STALE_AFTER:
@@ -51,12 +60,15 @@ def serialize(job: VmBuildJob) -> Dict[str, Any]:
     steps = json.loads(job.steps_json or "{}")
     return {
         "id": job.id,
+        "provider": job.provider,
+        "connection_id": job.connection_id,
         "certname": job.certname,
         "vm_name": job.vm_name,
         "status": status,
         "steps": [{"name": s, **steps.get(s, {"state": "pending"})} for s in STEPS],
         "request": json.loads(job.request_json or "{}"),
         "result": json.loads(job.result_json or "{}"),
+        "csr_verified": bool(job.csr_challenge_hash),
         "log": job.log or "",
         "error": job.error or "",
         "requested_by": job.requested_by,
@@ -69,21 +81,21 @@ def serialize(job: VmBuildJob) -> Dict[str, Any]:
 async def list_jobs(limit: int = 50) -> List[Dict[str, Any]]:
     async with async_session() as db:
         rows = (await db.execute(
-            select(VmBuildJob).order_by(VmBuildJob.created_at.desc()).limit(limit)
+            select(ProvisionJob).order_by(ProvisionJob.created_at.desc()).limit(limit)
         )).scalars().all()
     return [serialize(r) for r in rows]
 
 
 async def get_job(job_id: str) -> Optional[Dict[str, Any]]:
     async with async_session() as db:
-        row = await db.get(VmBuildJob, job_id)
+        row = await db.get(ProvisionJob, job_id)
     return serialize(row) if row is not None else None
 
 
 async def active_job_for(certname: str) -> Optional[Dict[str, Any]]:
     async with async_session() as db:
         rows = (await db.execute(
-            select(VmBuildJob).where(VmBuildJob.certname == certname, VmBuildJob.status.in_(ACTIVE))
+            select(ProvisionJob).where(ProvisionJob.certname == certname, ProvisionJob.status.in_(ACTIVE))
         )).scalars().all()
     for row in rows:
         data = serialize(row)
@@ -98,19 +110,19 @@ class DbReporter:
 
     async def _update(self, mutate) -> None:
         async with async_session() as db:
-            row = await db.get(VmBuildJob, self.job_id)
+            row = await db.get(ProvisionJob, self.job_id)
             if row is None:
                 return
             mutate(row)
             row.updated_at = _now()
             await db.commit()
 
-    def _append(self, row: VmBuildJob, line: str) -> None:
+    def _append(self, row: ProvisionJob, line: str) -> None:
         text = (row.log or "") + f"{_now().strftime('%Y-%m-%dT%H:%M:%SZ')} {line}\n"
         row.log = text[-_LOG_LIMIT:]
 
     async def step(self, name: str, state: str, message: str = "") -> None:
-        def mutate(row: VmBuildJob) -> None:
+        def mutate(row: ProvisionJob) -> None:
             steps = json.loads(row.steps_json or "{}")
             steps[name] = {"state": state, "message": message, "at": _now().isoformat()}
             row.steps_json = json.dumps(steps)
@@ -122,7 +134,7 @@ class DbReporter:
         await self._update(lambda row: self._append(row, message))
 
     async def set_result(self, **fields) -> None:
-        def mutate(row: VmBuildJob) -> None:
+        def mutate(row: ProvisionJob) -> None:
             result = json.loads(row.result_json or "{}")
             result.update(fields)
             row.result_json = json.dumps(result)
@@ -131,8 +143,11 @@ class DbReporter:
 
         await self._update(mutate)
 
+    async def store_csr_hash(self, digest: str) -> None:
+        await self._update(lambda row: setattr(row, "csr_challenge_hash", digest))
+
     async def finish(self, status: str, error: str = "") -> None:
-        def mutate(row: VmBuildJob) -> None:
+        def mutate(row: ProvisionJob) -> None:
             row.status = status
             row.error = error
             row.finished_at = _now()
@@ -151,10 +166,15 @@ def app_hooks(requested_by: str, job_id: str) -> BuildHooks:
         if state:
             return state
         listing = await cs.list_certificates(use_cache=False)
-        for key, value in (("signed", "signed"), ("requested", "requested")):
+        for key in ("signed", "requested"):
             if any((c.get("name") or "").lower() == certname for c in listing.get(key) or []):
-                return value
+                return key
         return None
+
+    async def fetch_csr(certname: str) -> Optional[bytes]:
+        from .. import certificates_service as cs
+
+        return await cs.fetch_csr_pem(certname)
 
     async def sign(certname: str) -> str:
         from .. import certificates_service as cs
@@ -164,13 +184,18 @@ def app_hooks(requested_by: str, job_id: str) -> BuildHooks:
         result = await cs.run_ca_command(["sign", "--certname", certname], timeout=120)
         ok = result.get("returncode") == 0
         audit_event("cert_sign", user=requested_by, targets=certname,
-                    detail=f"vmbuilder job {job_id}", rc=result.get("returncode"), success=ok)
+                    detail=f"provisioning job {job_id} (CSR challenge verified)",
+                    rc=result.get("returncode"), success=ok)
         cs.invalidate_cert_list_cache()
         if not ok:
             detail = (result.get("stderr") or result.get("stdout") or "").strip()[:300]
             raise BuildError(f"CA sign failed for {certname}: {detail or 'no output'}")
         via = result.get("via") or ""
         return f"Signed certificate for {certname}{f' ({via})' if via else ''}"
+
+    async def csr_rejected(certname: str, reason: str) -> None:
+        audit_event("provisioning_csr_rejected", user=requested_by, targets=certname,
+                    detail=f"job={job_id} reason={reason}", success=False)
 
     async def node_in_fleet(certname: str) -> bool:
         from ..puppetdb import puppetdb_service
@@ -192,20 +217,32 @@ def app_hooks(requested_by: str, job_id: str) -> BuildHooks:
                 group_ids=group_ids or None,
             )
             await db.commit()
-        audit_event("vmbuilder_classify", user=requested_by, targets=certname,
+        audit_event("provisioning_classify", user=requested_by, targets=certname,
                     detail=f"environment={environment} groups={group_ids}")
 
-    return BuildHooks(cert_state=cert_state, sign_certificate=sign,
-                      node_in_fleet=node_in_fleet, classify_node=classify)
+    async def is_cancelled() -> bool:
+        async with async_session() as db:
+            row = await db.get(ProvisionJob, job_id)
+        return row is not None and row.status == "cancelling"
+
+    return BuildHooks(
+        cert_state=cert_state, fetch_csr=fetch_csr, sign_certificate=sign,
+        node_in_fleet=node_in_fleet, classify_node=classify, csr_rejected=csr_rejected,
+        is_cancelled=is_cancelled,
+    )
 
 
-async def create_job(validated: ValidatedRequest, *, requested_by: str) -> Dict[str, Any]:
-    row = VmBuildJob(
+async def create_job(
+    validated: ValidatedRequest, *, provider: str, connection_id: str, requested_by: str,
+) -> Dict[str, Any]:
+    row = ProvisionJob(
         id=str(uuid.uuid4()),
+        provider=provider,
+        connection_id=connection_id,
         certname=validated.certname,
-        vm_name=validated.vm_name,
+        vm_name=validated.name,
         status="queued",
-        request_json=json.dumps(asdict(validated.request)),
+        request_json=json.dumps({**validated.request.to_dict(), "connection": connection_id}),
         requested_by=requested_by,
     )
     async with async_session() as db:
@@ -215,50 +252,44 @@ async def create_job(validated: ValidatedRequest, *, requested_by: str) -> Dict[
     return serialize(row)
 
 
-async def _run(
-    job_id: str,
-    validated: ValidatedRequest,
-    factory: ClientFactory,
-    guest_options: GuestOptions,
-    template_prefix: str,
-    hooks: BuildHooks,
-    timing: Optional[Timing],
-) -> None:
-    reporter = DbReporter(job_id)
-    await reporter._update(lambda row: setattr(row, "status", "running"))
-    try:
-        status = await run_build(
-            validated,
-            client_factory=factory,
-            reporter=reporter,
-            hooks=hooks,
-            guest_options=guest_options,
-            template_prefix=template_prefix,
-            timing=timing,
-        )
-        await reporter.finish(status)
-    except BuildError as exc:
-        await reporter.finish("failed", str(exc))
-    except Exception as exc:  # noqa: BLE001 — never leave a job stuck in running
-        logger.exception("vmbuilder job %s crashed", job_id)
-        await reporter.finish("failed", f"Internal error: {exc.__class__.__name__}")
-
-
-def start_job(
+async def execute(
     job_id: str,
     validated: ValidatedRequest,
     *,
-    factory: ClientFactory,
+    factory: SessionFactory,
     guest_options: GuestOptions,
-    template_prefix: str,
     requested_by: str,
     hooks: Optional[BuildHooks] = None,
     timing: Optional[Timing] = None,
-) -> asyncio.Task:
-    task = asyncio.create_task(_run(
-        job_id, validated, factory, guest_options, template_prefix,
-        hooks or app_hooks(requested_by, job_id), timing,
-    ))
+) -> str:
+    reporter = DbReporter(job_id)
+    await reporter._update(lambda row: setattr(row, "status", "running")
+                           if row.status == "queued" else None)
+    try:
+        status = await run_build(
+            validated,
+            session_factory=factory,
+            reporter=reporter,
+            hooks=hooks or app_hooks(requested_by, job_id),
+            guest_options=guest_options,
+            timing=timing,
+        )
+        await reporter.finish(status)
+        return status
+    except BuildCancelled as exc:
+        await reporter.finish("cancelled", str(exc))
+        return "cancelled"
+    except BuildError as exc:
+        await reporter.finish("failed", str(exc))
+        return "failed"
+    except Exception as exc:  # noqa: BLE001 — never leave a job stuck in running
+        logger.exception("provisioning job %s crashed", job_id)
+        await reporter.finish("failed", f"Internal error: {exc.__class__.__name__}")
+        return "failed"
+
+
+def start_inline(job_id: str, validated: ValidatedRequest, **kwargs) -> asyncio.Task:
+    task = asyncio.create_task(execute(job_id, validated, **kwargs))
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
     return task

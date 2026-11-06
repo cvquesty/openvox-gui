@@ -1,18 +1,18 @@
 /**
- * Tabbed vCenter inventory tables for the selected datacenter
+ * Tabbed vCenter inventory tables (VMware provider) for the selected datacenter
  * (ovbuilder's numbered inventory menus, as clickable tables).
  * "Use" fills the matching placement field on the build form.
  */
 import type { ReactNode } from 'react';
 import { Badge, Button, Group, ScrollArea, Table, Tabs, Text } from '@mantine/core';
-import type { VmDatacenterInventory, VmInventoryItem } from '../../utils/vmbuilder';
+import type { VmwareDatacenterInventory, InventoryItem } from '../../utils/provisioning';
 
 export type PickField =
-  'compute' | 'resource_pool' | 'folder' | 'datastore' | 'datastore_cluster' | 'network' | 'template';
+  'compute' | 'resource_pool' | 'folder' | 'datastore' | 'datastore_cluster' | 'network' | 'image';
 
 interface Column {
   label: string;
-  render: (item: VmInventoryItem) => ReactNode;
+  render: (item: InventoryItem) => ReactNode;
 }
 
 const kindBadge = (kind: string) => {
@@ -33,7 +33,7 @@ const gb = (v: unknown) => (typeof v === 'number' ? `${v.toLocaleString()} GB` :
 function ItemTable({
   items, columns, selected, onUse,
 }: {
-  items: VmInventoryItem[];
+  items: InventoryItem[];
   columns: Column[];
   selected: string;
   onUse?: (moid: string) => void;
@@ -78,8 +78,8 @@ function ItemTable({
 export function InventoryBrowser({
   inventory, templates, selection, onPick,
 }: {
-  inventory: VmDatacenterInventory | null;
-  templates: VmInventoryItem[];
+  inventory: VmwareDatacenterInventory | null;
+  templates: InventoryItem[];
   selection: Record<PickField, string>;
   onPick: (field: PickField, moid: string) => void;
 }) {
@@ -162,8 +162,8 @@ export function InventoryBrowser({
       <Tabs.Panel value="templates" pt="xs">
         <ItemTable
           items={templates}
-          selected={selection.template}
-          onUse={(m) => onPick('template', m)}
+          selected={selection.image}
+          onUse={(m) => onPick('image', m)}
           columns={[
             { label: 'Guest OS', render: (i) => i.details.guest_name || i.details.guest_id || '—' },
             {

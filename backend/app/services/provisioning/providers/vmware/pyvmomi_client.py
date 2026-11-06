@@ -26,12 +26,12 @@ import ssl
 import time
 from typing import Any, List, Optional
 
+from ..base import InventoryItem
 from .client import (
     CloneResult,
     CloneSpec,
     DatacenterInventory,
     GuestState,
-    InventoryItem,
     VCenterError,
 )
 
@@ -310,18 +310,26 @@ class PyVmomiClient:
 
     # ─── clone ──────────────────────────────────────────────────
 
-    def _nic_change(self, template: Any, network: Any) -> Any:
+    def _nic_changes(self, template: Any, networks: List[Any]) -> List[Any]:
+        """Re-back the template's NICs in order onto ``networks``; add vmxnet3 for the rest.
+
+        Template NICs beyond ``len(networks)`` are left as they are.
+        """
         vim = self._vim()
-        nic = next(
-            (d for d in template.config.hardware.device
-             if isinstance(d, vim.vm.device.VirtualEthernetCard)),
-            None,
-        )
+        existing = [d for d in template.config.hardware.device
+                    if isinstance(d, vim.vm.device.VirtualEthernetCard)]
+        return [
+            self._nic_change(existing[i] if i < len(existing) else None, network, new_key=-(i + 1))
+            for i, network in enumerate(networks)
+        ]
+
+    def _nic_change(self, nic: Any, network: Any, *, new_key: int = -1) -> Any:
+        vim = self._vim()
         op = vim.vm.device.VirtualDeviceSpec.Operation
         change = vim.vm.device.VirtualDeviceSpec()
         if nic is None:
             nic = vim.vm.device.VirtualVmxnet3()
-            nic.key = -1
+            nic.key = new_key
             change.operation = op.add
         else:
             change.operation = op.edit
@@ -370,7 +378,9 @@ class PyVmomiClient:
             dc = self._find_datacenter(spec.datacenter)
             template = self._by_moid(vim.VirtualMachine, spec.template)
             compute = self._by_moid(vim.ComputeResource, spec.compute)
-            network = self._by_moid(vim.Network, spec.network)
+            networks = [self._by_moid(vim.Network, moid) for moid in spec.networks]
+            if not networks:
+                raise VCenterError("At least one network is required")
             pool = (
                 self._by_moid(vim.ResourcePool, spec.resource_pool)
                 if spec.resource_pool else compute.resourcePool
@@ -390,7 +400,7 @@ class PyVmomiClient:
                 annotation=spec.annotation or None,
                 extraConfig=[vim.option.OptionValue(key=k, value=v) for k, v in extra.items()],
             )
-            changes = [self._nic_change(template, network)]
+            changes = self._nic_changes(template, networks)
             disk_change = self._disk_change(template, spec.disk_gb)
             if disk_change is not None:
                 changes.append(disk_change)
@@ -442,3 +452,19 @@ class PyVmomiClient:
             ip_address=str(getattr(guest, "ipAddress", "") or ""),
             hostname=str(getattr(guest, "hostName", "") or ""),
         )
+
+    def clear_guestinfo_userdata(self, vm_moid: str) -> None:
+        """Blank ``guestinfo.userdata`` once the guest has used it.
+
+        Metadata (instance-id) stays so cloud-init treats later boots as the
+        same instance and does not re-run per-instance modules.
+        """
+        vim = self._vim()
+        try:
+            vm = self._by_moid(vim.VirtualMachine, vm_moid)
+            spec = vim.vm.ConfigSpec(extraConfig=[vim.option.OptionValue(key="guestinfo.userdata", value="")])
+            self._wait(vm.ReconfigVM_Task(spec=spec), timeout_s=120)
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"Could not clear guestinfo.userdata: {_fault_message(exc)}") from exc

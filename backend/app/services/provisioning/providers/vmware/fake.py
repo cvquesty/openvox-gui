@@ -11,16 +11,16 @@ import copy
 import re
 from typing import Dict, List, Optional
 
+from ..base import InventoryItem
 from .client import (
     CloneResult,
     CloneSpec,
     DatacenterInventory,
     GuestState,
-    InventoryItem,
     VCenterError,
 )
 
-_ADDR_RE = re.compile(r"ipv4\.addresses (\d{1,3}(?:\.\d{1,3}){3})/")
+_ADDR_RE = re.compile(r"- (\d{1,3}(?:\.\d{1,3}){3})/\d{1,2}\n")
 
 
 def _demo_inventory() -> Dict[str, DatacenterInventory]:
@@ -103,6 +103,7 @@ class FakeVCenterClient:
         self._templates = _demo_templates()
         self.vms: Dict[str, Dict] = {name: {"name": name} for name in existing_vms or []}
         self.clones: List[CloneSpec] = []
+        self.scrubbed: List[str] = []
         self.fail_clone = fail_clone
         self.polls_until_ip = polls_until_ip
         self.closed = False
@@ -153,6 +154,13 @@ class FakeVCenterClient:
                     ip_address=vm["ip"] if ready else "",
                     hostname=vm["name"] if ready else "",
                 )
+        raise VCenterError(f"VM {vm_moid} not found")
+
+    def clear_guestinfo_userdata(self, vm_moid: str) -> None:
+        for vm in self.vms.values():
+            if vm.get("moid") == vm_moid:
+                self.scrubbed.append(vm_moid)
+                return
         raise VCenterError(f"VM {vm_moid} not found")
 
     def close(self) -> None:

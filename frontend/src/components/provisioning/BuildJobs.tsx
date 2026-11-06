@@ -1,5 +1,5 @@
 /**
- * VM build jobs: list + per-step progress for the selected job.
+ * Provisioning jobs: list + per-step progress for the selected job.
  * Polls while the selected job is queued or running.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -8,11 +8,11 @@ import {
   Alert, Badge, Button, Card, Code, Grid, Group, ScrollArea, Stack, Table, Text, Timeline, Title,
 } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
-import { vmbuilder, type VmBuildJob } from '../../services/api';
-import { STEP_LABELS, statusColor } from '../../utils/vmbuilder';
+import { provisioning, type ProvisionJob } from '../../services/api';
+import { STEP_LABELS, statusColor } from '../../utils/provisioning';
 import { timeAgo } from '../../utils/timeAgo';
 
-const ACTIVE = new Set(['queued', 'running']);
+const ACTIVE = new Set(['queued', 'running', 'cancelling']);
 
 export function BuildJobs({
   selectedId, onSelect,
@@ -21,13 +21,13 @@ export function BuildJobs({
   onSelect: (id: string) => void;
 }) {
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState<VmBuildJob[]>([]);
-  const [job, setJob] = useState<VmBuildJob | null>(null);
+  const [jobs, setJobs] = useState<ProvisionJob[]>([]);
+  const [job, setJob] = useState<ProvisionJob | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadList = useCallback(async () => {
     try {
-      setJobs(await vmbuilder.builds());
+      setJobs(await provisioning.builds());
       setError(null);
     } catch (e: any) {
       setError(e.message);
@@ -42,7 +42,7 @@ export function BuildJobs({
     let cancelled = false;
     const tick = async () => {
       try {
-        const j = await vmbuilder.build(selectedId);
+        const j = await provisioning.build(selectedId);
         if (cancelled) return;
         setJob(j);
         if (ACTIVE.has(j.status)) timer = setTimeout(tick, 5000);
@@ -101,9 +101,12 @@ export function BuildJobs({
               <Group justify="space-between">
                 <div>
                   <Title order={4}>{job.certname}</Title>
-                  <Text size="xs" c="dimmed">VM {job.vm_name} · job {job.id}</Text>
+                  <Text size="xs" c="dimmed">VM {job.vm_name} · {job.connection_id} · job {job.id}</Text>
                 </div>
-                <Badge size="lg" color={statusColor(job.status)}>{job.status}</Badge>
+                <Group gap="xs">
+                  {job.csr_verified && <Badge size="lg" variant="light" color="teal">CSR challenge</Badge>}
+                  <Badge size="lg" color={statusColor(job.status)}>{job.status}</Badge>
+                </Group>
               </Group>
               {job.error && <Alert color="red" title="Build failed">{job.error}</Alert>}
               <Timeline active={activeStep === -1 ? job.steps.length : activeStep - 1} bulletSize={18} lineWidth={2}>
@@ -119,7 +122,7 @@ export function BuildJobs({
                 {job.status === 'succeeded' || job.steps.find((s) => s.name === 'classify')?.state === 'done' ? (
                   <Button size="xs" variant="light" onClick={() => navigate('/enc')}>Open Node Classifier</Button>
                 ) : null}
-                {job.steps.find((s) => s.name === 'certificate')?.state === 'timeout' && (
+                {['timeout', 'rejected', 'failed'].includes(job.steps.find((s) => s.name === 'certificate')?.state || '') && (
                   <Button size="xs" variant="light" onClick={() => navigate('/certificates')}>Open Certificate Authority</Button>
                 )}
               </Group>

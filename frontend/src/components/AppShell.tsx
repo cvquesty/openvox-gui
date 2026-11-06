@@ -90,7 +90,7 @@ const infrastructureNav: NavItem[] = [
   { label: 'Certificate Authority', icon: IconCertificate, path: '/certificates' },
   { label: 'Orchestration', icon: IconBolt, path: '/orchestration' },
   { label: 'Agent Install', icon: IconDownload, path: '/installer' },
-  { label: 'VM Builder', icon: IconServerCog, path: '/vmbuilder' },
+  { label: 'Provisioning', icon: IconServerCog, path: '/provisioning' },
   { label: 'Certificate Audit', icon: IconListDetails, path: '/cert-audit' },
 ];
 

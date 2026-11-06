@@ -1,36 +1,23 @@
 """
-vCenter boundary for the VM builder.
+vCenter client boundary for the VMware provider.
 
-``VCenterClient`` is the only thing the rest of the GUI talks to.
-``pyvmomi_client.PyVmomiClient`` implements it against a real vCenter;
-``fake.FakeVCenterClient`` implements it in memory for tests and for
-``OPENVOX_GUI_VMBUILDER_FAKE=1`` UI development.
+``pyvmomi_client.PyVmomiClient`` implements ``VCenterClient`` against a
+real vCenter; ``fake.FakeVCenterClient`` implements it in memory for tests
+and ``OPENVOX_GUI_VMBUILDER_FAKE=1``.
 
 Inventory objects carry the vSphere managed object id (``moid``, e.g.
-``domain-c8``) so the clone request names the exact object the operator
-picked, not a name that may be duplicated across folders.
+``domain-c8``) so a build names the exact object the operator picked.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 
-
-class VCenterError(RuntimeError):
-    """vCenter call failed. Messages must never include credentials."""
+from ..base import InstanceState, InventoryItem, ProviderError
 
 
-@dataclass
-class InventoryItem:
-    moid: str
-    name: str
-    kind: str
-    path: str = ""
-    parent: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+class VCenterError(ProviderError):
+    """vCenter call failed."""
 
 
 @dataclass
@@ -67,7 +54,7 @@ class CloneSpec:
     datacenter: str
     template: str
     compute: str
-    network: str
+    networks: List[str]
     cpus: int
     memory_mb: int
     disk_gb: int
@@ -87,12 +74,7 @@ class CloneResult:
     datastore: str = ""
 
 
-@dataclass
-class GuestState:
-    power_state: str = ""
-    tools_status: str = ""
-    ip_address: str = ""
-    hostname: str = ""
+GuestState = InstanceState
 
 
 class VCenterClient(Protocol):
@@ -107,5 +89,7 @@ class VCenterClient(Protocol):
     def clone_vm(self, spec: CloneSpec) -> CloneResult: ...
 
     def guest_state(self, vm_moid: str) -> GuestState: ...
+
+    def clear_guestinfo_userdata(self, vm_moid: str) -> None: ...
 
     def close(self) -> None: ...

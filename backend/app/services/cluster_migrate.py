@@ -124,7 +124,7 @@ def migrate_sqlite_file_to_postgres(
     from ..models import cluster_secret as _cs  # noqa: F401
     from ..models import token_denylist as _td  # noqa: F401
     from ..models import executive_report as _er  # noqa: F401
-    from ..models import vm_build_job as _vbj  # noqa: F401
+    from ..models import provision_job as _pj  # noqa: F401
 
     Base.metadata.create_all(dst)
 

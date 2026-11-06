@@ -30,4 +30,4 @@ from .executive_report import ExecutiveReportRecipient, ExecutiveReportConfig
 from .cluster_secret import ClusterSecret
 from .dismissed_node import DismissedNode
 from .gui_kv import GuiKv
-from .vm_build_job import VmBuildJob
+from .provision_job import ProvisionConnection, ProvisionJob

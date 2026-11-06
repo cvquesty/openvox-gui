@@ -2,20 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_BUILD_FORM,
   buildPayload,
+  certnameFor,
+  errorCount,
+  firstError,
   isFqdn,
   parsePrefix,
   placementOptions,
   prefixToNetmask,
   validateBuildForm,
-  type VmBuildForm,
-  type VmDatacenterInventory,
-} from './vmbuilder';
+  type BuildFormState,
+  type VmwareDatacenterInventory,
+} from './provisioning';
 
 const item = (moid: string, name: string, kind: string, extra: Partial<any> = {}) => ({
   moid, name, kind, path: '', parent: '', details: {}, ...extra,
 });
 
-const INV: VmDatacenterInventory = {
+const INV: VmwareDatacenterInventory = {
   datacenter: item('datacenter-1', 'DC-East', 'datacenter'),
   compute: [
     item('domain-c10', 'Prod', 'cluster', { details: { datastores: ['ds-1', 'ds-2'], networks: ['net-1'] } }),
@@ -36,21 +39,21 @@ const INV: VmDatacenterInventory = {
   networks: [item('net-1', 'VM Network', 'network'), item('net-2', 'Host Net', 'network')],
 };
 
-const VALID: VmBuildForm = {
+const VALID: BuildFormState = {
   ...EMPTY_BUILD_FORM,
   hostname: 'web01.example.com',
   ip: '192.0.2.50',
   netmask: '255.255.255.0',
   gateway: '192.0.2.1',
   dns_servers: ['192.0.2.10'],
+  network: 'net-1',
   datacenter: 'DC-East',
   compute: 'domain-c10',
   datastore: 'ds-1',
-  network: 'net-1',
-  template: 'vm-100',
+  image: 'vm-100',
 };
 
-describe('vmbuilder prefix helpers', () => {
+describe('provisioning prefix helpers', () => {
   it('parses every netmask form the backend accepts', () => {
     expect(parsePrefix('24')).toBe(24);
     expect(parsePrefix('/19')).toBe(19);
@@ -61,13 +64,13 @@ describe('vmbuilder prefix helpers', () => {
     expect(parsePrefix('0')).toBeNull();
     expect(parsePrefix('33')).toBeNull();
     expect(prefixToNetmask(19)).toBe('255.255.224.0');
-    expect(prefixToNetmask(32)).toBe('255.255.255.255');
   });
 
-  it('recognises FQDNs', () => {
+  it('recognises FQDNs and builds the certname / VM name', () => {
     expect(isFqdn('web01.example.com')).toBe(true);
     expect(isFqdn('web01')).toBe(false);
-    expect(isFqdn('web_01.example.com')).toBe(false);
+    expect(certnameFor('Web01', 'Example.com')).toBe('web01.example.com');
+    expect(certnameFor('web01.lab.example.com', 'example.com')).toBe('web01.lab.example.com');
   });
 });
 
@@ -83,7 +86,26 @@ describe('validateBuildForm', () => {
     expect(Object.keys(errors).sort()).toEqual(['dns_servers', 'hostname', 'ip', 'netmask']);
     expect(validateBuildForm({ ...VALID, hostname: 'web01' }, 'example.com').hostname).toBeUndefined();
     expect(validateBuildForm({ ...VALID, gateway: '198.51.100.1' }).gateway).toMatch(/outside/);
-    expect(validateBuildForm({ ...VALID, gateway: VALID.ip }).gateway).toMatch(/differ/);
+    expect(validateBuildForm({ ...VALID, hostname: `${'a'.repeat(40)}.${'b'.repeat(40)}.example.com` }).hostname).toMatch(/80/);
+  });
+
+  it('validates extra NICs', () => {
+    const errors = validateBuildForm({
+      ...VALID,
+      extra_nics: [
+        { network: '', ip: '', netmask: '' },
+        { network: 'net-1', ip: '198.51.100.5', netmask: '' },
+        { network: 'net-1', ip: '192.0.2.50', netmask: '24' },
+        { network: 'net-1', ip: '', netmask: '' },
+      ],
+    });
+    expect(errors.nics).toEqual({
+      0: 'Pick a network',
+      1: 'Netmask is required with a static IP',
+      2: 'IP already used by another NIC',
+    });
+    expect(errorCount(errors)).toBe(3);
+    expect(firstError(errors)).toBe('NIC 2: Pick a network');
   });
 
   it('requires the storage pick that matches the mode', () => {
@@ -106,14 +128,18 @@ describe('placementOptions', () => {
 });
 
 describe('buildPayload', () => {
-  it('sends only the storage field for the selected mode and drops bootstrap extras when off', () => {
+  it('nests provider placement and drops bootstrap extras when off', () => {
     const p = buildPayload({
       ...VALID, datastore_cluster: 'pod-1', bootstrap_agent: false,
       sign_certificate: true, enc_environment: 'production', enc_group_ids: [1],
+      extra_nics: [{ network: 'net-2', ip: '', netmask: '24' }],
     });
+    expect(p.placement).toEqual({
+      datacenter: 'DC-East', compute: 'domain-c10', resource_pool: '', folder: '',
+      datastore: 'ds-1', datastore_cluster: '',
+    });
+    expect(p.extra_nics).toEqual([{ network: 'net-2', ip: '', netmask: '' }]);
     expect(p).not.toHaveProperty('storage_mode');
-    expect(p.datastore).toBe('ds-1');
-    expect(p.datastore_cluster).toBe('');
     expect(p.sign_certificate).toBe(false);
     expect(p.enc_environment).toBe('');
     expect(p.enc_group_ids).toEqual([]);

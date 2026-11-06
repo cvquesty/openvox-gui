@@ -1,65 +1,72 @@
 /**
- * VM builder form: identity + network, size, vCenter placement, OpenVox bootstrap.
+ * Provisioning build form. Identity, NICs, size, OpenVox bootstrap and the
+ * classifier handoff are shared; placement comes from the provider
+ * component (VmwarePlacement today).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Badge, Button, Card, Code, Grid, Group, Modal, MultiSelect, NumberInput,
-  ScrollArea, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput, Title,
+  ActionIcon, Alert, Badge, Button, Card, Code, Grid, Group, Modal, MultiSelect, NumberInput,
+  ScrollArea, Select, Stack, Switch, TagsInput, Text, TextInput, Title, Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconEye, IconRefresh, IconRocket } from '@tabler/icons-react';
+import { IconEye, IconPlus, IconRocket, IconTrash } from '@tabler/icons-react';
 import { ConfirmModal } from '../ConfirmModal';
-import { enc, vmbuilder, type VmBuilderStatus, type VmBuildPreview } from '../../services/api';
+import { enc, provisioning, type ProvisioningStatus, type ProvisionPreview } from '../../services/api';
 import {
-  EMPTY_BUILD_FORM, buildPayload, parsePrefix, placementOptions, prefixToNetmask, validateBuildForm,
-  type FormErrors, type VmBuildForm, type VmDatacenterInventory, type VmInventoryItem,
-} from '../../utils/vmbuilder';
-import { InventoryBrowser, type PickField } from './InventoryBrowser';
-
-const option = (i: VmInventoryItem, label?: string) => ({ value: i.moid, label: label || i.path || i.name });
+  EMPTY_BUILD_FORM, MAX_NICS, buildPayload, certnameFor, errorCount, firstError, parsePrefix,
+  placementOptions, prefixToNetmask, validateBuildForm,
+  type BuildFormState, type FormErrors, type InventoryItem, type VmwareDatacenterInventory,
+} from '../../utils/provisioning';
+import type { PickField } from './InventoryBrowser';
+import { VmwarePlacement, inventoryOption } from './VmwarePlacement';
 
 export function BuildForm({
   status, onSubmitted,
 }: {
-  status: VmBuilderStatus;
+  status: ProvisioningStatus;
   onSubmitted: (jobId: string) => void;
 }) {
   const defaultDomain = status.settings.default_domain || '';
-  const [form, setForm] = useState<VmBuildForm>(EMPTY_BUILD_FORM);
+  const usable = status.connections.filter((c) => c.configured);
+  const [form, setForm] = useState<BuildFormState>({ ...EMPTY_BUILD_FORM, connection: status.default_connection });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [datacenters, setDatacenters] = useState<VmInventoryItem[]>([]);
-  const [inventory, setInventory] = useState<VmDatacenterInventory | null>(null);
-  const [templates, setTemplates] = useState<VmInventoryItem[]>([]);
+  const [scopes, setScopes] = useState<InventoryItem[]>([]);
+  const [inventory, setInventory] = useState<VmwareDatacenterInventory | null>(null);
+  const [images, setImages] = useState<InventoryItem[]>([]);
   const [envs, setEnvs] = useState<{ name: string }[]>([]);
   const [groups, setGroups] = useState<{ id: number; name: string; environment: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<VmBuildPreview | null>(null);
+  const [preview, setPreview] = useState<ProvisionPreview | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const set = <K extends keyof VmBuildForm>(key: K, value: VmBuildForm[K]) => {
+  const connection = status.connections.find((c) => c.id === form.connection);
+
+  const set = <K extends keyof BuildFormState>(key: K, value: BuildFormState[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
   const loadTop = useCallback(async () => {
+    if (!form.connection) return;
     setLoading(true);
     setLoadError(null);
     try {
-      const [dcs, tpls] = await Promise.all([vmbuilder.datacenters(), vmbuilder.templates()]);
-      setDatacenters(dcs);
-      setTemplates(tpls);
+      const [dcs, imgs] = await Promise.all([provisioning.scopes(form.connection), provisioning.images(form.connection)]);
+      setScopes(dcs);
+      setImages(imgs);
+      const preferredName = connection?.options?.default_datacenter;
       setForm((f) => {
-        if (f.datacenter) return f;
-        const preferred = dcs.find((d) => d.name === status.settings.default_datacenter) || (dcs.length === 1 ? dcs[0] : null);
-        return preferred ? { ...f, datacenter: preferred.name } : f;
+        if (f.datacenter && dcs.some((d) => d.name === f.datacenter)) return f;
+        const preferred = dcs.find((d) => d.name === preferredName) || (dcs.length === 1 ? dcs[0] : null);
+        return { ...f, datacenter: preferred ? preferred.name : '' };
       });
     } catch (e: any) {
       setLoadError(e.message);
     }
     setLoading(false);
-  }, [status.settings.default_datacenter]);
+  }, [form.connection, connection?.options?.default_datacenter]);
 
   useEffect(() => { loadTop(); }, [loadTop]);
 
@@ -71,44 +78,51 @@ export function BuildForm({
   }, []);
 
   useEffect(() => {
-    if (!form.datacenter) { setInventory(null); return; }
+    if (!form.connection || !form.datacenter) { setInventory(null); return; }
     let cancelled = false;
     setInventory(null);
-    vmbuilder.datacenter(form.datacenter)
+    provisioning.inventory(form.connection, form.datacenter)
       .then((inv) => { if (!cancelled) setInventory(inv); })
       .catch((e) => { if (!cancelled) setLoadError(e.message); });
     return () => { cancelled = true; };
-  }, [form.datacenter]);
+  }, [form.connection, form.datacenter]);
 
   const opts = useMemo(() => placementOptions(inventory, form.compute), [inventory, form.compute]);
+  const networkOptions = opts.networks.map((n) => inventoryOption(n, `${n.name}${n.kind === 'dvportgroup' ? ' (distributed)' : ''}`));
   const prefix = parsePrefix(form.netmask);
+  const certname = certnameFor(form.hostname, defaultDomain);
 
-  const changeDatacenter = (name: string | null) => {
-    setForm((f) => ({
-      ...f, datacenter: name || '', compute: '', resource_pool: '', folder: '',
-      datastore: '', datastore_cluster: '', network: '',
-    }));
+  const clearPlacement = (f: BuildFormState): BuildFormState => ({
+    ...f, compute: '', resource_pool: '', folder: '', datastore: '', datastore_cluster: '',
+    network: '', extra_nics: f.extra_nics.map((n) => ({ ...n, network: '' })),
+  });
+
+  const changeConnection = (id: string | null) => {
+    setForm((f) => ({ ...clearPlacement(f), connection: id || status.default_connection, datacenter: '', image: '' }));
   };
-
+  const changeDatacenter = (name: string | null) => {
+    setForm((f) => ({ ...clearPlacement(f), datacenter: name || '' }));
+  };
   const changeCompute = (moid: string | null) => {
-    setForm((f) => ({ ...f, compute: moid || '', resource_pool: '', datastore: '', datastore_cluster: '', network: '' }));
+    setForm((f) => ({
+      ...f, compute: moid || '', resource_pool: '', datastore: '', datastore_cluster: '',
+      network: '', extra_nics: f.extra_nics.map((n) => ({ ...n, network: '' })),
+    }));
     setErrors((e) => ({ ...e, compute: undefined }));
   };
-
-  const changeTemplate = (moid: string | null) => {
-    const tpl = templates.find((t) => t.moid === moid);
+  const changeImage = (moid: string | null) => {
+    const tpl = images.find((t) => t.moid === moid);
     setForm((f) => ({
       ...f,
-      template: moid || '',
+      image: moid || '',
       // Clones never shrink the template disk (ovbuilder rule).
       disk_gb: tpl?.details.disk_gb ? Math.max(f.disk_gb, tpl.details.disk_gb) : f.disk_gb,
     }));
-    setErrors((e) => ({ ...e, template: undefined }));
+    setErrors((e) => ({ ...e, image: undefined }));
   };
-
   const pick = (field: PickField, moid: string) => {
     if (field === 'compute') return changeCompute(moid);
-    if (field === 'template') return changeTemplate(moid);
+    if (field === 'image') return changeImage(moid);
     if (field === 'datastore' || field === 'datastore_cluster') {
       setForm((f) => ({ ...f, storage_mode: field, [field]: moid }));
       return;
@@ -116,11 +130,16 @@ export function BuildForm({
     set(field, moid);
   };
 
+  const setNic = (idx: number, patch: Partial<BuildFormState['extra_nics'][number]>) => {
+    setForm((f) => ({ ...f, extra_nics: f.extra_nics.map((n, i) => (i === idx ? { ...n, ...patch } : n)) }));
+    setErrors((e) => ({ ...e, nics: undefined }));
+  };
+
   const check = (): boolean => {
     const errs = validateBuildForm(form, defaultDomain);
     setErrors(errs);
-    if (Object.keys(errs).length) {
-      notifications.show({ color: 'red', title: 'Check the form', message: Object.values(errs)[0] });
+    if (errorCount(errs)) {
+      notifications.show({ color: 'red', title: 'Check the form', message: firstError(errs) });
       return false;
     }
     return true;
@@ -129,7 +148,7 @@ export function BuildForm({
   const doPreview = async () => {
     if (!check()) return;
     try {
-      setPreview(await vmbuilder.preview(buildPayload(form)));
+      setPreview(await provisioning.preview(buildPayload(form)));
     } catch (e: any) {
       notifications.show({ color: 'red', title: 'Preview failed', message: e.message });
     }
@@ -138,8 +157,8 @@ export function BuildForm({
   const doSubmit = async () => {
     setSubmitting(true);
     try {
-      const job = await vmbuilder.submit(buildPayload(form));
-      notifications.show({ color: 'green', title: 'Build started', message: `${job.certname} queued` });
+      const job = await provisioning.submit(buildPayload(form));
+      notifications.show({ color: 'green', title: 'Build queued', message: `${job.certname} queued` });
       setConfirming(false);
       onSubmitted(job.id);
     } catch (e: any) {
@@ -148,21 +167,20 @@ export function BuildForm({
     setSubmitting(false);
   };
 
-  const compute = opts.compute;
-  const template = templates.find((t) => t.moid === form.template);
-  const certname = form.hostname.includes('.') || !defaultDomain
-    ? form.hostname.trim().toLowerCase()
-    : `${form.hostname.trim().toLowerCase()}.${defaultDomain}`;
+  const template = images.find((t) => t.moid === form.image);
   const groupOptions = groups
     .filter((g) => !form.enc_environment || g.environment === form.enc_environment)
     .map((g) => ({ value: String(g.id), label: `${g.name} (${g.environment})` }));
 
   return (
     <Stack gap="md">
-      {loadError && (
-        <Alert color="red" title="vCenter inventory unavailable">
-          {loadError}
-        </Alert>
+      {loadError && <Alert color="red" title="Provider inventory unavailable">{loadError}</Alert>}
+
+      {usable.length > 1 && (
+        <Card withBorder padding="sm">
+          <Select label="Connection" data={usable.map((c) => ({ value: c.id, label: `${c.name} — ${c.provider_label} (${c.host})` }))}
+            value={form.connection} onChange={changeConnection} allowDeselect={false} maw={520} />
+        </Card>
       )}
 
       <Card withBorder padding="md">
@@ -174,11 +192,11 @@ export function BuildForm({
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput label="Hostname or FQDN" required placeholder={defaultDomain ? `web01 or web01.${defaultDomain}` : 'web01.example.com'}
               value={form.hostname} onChange={(e) => set('hostname', e.currentTarget.value)} error={errors.hostname}
-              description={certname ? `Certname: ${certname}` : undefined} />
+              description={certname ? `Certname and vCenter VM name: ${certname}` : 'Becomes the certname and the vCenter VM name'} />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
-            <TextInput label="VM name in vCenter" placeholder="Defaults to the short hostname"
-              value={form.vm_name} onChange={(e) => set('vm_name', e.currentTarget.value)} error={errors.vm_name} />
+            <TextInput label="vCenter notes" placeholder="Optional annotation"
+              value={form.annotation} onChange={(e) => set('annotation', e.currentTarget.value)} />
           </Grid.Col>
           <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
             <TextInput label="IP address" required placeholder="192.0.2.50"
@@ -197,100 +215,74 @@ export function BuildForm({
             <TagsInput label="DNS servers" placeholder="Enter to add" value={form.dns_servers}
               onChange={(v) => set('dns_servers', v)} error={errors.dns_servers} maxTags={6} splitChars={[',', ' ']} />
           </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}>
+          <Grid.Col span={12}>
             <TagsInput label="DNS search domains" placeholder={defaultDomain || 'example.com'} value={form.search_domains}
               onChange={(v) => set('search_domains', v)} error={errors.search_domains} maxTags={6} splitChars={[',', ' ']}
               description="Defaults to the host's domain" />
           </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <TextInput label="vCenter notes" placeholder="Optional annotation"
-              value={form.annotation} onChange={(e) => set('annotation', e.currentTarget.value)} />
-          </Grid.Col>
         </Grid>
       </Card>
+
+      <VmwarePlacement
+        form={form} errors={errors} scopes={scopes} inventory={inventory} images={images}
+        templatePrefix={connection?.options?.template_prefix ?? ''} loading={loading}
+        onReload={loadTop} onDatacenter={changeDatacenter} onCompute={changeCompute}
+        onImage={changeImage} onPick={pick} set={set}
+      />
 
       <Card withBorder padding="md">
         <Group justify="space-between" mb="xs">
-          <Title order={4}>2. vCenter placement</Title>
-          <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} onClick={loadTop} loading={loading}>
-            Reload inventory
+          <Title order={4}>3. Network interfaces</Title>
+          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />}
+            disabled={form.extra_nics.length + 1 >= MAX_NICS}
+            onClick={() => setForm((f) => ({ ...f, extra_nics: [...f.extra_nics, { network: '', ip: '', netmask: '' }] }))}>
+            Add NIC
           </Button>
         </Group>
-        <Grid gap="sm">
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Select label="Datacenter" required searchable data={datacenters.map((d) => ({ value: d.name, label: d.path || d.name }))}
-              value={form.datacenter || null} onChange={changeDatacenter} error={errors.datacenter} />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Select label="Cluster or standalone host" required searchable disabled={!inventory}
-              data={[
-                { group: 'Clusters (DRS/HA)', items: (inventory?.compute || []).filter((c) => c.kind === 'cluster').map((c) => option(c)) },
-                { group: 'Standalone ESXi hosts', items: (inventory?.compute || []).filter((c) => c.kind === 'host').map((c) => option(c, c.name)) },
-              ].filter((g) => g.items.length)}
-              value={form.compute || null} onChange={changeCompute} error={errors.compute} />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Select label="Resource pool" searchable clearable disabled={!compute}
-              placeholder="Root pool of the cluster/host"
-              data={opts.resourcePools.map((p) => option(p, p.path === '(root)' ? `${p.name} (root)` : p.path))}
-              value={form.resource_pool || null} onChange={(v) => set('resource_pool', v || '')} />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Select label="VM folder" searchable clearable disabled={!inventory} placeholder="Datacenter root"
-              data={opts.folders.map((f) => option(f))}
-              value={form.folder || null} onChange={(v) => set('folder', v || '')} />
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Stack gap={4}>
-              <Group justify="space-between">
-                <Text size="sm" fw={500}>Storage <Text span c="red">*</Text></Text>
-                <SegmentedControl size="xs" value={form.storage_mode}
-                  onChange={(v) => set('storage_mode', v as VmBuildForm['storage_mode'])}
-                  data={[{ value: 'datastore', label: 'Datastore' }, { value: 'datastore_cluster', label: 'SDRS cluster' }]} />
-              </Group>
-              {form.storage_mode === 'datastore' ? (
-                <Select searchable disabled={!inventory} aria-label="Datastore"
-                  data={opts.datastores.map((d) => option(d, `${d.name} — ${d.details.free_gb ?? '?'} GB free`))}
-                  value={form.datastore || null} onChange={(v) => set('datastore', v || '')} error={errors.datastore} />
-              ) : (
-                <Select searchable disabled={!inventory} aria-label="Datastore cluster"
-                  data={opts.datastoreClusters.map((d) => option(d, `${d.name} — ${d.details.free_gb ?? '?'} GB free`))}
-                  value={form.datastore_cluster || null} onChange={(v) => set('datastore_cluster', v || '')}
-                  error={errors.datastore_cluster} />
-              )}
-            </Stack>
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 4 }}>
-            <Select label="Network (port group)" required searchable disabled={!inventory}
-              data={opts.networks.map((n) => option(n, `${n.name}${n.kind === 'dvportgroup' ? ' (distributed)' : ''}`))}
-              value={form.network || null} onChange={(v) => set('network', v || '')} error={errors.network} />
-          </Grid.Col>
-          <Grid.Col span={12}>
-            <Select label="Template" required searchable
-              data={templates.map((t) => option(t, `${t.name}${t.details.guest_name ? ` — ${t.details.guest_name}` : ''}`))}
-              value={form.template || null} onChange={changeTemplate} error={errors.template}
-              description={status.settings.template_prefix
-                ? `Only templates named ${status.settings.template_prefix}* are listed`
-                : 'All vCenter templates visible to the service account are listed'} />
-          </Grid.Col>
-        </Grid>
-        <Card withBorder mt="md" padding="xs" bg="var(--mantine-color-body)">
-          <Text size="sm" fw={600} mb={4}>Inventory browser {inventory ? `— ${inventory.datacenter.name}` : ''}</Text>
-          <InventoryBrowser
-            inventory={inventory}
-            templates={templates}
-            selection={{
-              compute: form.compute, resource_pool: form.resource_pool, folder: form.folder,
-              datastore: form.datastore, datastore_cluster: form.datastore_cluster,
-              network: form.network, template: form.template,
-            }}
-            onPick={pick}
-          />
-        </Card>
+        <Stack gap="xs">
+          <Grid gap="sm" align="flex-end">
+            <Grid.Col span={{ base: 12, md: 5 }}>
+              <Select label="NIC 1 network (port group)" required searchable disabled={!inventory}
+                data={networkOptions} value={form.network || null}
+                onChange={(v) => set('network', v || '')} error={errors.network} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 7 }}>
+              <Text size="xs" c="dimmed">Uses the IP, gateway and DNS above.</Text>
+            </Grid.Col>
+          </Grid>
+          {form.extra_nics.map((nic, idx) => (
+            <Grid gap="sm" align="flex-end" key={idx}>
+              <Grid.Col span={{ base: 12, md: 5 }}>
+                <Select label={`NIC ${idx + 2} network`} required searchable disabled={!inventory}
+                  data={networkOptions} value={nic.network || null}
+                  onChange={(v) => setNic(idx, { network: v || '' })} error={errors.nics?.[idx]} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 6, md: 3 }}>
+                <TextInput label="IP address" placeholder="Blank = DHCP" value={nic.ip}
+                  onChange={(e) => setNic(idx, { ip: e.currentTarget.value })} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 5, md: 3 }}>
+                <TextInput label="Netmask or prefix" placeholder="24" value={nic.netmask} disabled={!nic.ip.trim()}
+                  onChange={(e) => setNic(idx, { netmask: e.currentTarget.value })} />
+              </Grid.Col>
+              <Grid.Col span={1}>
+                <Tooltip label="Remove NIC">
+                  <ActionIcon variant="subtle" color="red" aria-label={`Remove NIC ${idx + 2}`}
+                    onClick={() => setForm((f) => ({ ...f, extra_nics: f.extra_nics.filter((_, i) => i !== idx) }))}>
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Grid.Col>
+            </Grid>
+          ))}
+          {form.extra_nics.length > 0 && (
+            <Text size="xs" c="dimmed">Extra NICs get no gateway. NICs are matched in PCI order on the guest.</Text>
+          )}
+        </Stack>
       </Card>
 
       <Card withBorder padding="md">
-        <Title order={4} mb="xs">3. Size</Title>
+        <Title order={4} mb="xs">4. Size</Title>
         <Grid gap="sm">
           <Grid.Col span={{ base: 12, sm: 4 }}>
             <NumberInput label="vCPUs" min={1} max={128} value={form.cpus}
@@ -309,7 +301,7 @@ export function BuildForm({
       </Card>
 
       <Card withBorder padding="md">
-        <Title order={4} mb="xs">4. OpenVox agent</Title>
+        <Title order={4} mb="xs">5. OpenVox agent</Title>
         <Stack gap="sm">
           <Switch checked={form.bootstrap_agent} onChange={(e) => set('bootstrap_agent', e.currentTarget.checked)}
             label="Install the OpenVox agent on first boot"
@@ -318,8 +310,8 @@ export function BuildForm({
               : `install.bash from ${status.bootstrap.pkg_repo_url} → server ${status.bootstrap.server}, CA ${status.bootstrap.ca_server}, OpenVox ${status.bootstrap.agent_version}`} />
           <Switch checked={form.bootstrap_agent && form.sign_certificate} disabled={!form.bootstrap_agent}
             onChange={(e) => set('sign_certificate', e.currentTarget.checked)}
-            label="Sign this node's certificate request when it arrives"
-            description="Only the CSR whose certname matches this build is signed. Leave off to sign it yourself on the Certificate Authority page." />
+            label="Sign this node's certificate request (verified per build)"
+            description="The build gives the guest a one-time challenge. Only a CSR for this certname that carries it is signed; any other CSR is rejected. Leave off to sign it yourself on the Certificate Authority page." />
           <Grid gap="sm">
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Select label="Classifier environment" clearable disabled={!form.bootstrap_agent}
@@ -348,16 +340,19 @@ export function BuildForm({
           <Stack gap="xs">
             <Group gap="xs">
               <Badge variant="light">{preview.certname}</Badge>
-              <Badge variant="light" color="gray">VM {preview.vm_name}</Badge>
               <Badge variant="light" color="gray">{preview.ip}/{preview.prefix} ({preview.netmask})</Badge>
+              <Badge variant="light" color="gray">{preview.nics.length} NIC{preview.nics.length === 1 ? '' : 's'}</Badge>
             </Group>
             {preview.agent_command && (
               <>
                 <Text size="sm" fw={600}>Agent bootstrap command</Text>
                 <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{preview.agent_command}</Code>
+                {form.sign_certificate && (
+                  <Text size="xs" c="dimmed">The challenge shown is a placeholder; the real token is generated when the build starts and is never displayed.</Text>
+                )}
               </>
             )}
-            <Text size="sm" fw={600}>cloud-init user-data (guestinfo.userdata)</Text>
+            <Text size="sm" fw={600}>cloud-init user-data</Text>
             <ScrollArea.Autosize mah={420}><Code block>{preview.userdata}</Code></ScrollArea.Autosize>
           </Stack>
         )}
@@ -369,12 +364,12 @@ export function BuildForm({
         onConfirm={doSubmit}
         loading={submitting}
         title="Create this VM in vCenter?"
-        body={`Clone ${template?.name || 'the template'} as ${form.vm_name || certname.split('.')[0]} and power it on.`}
+        body={`Clone ${template?.name || 'the template'} as ${certname} and power it on.`}
         details={[
-          `Certname ${certname}, IP ${form.ip}`,
-          `Compute ${compute?.name || form.compute}`,
+          `IP ${form.ip}${form.extra_nics.length ? ` + ${form.extra_nics.length} extra NIC(s)` : ''}`,
+          `Compute ${opts.compute?.name || form.compute}${connection ? ` on ${connection.name}` : ''}`,
           form.bootstrap_agent ? 'OpenVox agent installs on first boot' : 'No agent bootstrap',
-          ...(form.bootstrap_agent && form.sign_certificate ? ['Its certificate request will be signed automatically'] : []),
+          ...(form.bootstrap_agent && form.sign_certificate ? ['Its CSR is signed only if it carries this build\'s challenge'] : []),
           ...(form.enc_environment ? [`Classified into ${form.enc_environment} after the first report`] : []),
         ]}
         confirmLabel="Build VM"

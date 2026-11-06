@@ -1,35 +1,41 @@
 """
-cloud-init ``guestinfo.*`` payload for a template clone (ovbuilder approach).
+cloud-init first-boot payload shared by every provisioning provider.
 
-VMware Tools + cloud-init read ``guestinfo.metadata`` / ``guestinfo.userdata``
-from the VM's extraConfig on first boot. That gives the guest its
-hostname, static IPv4 and first-boot commands without SSH from the GUI
-and without a vCenter guest customization spec.
+The payload gives a new machine its hostname, static network identity and
+first-boot commands without SSH from the GUI. How it reaches the guest is
+provider-specific: VMware puts it in ``guestinfo.*`` extraConfig (the
+ovbuilder approach); a bare-metal provider (issue #173) could serve the
+same metadata/user-data through NoCloud.
 
 cloud-init's own network renderer is disabled. A first-boot script
-(``/usr/local/sbin/openvox-gui-net.sh``) edits the template's existing NIC
-profile in place, which is what ovbuilder learned works across Ubuntu
+(``/usr/local/sbin/openvox-gui-net.sh``) edits the image's existing NIC
+profiles in place, which is what ovbuilder learned works across Ubuntu
 netplan and EL NetworkManager goldens:
 
-* netplan present → write ``99-openvox-gui.yaml`` for the real iface, apply.
-* nmcli present   → modify the existing ethernet profile, drop spares.
+* netplan present → write ``99-openvox-gui.yaml`` for the real ifaces, apply.
+* nmcli present   → modify the existing ethernet profiles, drop spares.
 * otherwise       → raw ``ip addr`` / ``ip route`` (non-persistent).
+
+NICs are matched to the request in PCI order (VMware adds them in device
+order). NIC 1 carries the gateway and DNS. Extra NICs take a static
+address without a gateway, or DHCP when no address is given.
 
 The OpenVox agent step runs this console's ``install.bash`` with the same
 ``--server`` / ``--ca-server`` / ``--pkg-repo-url`` flags the Agent Install
-page shows, and pins ``certname`` to the requested FQDN.
+page shows, pins ``certname`` to the FQDN, and, when the build asked the
+GUI to sign, adds the per-build ``challengePassword`` (see ``csr.py``).
 
-guestinfo is readable by any vCenter user who can read the VM's advanced
-settings. Never put passwords in it; an HTTP proxy URL with credentials
-is the one operator-supplied exception and is documented as such.
+The payload can be read by whoever can read the provider's VM config
+(vCenter: advanced settings). It never carries passwords; the per-build
+CSR token and an HTTP proxy URL with credentials are the exceptions, and
+VMware blanks ``guestinfo.userdata`` once the CSR has been handled.
 """
 from __future__ import annotations
 
-import base64
 import json
 import re
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Sequence
 from urllib.parse import urlparse
 
@@ -51,6 +57,15 @@ _SSH_PUBKEY_PREFIXES = (
 )
 _SAFE_DNF_GROUP = re.compile(r"^[A-Za-z0-9 ._+/-]+$")
 _SAFE_URL = re.compile(r"^https?://[A-Za-z0-9._:/@%+-]+$")
+_SAFE_CHALLENGE = re.compile(r"^[A-Za-z0-9-]{16,128}$")
+
+
+@dataclass(frozen=True)
+class NicAddress:
+    """Addressing for one NIC. Empty ``ip`` means DHCP (extra NICs only)."""
+
+    ip: str = ""
+    prefix: int = 0
 
 
 @dataclass(frozen=True)
@@ -62,10 +77,15 @@ class GuestIdentity:
     gateway: str = ""
     dns_servers: Sequence[str] = ()
     search_domains: Sequence[str] = ()
+    extra_nics: Sequence[NicAddress] = ()
 
     @property
     def fqdn(self) -> str:
         return f"{self.hostname}.{self.domain}" if self.domain else self.hostname
+
+    @property
+    def nics(self) -> List[NicAddress]:
+        return [NicAddress(self.ip, self.prefix), *self.extra_nics]
 
 
 @dataclass(frozen=True)
@@ -97,10 +117,7 @@ class GuestOptions:
     no_proxy: Sequence[str] = ()
     dnf_groups: Sequence[str] = ()
     bootstrap: Optional[BootstrapTarget] = None
-
-
-def _b64(text: str) -> str:
-    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+    csr_challenge: str = field(default="", repr=False)
 
 
 def normalize_ssh_authorized_keys(keys: Optional[Sequence[str] | str]) -> List[str]:
@@ -172,49 +189,72 @@ def build_metadata(identity: GuestIdentity) -> str:
     )
 
 
-def _nm_value(value: str) -> str:
+def _q(value: str) -> str:
     return shlex.quote(value) if value else "''"
 
 
 def build_network_script(identity: GuestIdentity) -> str:
-    """Bash body (no shebang) that applies the static IPv4 on the primary NIC."""
-    ip_cidr = f"{identity.ip}/{identity.prefix}"
-    gw = identity.gateway
+    """Bash body (no shebang) that applies addressing to every requested NIC."""
+    nics = identity.nics
     dns = list(identity.dns_servers)
     search = list(identity.search_domains) or ([identity.domain] if identity.domain else [])
+    gw = identity.gateway
 
-    routes_block = ""
+    netplan_blocks: List[str] = []
+    nm_calls: List[str] = []
+    ip_calls: List[str] = []
+    for idx, nic in enumerate(nics):
+        var = f"$IF{idx}"
+        guard = f'[ -n "{var}" ] && '
+        if nic.ip:
+            cidr = f"{nic.ip}/{nic.prefix}"
+            body = (
+                f"    {var}:\n"
+                "      dhcp4: false\n"
+                "      dhcp6: false\n"
+                "      addresses:\n"
+                f"        - {cidr}\n"
+            )
+            if idx == 0 and gw:
+                body += "      routes:\n        - to: 0.0.0.0/0\n" f"          via: {gw}\n"
+            if idx == 0 and (dns or search):
+                body += "      nameservers:\n"
+                if dns:
+                    body += f"        addresses: [{', '.join(dns)}]\n"
+                if search:
+                    body += f"        search: [{', '.join(search)}]\n"
+            nm_calls.append(
+                f'{guard}nm_conf "{var}" manual {_q(cidr)} '
+                f"{_q(gw if idx == 0 else '')} {_q(' '.join(dns) if idx == 0 else '')} "
+                f"{_q(' '.join(search) if idx == 0 else '')}"
+            )
+            ip_calls.append(f'{guard}{{ ip link set "{var}" up; ip addr flush dev "{var}"; '
+                            f'ip addr add {_q(cidr)} dev "{var}"; }}')
+        else:
+            body = f"    {var}:\n      dhcp4: true\n      dhcp6: false\n"
+            nm_calls.append(f"{guard}nm_conf \"{var}\" auto '' '' '' ''")
+        # NOTE: unquoted heredoc on purpose: the guest shell must expand $IFn.
+        # Everything else in the block is validated IPv4 / DNS text.
+        netplan_blocks.append(f'if [ -n "{var}" ]; then\ncat >> "$NP" <<EOF\n{body}EOF\nfi')
     if gw:
-        routes_block = (
-            "      routes:\n"
-            "        - to: 0.0.0.0/0\n"
-            f"          via: {gw}\n"
-        )
-    nameservers_block = ""
-    if dns or search:
-        nameservers_block = "      nameservers:\n"
-        if dns:
-            nameservers_block += f"        addresses: [{', '.join(dns)}]\n"
-        if search:
-            nameservers_block += f"        search: [{', '.join(search)}]\n"
+        ip_calls.append(f"ip route replace default via {_q(gw)} || true")
 
-    nm_args = [
-        f"ipv4.gateway {_nm_value(gw)}",
-        f"ipv4.dns {_nm_value(' '.join(dns))}",
-        f"ipv4.dns-search {_nm_value(' '.join(search))}",
-    ]
-    ip_q = shlex.quote(ip_cidr)
-    gw_route = f"ip route replace default via {shlex.quote(gw)} || true" if gw else "true"
-
-    # NOTE: the netplan heredoc delimiter is unquoted on purpose: the guest
-    # shell must expand $IFACE. Every other value is validated IPv4/DNS text.
+    assign = "\n".join(f'IF{i}="${{IFACES[{i}]:-}}"' for i in range(len(nics)))
+    configured = " ".join(f'"$IF{i}"' for i in range(len(nics)))
     return f"""set +e
-IFACE=$(ls -1 /sys/class/net 2>/dev/null | grep -E '^e' | head -1)
-if [ -z "$IFACE" ]; then
+# Ethernet ifaces in PCI order (VMware adds NICs in device order).
+mapfile -t IFACES < <(for i in $(ls -1 /sys/class/net 2>/dev/null | grep -E '^e'); do
+  printf '%s %s\\n' "$(readlink -f /sys/class/net/$i/device 2>/dev/null)" "$i"
+done | sort | awk '{{print $2}}')
+if [ "${{#IFACES[@]}}" -eq 0 ]; then
   echo "openvox-gui-net: no ethernet interface found" >&2
   exit 1
 fi
-echo "openvox-gui-net: primary iface=$IFACE ip={ip_cidr}"
+{assign}
+if [ "${{#IFACES[@]}}" -lt {len(nics)} ]; then
+  echo "openvox-gui-net: expected {len(nics)} NICs, found ${{#IFACES[@]}}" >&2
+fi
+echo "openvox-gui-net: ifaces=${{IFACES[*]}} primary=$IF0 ip={identity.ip}/{identity.prefix}"
 
 if [ -d /etc/netplan ] && command -v netplan >/dev/null 2>&1; then
   echo "openvox-gui-net: path=netplan"
@@ -223,52 +263,55 @@ if [ -d /etc/netplan ] && command -v netplan >/dev/null 2>&1; then
     case "$f" in */99-openvox-gui.yaml) continue ;; esac
     rm -f "$f"
   done
-  cat > /etc/netplan/99-openvox-gui.yaml <<EOF
-network:
-  version: 2
-  ethernets:
-    $IFACE:
-      dhcp4: false
-      dhcp6: false
-      addresses:
-        - {ip_cidr}
-{routes_block}{nameservers_block}EOF
-  chmod 600 /etc/netplan/99-openvox-gui.yaml
+  NP=/etc/netplan/99-openvox-gui.yaml
+  printf 'network:\\n  version: 2\\n  ethernets:\\n' > "$NP"
+{chr(10).join(netplan_blocks)}
+  chmod 600 "$NP"
   netplan generate 2>/dev/null || true
   netplan apply
-  ip -br addr show "$IFACE" || true
+  ip -br addr || true
   exit 0
 fi
 
 if command -v nmcli >/dev/null 2>&1; then
   echo "openvox-gui-net: path=nmcli"
-  CONN=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null | awk -F: -v i="$IFACE" '$2 == i {{ print $1; exit }}')
-  if [ -z "$CONN" ]; then
-    CONN=$(nmcli -t -f NAME,TYPE connection show 2>/dev/null | awk -F: '$2 == "802-3-ethernet" {{ print $1; exit }}')
-  fi
-  if [ -z "$CONN" ]; then
-    nmcli connection add type ethernet ifname "$IFACE" con-name "$IFACE" ipv4.method manual ipv6.method ignore
-    CONN="$IFACE"
-  fi
-  nmcli connection modify "$CONN" connection.id "$IFACE" connection.interface-name "$IFACE" \\
-    connection.autoconnect yes ipv4.method manual ipv4.addresses {ip_q} ipv6.method ignore \\
-    {' '.join(nm_args)}
-  CONN="$IFACE"
+  nm_conf() {{
+    local IFACE="$1" METHOD="$2" CIDR="$3" GW="$4" DNS="$5" SEARCH="$6" CONN
+    CONN=$(nmcli -t -f NAME,DEVICE connection show 2>/dev/null | awk -F: -v i="$IFACE" '$2 == i {{ print $1; exit }}')
+    if [ -z "$CONN" ]; then
+      CONN=$(nmcli -t -f NAME,DEVICE,TYPE connection show 2>/dev/null | awk -F: -v done="$DONE" \\
+        '$3 == "802-3-ethernet" && $2 == "" && index(" " done " ", " " $1 " ") == 0 {{ print $1; exit }}')
+    fi
+    if [ -z "$CONN" ]; then
+      nmcli connection add type ethernet ifname "$IFACE" con-name "$IFACE" ipv4.method auto ipv6.method ignore
+      CONN="$IFACE"
+    fi
+    if [ "$METHOD" = manual ]; then
+      nmcli connection modify "$CONN" connection.id "$IFACE" connection.interface-name "$IFACE" \\
+        connection.autoconnect yes ipv4.method manual ipv4.addresses "$CIDR" ipv4.gateway "$GW" \\
+        ipv4.dns "$DNS" ipv4.dns-search "$SEARCH" ipv6.method ignore
+    else
+      nmcli connection modify "$CONN" connection.id "$IFACE" connection.interface-name "$IFACE" \\
+        connection.autoconnect yes ipv4.method auto ipv6.method ignore
+    fi
+    DONE="$DONE $IFACE"
+    nmcli connection up "$IFACE" || nmcli device reapply "$IFACE" || true
+  }}
+  DONE=""
+{chr(10).join("  " + c for c in nm_calls)}
+  KEEP=" {configured} "
   nmcli -t -f NAME,TYPE connection show 2>/dev/null | while IFS=: read -r name typ; do
     [ "$typ" = "802-3-ethernet" ] || continue
-    [ "$name" = "$CONN" ] && continue
+    case "$KEEP" in *" $name "*) continue ;; esac
     nmcli connection delete "$name" 2>/dev/null || true
   done
-  nmcli connection up "$CONN" || nmcli device reapply "$IFACE" || true
-  ip -br addr show "$IFACE" || true
+  ip -br addr || true
   exit 0
 fi
 
 echo "openvox-gui-net: path=iproute2"
-ip link set "$IFACE" up || true
-ip addr flush dev "$IFACE" 2>/dev/null || true
-ip addr add {ip_q} dev "$IFACE" || true
-{gw_route}
+{chr(10).join(ip_calls)}
+ip -br addr || true
 """
 
 
@@ -320,11 +363,13 @@ exit 0
 """
 
 
-def agent_install_command(target: BootstrapTarget, certname: str) -> str:
+def agent_install_command(target: BootstrapTarget, certname: str, csr_challenge: str = "") -> str:
     """``curl … install.bash | bash -s -- …`` exactly as the Agent Install page builds it."""
     target.validate()
     if not is_valid_domain(certname):
         raise NetSpecError(f"Invalid certname {certname!r}")
+    if csr_challenge and not _SAFE_CHALLENGE.match(csr_challenge):
+        raise NetSpecError("Invalid CSR challenge")
     repo = target.pkg_repo_url.rstrip("/")
     noproxy = ",".join(h for h in target.noproxy_hosts if h) or target.server
     args = ["--server", target.server]
@@ -334,14 +379,16 @@ def agent_install_command(target: BootstrapTarget, certname: str) -> str:
     if target.agent_version:
         args += ["--version", target.agent_version]
     args.append(f"main:certname={certname}")
+    if csr_challenge:
+        args.append(f"custom_attributes:challengePassword={csr_challenge}")
     return (
         f"curl -fsSk --noproxy {shlex.quote(noproxy)} {shlex.quote(repo + '/install.bash')} "
         f"| bash -s -- {' '.join(shlex.quote(a) for a in args)}"
     )
 
 
-def build_agent_script(target: BootstrapTarget, certname: str) -> str:
-    cmd = agent_install_command(target, certname)
+def build_agent_script(target: BootstrapTarget, certname: str, csr_challenge: str = "") -> str:
+    cmd = agent_install_command(target, certname, csr_challenge)
     return f"""#!/bin/bash
 set -uo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -363,10 +410,10 @@ def _indent_block(text: str, spaces: int = 6) -> str:
     return "\n".join(f"{pad}{line}" if line else pad for line in text.splitlines())
 
 
-def _write_file(path: str, content: str) -> List[str]:
+def _write_file(path: str, content: str, mode: str = "0755") -> List[str]:
     return [
         f"  - path: {path}",
-        "    permissions: '0755'",
+        f"    permissions: '{mode}'",
         "    owner: root:root",
         "    content: |",
         _indent_block(content),
@@ -393,15 +440,8 @@ def build_userdata(identity: GuestIdentity, options: GuestOptions) -> str:
     if keys:
         lines.append("ssh_authorized_keys:")
         lines.extend(f"  - {json.dumps(k)}" for k in keys)
-    lines += [
-        "network:",
-        "  config: disabled",
-        "write_files:",
-    ]
-    lines += _write_file(
-        "/usr/local/sbin/openvox-gui-net.sh",
-        "#!/bin/bash\n" + build_network_script(identity),
-    )
+    lines += ["network:", "  config: disabled", "write_files:"]
+    lines += _write_file("/usr/local/sbin/openvox-gui-net.sh", "#!/bin/bash\n" + build_network_script(identity))
     if proxy:
         no_proxy = ["localhost", "127.0.0.1", "::1", identity.fqdn, identity.ip, *options.no_proxy]
         if options.bootstrap:
@@ -410,13 +450,14 @@ def build_userdata(identity: GuestIdentity, options: GuestOptions) -> str:
         for host in no_proxy:
             if host and host not in deduped:
                 deduped.append(host)
-        lines += _write_file("/usr/local/sbin/openvox-gui-proxy.sh", build_proxy_script(proxy, deduped))
+        lines += _write_file("/usr/local/sbin/openvox-gui-proxy.sh", build_proxy_script(proxy, deduped), "0700")
     if groups:
         lines += _write_file("/usr/local/sbin/openvox-gui-dnf-groups.sh", build_dnf_script(groups))
     if options.bootstrap:
         lines += _write_file(
             "/usr/local/sbin/openvox-gui-agent.sh",
-            build_agent_script(options.bootstrap, identity.fqdn),
+            build_agent_script(options.bootstrap, identity.fqdn, options.csr_challenge),
+            "0700",
         )
     lines += [
         "runcmd:",
@@ -434,13 +475,3 @@ def build_userdata(identity: GuestIdentity, options: GuestOptions) -> str:
         )
     lines += [f'final_message: "openvox-gui cloud-init finished for {identity.fqdn}"', ""]
     return "\n".join(lines)
-
-
-def guestinfo_extra_config(identity: GuestIdentity, options: GuestOptions) -> dict:
-    """extraConfig keys for the clone ConfigSpec."""
-    return {
-        "guestinfo.metadata": _b64(build_metadata(identity)),
-        "guestinfo.metadata.encoding": "base64",
-        "guestinfo.userdata": _b64(build_userdata(identity, options)),
-        "guestinfo.userdata.encoding": "base64",
-    }
