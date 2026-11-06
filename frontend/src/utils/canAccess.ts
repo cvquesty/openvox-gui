@@ -12,6 +12,7 @@ export const VIEWER_HIDDEN_PATHS: readonly string[] = [
   '/orchestration',
   '/deployment',
   '/installer',
+  '/vmbuilder',
   '/data/hiera',
   '/config/puppet',
   '/config/app',

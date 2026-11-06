@@ -925,3 +925,93 @@ export const executionHistory = {
     fetchJSON<any>(`/execution-history/cleanup/old?days=${days}`, { method: 'DELETE' }),
 };
 
+
+// ─── VM builder (VMware, ovbuilder port) ─────────────────────
+
+export interface VmBuilderSettings {
+  vcenter_host: string;
+  vcenter_port: number;
+  vcenter_user: string;
+  verify_ssl: boolean;
+  ca_bundle: string;
+  template_prefix: string;
+  default_domain: string;
+  default_datacenter: string;
+  ssh_authorized_keys: string[];
+  dnf_groups: string[];
+  no_proxy: string[];
+  agent_version: string;
+  password_set: boolean;
+  http_proxy_set: boolean;
+  fake_mode: boolean;
+  pyvmomi_installed: boolean;
+  configured: boolean;
+}
+
+export interface VmBuilderStatus {
+  settings: VmBuilderSettings;
+  bootstrap: {
+    server?: string;
+    ca_server?: string;
+    pkg_repo_url?: string;
+    agent_version?: string;
+    error?: string;
+  };
+  steps: string[];
+}
+
+export interface VmBuildStep {
+  name: string;
+  state: string;
+  message?: string;
+  at?: string;
+}
+
+export interface VmBuildJob {
+  id: string;
+  certname: string;
+  vm_name: string;
+  status: string;
+  steps: VmBuildStep[];
+  request: Record<string, any>;
+  result: Record<string, any>;
+  log: string;
+  error: string;
+  requested_by: string;
+  created_at: string | null;
+  updated_at: string | null;
+  finished_at: string | null;
+}
+
+export interface VmBuildPreview {
+  certname: string;
+  vm_name: string;
+  ip: string;
+  prefix: number;
+  netmask: string;
+  agent_command: string;
+  userdata: string;
+}
+
+export const vmbuilder = {
+  status: () => fetchJSON<VmBuilderStatus>('/vmbuilder/status'),
+  getSettings: () => fetchJSON<VmBuilderSettings>('/vmbuilder/settings'),
+  saveSettings: (patch: Record<string, unknown>) =>
+    fetchJSON<VmBuilderSettings>('/vmbuilder/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+  testConnection: () =>
+    fetchJSON<{ ok: boolean; datacenters: string[] }>('/vmbuilder/settings/test', { method: 'POST' }),
+  datacenters: () =>
+    fetchJSON<import('../utils/vmbuilder').VmInventoryItem[]>('/vmbuilder/inventory/datacenters'),
+  datacenter: (name: string) =>
+    fetchJSON<import('../utils/vmbuilder').VmDatacenterInventory>(
+      `/vmbuilder/inventory/datacenters/${encodeURIComponent(name)}`,
+    ),
+  templates: () =>
+    fetchJSON<import('../utils/vmbuilder').VmInventoryItem[]>('/vmbuilder/inventory/templates'),
+  preview: (payload: Record<string, unknown>) =>
+    fetchJSON<VmBuildPreview>('/vmbuilder/preview', { method: 'POST', body: JSON.stringify(payload) }),
+  submit: (payload: Record<string, unknown>) =>
+    fetchJSON<VmBuildJob>('/vmbuilder/builds', { method: 'POST', body: JSON.stringify(payload) }),
+  builds: () => fetchJSON<VmBuildJob[]>('/vmbuilder/builds'),
+  build: (id: string) => fetchJSON<VmBuildJob>(`/vmbuilder/builds/${encodeURIComponent(id)}`),
+};

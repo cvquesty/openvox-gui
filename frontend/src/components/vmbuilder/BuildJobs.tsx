@@ -1,0 +1,134 @@
+/**
+ * VM build jobs: list + per-step progress for the selected job.
+ * Polls while the selected job is queued or running.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import {
+  Alert, Badge, Button, Card, Code, Grid, Group, ScrollArea, Stack, Table, Text, Timeline, Title,
+} from '@mantine/core';
+import { IconRefresh } from '@tabler/icons-react';
+import { vmbuilder, type VmBuildJob } from '../../services/api';
+import { STEP_LABELS, statusColor } from '../../utils/vmbuilder';
+import { timeAgo } from '../../utils/timeAgo';
+
+const ACTIVE = new Set(['queued', 'running']);
+
+export function BuildJobs({
+  selectedId, onSelect,
+}: {
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState<VmBuildJob[]>([]);
+  const [job, setJob] = useState<VmBuildJob | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadList = useCallback(async () => {
+    try {
+      setJobs(await vmbuilder.builds());
+      setError(null);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, []);
+
+  useEffect(() => { loadList(); }, [loadList]);
+
+  useEffect(() => {
+    if (!selectedId) { setJob(null); return; }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const j = await vmbuilder.build(selectedId);
+        if (cancelled) return;
+        setJob(j);
+        if (ACTIVE.has(j.status)) timer = setTimeout(tick, 5000);
+        else loadList();
+      } catch (e: any) {
+        if (!cancelled) setError(e.message);
+      }
+    };
+    tick();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [selectedId, loadList]);
+
+  const activeStep = job ? job.steps.findIndex((s) => s.state === 'pending' || s.state === 'running') : -1;
+
+  return (
+    <Grid gap="md">
+      <Grid.Col span={{ base: 12, lg: 5 }}>
+        <Card withBorder padding="sm">
+          <Group justify="space-between" mb="xs">
+            <Title order={4}>Builds</Title>
+            <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} onClick={loadList}>Refresh</Button>
+          </Group>
+          {error && <Alert color="red" mb="xs">{error}</Alert>}
+          {!jobs.length ? (
+            <Text size="sm" c="dimmed">No VM builds yet.</Text>
+          ) : (
+            <ScrollArea.Autosize mah={560}>
+              <Table highlightOnHover verticalSpacing={6} fz="sm">
+                <Table.Thead>
+                  <Table.Tr><Table.Th>Certname</Table.Th><Table.Th>Status</Table.Th><Table.Th>By</Table.Th><Table.Th>Started</Table.Th></Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {jobs.map((j) => (
+                    <Table.Tr key={j.id} onClick={() => onSelect(j.id)} style={{ cursor: 'pointer' }}
+                      bg={j.id === selectedId ? 'var(--mantine-primary-color-light)' : undefined}>
+                      <Table.Td><Text size="sm" fw={500}>{j.certname}</Text></Table.Td>
+                      <Table.Td>
+                        <Badge size="sm" tt="none" color={statusColor(j.status)} style={{ minWidth: 'max-content' }}>{j.status}</Badge>
+                      </Table.Td>
+                      <Table.Td>{j.requested_by}</Table.Td>
+                      <Table.Td>{j.created_at ? timeAgo(j.created_at) : '—'}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea.Autosize>
+          )}
+        </Card>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, lg: 7 }}>
+        <Card withBorder padding="sm">
+          {!job ? (
+            <Text size="sm" c="dimmed">Select a build to see its progress.</Text>
+          ) : (
+            <Stack gap="sm">
+              <Group justify="space-between">
+                <div>
+                  <Title order={4}>{job.certname}</Title>
+                  <Text size="xs" c="dimmed">VM {job.vm_name} · job {job.id}</Text>
+                </div>
+                <Badge size="lg" color={statusColor(job.status)}>{job.status}</Badge>
+              </Group>
+              {job.error && <Alert color="red" title="Build failed">{job.error}</Alert>}
+              <Timeline active={activeStep === -1 ? job.steps.length : activeStep - 1} bulletSize={18} lineWidth={2}>
+                {job.steps.map((s) => (
+                  <Timeline.Item key={s.name} color={statusColor(s.state)}
+                    title={<Group gap="xs"><Text size="sm" fw={600}>{STEP_LABELS[s.name] || s.name}</Text>
+                      <Badge size="xs" variant="light" color={statusColor(s.state)}>{s.state}</Badge></Group>}>
+                    {s.message && <Text size="xs" c="dimmed">{s.message}</Text>}
+                  </Timeline.Item>
+                ))}
+              </Timeline>
+              <Group gap="xs">
+                {job.status === 'succeeded' || job.steps.find((s) => s.name === 'classify')?.state === 'done' ? (
+                  <Button size="xs" variant="light" onClick={() => navigate('/enc')}>Open Node Classifier</Button>
+                ) : null}
+                {job.steps.find((s) => s.name === 'certificate')?.state === 'timeout' && (
+                  <Button size="xs" variant="light" onClick={() => navigate('/certificates')}>Open Certificate Authority</Button>
+                )}
+              </Group>
+              <Text size="sm" fw={600}>Log</Text>
+              <ScrollArea.Autosize mah={260}><Code block>{job.log || '(empty)'}</Code></ScrollArea.Autosize>
+            </Stack>
+          )}
+        </Card>
+      </Grid.Col>
+    </Grid>
+  );
+}

@@ -64,6 +64,7 @@ const PackagesPage = lazyWithRetry(() => import('./pages/Packages').then(m => ({
 const DataHieraPage = lazyWithRetry(() => import('./pages/DataHiera').then(m => ({ default: m.DataHieraPage })));
 const DataLookupPage = lazyWithRetry(() => import('./pages/DataLookup').then(m => ({ default: m.DataLookupPage })));
 const InstallerPage = lazyWithRetry(() => import('./pages/Installer').then(m => ({ default: m.InstallerPage })));
+const VmBuilderPage = lazyWithRetry(() => import('./pages/VmBuilder').then(m => ({ default: m.VmBuilderPage })));
 const LogsPage = lazyWithRetry(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })));
 const InventoryPage = lazyWithRetry(() => import('./pages/Inventory').then(m => ({ default: m.InventoryPage })));
 const CertAuditPage = lazyWithRetry(() => import('./pages/CertAudit').then(m => ({ default: m.CertAuditPage })));
@@ -158,6 +159,9 @@ function AppRoutes() {
 
           {/* Installer (agent bootstrap + package mirror) */}
           <Route path="/installer" element={<InstallerPage />} />
+
+          {/* VM builder (VMware provisioning) */}
+          <Route path="/vmbuilder" element={<VmBuilderPage />} />
 
           {/* Logs */}
           <Route path="/logs" element={<LogsPage />} />
