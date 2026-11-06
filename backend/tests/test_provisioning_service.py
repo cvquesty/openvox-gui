@@ -184,6 +184,7 @@ def _spec(v: provision.ValidatedRequest, options=None) -> provision.ProvisionSpe
     return provision.ProvisionSpec(
         name=v.name, image=v.request.image, placement=v.placement, cpus=2, memory_mb=4096, disk_gb=60,
         nics=v.nics, payload=provision.render_payload(v, options or cloudinit.GuestOptions()),
+        mode=v.request.mode, install_media=v.request.install_media, guest_os=v.request.guest_os,
     )
 
 
@@ -442,7 +443,8 @@ class Hooks:
         )
 
 
-FAST = provision.Timing(poll_s=0, guest_timeout_s=0.05, csr_timeout_s=0.05, fleet_timeout_s=0.05)
+FAST = provision.Timing(poll_s=0, guest_timeout_s=0.05, csr_timeout_s=0.05, fleet_timeout_s=0.05,
+                       install_timeout_s=0.05)
 
 
 def _run(req, client, hooks, reporter, options=None):
@@ -590,3 +592,144 @@ def test_vmware_session_lifecycle_on_fake():
     session.destroy(result.instance_id)
     with pytest.raises(InstanceNotFound):
         session.instance_state(result.instance_id)
+
+
+# ─── ISO mode + SSH bootstrap ───────────────────────────────────────────
+
+
+ISO = "[vsan-prod] isos/AlmaLinux-10.0-x86_64-dvd.iso"
+
+
+def _iso_request(**overrides):
+    return _request(mode="iso", image="", install_media=ISO, guest_os="rhel9_64Guest", **overrides)
+
+
+def test_iso_request_validation():
+    assert _validated(mode="iso", image="", install_media=ISO).request.mode == "iso"
+    for bad, match in [
+        ({"mode": "pxe"}, "Mode"),
+        ({"mode": "iso", "install_media": "isos/x.iso"}, "ISO"),
+        ({"mode": "iso", "install_media": "[ds] x.iso; rm -rf /"}, "ISO"),
+        ({"mode": "iso", "install_media": ISO, "guest_os": "bad id"}, "guest OS"),
+    ]:
+        with pytest.raises(netspec.NetSpecError, match=match):
+            _validated(**bad)
+
+
+def test_vmware_iso_listing_and_placement_checks():
+    session = VmwareSession(FakeVCenterClient(), DEFAULT_TEMPLATE_PREFIX, close_client=False)
+    isos = session.install_media("DC-East", "datastore-11")
+    assert ISO in [i.moid for i in isos]
+    spec = _spec(provision.validate_request(_iso_request(), VMWARE))
+    assert session.check_placement(spec)["image"] == ISO
+    spec.install_media = "[vsan-prod] isos/missing.iso"
+    with pytest.raises(ProviderError, match="not found"):
+        session.check_placement(spec)
+    sdrs = _spec(provision.validate_request(
+        _iso_request(placement_overrides={"datastore": "", "datastore_cluster": "group-p50"}), VMWARE))
+    with pytest.raises(ProviderError, match="single datastore"):
+        session.check_placement(sdrs)
+
+
+class IsoHooks(Hooks):
+    def __init__(self, client, *, creds=True, ssh_fail=False, continue_after=1, **kw):
+        super().__init__(client, **kw)
+        self.creds = creds
+        self.ssh_fail = ssh_fail
+        self.continue_after = continue_after
+        self.continue_polls = 0
+        self.forgotten = 0
+        self.scripts = []
+        self.challenge = None
+
+    async def install_continue(self):
+        from app.services.provisioning.ssh import SshTarget
+
+        self.continue_polls += 1
+        if self.continue_polls <= self.continue_after:
+            return None
+        ssh = SshTarget(host="192.0.2.50", username="admin", password="pw-not-logged") if self.creds else None
+        return provision.InstallContinue(ssh=ssh)
+
+    async def forget(self):
+        self.forgotten += 1
+
+    def ssh_runner(self, target, scripts):
+        from app.services.provisioning.ssh import SshError, SshReport
+
+        self.scripts = scripts
+        agent = next((s.body for s in scripts if s.label == "openvox-agent"), "")
+        m = re.search(r"challengePassword=([0-9a-f]+)", agent)
+        self.challenge = m.group(1) if m else None
+        if self.ssh_fail:
+            raise SshError("openvox-agent exited 1 on 192.0.2.50")
+        return SshReport(host_key="ssh-ed25519 SHA256:abc", lines=["openvox-agent: exit 0"])
+
+    def _guest_challenge(self):
+        return self.challenge
+
+    def build(self):
+        hooks = super().build()
+        hooks.install_continue = self.install_continue
+        hooks.forget_continue = self.forget
+        hooks.ssh_runner = self.ssh_runner
+        return hooks
+
+
+def test_iso_pipeline_ssh_bootstrap_and_verified_sign():
+    client = FakeVCenterClient()
+    hooks = IsoHooks(client, cert_states=["requested"])
+    rep = Reporter()
+    status = _run(_iso_request(sign_certificate=True), client, hooks, rep)
+    assert status == "succeeded", rep.steps
+    assert [n for n, st, _ in rep.steps if st == "done"] == list(provision.STEPS_ISO)
+    created = client.iso_creates[0]
+    assert created.iso_path == ISO and created.guest_id == "rhel9_64Guest" and created.vm_name == "web01.example.com"
+    assert client.vms["web01.example.com"]["media"] == ""
+    assert [s.label for s in hooks.scripts] == ["hostname", "openvox-agent", "network"]
+    assert hooks.scripts[-1].detached is True
+    assert hooks.challenge and rep.csr_hash == csr.challenge_hash(hooks.challenge)
+    assert hooks.signed == ["web01.example.com"]
+    assert hooks.forgotten >= 1
+    assert "pw-not-logged" not in rep.text() and hooks.challenge not in rep.text()
+    assert client.scrubbed == []
+
+
+def test_iso_pipeline_without_bootstrap_and_failures():
+    client = FakeVCenterClient()
+    rep = Reporter()
+    assert _run(_iso_request(bootstrap_agent=False), client, IsoHooks(client, creds=False), rep) == "succeeded"
+    assert rep.final()["bootstrap"] == "skipped" and rep.final()["media"] == "done"
+
+    client = FakeVCenterClient()
+    rep = Reporter()
+    assert _run(_iso_request(), client, IsoHooks(client, creds=False), rep) == "partial"
+    assert rep.final()["bootstrap"] == "failed"
+
+    client = FakeVCenterClient()
+    rep = Reporter()
+    hooks = IsoHooks(client, ssh_fail=True)
+    assert _run(_iso_request(), client, hooks, rep) == "partial"
+    assert rep.final()["bootstrap"] == "failed" and hooks.forgotten >= 1
+
+    client = FakeVCenterClient()
+    rep = Reporter()
+    assert _run(_iso_request(), client, IsoHooks(client, continue_after=10**12), rep) == "partial"
+    assert rep.final()["install"] == "timeout"
+
+
+def test_ssh_target_validation_and_scripts():
+    from app.services.provisioning import ssh
+
+    with pytest.raises(ssh.SshError):
+        ssh.SshTarget(host="h; id", username="root", password="x").validate()
+    with pytest.raises(ssh.SshError):
+        ssh.SshTarget(host="192.0.2.5", username="Bad User", password="x").validate()
+    with pytest.raises(ssh.SshError, match="password or private key"):
+        ssh.SshTarget(host="192.0.2.5", username="admin").validate()
+    assert "pw" not in repr(ssh.SshTarget(host="192.0.2.5", username="admin", password="pw"))
+    scripts = ssh.bootstrap_scripts("web01.example.com", None, "#!/bin/bash\necho net\n")
+    assert [s.label for s in scripts] == ["hostname", "network"]
+    for script in scripts:
+        result = subprocess.run(["bash", "-n"], input=script.body, text=True, capture_output=True)
+        assert result.returncode == 0, result.stderr

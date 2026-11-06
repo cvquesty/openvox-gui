@@ -72,6 +72,23 @@ class CloneSpec:
 
 
 @dataclass
+class IsoVmSpec:
+    vm_name: str
+    datacenter: str
+    compute: str
+    datastore: str
+    iso_path: str
+    guest_id: str
+    networks: List[str]
+    cpus: int
+    memory_mb: int
+    disk_gb: int
+    resource_pool: str = ""
+    folder: str = ""
+    annotation: str = ""
+
+
+@dataclass
 class CloneResult:
     vm_moid: str
     vm_name: str
@@ -95,6 +112,12 @@ class VCenterClient(Protocol):
     def guest_state(self, vm_moid: str) -> GuestState: ...
 
     def clear_guestinfo_userdata(self, vm_moid: str) -> None: ...
+
+    def list_isos(self, datacenter: str, datastore: str) -> List[InventoryItem]: ...
+
+    def create_vm_from_iso(self, spec: IsoVmSpec) -> CloneResult: ...
+
+    def disconnect_install_media(self, vm_moid: str) -> str: ...
 
     def power_vm(self, vm_moid: str, action: str) -> GuestState: ...
 

@@ -169,3 +169,19 @@ describe('presets', () => {
     expect(slugify('Prod Web / VLAN 120')).toBe('prod-web-vlan-120');
   });
 });
+
+describe('ISO mode', () => {
+  it('requires an ISO and a single datastore, and sends no template', () => {
+    const iso: BuildFormState = { ...VALID, mode: 'iso', image: '', install_media: '' };
+    expect(validateBuildForm(iso).install_media).toBeTruthy();
+    expect(validateBuildForm(iso).image).toBeUndefined();
+    expect(validateBuildForm({ ...iso, install_media: '[vsan] a.iso', storage_mode: 'datastore_cluster', datastore_cluster: 'pod-1' })
+      .datastore_cluster).toMatch(/single datastore/);
+    const p = buildPayload({ ...iso, install_media: '[vsan] a.iso', image: 'vm-100' });
+    expect(p.mode).toBe('iso');
+    expect(p.image).toBe('');
+    expect(p.install_media).toBe('[vsan] a.iso');
+    expect(p.guest_os).toBe('rhel9_64Guest');
+    expect(buildPayload(VALID).install_media).toBe('');
+  });
+});

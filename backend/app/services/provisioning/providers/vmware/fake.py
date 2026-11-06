@@ -17,6 +17,7 @@ from .client import (
     CloneSpec,
     DatacenterInventory,
     GuestState,
+    IsoVmSpec,
     VCenterError,
     VmNotFound,
 )
@@ -105,6 +106,7 @@ class FakeVCenterClient:
         self.vms: Dict[str, Dict] = {name: {"name": name} for name in existing_vms or []}
         self.clones: List[CloneSpec] = []
         self.scrubbed: List[str] = []
+        self.iso_creates: List[IsoVmSpec] = []
         self.fail_clone = fail_clone
         self.polls_until_ip = polls_until_ip
         self.closed = False
@@ -187,6 +189,38 @@ class FakeVCenterClient:
     def destroy_vm(self, vm_moid: str) -> None:
         vm = self._vm(vm_moid)
         self.vms.pop(vm["name"])
+
+    _ISOS = {
+        "datastore-11": ["isos/AlmaLinux-10.0-x86_64-dvd.iso", "isos/ubuntu-24.04.2-live-server-amd64.iso"],
+        "datastore-13": ["AlmaLinux-9.6-x86_64-minimal.iso"],
+    }
+
+    def list_isos(self, datacenter: str, datastore: str) -> List[InventoryItem]:
+        inv = self.datacenter_inventory(datacenter)
+        ds = inv.find("datastores", datastore)
+        if ds is None:
+            raise VCenterError(f"Datastore {datastore} not found")
+        return [InventoryItem(moid=f"[{ds.name}] {p}", name=p, kind="iso", parent=ds.moid,
+                              details={"size_gb": 2.1, "datastore": ds.name})
+                for p in self._ISOS.get(datastore, [])]
+
+    def create_vm_from_iso(self, spec: IsoVmSpec) -> CloneResult:
+        if self.fail_clone:
+            raise VCenterError(self.fail_clone)
+        if spec.vm_name in self.vms:
+            raise VCenterError(f"The name '{spec.vm_name}' already exists.")
+        self.iso_creates.append(copy.deepcopy(spec))
+        self._next_moid += 1
+        moid = f"vm-{self._next_moid}"
+        self.vms[spec.vm_name] = {"name": spec.vm_name, "moid": moid, "ip": "", "polls": 0,
+                                  "power": "poweredOn", "snapshots": [], "media": spec.iso_path}
+        return CloneResult(vm_moid=moid, vm_name=spec.vm_name, datastore=spec.datastore)
+
+    def disconnect_install_media(self, vm_moid: str) -> str:
+        vm = self._vm(vm_moid)
+        had = vm.get("media")
+        vm["media"] = ""
+        return "Disconnected install media on 1 CD/DVD device(s)" if had else "No CD/DVD devices to disconnect"
 
     def close(self) -> None:
         self.closed = True

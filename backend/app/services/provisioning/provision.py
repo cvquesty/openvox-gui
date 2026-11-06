@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol
@@ -45,6 +46,14 @@ from .providers.base import GuestPayload, NicSpec, Provider, ProviderError, Prov
 logger = logging.getLogger(__name__)
 
 STEPS = ("validate", "provision", "guest", "certificate", "classify")
+STEPS_ISO = ("validate", "provision", "install", "media", "bootstrap", "certificate", "classify")
+MODES = ("clone", "iso")
+_ISO_PATH = re.compile(r"^\[[^\]\x00]{1,255}\] [^\x00'\"`$;\n\r]{1,1024}\.iso$", re.IGNORECASE)
+_GUEST_OS = re.compile(r"^[A-Za-z0-9_]{0,64}$")
+
+
+def steps_for(mode: str) -> tuple:
+    return STEPS_ISO if mode == "iso" else STEPS
 
 MAX_CPUS = 128
 MAX_MEMORY_GB = 2048
@@ -90,6 +99,9 @@ class ProvisionRequest:
     sign_certificate: bool = False
     enc_environment: str = ""
     enc_group_ids: List[int] = field(default_factory=list)
+    mode: str = "clone"
+    install_media: str = ""
+    guest_os: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ProvisionRequest":
@@ -141,7 +153,16 @@ def validate_request(req: ProvisionRequest, provider: Provider, default_domain: 
         if not isinstance(value, int) or isinstance(value, bool) or not low <= value <= high:
             raise NetSpecError(f"{label} must be between {low} and {high}")
 
-    if not (req.image or "").strip():
+    if req.mode not in MODES:
+        raise NetSpecError(f"Mode must be one of {', '.join(MODES)}")
+    if req.mode == "iso":
+        if not provider.supports_iso:
+            raise NetSpecError(f"{provider.label} does not support ISO installs")
+        if not _ISO_PATH.match(req.install_media or ""):
+            raise NetSpecError("Pick an ISO ([datastore] path/file.iso)")
+        if not _GUEST_OS.match(req.guest_os or ""):
+            raise NetSpecError("Invalid guest OS id")
+    elif not (req.image or "").strip():
         raise NetSpecError("Image (template) is required")
     if not (req.network or "").strip():
         raise NetSpecError("Network is required")
@@ -195,6 +216,27 @@ async def _never_cancelled() -> bool:
 
 
 @dataclass
+class InstallContinue:
+    """Operator says the console install is done; ``ssh`` is None when no bootstrap is wanted."""
+
+    ssh: Optional[Any] = None
+
+
+async def _never_continued() -> Optional[InstallContinue]:
+    return None
+
+
+async def _nothing() -> None:
+    return None
+
+
+def _default_ssh_runner(target, scripts):
+    from .ssh import run_scripts
+
+    return run_scripts(target, scripts)
+
+
+@dataclass
 class BuildHooks:
     cert_state: Callable[[str], Awaitable[Optional[str]]]
     fetch_csr: Callable[[str], Awaitable[Optional[bytes]]]
@@ -203,6 +245,9 @@ class BuildHooks:
     classify_node: Callable[[str, str, List[int]], Awaitable[None]]
     csr_rejected: Callable[[str, str], Awaitable[None]] = None  # type: ignore[assignment]
     is_cancelled: Callable[[], Awaitable[bool]] = _never_cancelled
+    install_continue: Callable[[], Awaitable[Optional[InstallContinue]]] = _never_continued
+    forget_continue: Callable[[], Awaitable[None]] = _nothing
+    ssh_runner: Callable[[Any, List[Any]], Any] = _default_ssh_runner
 
 
 @dataclass
@@ -211,6 +256,7 @@ class Timing:
     guest_timeout_s: float = 900.0
     csr_timeout_s: float = 1800.0
     fleet_timeout_s: float = 1800.0
+    install_timeout_s: float = 86400.0
 
 
 SessionFactory = Callable[[], ProviderSession]
@@ -286,11 +332,13 @@ async def run_build(
         memory_mb=req.memory_gb * 1024,
         disk_gb=req.disk_gb,
         nics=validated.nics,
-        payload=render_payload(validated, options),
+        payload=render_payload(validated, options) if req.mode == "clone" else GuestPayload("", ""),
         annotation=req.annotation or f"Provisioned by openvox-gui as {certname}",
         power_on=True,
+        mode=req.mode,
+        install_media=req.install_media,
+        guest_os=req.guest_os,
     )
-    del options
 
     # 1. validate
     await _check_cancel(hooks)
@@ -313,6 +361,10 @@ async def run_build(
     result = await _with_session(session_factory, lambda s: s.provision(spec))
     await reporter.set_result(instance_id=result.instance_id, vm_moid=result.instance_id, vm_name=result.name)
     await reporter.step("provision", "done", result.detail or f"{result.name} created")
+
+    if req.mode == "iso":
+        return await _iso_tail(validated, options, result, session_factory, reporter, hooks, timing, expected_hash)
+    del options
 
     # 3. guest network
     await reporter.step("guest", "running", "Waiting for the guest to report its IP")
@@ -337,6 +389,13 @@ async def run_build(
             await reporter.step(later, "skipped", "Agent bootstrap not requested")
         return "succeeded"
 
+    return await _certificate_and_classify(validated, result, session_factory, reporter, hooks, timing,
+                                          expected_hash, scrub=True)
+
+async def _certificate_and_classify(validated, result, session_factory, reporter, hooks, timing,
+                                    expected_hash: str, *, scrub: bool) -> str:
+    req = validated.request
+    certname = validated.certname
     # 4. certificate
     await reporter.step("certificate", "running", f"Waiting for the CSR for {certname}")
 
@@ -367,7 +426,8 @@ async def run_build(
         if pem is None:
             await reporter.step("certificate", "failed",
                                 f"Could not read the pending CSR for {certname} from the CA; not signed")
-            await _scrub()
+            if scrub:
+                await _scrub()
             await reporter.step("classify", "skipped")
             return "partial"
         check = csr.verify_csr(pem, certname, expected_hash)
@@ -375,14 +435,16 @@ async def run_build(
             if hooks.csr_rejected is not None:
                 await hooks.csr_rejected(certname, check.reason)
             await reporter.step("certificate", "rejected", f"{check.reason}. The CSR was not signed.")
-            await _scrub()
+            if scrub:
+                await _scrub()
             await reporter.step("classify", "skipped")
             return "partial"
         message = await hooks.sign_certificate(certname)
         await reporter.step("certificate", "done", f"{check.reason}. {message}")
     else:
         await reporter.step("certificate", "done", f"Certificate for {certname} is signed")
-    await _scrub()
+    if scrub:
+        await _scrub()
 
     # 5. classify
     await reporter.step("classify", "running", "Waiting for the first agent report")
@@ -402,3 +464,62 @@ async def run_build(
     else:
         await reporter.step("classify", "done", f"{certname} is in the fleet and ready to classify")
     return "succeeded"
+
+
+async def _iso_tail(validated, options, result, session_factory, reporter, hooks, timing, expected_hash) -> str:
+    """ISO mode after the machine boots the installer: wait, detach media, SSH bootstrap."""
+    from .cloudinit import build_agent_script, build_network_script
+    from .ssh import SshError, bootstrap_scripts
+
+    req = validated.request
+    await reporter.step("install", "running",
+                        "Install the OS from the console, then press Continue on the Builds tab")
+    try:
+        cont = await _poll(hooks.install_continue, timing.install_timeout_s, timing.poll_s, hooks)
+        if cont is None:
+            await reporter.step("install", "timeout", "Nobody pressed Continue in time")
+            for later in ("media", "bootstrap", "certificate", "classify"):
+                await reporter.step(later, "skipped")
+            return "partial"
+        await reporter.step("install", "done", "Operator confirmed the OS install")
+
+        await reporter.step("media", "running", "Disconnecting the install ISO")
+        try:
+            detail = await _with_session(session_factory, lambda s: s.detach_media(result.instance_id))
+            await reporter.step("media", "done", detail)
+        except BuildError as exc:
+            await reporter.step("media", "failed", f"{exc}. Disconnect the CD/DVD in vCenter before rebooting.")
+
+        if not req.bootstrap_agent:
+            for later in ("bootstrap", "certificate", "classify"):
+                await reporter.step(later, "skipped", "Agent bootstrap not requested")
+            return "succeeded"
+        if cont.ssh is None:
+            await reporter.step("bootstrap", "failed", "No SSH credentials were given")
+            for later in ("certificate", "classify"):
+                await reporter.step(later, "skipped")
+            return "partial"
+
+        await reporter.step("bootstrap", "running", f"SSH to {cont.ssh.host} as {cont.ssh.username}")
+        agent = build_agent_script(options.bootstrap, validated.certname, options.csr_challenge) \
+            if options.bootstrap else None
+        scripts = bootstrap_scripts(validated.certname, agent,
+                                    "#!/bin/bash\n" + build_network_script(validated.identity))
+        try:
+            report = await asyncio.to_thread(hooks.ssh_runner, cont.ssh, scripts)
+        except SshError as exc:
+            await reporter.step("bootstrap", "failed", str(exc))
+            for later in ("certificate", "classify"):
+                await reporter.step(later, "skipped")
+            return "partial"
+        finally:
+            await hooks.forget_continue()
+        if report.host_key:
+            await reporter.log(f"SSH host key {report.host_key}")
+        for line in report.lines:
+            await reporter.log(line)
+        await reporter.step("bootstrap", "done", "Hostname set, agent installed; static network applying")
+    finally:
+        await hooks.forget_continue()
+    return await _certificate_and_classify(validated, result, session_factory, reporter, hooks, timing,
+                                          expected_hash, scrub=False)

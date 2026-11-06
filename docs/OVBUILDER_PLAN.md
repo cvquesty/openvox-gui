@@ -118,7 +118,7 @@ Build / Builds / Settings (+ Machines for lifecycle).
 | Build caps, cancel | Done (alpha.4); notifications later |
 | VM lifecycle (`vmops.py`) | Done (alpha.5): Machines tab |
 | CLI | Done (alpha.6): `ovox vm` |
-| ISO mode + media detach, SSH bootstrap | Increment 6 (separate PR on `feature/ovbuilder` if large) |
+| ISO mode + media detach, SSH bootstrap | Done (alpha.7, separate PR stacked on `feature/ovbuilder`) |
 | Packer golden builds | Out of scope; stays in ovbuilder |
 
 ## Remaining increments
@@ -143,11 +143,17 @@ lab validation is Jerald's (not possible from CI).
    provider interface.
 5. **alpha.6 — `ovox vm` CLI** (done). Thin client over `/api/provisioning`: list connections,
    inventory, build, status, power, destroy.
-6. **ISO mode + SSH bootstrap.** Datastore ISO browser, empty-disk create with
+6. **alpha.7 — ISO mode + SSH bootstrap** (done, separate PR). Datastore ISO browser, empty-disk create with
    CD attached, operator console install, media detach, then bootstrap over SSH
    with a one-time key. Separate PR if large.
 
 ## Open questions
 
-None outstanding from the first round. New ones raised by later increments
-will be added here.
+1. **Unattended ISO installs.** ISO mode needs a person at the console. Should
+   a later increment inject kickstart / Ubuntu autoinstall (a seed ISO or
+   `inst.ks=` boot args) so ISO builds run unattended like clones?
+2. **SSH host keys.** ISO bootstrap trusts the host key on first use and logs
+   its fingerprint. Is that acceptable, or should the operator paste the
+   expected fingerprint on Continue?
+3. **Auto-sign default.** The form now defaults to auto-sign (challenge
+   verified). Keep it on by default?

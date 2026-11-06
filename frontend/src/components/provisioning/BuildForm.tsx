@@ -47,6 +47,7 @@ export function BuildForm({
   const [presetName, setPresetName] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
   const [profiles, setProfiles] = useState<BootstrapProfile[]>([]);
+  const [isos, setIsos] = useState<InventoryItem[]>([]);
 
   const connection = status.connections.find((c) => c.id === form.connection);
 
@@ -125,6 +126,15 @@ export function BuildForm({
       .catch((e) => { if (!cancelled) setLoadError(e.message); });
     return () => { cancelled = true; };
   }, [form.connection, form.datacenter]);
+
+  useEffect(() => {
+    if (form.mode !== 'iso' || !form.connection || !form.datacenter || !form.iso_datastore) { setIsos([]); return; }
+    let cancelled = false;
+    provisioning.isos(form.connection, form.datacenter, form.iso_datastore)
+      .then((rows) => { if (!cancelled) setIsos(rows); })
+      .catch((e) => { if (!cancelled) setLoadError(e.message); });
+    return () => { cancelled = true; };
+  }, [form.mode, form.connection, form.datacenter, form.iso_datastore]);
 
   const opts = useMemo(() => placementOptions(inventory, form.compute), [inventory, form.compute]);
   const networkOptions = opts.networks.map((n) => inventoryOption(n, `${n.name}${n.kind === 'dvportgroup' ? ' (distributed)' : ''}`));
@@ -282,7 +292,7 @@ export function BuildForm({
       </Card>
 
       <VmwarePlacement
-        form={form} errors={errors} scopes={scopes} inventory={inventory} images={images}
+        form={form} errors={errors} scopes={scopes} inventory={inventory} images={images} isos={isos}
         templatePrefix={connection?.options?.template_prefix ?? ''} loading={loading}
         onReload={loadTop} onDatacenter={changeDatacenter} onCompute={changeCompute}
         onImage={changeImage} onPick={pick} set={set}
@@ -417,7 +427,7 @@ export function BuildForm({
                 )}
               </>
             )}
-            <Text size="sm" fw={600}>cloud-init user-data</Text>
+            <Text size="sm" fw={600}>{form.mode === 'iso' ? 'Scripts run over SSH after the install' : 'cloud-init user-data'}</Text>
             <ScrollArea.Autosize mah={420}><Code block>{preview.userdata}</Code></ScrollArea.Autosize>
           </Stack>
         )}
@@ -429,7 +439,9 @@ export function BuildForm({
         onConfirm={doSubmit}
         loading={submitting}
         title="Create this VM in vCenter?"
-        body={`Clone ${template?.name || 'the template'} as ${certname} and power it on.`}
+        body={form.mode === 'iso'
+          ? `Create ${certname} booting ${form.install_media.split('] ').pop()} and power it on.`
+          : `Clone ${template?.name || 'the template'} as ${certname} and power it on.`}
         details={[
           `IP ${form.ip}${form.extra_nics.length ? ` + ${form.extra_nics.length} extra NIC(s)` : ''}`,
           `Compute ${opts.compute?.name || form.compute}${connection ? ` on ${connection.name}` : ''}`,

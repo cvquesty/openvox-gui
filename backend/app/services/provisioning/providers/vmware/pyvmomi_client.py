@@ -32,6 +32,7 @@ from .client import (
     CloneSpec,
     DatacenterInventory,
     GuestState,
+    IsoVmSpec,
     VCenterError,
     VmNotFound,
 )
@@ -524,3 +525,123 @@ class PyVmomiClient:
             raise
         except Exception as exc:  # noqa: BLE001
             raise VCenterError(f"Destroy failed: {_fault_message(exc)}") from exc
+
+    # ─── ISO mode (port of ovbuilder list_isos / ISO create / disconnect_install_media) ──
+
+    def list_isos(self, datacenter: str, datastore: str) -> List[InventoryItem]:
+        vim = self._vim()
+        dc = self._find_datacenter(datacenter)
+        ds = self._by_moid(vim.Datastore, datastore)
+        if ds not in list(dc.datastore or []):
+            raise VCenterError(f"Datastore {ds.name} is not in datacenter {datacenter}")
+        spec = vim.host.DatastoreBrowser.SearchSpec()
+        spec.query = [vim.host.DatastoreBrowser.IsoImageQuery()]
+        spec.details = vim.host.DatastoreBrowser.FileInfo.Details(fileType=True, fileSize=True)
+        try:
+            task = ds.browser.SearchDatastoreSubFolders_Task(f"[{ds.name}]", spec)
+            self._wait(task, timeout_s=180)
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"ISO search on {ds.name} failed: {_fault_message(exc)}") from exc
+        rows: List[InventoryItem] = []
+        for res in task.info.result or []:
+            folder = res.folderPath or ""
+            if folder.startswith("["):
+                folder = folder[folder.find("]") + 1:]
+            for f in res.file or []:
+                if not (f.path or "").lower().endswith(".iso"):
+                    continue
+                rel = (folder.strip() + f.path).lstrip("/")
+                rows.append(InventoryItem(
+                    moid=f"[{ds.name}] {rel}", name=rel, kind="iso", parent=ds._moId,
+                    details={"size_gb": round((getattr(f, "fileSize", 0) or 0) / 1024 ** 3, 2),
+                             "datastore": ds.name},
+                ))
+        return sorted(rows, key=lambda r: r.name.lower())
+
+    def create_vm_from_iso(self, spec: IsoVmSpec) -> CloneResult:
+        """Empty thin disk + NICs + CD-ROM booting the ISO, then power on."""
+        vim = self._vim()
+        op = vim.vm.device.VirtualDeviceSpec.Operation
+        try:
+            dc = self._find_datacenter(spec.datacenter)
+            compute = self._by_moid(vim.ComputeResource, spec.compute)
+            pool = self._by_moid(vim.ResourcePool, spec.resource_pool) if spec.resource_pool else compute.resourcePool
+            folder = self._by_moid(vim.Folder, spec.folder) if spec.folder else dc.vmFolder
+            vm_ds = self._by_moid(vim.Datastore, spec.datastore)
+            iso_ds_name = spec.iso_path[1:spec.iso_path.index("]")] if spec.iso_path.startswith("[") else ""
+            iso_ds = next((d for d in dc.datastore or [] if d.name == iso_ds_name), None)
+            if iso_ds is None:
+                raise VCenterError(f"ISO datastore {iso_ds_name!r} is not in datacenter {spec.datacenter}")
+            networks = [self._by_moid(vim.Network, moid) for moid in spec.networks]
+
+            changes = []
+            scsi = vim.vm.device.ParaVirtualSCSIController(key=-100, busNumber=0, sharedBus="noSharing")
+            changes.append(vim.vm.device.VirtualDeviceSpec(operation=op.add, device=scsi))
+            disk = vim.vm.device.VirtualDisk(
+                key=-101, controllerKey=-100, unitNumber=0, capacityInKB=int(spec.disk_gb) * 1024 * 1024,
+                backing=vim.vm.device.VirtualDisk.FlatVer2BackingInfo(diskMode="persistent", thinProvisioned=True),
+            )
+            changes.append(vim.vm.device.VirtualDeviceSpec(
+                operation=op.add, fileOperation=vim.vm.device.VirtualDeviceSpec.FileOperation.create, device=disk))
+            sata = vim.vm.device.VirtualAHCIController(key=-200, busNumber=0)
+            changes.append(vim.vm.device.VirtualDeviceSpec(operation=op.add, device=sata))
+            cdrom = vim.vm.device.VirtualCdrom(
+                key=-201, controllerKey=-200, unitNumber=0,
+                backing=vim.vm.device.VirtualCdrom.IsoBackingInfo(fileName=spec.iso_path, datastore=iso_ds),
+                connectable=vim.vm.device.VirtualDevice.ConnectInfo(
+                    startConnected=True, connected=True, allowGuestControl=True),
+            )
+            changes.append(vim.vm.device.VirtualDeviceSpec(operation=op.add, device=cdrom))
+            for i, network in enumerate(networks):
+                changes.append(self._nic_change(None, network, new_key=-(300 + i)))
+
+            config = vim.vm.ConfigSpec(
+                name=spec.vm_name,
+                guestId=spec.guest_id or "otherLinux64Guest",
+                numCPUs=int(spec.cpus),
+                memoryMB=int(spec.memory_mb),
+                annotation=spec.annotation or None,
+                files=vim.vm.FileInfo(vmPathName=f"[{vm_ds.name}]"),
+                deviceChange=changes,
+                extraConfig=[vim.option.OptionValue(key="disk.EnableUUID", value="TRUE"),
+                             vim.option.OptionValue(key="bios.bootDeviceClasses", value="allow:cd,hd,net")],
+            )
+            host = compute.host[0] if not isinstance(compute, vim.ClusterComputeResource) and compute.host else None
+            vm = self._wait(folder.CreateVM_Task(config=config, pool=pool, host=host), timeout_s=600)
+            self._wait(vm.PowerOnVM_Task(), timeout_s=180)
+            return CloneResult(vm_moid=vm._moId, vm_name=vm.name, datastore=vm_ds.name)
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"Create from ISO failed: {_fault_message(exc)}") from exc
+
+    def disconnect_install_media(self, vm_moid: str) -> str:
+        """Empty every CD-ROM (releases the ISO lock) and prefer disk boot."""
+        vim = self._vim()
+        vm = self._by_moid(vim.VirtualMachine, vm_moid)
+        changes = []
+        for device in vm.config.hardware.device:
+            if not isinstance(device, vim.vm.device.VirtualCdrom):
+                continue
+            backing = vim.vm.device.VirtualCdrom.RemotePassthroughBackingInfo(deviceName="", exclusive=False)
+            device.backing = backing
+            device.connectable = vim.vm.device.VirtualDevice.ConnectInfo(
+                connected=False, startConnected=False, allowGuestControl=True)
+            changes.append(vim.vm.device.VirtualDeviceSpec(
+                operation=vim.vm.device.VirtualDeviceSpec.Operation.edit, device=device))
+        if not changes:
+            return "No CD/DVD devices to disconnect"
+        config = vim.vm.ConfigSpec(deviceChange=changes)
+        disks = [d.key for d in vm.config.hardware.device if isinstance(d, vim.vm.device.VirtualDisk)]
+        if disks:
+            config.bootOptions = vim.vm.BootOptions(
+                bootOrder=[vim.vm.BootOptions.BootableDiskDevice(deviceKey=disks[0])])
+        try:
+            self._wait(vm.ReconfigVM_Task(spec=config), timeout_s=180)
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"Media disconnect failed: {_fault_message(exc)}") from exc
+        return f"Disconnected install media on {len(changes)} CD/DVD device(s)"

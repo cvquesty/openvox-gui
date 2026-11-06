@@ -23,14 +23,15 @@ from ...models.provision_job import ProvisionJob
 from ...utils.audit import audit_event
 from .cloudinit import GuestOptions
 from .provision import (
-    STEPS,
     BuildCancelled,
     BuildError,
     BuildHooks,
     SessionFactory,
     Timing,
+    InstallContinue,
     ValidatedRequest,
     run_build,
+    steps_for,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,8 @@ def serialize(job: ProvisionJob) -> Dict[str, Any]:
     if status in ACTIVE and updated is not None and _now() - updated > STALE_AFTER:
         status = "interrupted"
     steps = json.loads(job.steps_json or "{}")
+    request = json.loads(job.request_json or "{}")
+    result = json.loads(job.result_json or "{}")
     return {
         "id": job.id,
         "provider": job.provider,
@@ -65,9 +68,12 @@ def serialize(job: ProvisionJob) -> Dict[str, Any]:
         "certname": job.certname,
         "vm_name": job.vm_name,
         "status": status,
-        "steps": [{"name": s, **steps.get(s, {"state": "pending"})} for s in STEPS],
-        "request": json.loads(job.request_json or "{}"),
-        "result": json.loads(job.result_json or "{}"),
+        "mode": request.get("mode", "clone"),
+        "steps": [{"name": s, **steps.get(s, {"state": "pending"})} for s in steps_for(request.get("mode", "clone"))],
+        "request": request,
+        "result": result,
+        "awaiting_install": request.get("mode") == "iso" and steps.get("install", {}).get("state") == "running"
+                            and not result.get("install_continued_at"),
         "csr_verified": bool(job.csr_challenge_hash),
         "log": job.log or "",
         "error": job.error or "",
@@ -156,6 +162,57 @@ class DbReporter:
         await self._update(mutate)
 
 
+def ssh_secret_name(job_id: str) -> str:
+    return f"provisioning_job_ssh:{job_id}"
+
+
+async def store_install_continue(job_id: str, ssh: Optional[Dict[str, Any]], user: str) -> None:
+    """Operator finished the console install. SSH credentials are encrypted until used."""
+    from ...models.cluster_secret import ClusterSecret
+    from ..secrets import encrypt_secret
+
+    if ssh:
+        async with async_session() as db:
+            name = ssh_secret_name(job_id)
+            row = await db.get(ClusterSecret, name)
+            if row is None:
+                row = ClusterSecret(name=name, description="One-time SSH credentials for a provisioning build")
+                db.add(row)
+            row.value_enc = encrypt_secret(json.dumps(ssh))
+            row.updated_by = user
+            await db.commit()
+    await DbReporter(job_id).set_result(install_continued_at=_now().isoformat(), install_continued_by=user)
+
+
+async def load_install_continue(job_id: str) -> Optional[InstallContinue]:
+    from ...models.cluster_secret import ClusterSecret
+    from ..secrets import decrypt_secret
+    from .ssh import SshTarget
+
+    async with async_session() as db:
+        row = await db.get(ProvisionJob, job_id)
+        if row is None or not json.loads(row.result_json or "{}").get("install_continued_at"):
+            return None
+        secret = await db.get(ClusterSecret, ssh_secret_name(job_id))
+    if secret is None:
+        return InstallContinue(ssh=None)
+    data = json.loads(decrypt_secret(secret.value_enc) or "{}")
+    return InstallContinue(ssh=SshTarget(
+        host=data.get("host", ""), username=data.get("username", ""), port=int(data.get("port") or 22),
+        password=data.get("password", ""), private_key=data.get("private_key", ""),
+    ))
+
+
+async def forget_install_continue(job_id: str) -> None:
+    from ...models.cluster_secret import ClusterSecret
+
+    async with async_session() as db:
+        row = await db.get(ClusterSecret, ssh_secret_name(job_id))
+        if row is not None:
+            await db.delete(row)
+            await db.commit()
+
+
 def app_hooks(requested_by: str, job_id: str) -> BuildHooks:
     """CA / OpenVoxDB / ENC calls used by steps 4–5."""
 
@@ -229,6 +286,8 @@ def app_hooks(requested_by: str, job_id: str) -> BuildHooks:
         cert_state=cert_state, fetch_csr=fetch_csr, sign_certificate=sign,
         node_in_fleet=node_in_fleet, classify_node=classify, csr_rejected=csr_rejected,
         is_cancelled=is_cancelled,
+        install_continue=lambda: load_install_continue(job_id),
+        forget_continue=lambda: forget_install_continue(job_id),
     )
 
 
@@ -267,6 +326,10 @@ async def execute(
                            if row.status == "queued" else None)
     if hooks is None:
         hooks = app_hooks(requested_by, job_id)
+    if timing is None:
+        from ...config import settings
+
+        timing = Timing(poll_s=max(0.05, float(settings.provisioning_poll_s)))
     try:
         status = await run_build(
             validated,
@@ -292,6 +355,8 @@ async def execute(
         logger.exception("provisioning job %s crashed", job_id)
         await reporter.finish("failed", f"Internal error: {exc.__class__.__name__}")
         return "failed"
+    finally:
+        await forget_install_continue(job_id)
 
 
 async def count_active(username: Optional[str] = None) -> int:

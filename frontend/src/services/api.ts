@@ -970,6 +970,7 @@ export interface ProvisioningStatus {
     error?: string;
   };
   steps: string[];
+  steps_iso: string[];
   runner: 'worker' | 'inline';
   worker: { alive: boolean; worker: string; age_s?: number | null; running: number };
   limits: { max_parallel: number; max_active_per_user: number; max_active_total: number };
@@ -989,6 +990,8 @@ export interface ProvisionJob {
   certname: string;
   vm_name: string;
   status: string;
+  mode: 'clone' | 'iso';
+  awaiting_install: boolean;
   steps: ProvisionStep[];
   request: Record<string, any>;
   result: Record<string, any>;
@@ -1078,6 +1081,12 @@ export const provisioning = {
   inventory: <T = import('../utils/provisioning').VmwareDatacenterInventory>(id: string, scope: string) =>
     fetchJSON<T>(`${conn(id)}/inventory/${encodeURIComponent(scope)}`),
   images: (id: string) => fetchJSON<Inv[]>(`${conn(id)}/images`),
+  isos: (id: string, scope: string, datastore: string) =>
+    fetchJSON<Inv[]>(`${conn(id)}/inventory/${encodeURIComponent(scope)}/isos?datastore=${encodeURIComponent(datastore)}`),
+  continueBuild: (jobId: string, body: { ssh_host?: string; ssh_port?: number; username?: string; password?: string; private_key?: string }) =>
+    fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(jobId)}/continue`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
   presets: (connection = '') =>
     fetchJSON<ProvisionPreset[]>(`/provisioning/presets${connection ? `?connection=${encodeURIComponent(connection)}` : ''}`),
   savePreset: (id: string, body: Record<string, unknown>) =>
