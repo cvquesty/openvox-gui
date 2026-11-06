@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.1] - 2026-11-06
+
+First pre-release of the 3.15.0 minor, cut on the `feature/ovbuilder`
+branch. Not tagged; lab validation against a real vCenter is pending.
+
+### Added
+- **VM Builder (Infrastructure → VM Builder, `/vmbuilder`).** Port of the
+  standalone openvox-ovbuilder VMware provisioner. Enter hostname/FQDN, IP,
+  netmask or prefix, gateway, DNS and size; pick datacenter, DRS cluster or
+  standalone host, resource pool, folder, datastore or Storage DRS cluster,
+  port group and template from live vCenter inventory (tables plus pickers).
+  The GUI clones the template with pyVmomi and powers it on. A cloud-init
+  `guestinfo` payload sets the hostname and static IPv4 on the template's
+  existing NIC and runs this console's `install.bash` with the Agent Install
+  page's server, CA and mirror. Optional per build: sign that node's CSR,
+  then apply an ENC environment and groups after its first report.
+- **Builds tab** with per-step progress (validate, clone, guest network,
+  certificate, classifier) and a log, stored in the new `vm_build_jobs`
+  table (alembic `006_vm_build_jobs`).
+- **VM Builder settings (admin).** vCenter host, account, TLS verification,
+  template name prefix, default domain and datacenter, SSH keys, DNF groups,
+  guest proxy. The vCenter password and proxy URL are Fernet-encrypted
+  `cluster_secrets` rows and are never returned to the browser.
+- `/api/vmbuilder/*`: inventory, preview, builds for admin and operator;
+  settings for admin. Audit lines for submit, settings, auto-sign, classify.
+- `pyvmomi` in `backend/requirements.txt` (imported lazily).
+- `OPENVOX_GUI_VMBUILDER_FAKE=true` serves an in-memory vCenter for
+  development; the page shows a banner. Tests use the same fake.
+- Docs: [docs/VM_BUILDER.md](docs/VM_BUILDER.md),
+  [docs/OVBUILDER_PLAN.md](docs/OVBUILDER_PLAN.md).
+
 ## [3.14.3-dev.3] - 2026-10-27
 
 ### Changed

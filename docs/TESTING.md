@@ -72,6 +72,8 @@ release.
 These need a real OpenVox server, Bolt inventory, or operator credentials:
 
 - Live PuppetDB / CA / compiler HTTP
+- A real vCenter. VM Builder tests use the in-memory fake vCenter
+  (`backend/app/services/vmbuilder/fake.py`); see [VM_BUILDER.md](VM_BUILDER.md)
 - `scripts/update_remote.sh` deploys
 - Browser end-to-end (Playwright) — not wired yet
 - Full mypy / ruff style on the historical tree (the CI ruff gate is
