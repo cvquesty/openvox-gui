@@ -572,3 +572,21 @@ def test_pipeline_cancel_before_provision():
 def test_fake_datacenter_lookup_error():
     with pytest.raises(ProviderError):
         FakeVCenterClient().datacenter_inventory("nope")
+
+
+def test_vmware_session_lifecycle_on_fake():
+    from app.services.provisioning.providers.base import InstanceNotFound
+
+    client = FakeVCenterClient()
+    session = VmwareSession(client, DEFAULT_TEMPLATE_PREFIX, close_client=False)
+    result = session.provision(_spec(_validated(bootstrap_agent=False)))
+    assert session.power(result.instance_id, "off").power_state == "poweredOff"
+    with pytest.raises(ProviderError, match="not powered on"):
+        session.power(result.instance_id, "reboot")
+    assert session.power(result.instance_id, "on").power_state == "poweredOn"
+    with pytest.raises(ProviderError, match="Unknown power action"):
+        session.power(result.instance_id, "explode")
+    assert session.snapshot(result.instance_id, "pre") == "snapshot-1"
+    session.destroy(result.instance_id)
+    with pytest.raises(InstanceNotFound):
+        session.instance_state(result.instance_id)

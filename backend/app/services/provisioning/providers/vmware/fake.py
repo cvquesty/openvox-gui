@@ -18,6 +18,7 @@ from .client import (
     DatacenterInventory,
     GuestState,
     VCenterError,
+    VmNotFound,
 )
 
 _ADDR_RE = re.compile(r"- (\d{1,3}(?:\.\d{1,3}){3})/\d{1,2}\n")
@@ -139,6 +140,8 @@ class FakeVCenterClient:
             "moid": moid,
             "ip": match.group(1) if match else "",
             "polls": 0,
+            "power": "poweredOn",
+            "snapshots": [],
         }
         return CloneResult(vm_moid=moid, vm_name=spec.vm_name,
                            datastore=spec.datastore or spec.datastore_cluster)
@@ -149,12 +152,12 @@ class FakeVCenterClient:
                 vm["polls"] += 1
                 ready = vm["polls"] >= self.polls_until_ip
                 return GuestState(
-                    power_state="poweredOn",
+                    power_state=vm.get("power", "poweredOn"),
                     tools_status="guestToolsRunning" if ready else "guestToolsNotRunning",
                     ip_address=vm["ip"] if ready else "",
                     hostname=vm["name"] if ready else "",
                 )
-        raise VCenterError(f"VM {vm_moid} not found")
+        raise VmNotFound(f"VM {vm_moid} not found")
 
     def clear_guestinfo_userdata(self, vm_moid: str) -> None:
         for vm in self.vms.values():
@@ -162,6 +165,28 @@ class FakeVCenterClient:
                 self.scrubbed.append(vm_moid)
                 return
         raise VCenterError(f"VM {vm_moid} not found")
+
+    def _vm(self, vm_moid: str) -> Dict:
+        for vm in self.vms.values():
+            if vm.get("moid") == vm_moid:
+                return vm
+        raise VmNotFound(f"VM {vm_moid} not found")
+
+    def power_vm(self, vm_moid: str, action: str) -> GuestState:
+        vm = self._vm(vm_moid)
+        if action == "reboot" and vm["power"] != "poweredOn":
+            raise VCenterError("The VM is not powered on")
+        vm["power"] = {"on": "poweredOn", "off": "poweredOff", "shutdown": "poweredOff"}.get(action, vm["power"])
+        return self.guest_state(vm_moid)
+
+    def snapshot_vm(self, vm_moid: str, name: str, description: str = "") -> str:
+        vm = self._vm(vm_moid)
+        vm["snapshots"].append(name)
+        return f"snapshot-{len(vm['snapshots'])}"
+
+    def destroy_vm(self, vm_moid: str) -> None:
+        vm = self._vm(vm_moid)
+        self.vms.pop(vm["name"])
 
     def close(self) -> None:
         self.closed = True

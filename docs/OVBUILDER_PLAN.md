@@ -48,7 +48,7 @@ backend/app/services/provisioning/
 | Placement | `Provider.normalize_placement()` (static), `ProviderSession.check_placement(spec)` (live) |
 | Provision | `name_in_use()`, `provision(ProvisionSpec)` → `ProvisionResult`, `instance_state()` |
 | Payload delivery | VMware: guestinfo in `provision()`; `scrub_payload()` after the CSR |
-| Power / lifecycle | Increment 4 adds `power()`, `snapshot()`, `destroy()` to the same interface |
+| Power / lifecycle | `power()`, `snapshot()`, `destroy()`; `InstanceNotFound` when the machine is gone |
 
 **Shared, not per provider:** the build form's base fields (identity, NICs'
 addressing, size), the cloud-init payload, the OpenVox bootstrap and CSR-token
@@ -116,7 +116,7 @@ Build / Builds / Settings (+ Machines for lifecycle).
 | Site → compiler VIP / CA mapping | Done (alpha.3): bootstrap profiles |
 | Environment → datastore-cluster mapping | Done (alpha.3): placement presets |
 | Build caps, cancel | Done (alpha.4); notifications later |
-| VM lifecycle (`vmops.py`) | Increment 4 |
+| VM lifecycle (`vmops.py`) | Done (alpha.5): Machines tab |
 | CLI | Increment 5: `ovox vm` |
 | ISO mode + media detach, SSH bootstrap | Increment 6 (separate PR on `feature/ovbuilder` if large) |
 | Packer golden builds | Out of scope; stays in ovbuilder |
@@ -137,7 +137,7 @@ lab validation is Jerald's (not possible from CI).
    caps; cancel (before provisioning: clean stop; after: VM kept, step says so);
    a separate `openvox-gui-provisioner` process claims queued jobs so builds
    survive uvicorn restarts.
-4. **Lifecycle.** Machines tab for builder-created VMs: power on/off, reboot,
+4. **alpha.5 — lifecycle** (done). Machines tab for builder-created VMs: power on/off, reboot,
    snapshot (admin/operator); destroy (admin) that also cleans the CA cert,
    deactivates the node in OpenVoxDB and deletes the ENC node. Added to the
    provider interface.

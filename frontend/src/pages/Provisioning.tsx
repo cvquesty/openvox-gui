@@ -15,6 +15,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/StateComponents';
 import { BuildForm } from '../components/provisioning/BuildForm';
 import { BuildJobs } from '../components/provisioning/BuildJobs';
+import { MachinesPanel } from '../components/provisioning/MachinesPanel';
 import { SettingsPanel } from '../components/provisioning/SettingsPanel';
 import { useAuth } from '../hooks/AuthContext';
 import { provisioning, type ProvisioningStatus } from '../services/api';
@@ -94,6 +95,7 @@ export function ProvisioningPage() {
         <Tabs.List mb="md">
           <Tabs.Tab value="build">Build</Tabs.Tab>
           <Tabs.Tab value="jobs">Builds</Tabs.Tab>
+          <Tabs.Tab value="machines">Machines</Tabs.Tab>
           {isAdmin && <Tabs.Tab value="settings">Settings</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="build">
@@ -103,6 +105,9 @@ export function ProvisioningPage() {
         </Tabs.Panel>
         <Tabs.Panel value="jobs">
           <BuildJobs selectedId={jobId} onSelect={(id) => go({ job: id })} />
+        </Tabs.Panel>
+        <Tabs.Panel value="machines">
+          <MachinesPanel isAdmin={isAdmin} />
         </Tabs.Panel>
         {isAdmin && (
           <Tabs.Panel value="settings">

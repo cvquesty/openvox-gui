@@ -1037,6 +1037,29 @@ export interface BootstrapProfile {
   error?: string;
 }
 
+export interface ProvisionMachine {
+  job_id: string;
+  certname: string;
+  name: string;
+  instance_id: string;
+  provider: string;
+  connection_id: string;
+  build_status: string;
+  guest_ip: string;
+  requested_by: string;
+  created_at: string | null;
+  snapshots: { name: string; id: string; by: string; at: string }[];
+  last_action?: { action: string; by: string; at: string } | null;
+  live?: { power_state?: string; ip_address?: string; tools_status?: string; error?: string };
+}
+
+export interface DestroyResult {
+  job_id: string;
+  certname: string;
+  ok: boolean;
+  steps: Record<string, { ok: boolean; message: string }>;
+}
+
 type Inv = import('../utils/provisioning').InventoryItem;
 const conn = (id: string) => `/provisioning/connections/${encodeURIComponent(id)}`;
 
@@ -1071,6 +1094,19 @@ export const provisioning = {
     fetchJSON<ProvisionJob>('/provisioning/builds', { method: 'POST', body: JSON.stringify(payload) }),
   builds: () => fetchJSON<ProvisionJob[]>('/provisioning/builds'),
   build: (id: string) => fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}`),
+  machines: (live = false) => fetchJSON<ProvisionMachine[]>(`/provisioning/machines${live ? '?live=true' : ''}`),
+  power: (jobId: string, action: 'on' | 'off' | 'shutdown' | 'reboot') =>
+    fetchJSON<{ power_state: string }>(`/provisioning/machines/${encodeURIComponent(jobId)}/power`, {
+      method: 'POST', body: JSON.stringify({ action }),
+    }),
+  snapshot: (jobId: string, name: string, description = '') =>
+    fetchJSON<{ snapshot: string }>(`/provisioning/machines/${encodeURIComponent(jobId)}/snapshot`, {
+      method: 'POST', body: JSON.stringify({ name, description }),
+    }),
+  destroy: (jobId: string, body: { confirm: string; deactivate: boolean; clean_cert: boolean; remove_enc: boolean }) =>
+    fetchJSON<DestroyResult>(`/provisioning/machines/${encodeURIComponent(jobId)}/destroy`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
   cancel: (id: string) =>
     fetchJSON<ProvisionJob>(`/provisioning/builds/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
 };

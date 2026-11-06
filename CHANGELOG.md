@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.5] - 2026-11-06
+
+### Added
+- **Machines tab** (lifecycle of VMs this GUI built; port of ovbuilder
+  `vmops.py`). Live power state and IP; power on / guest shutdown / power
+  off / reboot and snapshot for admin and operator; destroy for admin with
+  typed-certname confirmation that also deactivates the node in OpenVoxDB,
+  cleans its CA certificate and removes its ENC node (each optional,
+  reported per step, audited). Estate server identities are refused.
+- Provider interface: `power()`, `snapshot()`, `destroy()`, `InstanceNotFound`.
+- `/api/provisioning/machines` (+ `/power`, `/snapshot`, `/destroy`).
+
 ## [3.15.0-alpha.4] - 2026-11-06
 
 ### Added

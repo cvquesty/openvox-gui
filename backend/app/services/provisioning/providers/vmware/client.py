@@ -13,11 +13,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 
-from ..base import InstanceState, InventoryItem, ProviderError
+from ..base import InstanceNotFound, InstanceState, InventoryItem, ProviderError
 
 
 class VCenterError(ProviderError):
     """vCenter call failed."""
+
+
+class VmNotFound(VCenterError, InstanceNotFound):
+    """The VM no longer exists in vCenter."""
 
 
 @dataclass
@@ -91,5 +95,11 @@ class VCenterClient(Protocol):
     def guest_state(self, vm_moid: str) -> GuestState: ...
 
     def clear_guestinfo_userdata(self, vm_moid: str) -> None: ...
+
+    def power_vm(self, vm_moid: str, action: str) -> GuestState: ...
+
+    def snapshot_vm(self, vm_moid: str, name: str, description: str = "") -> str: ...
+
+    def destroy_vm(self, vm_moid: str) -> None: ...
 
     def close(self) -> None: ...

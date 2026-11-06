@@ -33,6 +33,7 @@ from .client import (
     DatacenterInventory,
     GuestState,
     VCenterError,
+    VmNotFound,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,7 +133,8 @@ class PyVmomiClient:
         try:
             _ = obj.name
         except Exception as exc:  # noqa: BLE001
-            raise VCenterError(f"{vim_type.__name__} {moid} not found: {_fault_message(exc)}") from exc
+            cls = VmNotFound if vim_type.__name__ == "VirtualMachine" else VCenterError
+            raise cls(f"{vim_type.__name__} {moid} not found: {_fault_message(exc)}") from exc
         return obj
 
     def _find_datacenter(self, name: str) -> Any:
@@ -468,3 +470,57 @@ class PyVmomiClient:
             raise
         except Exception as exc:  # noqa: BLE001
             raise VCenterError(f"Could not clear guestinfo.userdata: {_fault_message(exc)}") from exc
+
+    # ─── lifecycle (port of ovbuilder vmops.py) ────────────────
+
+    def power_vm(self, vm_moid: str, action: str) -> GuestState:
+        vim = self._vim()
+        vm = self._by_moid(vim.VirtualMachine, vm_moid)
+        state = vm.runtime.powerState
+        on = vim.VirtualMachinePowerState.poweredOn
+        try:
+            if action == "on" and state != on:
+                self._wait(vm.PowerOnVM_Task(), timeout_s=180)
+            elif action == "off" and state == on:
+                self._wait(vm.PowerOffVM_Task(), timeout_s=180)
+            elif action == "shutdown" and state == on:
+                vm.ShutdownGuest()
+            elif action == "reboot":
+                if state != on:
+                    raise VCenterError("The VM is not powered on")
+                try:
+                    vm.RebootGuest()
+                except Exception:  # noqa: BLE001 — no Tools: hard reset like ovbuilder
+                    self._wait(vm.ResetVM_Task(), timeout_s=180)
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"Power {action} failed: {_fault_message(exc)}") from exc
+        return self.guest_state(vm_moid)
+
+    def snapshot_vm(self, vm_moid: str, name: str, description: str = "") -> str:
+        vim = self._vim()
+        vm = self._by_moid(vim.VirtualMachine, vm_moid)
+        try:
+            snap = self._wait(
+                vm.CreateSnapshot_Task(name, description or "openvox-gui snapshot", False, False),
+                timeout_s=900,
+            )
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"Snapshot failed: {_fault_message(exc)}") from exc
+        return getattr(snap, "_moId", "") or name
+
+    def destroy_vm(self, vm_moid: str) -> None:
+        """Power off if needed, then destroy. Irreversible."""
+        vim = self._vim()
+        vm = self._by_moid(vim.VirtualMachine, vm_moid)
+        try:
+            if vm.runtime.powerState != vim.VirtualMachinePowerState.poweredOff:
+                self._wait(vm.PowerOffVM_Task(), timeout_s=180)
+            self._wait(vm.Destroy_Task(), timeout_s=600)
+        except VCenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VCenterError(f"Destroy failed: {_fault_message(exc)}") from exc

@@ -26,6 +26,13 @@ class ProviderError(RuntimeError):
     """Provider call failed. Messages must never include credentials."""
 
 
+class InstanceNotFound(ProviderError):
+    """The machine no longer exists in the provider."""
+
+
+POWER_ACTIONS = ("on", "off", "shutdown", "reboot")
+
+
 @dataclass
 class InventoryItem:
     moid: str
@@ -119,6 +126,13 @@ class ProviderSession(Protocol):
     def instance_state(self, instance_id: str) -> InstanceState: ...
 
     def scrub_payload(self, instance_id: str) -> None: ...
+
+    # Lifecycle (machines this GUI built). ``action``: on, off, shutdown, reboot.
+    def power(self, instance_id: str, action: str) -> InstanceState: ...
+
+    def snapshot(self, instance_id: str, name: str, description: str = "") -> str: ...
+
+    def destroy(self, instance_id: str) -> None: ...
 
     def close(self) -> None: ...
 

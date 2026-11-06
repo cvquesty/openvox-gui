@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from ...netspec import NetSpecError
 from ..base import (
+    POWER_ACTIONS,
     ConnectionInfo,
     GuestPayload,
     InstanceState,
@@ -154,6 +155,17 @@ class VmwareSession:
 
     def scrub_payload(self, instance_id: str) -> None:
         self.client.clear_guestinfo_userdata(instance_id)
+
+    def power(self, instance_id: str, action: str) -> InstanceState:
+        if action not in POWER_ACTIONS:
+            raise VCenterError(f"Unknown power action {action!r}")
+        return self.client.power_vm(instance_id, action)
+
+    def snapshot(self, instance_id: str, name: str, description: str = "") -> str:
+        return self.client.snapshot_vm(instance_id, name, description)
+
+    def destroy(self, instance_id: str) -> None:
+        self.client.destroy_vm(instance_id)
 
     def close(self) -> None:
         if self._close_client:

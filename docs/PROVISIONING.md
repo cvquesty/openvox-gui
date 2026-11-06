@@ -210,10 +210,28 @@ Limits (`/opt/openvox-gui/config/.env`):
 | `OPENVOX_GUI_PROVISIONING_MAX_ACTIVE_TOTAL` | 10 | Queued + running builds on the estate |
 | `OPENVOX_GUI_PROVISIONING_RUNNER` | `worker` | `inline` runs builds inside uvicorn (development only) |
 
+## Machines (lifecycle)
+
+The **Machines** tab lists VMs this GUI built (from build jobs), with live
+power state and IP from the provider. VMs the GUI did not create are never
+listed or changed.
+
+| Action | Roles | Notes |
+|--------|-------|-------|
+| Power on / shut down guest / power off / reboot | admin, operator | Reboot falls back to a hard reset without VMware Tools (ovbuilder behaviour) |
+| Snapshot | admin, operator | Disk-only, not quiesced |
+| Destroy | admin | Type the certname to confirm. Powers off and deletes the VM, then (each optional, on by default) deactivates the node in OpenVoxDB, cleans its CA certificate, and removes its ENC node. Estate server identities are refused |
+
+Each cleanup step is reported separately and written to the build's log and
+the audit log (`provisioning_power`, `provisioning_snapshot`,
+`provisioning_destroy`). A VM already deleted in vCenter counts as gone and
+the cleanup still runs. Additional permissions on the service account:
+Virtual machine → Interaction → Power off / Reset, Snapshot management →
+Create snapshot, Inventory → Remove.
+
 ## Limits in this release
 
-- No power/snapshot/destroy, CLI, ISO installs or SSH bootstrap yet
-  ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
+- No CLI, ISO installs or SSH bootstrap yet ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
 - Step timeouts: guest IP 15 min, CSR 30 min, first report 30 min.
 
 ## Development and tests

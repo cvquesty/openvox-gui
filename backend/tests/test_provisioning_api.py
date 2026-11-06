@@ -454,3 +454,85 @@ def test_restart_marks_this_hosts_running_jobs_interrupted(api, monkeypatch):
     assert asyncio.run(jobs.mark_orphaned("console-a:200")) == [mine]
     assert api.get(f"/api/provisioning/builds/{mine}").json()["status"] == "interrupted"
     assert api.get(f"/api/provisioning/builds/{other}").json()["status"] == "running"
+
+
+class FakeDestroyHooks:
+    def __init__(self, protected=()):
+        self.calls: list[tuple[str, str]] = []
+        self.protected = set(protected)
+
+    def build(self):
+        from app.services.provisioning.machines import DestroyHooks
+
+        async def deactivate(cn):
+            self.calls.append(("openvoxdb", cn))
+            return True, "Deactivated in OpenVoxDB"
+
+        async def ca_clean(cn):
+            self.calls.append(("ca", cn))
+            return True, "CA certificate cleaned"
+
+        async def enc_delete(cn):
+            self.calls.append(("enc", cn))
+            return False, "ENC delete failed"
+
+        return DestroyHooks(deactivate=deactivate, ca_clean=ca_clean, enc_delete=enc_delete,
+                            is_protected=lambda cn: cn in self.protected)
+
+
+def test_machine_lifecycle(api, monkeypatch):
+    from app.services.provisioning import machines as machines_mod
+
+    destroy_hooks = FakeDestroyHooks()
+    monkeypatch.setattr(machines_mod, "app_destroy_hooks", destroy_hooks.build)
+    job = _wait_finished(api, api.post("/api/provisioning/builds", json={**BUILD, "sign_certificate": False,
+                                                                          "bootstrap_agent": False}).json()["id"])
+    listed = api.get("/api/provisioning/machines?live=true").json()
+    assert [m["certname"] for m in listed] == ["app01.example.com"]
+    assert listed[0]["live"]["power_state"] == "poweredOn"
+
+    _as(api, "operator")
+    off = api.post(f"/api/provisioning/machines/{job['id']}/power", json={"action": "off"})
+    assert off.status_code == 200 and off.json()["power_state"] == "poweredOff"
+    assert api.post(f"/api/provisioning/machines/{job['id']}/power", json={"action": "reboot"}).status_code == 502
+    assert api.post(f"/api/provisioning/machines/{job['id']}/power", json={"action": "explode"}).status_code == 400
+    snap = api.post(f"/api/provisioning/machines/{job['id']}/snapshot", json={"name": "before-patch"})
+    assert snap.status_code == 200
+    assert api.post(f"/api/provisioning/machines/{job['id']}/snapshot", json={"name": "bad/name"}).status_code == 400
+    assert api.get("/api/provisioning/machines").json()[0]["snapshots"][0]["name"] == "before-patch"
+    assert api.post(f"/api/provisioning/machines/{job['id']}/destroy",
+                    json={"confirm": "app01.example.com"}).status_code == 403
+    _as(api, "viewer")
+    assert api.get("/api/provisioning/machines").status_code == 403
+
+    _as(api, "admin")
+    wrong = api.post(f"/api/provisioning/machines/{job['id']}/destroy", json={"confirm": "app02.example.com"})
+    assert wrong.status_code == 400 and "confirm" in wrong.json()["detail"]
+    destroy_hooks.protected = {"app01.example.com"}
+    assert "estate server" in api.post(f"/api/provisioning/machines/{job['id']}/destroy",
+                                       json={"confirm": "app01.example.com"}).json()["detail"]
+    destroy_hooks.protected = set()
+    done = api.post(f"/api/provisioning/machines/{job['id']}/destroy", json={"confirm": "APP01.example.com"}).json()
+    assert done["steps"]["vm"]["ok"] and done["ok"] is False
+    assert [c[0] for c in destroy_hooks.calls] == ["openvoxdb", "ca", "enc"]
+    assert "app01.example.com" not in VmwareProvider._fake_client.vms
+    assert api.get("/api/provisioning/machines").json() == []
+    assert api.post(f"/api/provisioning/machines/{job['id']}/power", json={"action": "on"}).status_code == 400
+    log = api.get(f"/api/provisioning/builds/{job['id']}").json()["log"]
+    assert "[lifecycle] destroy enc: FAILED" in log
+
+
+def test_destroy_when_vm_already_gone(api, monkeypatch):
+    from app.services.provisioning import machines as machines_mod
+
+    destroy_hooks = FakeDestroyHooks()
+    monkeypatch.setattr(machines_mod, "app_destroy_hooks", destroy_hooks.build)
+    job = _wait_finished(api, api.post("/api/provisioning/builds", json={**BUILD, "sign_certificate": False,
+                                                                          "bootstrap_agent": False}).json()["id"])
+    VmwareProvider._fake_client.vms.pop("app01.example.com")
+    assert api.get("/api/provisioning/machines?live=true").json()[0]["live"]["power_state"] == "missing"
+    done = api.post(f"/api/provisioning/machines/{job['id']}/destroy",
+                    json={"confirm": "app01.example.com", "remove_enc": False}).json()
+    assert "already gone" in done["steps"]["vm"]["message"]
+    assert done["steps"]["enc"]["message"] == "skipped"
+    assert [c[0] for c in destroy_hooks.calls] == ["openvoxdb", "ca"]

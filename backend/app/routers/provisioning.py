@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 
 from ..config import settings as app_settings
 from ..dependencies import require_role
-from ..services.provisioning import bootstrap, config_store, csr, jobs, presets
+from ..services.provisioning import bootstrap, config_store, csr, jobs, machines, presets
 from ..services.provisioning.cloudinit import (
     BootstrapTarget,
     agent_install_command,
@@ -100,6 +100,22 @@ class ProfileBody(BaseModel):
     ca_server: str = Field("", max_length=255)
     pkg_repo_url: str = Field(..., max_length=512)
     agent_version: str = Field("", max_length=8)
+
+
+class PowerBody(BaseModel):
+    action: str = Field(..., max_length=16)
+
+
+class SnapshotBody(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    description: str = Field("", max_length=500)
+
+
+class DestroyBody(BaseModel):
+    confirm: str = Field(..., max_length=253)
+    deactivate: bool = True
+    clean_cert: bool = True
+    remove_enc: bool = True
 
 
 class SettingsBody(BaseModel):
@@ -427,3 +443,44 @@ async def get_build(job_id: str, _user: str = Depends(_USE)) -> Dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail="Build not found")
     return job
+
+
+# ─── Machines (lifecycle of builder-created VMs) ────────────
+
+def _machine_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, ProviderError):
+        return HTTPException(status_code=502, detail=str(exc))
+    if isinstance(exc, NetSpecError):
+        return HTTPException(status_code=409, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/machines")
+async def list_machines(live: bool = False, _user: str = Depends(_USE)) -> List[Dict[str, Any]]:
+    rows = await machines.list_machines()
+    return await machines.with_live_state(rows) if live else rows
+
+
+@router.post("/machines/{job_id}/power")
+async def power_machine(job_id: str, body: PowerBody, user: str = Depends(_USE)) -> Dict[str, Any]:
+    try:
+        return await machines.power(job_id, body.action, user=user)
+    except (machines.MachineError, ProviderError, NetSpecError) as exc:
+        raise _machine_error(exc) from exc
+
+
+@router.post("/machines/{job_id}/snapshot")
+async def snapshot_machine(job_id: str, body: SnapshotBody, user: str = Depends(_USE)) -> Dict[str, Any]:
+    try:
+        return await machines.snapshot(job_id, body.name, body.description, user=user)
+    except (machines.MachineError, ProviderError, NetSpecError) as exc:
+        raise _machine_error(exc) from exc
+
+
+@router.post("/machines/{job_id}/destroy")
+async def destroy_machine(job_id: str, body: DestroyBody, user: str = Depends(_ADMIN)) -> Dict[str, Any]:
+    try:
+        return await machines.destroy(job_id, user=user, confirm=body.confirm, deactivate=body.deactivate,
+                                      clean_cert=body.clean_cert, remove_enc=body.remove_enc)
+    except (machines.MachineError, ProviderError, NetSpecError) as exc:
+        raise _machine_error(exc) from exc
