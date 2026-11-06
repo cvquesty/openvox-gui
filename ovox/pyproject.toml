@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,8 +7,8 @@ name = "ovox"
 version = "3.15.0-alpha.7"
 description = "ovox - OpenVox command-line interface and TUI for managing Puppet/OpenVox infrastructure"
 readme = "README.md"
-license = {text = "Apache-2.0"}
-requires-python = ">=3.8"
+license = "Apache-2.0"
+requires-python = ">=3.9"
 authors = [
   {name = "Jerald Sheets", email = "questy@gmail.com"}
 ]
@@ -17,10 +17,8 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
   "Intended Audience :: System Administrators",
-  "License :: OSI Approved :: Apache Software License",
   "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -62,4 +60,4 @@ ovox = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py39"
