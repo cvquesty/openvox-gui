@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import sys
 import types
 from pathlib import Path
@@ -324,6 +325,7 @@ def test_flatten_bolt_json_surfaces_script_stderr():
 
 def test_flatten_redacts_proxy_password():
     d = _load_deploy()
+    proxy_cred = secrets.token_hex(12)
     payload = {
         "items": [
             {
@@ -333,7 +335,7 @@ def test_flatten_redacts_proxy_password():
                     "exit_code": 1,
                     "merged_output": (
                         "r10k-stage-activate.sh: start "
-                        "proxy=http://user:s3cret@httpproxy.example.com:3128\n"
+                        f"proxy=http://user:{proxy_cred}@httpproxy.example.com:3128\n"
                     ),
                 },
             }
@@ -344,7 +346,7 @@ def test_flatten_redacts_proxy_password():
         ["ovcompiler1.example.com"],
     )
     blob = "\n".join(lines)
-    assert "s3cret" not in blob
+    assert proxy_cred not in blob
     assert "user:***@" in blob
 
 

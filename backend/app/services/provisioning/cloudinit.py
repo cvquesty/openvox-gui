@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Sequence
 from urllib.parse import urlparse
 
+from .csr import challenge_argument
 from .netspec import NetSpecError, is_valid_domain
 
 _SSH_PUBKEY_PREFIXES = (
@@ -380,7 +381,7 @@ def agent_install_command(target: BootstrapTarget, certname: str, csr_challenge:
         args += ["--version", target.agent_version]
     args.append(f"main:certname={certname}")
     if csr_challenge:
-        args.append(f"custom_attributes:challengePassword={csr_challenge}")
+        args.append(challenge_argument(csr_challenge))
     return (
         f"curl -fsSk --noproxy {shlex.quote(noproxy)} {shlex.quote(repo + '/install.bash')} "
         f"| bash -s -- {' '.join(shlex.quote(a) for a in args)}"

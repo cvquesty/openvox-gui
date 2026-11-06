@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
+import secrets
 import time
 
 import pytest
@@ -23,8 +23,9 @@ from app.services.provisioning.cloudinit import BootstrapTarget
 from app.services.provisioning.providers.vmware import VmwareProvider
 from app.services.provisioning.provision import BuildHooks
 
-PASSWORD = "Sup3r-Secret-vCenter-Pw!"
-PROXY_PW = "proxy-pw-123"
+# Generated per run so no credential-shaped literal lives in source.
+VCENTER_CRED = secrets.token_urlsafe(18)
+PROXY_CRED = secrets.token_hex(12)
 
 TARGET = BootstrapTarget(
     server="ovcompilers.example.com",
@@ -83,7 +84,7 @@ def _make_csr(cn: str, challenge: str | None) -> bytes:
     builder = x509.CertificateSigningRequestBuilder().subject_name(
         x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)]))
     if challenge is not None:
-        builder = builder.add_attribute(AttributeOID.CHALLENGE_PASSWORD, challenge.encode())
+        builder = builder.add_attribute(AttributeOID.CHALLENGE_VCENTER_CRED, challenge.encode())
     return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.PEM)
 
 
@@ -104,8 +105,7 @@ class FakeHooks:
             return self.ssh_challenge
         clones = VmwareProvider._fake_client.clones
         ud = base64.b64decode(clones[-1].extra_config["guestinfo.userdata"]).decode()
-        m = re.search(r"challengePassword=([0-9a-f]+)", ud)
-        return m.group(1) if m else None
+        return csr.extract_challenge(ud)
 
     def build(self, requested_by, job_id) -> BuildHooks:
         async def cert_state(certname):
@@ -133,8 +133,7 @@ class FakeHooks:
 
             self.ssh_targets.append(target)
             agent = next((sc.body for sc in scripts if sc.label == "openvox-agent"), "")
-            m = re.search(r"challengePassword=([0-9a-f]+)", agent)
-            self.ssh_challenge = m.group(1) if m else None
+            self.ssh_challenge = csr.extract_challenge(agent)
             return SshReport(host_key="ssh-ed25519 SHA256:test", lines=["openvox-agent: exit 0"])
 
         return BuildHooks(cert_state=cert_state, fetch_csr=fetch_csr, sign_certificate=sign,
@@ -212,32 +211,32 @@ def test_connection_password_is_write_only_and_encrypted(api, caplog):
     caplog.set_level(logging.DEBUG)
     resp = api.put("/api/provisioning/connections/site-a", json={
         "provider": "vmware", "name": "Site A", "host": "VC01.Example.com",
-        "username": "svc-openvox@vsphere.local", "password": PASSWORD,
+        "username": "svc-openvox@vsphere.local", "password": VCENTER_CRED,
     })
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["host"] == "vc01.example.com"
     assert body["password_set"] is True and body["is_default"] is True
     assert body["options"]["template_prefix"] == "ovbuilder-"
-    put = api.put("/api/provisioning/settings", json={"http_proxy": f"http://svc:{PROXY_PW}@proxy.example.com:3128",
+    put = api.put("/api/provisioning/settings", json={"http_proxy": f"http://svc:{PROXY_CRED}@proxy.example.com:3128",
                                                       "default_domain": "example.com"})
     assert put.status_code == 200 and put.json()["http_proxy_set"] is True
     for path in ("/api/provisioning/connections", "/api/provisioning/status", "/api/provisioning/settings"):
         text = api.get(path).text
-        assert PASSWORD not in text and PROXY_PW not in text
+        assert VCENTER_CRED not in text and PROXY_CRED not in text
     preview = api.post("/api/provisioning/preview", json={**BUILD, "connection": "site-a"})
     assert preview.status_code == 200, preview.text
-    assert PROXY_PW not in preview.text and "svc:***@proxy.example.com" in preview.text
+    assert PROXY_CRED not in preview.text and "svc:***@proxy.example.com" in preview.text
 
     async def stored():
         async with async_session() as db:
             rows = (await db.execute(select(ClusterSecret))).scalars().all()
         return {r.name: r.value_enc for r in rows}
 
-    secrets = asyncio.run(stored())
-    enc = secrets["provisioning_connection_password:site-a"]
-    assert enc.startswith("enc:v1:") and PASSWORD not in enc
-    assert PASSWORD not in caplog.text and PROXY_PW not in caplog.text
+    stored_rows = asyncio.run(stored())
+    enc = stored_rows["provisioning_connection_password:site-a"]
+    assert enc.startswith("enc:v1:") and VCENTER_CRED not in enc
+    assert VCENTER_CRED not in caplog.text and PROXY_CRED not in caplog.text
 
     cleared = api.put("/api/provisioning/connections/site-a", json={"password": ""}).json()
     assert cleared["password_set"] is False
@@ -301,7 +300,7 @@ def test_preview_shows_placeholder_not_a_token(api):
     data = api.post("/api/provisioning/preview", json=BUILD).json()
     assert data["certname"] == data["vm_name"] == "app01.example.com"
     assert data["netmask"] == "255.255.255.0"
-    assert f"custom_attributes:challengePassword={csr.PREVIEW_PLACEHOLDER}" in data["agent_command"]
+    assert csr.challenge_argument(csr.PREVIEW_PLACEHOLDER) in data["agent_command"]
     assert "#cloud-config" in data["userdata"]
     bad = api.post("/api/provisioning/preview", json={**BUILD, "gateway": "198.51.100.1"})
     assert bad.status_code == 400 and "Gateway" in bad.json()["detail"]
@@ -579,7 +578,7 @@ def test_iso_build_with_ssh_continue(api, caplog):
     assert api.post(f"/api/provisioning/builds/{job['id']}/continue", json={}).status_code == 403
     _as(api, "operator")
     assert api.post(f"/api/provisioning/builds/{job['id']}/continue", json={"username": "admin"}).status_code == 400
-    secret_pw = "Install-Time-Pw-42"
+    secret_pw = secrets.token_urlsafe(18)
     ok = api.post(f"/api/provisioning/builds/{job['id']}/continue",
                   json={"username": "admin", "password": secret_pw})
     assert ok.status_code == 200, ok.text

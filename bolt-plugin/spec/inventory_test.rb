@@ -3,6 +3,7 @@
 require 'json'
 require 'tempfile'
 require 'pathname'
+require 'securerandom'
 
 ROOT = Pathname.new(__dir__).parent
 $LOAD_PATH.unshift((ROOT / 'openvox_enc' / 'lib').to_s)
@@ -65,19 +66,21 @@ class InventoryTests
   # ── token resolution ──────────────────────────────────────────
 
   def self.test_resolve_token_prefers_explicit_api_token
+    explicit = SecureRandom.hex(16)
     token = OpenvoxEnc::Inventory.resolve_token(
-      api_token: 'explicit-token',
+      api_token: explicit,
       token_file: '/nonexistent/token'
     )
-    assert_equal 'explicit-token', token
+    assert_equal explicit, token
   end
 
   def self.test_resolve_token_reads_token_file_when_api_token_blank
     Tempfile.create('bolt_token') do |f|
-      f.write("  file-token-abc  \n")
+      from_file = SecureRandom.hex(16)
+      f.write("  #{from_file}  \n")
       f.flush
       token = OpenvoxEnc::Inventory.resolve_token(api_token: '', token_file: f.path)
-      assert_equal 'file-token-abc', token
+      assert_equal from_file, token
     end
   end
 
@@ -205,11 +208,12 @@ class InventoryTests
   # ── resolve (integration of token + http + build) ─────────────
 
   def self.test_resolve_success_value_envelope
+    api_token = SecureRandom.hex(16)
     http = FakeHttp.new(code: 200, body: FIXTURE.to_json)
     outcome = OpenvoxEnc::Inventory.resolve(
       {
         'api_url' => 'https://gui.example.com:4567',
-        'api_token' => 'tok',
+        'api_token' => api_token,
         'transport' => 'ssh',
       },
       http_client: http
@@ -219,14 +223,14 @@ class InventoryTests
     assert outcome[:payload]['value'].size >= 3
     assert_equal 1, http.calls
     assert_equal '/api/enc/inventory/bolt', http.last_uri.request_uri
-    assert_equal 'Bearer tok', http.last_headers['Authorization']
+    assert_equal "Bearer #{api_token}", http.last_headers['Authorization']
     assert_equal 'application/json', http.last_headers['Accept']
   end
 
   def self.test_resolve_strips_trailing_slash_on_api_url
     http = FakeHttp.new(code: 200, body: { 'groups' => [] }.to_json)
     OpenvoxEnc::Inventory.resolve(
-      { 'api_url' => 'https://gui.example.com:4567/', 'api_token' => 't' },
+      { 'api_url' => 'https://gui.example.com:4567/', 'api_token' => SecureRandom.hex(8) },
       http_client: http
     )
     assert_equal 'https', http.last_uri.scheme
@@ -238,7 +242,7 @@ class InventoryTests
   def self.test_resolve_http_401_returns_error_payload
     http = FakeHttp.new(code: 401, body: '{"detail":"Not authenticated"}')
     outcome = OpenvoxEnc::Inventory.resolve(
-      { 'api_url' => 'https://gui:4567', 'api_token' => 'bad' },
+      { 'api_url' => 'https://gui:4567', 'api_token' => SecureRandom.hex(8) },
       http_client: http
     )
     assert_equal 1, outcome[:exit_code]
@@ -260,7 +264,7 @@ class InventoryTests
   def self.test_resolve_group_filter_passed_through
     http = FakeHttp.new(code: 200, body: FIXTURE.to_json)
     outcome = OpenvoxEnc::Inventory.resolve(
-      { 'api_url' => 'https://gui:4567', 'group' => 'webservers', 'api_token' => 't' },
+      { 'api_url' => 'https://gui:4567', 'group' => 'webservers', 'api_token' => SecureRandom.hex(8) },
       http_client: http
     )
     uris = outcome[:payload]['value'].map { |t| t['uri'] }.sort
@@ -269,14 +273,15 @@ class InventoryTests
 
   def self.test_resolve_uses_token_file_when_api_token_omitted
     Tempfile.create('bolt_token') do |f|
-      f.write('from-file')
+      from_file = SecureRandom.hex(16)
+      f.write(from_file)
       f.flush
       http = FakeHttp.new(code: 200, body: { 'groups' => [] }.to_json)
       OpenvoxEnc::Inventory.resolve(
         { 'api_url' => 'https://gui:4567', 'token_file' => f.path },
         http_client: http
       )
-      assert_equal 'Bearer from-file', http.last_headers['Authorization']
+      assert_equal "Bearer #{from_file}", http.last_headers['Authorization']
     end
   end
 

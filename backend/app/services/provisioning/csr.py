@@ -19,16 +19,29 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 from dataclasses import dataclass
 from typing import Optional
 
 TOKEN_BYTES = 24
 PREVIEW_PLACEHOLDER = "per-build-token-generated-at-submit"
+CHALLENGE_ATTRIBUTE = "custom_attributes:challengePassword"
+_CHALLENGE_RE = re.compile(re.escape(CHALLENGE_ATTRIBUTE) + r"=([0-9a-f]+)")
 
 
 def generate_challenge() -> str:
     return secrets.token_hex(TOKEN_BYTES)
+
+
+def challenge_argument(token: str) -> str:
+    return f"{CHALLENGE_ATTRIBUTE}={token}"
+
+
+def extract_challenge(text: str) -> Optional[str]:
+    """Return the hex challenge from an ``install.bash`` argument list, if any."""
+    m = _CHALLENGE_RE.search(text)
+    return m.group(1) if m else None
 
 
 def challenge_hash(token: str) -> str:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import re
+import secrets
 import subprocess
 
 import pytest
@@ -216,19 +216,27 @@ def test_vmware_rejects_long_fqdn_vm_name():
 # ─── cloud-init ─────────────────────────────────────────────────────────
 
 
+def _generated_openssh_private_key() -> list[str]:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    pem = ed25519.Ed25519PrivateKey.generate().private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.OpenSSH, serialization.NoEncryption())
+    return pem.decode().splitlines()
+
+
 def test_userdata_network_and_agent():
     v = _validated(search_domains=["example.com", "svc.example.com"])
+    private_key = _generated_openssh_private_key()
     ud = cloudinit.build_userdata(v.identity, cloudinit.GuestOptions(
-        ssh_authorized_keys=["ssh-ed25519 AAAAC3Nza ops@example.com",
-                             "-----BEGIN OPENSSH PRIVATE KEY-----", "secret",
-                             "-----END OPENSSH PRIVATE KEY-----"],
+        ssh_authorized_keys=["ssh-ed25519 AAAAC3Nza ops@example.com", *private_key],
         bootstrap=TARGET,
     ))
     assert ud.startswith("#cloud-config")
     assert "fqdn: web01.example.com" in ud
     assert "ssh_pwauth: false" in ud and "disable_root: true" in ud
     assert "ssh-ed25519 AAAAC3Nza" in ud
-    assert "PRIVATE KEY" not in ud and "secret" not in ud
+    assert "PRIVATE KEY" not in ud and not any(line in ud for line in private_key[1:-1])
     assert "- 192.0.2.50/24" in ud
     assert "via: 192.0.2.1" in ud
     assert "addresses: [192.0.2.10, 192.0.2.11]" in ud
@@ -256,7 +264,7 @@ def test_userdata_is_valid_cloud_config_yaml():
     v = _validated()
     doc = yaml.safe_load(cloudinit.build_userdata(v.identity, cloudinit.GuestOptions(
         ssh_authorized_keys=["ssh-ed25519 AAAAC3Nza ops@example.com"],
-        http_proxy="http://u:p@proxy.example.com:3128",
+        http_proxy=f"http://u:{secrets.token_hex(8)}@proxy.example.com:3128",
         dnf_groups=["Server"],
         bootstrap=TARGET,
         csr_challenge="a" * 48,
@@ -279,7 +287,7 @@ def test_generated_scripts_pass_bash_syntax_check():
         "#!/bin/bash\n" + cloudinit.build_network_script(v.identity),
         "#!/bin/bash\n" + cloudinit.build_network_script(_validated(gateway="", dns_servers=[]).identity),
         cloudinit.build_agent_script(TARGET, v.certname, "b" * 48),
-        cloudinit.build_proxy_script("http://u:p@proxy.example.com:3128", ["a.example.com"]),
+        cloudinit.build_proxy_script(f"http://u:{secrets.token_hex(8)}@proxy.example.com:3128", ["a.example.com"]),
         cloudinit.build_dnf_script(["Development Tools"]),
     ]
     for script in scripts:
@@ -303,7 +311,9 @@ def test_proxy_and_dnf_groups():
 def test_proxy_validation_and_redaction():
     with pytest.raises(netspec.NetSpecError):
         cloudinit.validate_proxy_url("http://proxy.example.com:3128/$(id)")
-    assert cloudinit.redact_proxy_url("http://u:pw@proxy.example.com:3128") == "http://u:***@proxy.example.com:3128"
+    proxy_cred = secrets.token_hex(8)
+    assert cloudinit.redact_proxy_url(f"http://u:{proxy_cred}@proxy.example.com:3128") == \
+        "http://u:***@proxy.example.com:3128"
 
 
 def test_bootstrap_target_and_challenge_validation():
@@ -315,7 +325,7 @@ def test_bootstrap_target_and_challenge_validation():
     with pytest.raises(netspec.NetSpecError, match="challenge"):
         cloudinit.agent_install_command(TARGET, "web01.example.com", "short'; id")
     cmd = cloudinit.agent_install_command(TARGET, "web01.example.com", "c" * 48)
-    assert cmd.endswith(f"custom_attributes:challengePassword={'c' * 48}")
+    assert cmd.endswith(csr.challenge_argument("c" * 48))
 
 
 # ─── CSR challenge ──────────────────────────────────────────────────────
@@ -406,8 +416,7 @@ class Hooks:
 
     def _guest_challenge(self) -> str | None:
         ud = _userdata(self.client.clones[-1].extra_config)
-        match = re.search(r"custom_attributes:challengePassword=([0-9a-f]+)", ud)
-        return match.group(1) if match else None
+        return csr.extract_challenge(ud)
 
     async def cert_state(self, certname):
         return self.cert_states.pop(0) if len(self.cert_states) > 1 else self.cert_states[0]
@@ -641,6 +650,7 @@ class IsoHooks(Hooks):
         self.forgotten = 0
         self.scripts = []
         self.challenge = None
+        self.ssh_cred = secrets.token_hex(12)
 
     async def install_continue(self):
         from app.services.provisioning.ssh import SshTarget
@@ -648,7 +658,7 @@ class IsoHooks(Hooks):
         self.continue_polls += 1
         if self.continue_polls <= self.continue_after:
             return None
-        ssh = SshTarget(host="192.0.2.50", username="admin", password="pw-not-logged") if self.creds else None
+        ssh = SshTarget(host="192.0.2.50", username="admin", password=self.ssh_cred) if self.creds else None
         return provision.InstallContinue(ssh=ssh)
 
     async def forget(self):
@@ -659,8 +669,7 @@ class IsoHooks(Hooks):
 
         self.scripts = scripts
         agent = next((s.body for s in scripts if s.label == "openvox-agent"), "")
-        m = re.search(r"challengePassword=([0-9a-f]+)", agent)
-        self.challenge = m.group(1) if m else None
+        self.challenge = csr.extract_challenge(agent)
         if self.ssh_fail:
             raise SshError("openvox-agent exited 1 on 192.0.2.50")
         return SshReport(host_key="ssh-ed25519 SHA256:abc", lines=["openvox-agent: exit 0"])
@@ -691,7 +700,7 @@ def test_iso_pipeline_ssh_bootstrap_and_verified_sign():
     assert hooks.challenge and rep.csr_hash == csr.challenge_hash(hooks.challenge)
     assert hooks.signed == ["web01.example.com"]
     assert hooks.forgotten >= 1
-    assert "pw-not-logged" not in rep.text() and hooks.challenge not in rep.text()
+    assert hooks.ssh_cred not in rep.text() and hooks.challenge not in rep.text()
     assert client.scrubbed == []
 
 
@@ -721,13 +730,14 @@ def test_iso_pipeline_without_bootstrap_and_failures():
 def test_ssh_target_validation_and_scripts():
     from app.services.provisioning import ssh
 
+    cred = secrets.token_hex(12)
     with pytest.raises(ssh.SshError):
-        ssh.SshTarget(host="h; id", username="root", password="x").validate()
+        ssh.SshTarget(host="h; id", username="root", password=cred).validate()
     with pytest.raises(ssh.SshError):
-        ssh.SshTarget(host="192.0.2.5", username="Bad User", password="x").validate()
+        ssh.SshTarget(host="192.0.2.5", username="Bad User", password=cred).validate()
     with pytest.raises(ssh.SshError, match="password or private key"):
         ssh.SshTarget(host="192.0.2.5", username="admin").validate()
-    assert "pw" not in repr(ssh.SshTarget(host="192.0.2.5", username="admin", password="pw"))
+    assert cred not in repr(ssh.SshTarget(host="192.0.2.5", username="admin", password=cred))
     scripts = ssh.bootstrap_scripts("web01.example.com", None, "#!/bin/bash\necho net\n")
     assert [s.label for s in scripts] == ["hostname", "network"]
     for script in scripts:
@@ -753,32 +763,35 @@ def test_openssh_runner_keeps_secrets_off_argv(tmp_path, monkeypatch):
     fake.chmod(0o755)
     monkeypatch.setenv("FAKE_SSH_LOG", str(log))
     before = set(os.listdir("/tmp"))
-    scripts = ssh.bootstrap_scripts("web01.example.com", "#!/bin/bash\necho agent challengePassword=abc123\n",
+    challenge_arg = csr.challenge_argument(csr.generate_challenge())
+    login_cred = secrets.token_hex(12)
+    scripts = ssh.bootstrap_scripts("web01.example.com", f"#!/bin/bash\necho agent {challenge_arg}\n",
                                     "#!/bin/bash\necho net\n")
-    report = ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="admin", password="S3cret-pw"),
+    report = ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="admin", password=login_cred),
                              scripts, ssh_bin=str(fake))
     text = log.read_text()
     argv_lines = [line for line in text.splitlines() if line.startswith("ARGV:")]
-    assert argv_lines and all("S3cret-pw" not in line for line in argv_lines)
-    assert "ASKPASS:S3cret-pw" in text
-    assert "STDIN:S3cret-pw" in text
+    assert argv_lines and all(login_cred not in line for line in argv_lines)
+    assert f"ASKPASS:{login_cred}" in text
+    assert f"STDIN:{login_cred}" in text
     assert any("sudo -S -p ''" in line for line in argv_lines)
     assert any("nohup bash" in line for line in argv_lines)
     assert "StrictHostKeyChecking=accept-new" in argv_lines[0]
     uploads = (tmp_path / "ssh.log.uploads").read_text()
-    assert "challengePassword=abc123" in uploads and "rm -f /tmp/openvox-gui-" in uploads
+    assert challenge_arg in uploads and "rm -f /tmp/openvox-gui-" in uploads
     assert report.lines[0] == "hostname: exit 0"
     assert not [d for d in set(os.listdir("/tmp")) - before if d.startswith("openvox-gui-ssh-")]
 
-    keyed = ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="root", private_key="KEYDATA"),
+    key_material = secrets.token_hex(16)
+    keyed = ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="root", private_key=key_material),
                             scripts[:1], ssh_bin=str(fake))
     assert keyed.lines[0] == "hostname: exit 0"
     last = [line for line in log.read_text().splitlines() if line.startswith("ARGV:")][-1]
-    assert "IdentitiesOnly=yes" in last and "KEYDATA" not in last and "sudo" not in last
+    assert "IdentitiesOnly=yes" in last and key_material not in last and "sudo" not in last
 
     failing = tmp_path / "ssh-fail"
     failing.write_text("#!/bin/bash\necho 'Permission denied (publickey,password).' >&2\nexit 255\n")
     failing.chmod(0o755)
     with pytest.raises(ssh.SshError, match="Permission denied"):
-        ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="admin", password="x"), scripts,
+        ssh.run_scripts(ssh.SshTarget(host="192.0.2.50", username="admin", password=login_cred), scripts,
                         ssh_bin=str(failing))
