@@ -173,6 +173,18 @@ class Settings(BaseSettings):
     ssl_key_path: Optional[str] = None
     ssl_ca_certs: Optional[str] = None  # Optional: for client cert verification (mTLS)
 
+    # ── VM builder (vCenter) ──────────────────────────────────
+    # Defaults for the VM builder. Values saved on the VM builder settings
+    # page (app DB; password Fernet-encrypted) take precedence.
+    vcenter_host: str = ""
+    vcenter_port: int = 443
+    vcenter_user: str = ""
+    vcenter_password: str = ""
+    vcenter_verify_ssl: bool = True
+    vcenter_ca_bundle: str = ""
+    # Development only: serve a built-in fake vCenter inventory and clone.
+    vmbuilder_fake: bool = False
+
     class Config:
         env_prefix = "OPENVOX_GUI_"
         env_file = "/opt/openvox-gui/config/.env"
