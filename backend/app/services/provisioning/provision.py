@@ -86,6 +86,7 @@ class ProvisionRequest:
     disk_gb: int = 40
     annotation: str = ""
     bootstrap_agent: bool = True
+    bootstrap_profile: str = ""
     sign_certificate: bool = False
     enc_environment: str = ""
     enc_group_ids: List[int] = field(default_factory=list)

@@ -9,12 +9,14 @@ import {
   ScrollArea, Select, Stack, Switch, TagsInput, Text, TextInput, Title, Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconEye, IconPlus, IconRocket, IconTrash } from '@tabler/icons-react';
+import { IconDeviceFloppy, IconEye, IconPlus, IconRocket, IconTrash } from '@tabler/icons-react';
 import { ConfirmModal } from '../ConfirmModal';
-import { enc, provisioning, type ProvisioningStatus, type ProvisionPreview } from '../../services/api';
 import {
-  EMPTY_BUILD_FORM, MAX_NICS, buildPayload, certnameFor, errorCount, firstError, parsePrefix,
-  placementOptions, prefixToNetmask, validateBuildForm,
+  enc, provisioning, type BootstrapProfile, type ProvisioningStatus, type ProvisionPreset, type ProvisionPreview,
+} from '../../services/api';
+import {
+  EMPTY_BUILD_FORM, MAX_NICS, applyPreset, buildPayload, certnameFor, errorCount, firstError, parsePrefix,
+  placementOptions, prefixToNetmask, presetFromForm, slugify, validateBuildForm,
   type BuildFormState, type FormErrors, type InventoryItem, type VmwareDatacenterInventory,
 } from '../../utils/provisioning';
 import type { PickField } from './InventoryBrowser';
@@ -40,6 +42,11 @@ export function BuildForm({
   const [preview, setPreview] = useState<ProvisionPreview | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [presetList, setPresetList] = useState<ProvisionPreset[]>([]);
+  const [presetId, setPresetId] = useState<string | null>(null);
+  const [presetName, setPresetName] = useState('');
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [profiles, setProfiles] = useState<BootstrapProfile[]>([]);
 
   const connection = status.connections.find((c) => c.id === form.connection);
 
@@ -71,11 +78,43 @@ export function BuildForm({
   useEffect(() => { loadTop(); }, [loadTop]);
 
   useEffect(() => {
-    Promise.allSettled([enc.listEnvironments(), enc.listGroups()]).then(([e, g]) => {
+    Promise.allSettled([enc.listEnvironments(), enc.listGroups(), provisioning.profiles()]).then(([e, g, p]) => {
       if (e.status === 'fulfilled') setEnvs(e.value);
       if (g.status === 'fulfilled') setGroups(g.value);
+      if (p.status === 'fulfilled') setProfiles(p.value);
     });
   }, []);
+
+  const loadPresets = useCallback(() => {
+    if (!form.connection) return;
+    provisioning.presets(form.connection).then(setPresetList).catch(() => setPresetList([]));
+  }, [form.connection]);
+  useEffect(() => { loadPresets(); }, [loadPresets]);
+
+  const choosePreset = (id: string | null) => {
+    setPresetId(id);
+    const preset = presetList.find((p) => p.id === id);
+    if (preset) {
+      setForm((f) => applyPreset(f, preset));
+      setPresetName(preset.name);
+      setErrors({});
+    }
+  };
+
+  const savePreset = async () => {
+    const name = presetName.trim();
+    if (!name) return;
+    setSavingPreset(true);
+    try {
+      const saved = await provisioning.savePreset(presetId || slugify(name), presetFromForm(form, name));
+      notifications.show({ color: 'green', title: 'Preset saved', message: saved.name });
+      setPresetId(saved.id);
+      loadPresets();
+    } catch (e: any) {
+      notifications.show({ color: 'red', title: 'Preset not saved', message: e.message });
+    }
+    setSavingPreset(false);
+  };
 
   useEffect(() => {
     if (!form.connection || !form.datacenter) { setInventory(null); return; }
@@ -176,12 +215,31 @@ export function BuildForm({
     <Stack gap="md">
       {loadError && <Alert color="red" title="Provider inventory unavailable">{loadError}</Alert>}
 
-      {usable.length > 1 && (
-        <Card withBorder padding="sm">
-          <Select label="Connection" data={usable.map((c) => ({ value: c.id, label: `${c.name} — ${c.provider_label} (${c.host})` }))}
-            value={form.connection} onChange={changeConnection} allowDeselect={false} maw={520} />
-        </Card>
-      )}
+      <Card withBorder padding="sm">
+        <Grid gap="sm" align="flex-end">
+          {usable.length > 1 && (
+            <Grid.Col span={{ base: 12, md: 4 }}>
+              <Select label="Connection" data={usable.map((c) => ({ value: c.id, label: `${c.name} — ${c.provider_label} (${c.host})` }))}
+                value={form.connection} onChange={changeConnection} allowDeselect={false} />
+            </Grid.Col>
+          )}
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Select label="Preset" placeholder={presetList.length ? 'Fill placement, NICs and size' : 'No presets yet'}
+              clearable data={presetList.map((p) => ({ value: p.id, label: p.name }))}
+              value={presetId} onChange={choosePreset} disabled={!presetList.length} />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Group gap="xs" wrap="nowrap" align="flex-end">
+              <TextInput label="Save current choices as" placeholder="Preset name" style={{ flex: 1 }}
+                value={presetName} onChange={(e) => setPresetName(e.currentTarget.value)} />
+              <Button variant="default" leftSection={<IconDeviceFloppy size={14} />} onClick={savePreset}
+                loading={savingPreset} disabled={!presetName.trim()}>
+                {presetId && presetList.find((p) => p.id === presetId)?.name === presetName.trim() ? 'Update' : 'Save'}
+              </Button>
+            </Group>
+          </Grid.Col>
+        </Grid>
+      </Card>
 
       <Card withBorder padding="md">
         <Title order={4} mb="xs">1. Identity and network</Title>
@@ -306,8 +364,15 @@ export function BuildForm({
           <Switch checked={form.bootstrap_agent} onChange={(e) => set('bootstrap_agent', e.currentTarget.checked)}
             label="Install the OpenVox agent on first boot"
             description={status.bootstrap.error
-              ? `Bootstrap target unavailable: ${status.bootstrap.error}`
-              : `install.bash from ${status.bootstrap.pkg_repo_url} → server ${status.bootstrap.server}, CA ${status.bootstrap.ca_server}, OpenVox ${status.bootstrap.agent_version}`} />
+              ? `Agent Install defaults unavailable: ${status.bootstrap.error}`
+              : 'Runs install.bash from the bootstrap profile below with certname pinned to the FQDN'} />
+          <Select label="Bootstrap profile" disabled={!form.bootstrap_agent} maw={520} allowDeselect={false}
+            data={profiles.map((p) => ({ value: p.builtin ? '' : p.id, label: p.builtin ? `${p.name} (built in)` : p.name }))}
+            value={form.bootstrap_profile} onChange={(v) => set('bootstrap_profile', v || '')}
+            description={(() => {
+              const p = profiles.find((x) => (x.builtin ? '' : x.id) === form.bootstrap_profile);
+              return p && !p.error ? `server ${p.server}, CA ${p.ca_server || p.server}, mirror ${p.pkg_repo_url}` : undefined;
+            })()} />
           <Switch checked={form.bootstrap_agent && form.sign_certificate} disabled={!form.bootstrap_agent}
             onChange={(e) => set('sign_certificate', e.currentTarget.checked)}
             label="Sign this node's certificate request (verified per build)"

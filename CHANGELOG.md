@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.3] - 2026-11-06
+
+### Added
+- **Bootstrap profiles (admin).** Named server / CA / package mirror /
+  agent major targets for new agents, for consoles that provision for more
+  than one compiler VIP. The built-in profile is the Agent Install page's
+  values. Builds pick a profile; `/api/provisioning/bootstrap-profiles`.
+- **Placement presets (admin and operator).** Save the form's placement,
+  NIC networks, template, size and bootstrap profile per connection and
+  apply them to later builds. Identity is never stored; values are
+  re-validated at build time. `/api/provisioning/presets`.
+- Tables `provision_presets`, `provision_bootstrap_profiles` (alembic
+  `007_provisioning_presets`).
+
 ## [3.15.0-alpha.2] - 2026-11-06
 
 Owner decisions on the VM builder (PR #172), plus the provider-agnostic

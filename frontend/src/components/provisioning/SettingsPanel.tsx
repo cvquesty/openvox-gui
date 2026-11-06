@@ -11,7 +11,8 @@ import { notifications } from '@mantine/notifications';
 import { IconDeviceFloppy, IconPlugConnected, IconPlus, IconTrash } from '@tabler/icons-react';
 import { ConfirmModal } from '../ConfirmModal';
 import {
-  provisioning, type ProvisionConnection, type ProvisioningSettings, type ProvisioningStatus,
+  provisioning, type BootstrapProfile, type ProvisionConnection, type ProvisioningSettings,
+  type ProvisioningStatus, type ProvisionPreset,
 } from '../../services/api';
 
 const NEW_ID = '__new__';
@@ -263,6 +264,118 @@ function GuestDefaults({ onSaved }: { onSaved: () => void }) {
   );
 }
 
+function BootstrapProfiles() {
+  const [profiles, setProfiles] = useState<BootstrapProfile[]>([]);
+  const [draft, setDraft] = useState({ id: '', name: '', server: '', ca_server: '', pkg_repo_url: '', agent_version: '' });
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(() => { provisioning.profiles().then(setProfiles).catch(() => setProfiles([])); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const edit = (p: BootstrapProfile) => setDraft({
+    id: p.id, name: p.name, server: p.server || '', ca_server: p.ca_server || '',
+    pkg_repo_url: p.pkg_repo_url || '', agent_version: p.agent_version || '',
+  });
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { id, ...body } = draft;
+      await provisioning.saveProfile(id.trim().toLowerCase(), body);
+      notifications.show({ color: 'green', title: 'Saved', message: `Bootstrap profile ${id}` });
+      setDraft({ id: '', name: '', server: '', ca_server: '', pkg_repo_url: '', agent_version: '' });
+      load();
+    } catch (e: any) {
+      notifications.show({ color: 'red', title: 'Not saved', message: e.message });
+    }
+    setSaving(false);
+  };
+  const remove = async (id: string) => {
+    try { await provisioning.deleteProfile(id); load(); } catch (e: any) {
+      notifications.show({ color: 'red', title: 'Not deleted', message: e.message });
+    }
+  };
+  const field = (key: keyof typeof draft) => ({
+    value: draft[key], onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft((d) => ({ ...d, [key]: e.currentTarget.value })),
+  });
+
+  return (
+    <Card withBorder padding="md">
+      <Title order={4} mb={4}>Bootstrap profiles</Title>
+      <Text size="xs" c="dimmed" mb="sm">
+        Where new agents point. The built-in profile is the Agent Install page. Add a profile when this console
+        provisions nodes for another compiler VIP or mirror.
+      </Text>
+      <Table fz="sm" verticalSpacing={4} mb="sm">
+        <Table.Thead><Table.Tr><Table.Th>Profile</Table.Th><Table.Th>Server</Table.Th><Table.Th>CA</Table.Th><Table.Th>Mirror</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {profiles.map((p) => (
+            <Table.Tr key={p.id}>
+              <Table.Td><Text size="sm" fw={500}>{p.name}</Text><Text size="xs" c="dimmed">{p.id}{p.builtin ? ' (built in)' : ''}</Text></Table.Td>
+              <Table.Td>{p.server || p.error}</Table.Td>
+              <Table.Td>{p.ca_server || p.server}</Table.Td>
+              <Table.Td><Text size="xs">{p.pkg_repo_url}</Text></Table.Td>
+              <Table.Td>
+                {!p.builtin && (
+                  <Group gap={4} wrap="nowrap">
+                    <Button size="compact-xs" variant="light" onClick={() => edit(p)}>Edit</Button>
+                    <Button size="compact-xs" variant="subtle" color="red" onClick={() => remove(p.id)}>Delete</Button>
+                  </Group>
+                )}
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+      <Grid gap="sm">
+        <Grid.Col span={{ base: 12, md: 3 }}><TextInput label="Profile id" placeholder="site-b" {...field('id')} /></Grid.Col>
+        <Grid.Col span={{ base: 12, md: 3 }}><TextInput label="Name" placeholder="Site B" {...field('name')} /></Grid.Col>
+        <Grid.Col span={{ base: 12, md: 3 }}><TextInput label="Server (compiler VIP)" placeholder="ovcompilers.site-b.example.com" {...field('server')} /></Grid.Col>
+        <Grid.Col span={{ base: 12, md: 3 }}><TextInput label="CA server" placeholder="ovca.example.com" {...field('ca_server')} /></Grid.Col>
+        <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="Package mirror URL" placeholder="https://openvox.example.com:4567/packages" {...field('pkg_repo_url')} /></Grid.Col>
+        <Grid.Col span={{ base: 12, md: 3 }}>
+          <Select label="Agent major" value={draft.agent_version}
+            data={[{ value: '', label: 'Guest default' }, { value: '8', label: '8' }, { value: '9', label: '9' }]}
+            onChange={(v) => setDraft((d) => ({ ...d, agent_version: v || '' }))} allowDeselect={false} />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 3 }}>
+          <Button fullWidth mt={24} leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={saving}
+            disabled={!draft.id.trim() || !draft.server.trim() || !draft.pkg_repo_url.trim()}>Save profile</Button>
+        </Grid.Col>
+      </Grid>
+    </Card>
+  );
+}
+
+function PresetList() {
+  const [presets, setPresets] = useState<ProvisionPreset[]>([]);
+  const load = useCallback(() => { provisioning.presets().then(setPresets).catch(() => setPresets([])); }, []);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <Card withBorder padding="md">
+      <Title order={4} mb={4}>Placement presets</Title>
+      <Text size="xs" c="dimmed" mb="sm">Saved from the Build tab by admins and operators. Values are re-checked against live inventory at build time.</Text>
+      {!presets.length ? <Text size="sm" c="dimmed">No presets yet.</Text> : (
+        <Table fz="sm" verticalSpacing={4}>
+          <Table.Thead><Table.Tr><Table.Th>Preset</Table.Th><Table.Th>Connection</Table.Th><Table.Th>Size</Table.Th><Table.Th>By</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {presets.map((p) => (
+              <Table.Tr key={p.id}>
+                <Table.Td><Text size="sm" fw={500}>{p.name}</Text><Text size="xs" c="dimmed">{p.id}</Text></Table.Td>
+                <Table.Td>{p.connection_id}</Table.Td>
+                <Table.Td>{p.cpus ?? '—'} vCPU · {p.memory_gb ?? '—'} GB · {p.networks.length} NIC</Table.Td>
+                <Table.Td>{p.updated_by}</Table.Td>
+                <Table.Td>
+                  <Button size="compact-xs" variant="subtle" color="red"
+                    onClick={() => provisioning.deletePreset(p.id).then(load)}>Delete</Button>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Card>
+  );
+}
+
 export function SettingsPanel({ status, onSaved }: { status: ProvisioningStatus; onSaved: () => void }) {
   const [connections, setConnections] = useState<ProvisionConnection[]>(status.connections);
   const [selected, setSelected] = useState<string>(status.default_connection || (status.connections[0]?.id ?? NEW_ID));
@@ -326,6 +439,8 @@ export function SettingsPanel({ status, onSaved }: { status: ProvisioningStatus;
         onSaved={(id) => reload(id)}
         onDeleted={() => reload()}
       />
+      <BootstrapProfiles />
+      <PresetList />
       <GuestDefaults onSaved={onSaved} />
     </Stack>
   );

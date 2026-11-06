@@ -1009,6 +1009,31 @@ export interface ProvisionPreview {
   userdata: string;
 }
 
+export interface ProvisionPreset {
+  id: string;
+  name: string;
+  connection_id: string;
+  placement: Record<string, string>;
+  networks: string[];
+  image: string;
+  cpus?: number;
+  memory_gb?: number;
+  disk_gb?: number;
+  bootstrap_profile: string;
+  updated_by: string;
+}
+
+export interface BootstrapProfile {
+  id: string;
+  name: string;
+  server?: string;
+  ca_server?: string;
+  pkg_repo_url?: string;
+  agent_version?: string;
+  builtin: boolean;
+  error?: string;
+}
+
 type Inv = import('../utils/provisioning').InventoryItem;
 const conn = (id: string) => `/provisioning/connections/${encodeURIComponent(id)}`;
 
@@ -1027,6 +1052,16 @@ export const provisioning = {
   inventory: <T = import('../utils/provisioning').VmwareDatacenterInventory>(id: string, scope: string) =>
     fetchJSON<T>(`${conn(id)}/inventory/${encodeURIComponent(scope)}`),
   images: (id: string) => fetchJSON<Inv[]>(`${conn(id)}/images`),
+  presets: (connection = '') =>
+    fetchJSON<ProvisionPreset[]>(`/provisioning/presets${connection ? `?connection=${encodeURIComponent(connection)}` : ''}`),
+  savePreset: (id: string, body: Record<string, unknown>) =>
+    fetchJSON<ProvisionPreset>(`/provisioning/presets/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deletePreset: (id: string) => fetchJSON<void>(`/provisioning/presets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  profiles: () => fetchJSON<BootstrapProfile[]>('/provisioning/bootstrap-profiles'),
+  saveProfile: (id: string, body: Record<string, unknown>) =>
+    fetchJSON<BootstrapProfile>(`/provisioning/bootstrap-profiles/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteProfile: (id: string) =>
+    fetchJSON<void>(`/provisioning/bootstrap-profiles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   preview: (payload: Record<string, unknown>) =>
     fetchJSON<ProvisionPreview>('/provisioning/preview', { method: 'POST', body: JSON.stringify(payload) }),
   submit: (payload: Record<string, unknown>) =>

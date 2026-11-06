@@ -16,7 +16,7 @@ from app.database import Base, async_session, engine
 from app.models.cluster_secret import ClusterSecret
 from app.models.enc import EncEnvironment, EncNode
 from app.models.gui_kv import GuiKv
-from app.models.provision_job import ProvisionConnection, ProvisionJob
+from app.models.provision_job import ProvisionBootstrapProfile, ProvisionConnection, ProvisionJob, ProvisionPreset
 from app.routers import provisioning as prov_router
 from app.services.provisioning import config_store, csr, jobs
 from app.services.provisioning.cloudinit import BootstrapTarget
@@ -53,6 +53,8 @@ async def _reset():
     async with async_session() as db:
         await db.execute(delete(ProvisionJob))
         await db.execute(delete(ProvisionConnection))
+        await db.execute(delete(ProvisionPreset))
+        await db.execute(delete(ProvisionBootstrapProfile))
         await db.execute(delete(GuiKv).where(GuiKv.key == config_store.SETTINGS_KEY))
         await db.execute(delete(ClusterSecret).where(ClusterSecret.name.like("provisioning_%")))
         await db.commit()
@@ -347,3 +349,48 @@ async def test_classify_hook_keeps_existing_classes():
     assert node.environment == "staging"
     assert node.classes == {"profiles::base": {}}
     assert node.parameters == {"tier": "web"}
+
+
+def test_presets_crud_and_rbac(api):
+    _as(api, "operator")
+    body = {"name": "Prod web", "placement": {"datacenter": "DC-East", "compute": "domain-c10",
+                                              "datastore_cluster": "group-p50"},
+            "networks": ["network-20", "dvportgroup-21"], "image": "vm-101", "cpus": 4, "memory_gb": 8,
+            "bootstrap_profile": ""}
+    saved = api.put("/api/provisioning/presets/prod-web", json=body)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["connection_id"] == "default" and saved.json()["networks"] == ["network-20", "dvportgroup-21"]
+    assert [p["id"] for p in api.get("/api/provisioning/presets?connection=default").json()] == ["prod-web"]
+    assert api.get("/api/provisioning/presets?connection=other").json() == []
+    assert api.put("/api/provisioning/presets/bad", json={**body, "placement": {"bogus": "x"}}).status_code == 400
+    assert api.put("/api/provisioning/presets/bad", json={**body, "cpus": 0}).status_code == 400
+    assert api.put("/api/provisioning/presets/Bad_Id", json=body).status_code == 400
+    _as(api, "viewer")
+    assert api.get("/api/provisioning/presets").status_code == 403
+    _as(api, "operator")
+    assert api.delete("/api/provisioning/presets/prod-web").status_code == 204
+    assert api.delete("/api/provisioning/presets/prod-web").status_code == 404
+
+
+def test_bootstrap_profiles_admin_only_and_used_by_builds(api):
+    profile = {"name": "Site B", "server": "ovcompilers-b.example.com", "ca_server": "ovca.example.com",
+               "pkg_repo_url": "https://openvox-b.example.com:4567/packages", "agent_version": "9"}
+    _as(api, "operator")
+    assert api.put("/api/provisioning/bootstrap-profiles/site-b", json=profile).status_code == 403
+    builtin = api.get("/api/provisioning/bootstrap-profiles").json()
+    assert builtin[0]["id"] == "installer" and builtin[0]["builtin"] and builtin[0]["server"] == TARGET.server
+    _as(api, "admin")
+    assert api.put("/api/provisioning/bootstrap-profiles/installer", json=profile).status_code == 400
+    assert api.put("/api/provisioning/bootstrap-profiles/x", json={**profile, "server": "bad host"}).status_code == 400
+    assert api.put("/api/provisioning/bootstrap-profiles/x",
+                   json={**profile, "pkg_repo_url": "https://h.example.com/p'$(id)"}).status_code == 400
+    assert api.put("/api/provisioning/bootstrap-profiles/site-b", json=profile).status_code == 200
+    ids = [p["id"] for p in api.get("/api/provisioning/bootstrap-profiles").json()]
+    assert ids == ["installer", "site-b"]
+
+    preview = api.post("/api/provisioning/preview", json={**BUILD, "bootstrap_profile": "site-b"}).json()
+    assert "--server ovcompilers-b.example.com" in preview["agent_command"]
+    assert "https://openvox-b.example.com:4567/packages/install.bash" in preview["agent_command"]
+    assert "--version 9" in preview["agent_command"]
+    assert api.post("/api/provisioning/preview", json={**BUILD, "bootstrap_profile": "nope"}).status_code == 400
+    assert api.delete("/api/provisioning/bootstrap-profiles/site-b").status_code == 204

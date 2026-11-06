@@ -19,7 +19,7 @@ looks inside it.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 
 class ProviderError(RuntimeError):
@@ -126,6 +126,7 @@ class ProviderSession(Protocol):
 class Provider(Protocol):
     kind: str
     label: str
+    placement_keys: Tuple[str, ...]
 
     def normalize_placement(self, placement: Dict[str, Any]) -> Dict[str, str]:
         """Static checks only (required keys, shapes). Raises ``NetSpecError``."""

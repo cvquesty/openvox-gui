@@ -113,8 +113,8 @@ Build / Builds / Settings (+ Machines for lifecycle).
 | Several vCenters | Model + API (alpha.2); one used per build |
 | Cross-datacenter template clone | Listed; lab validation pending |
 | Opt-in password SSH (golden password) | Not ported on purpose |
-| Site → compiler VIP / CA mapping | Increment 2: bootstrap profiles |
-| Environment → datastore-cluster mapping | Increment 2: placement presets |
+| Site → compiler VIP / CA mapping | Done (alpha.3): bootstrap profiles |
+| Environment → datastore-cluster mapping | Done (alpha.3): placement presets |
 | Build caps, cancel, notifications | Increment 3 |
 | VM lifecycle (`vmops.py`) | Increment 4 |
 | CLI | Increment 5: `ovox vm` |
@@ -129,7 +129,7 @@ lab validation is Jerald's (not possible from CI).
 1. **alpha.2 — decisions** (this increment): CSR challenge, `ovbuilder-`
    default, FQDN VM name, connection entity, provider interface, multi-NIC,
    Provisioning rename.
-2. **Placement presets and bootstrap profiles.** Saved presets per connection
+2. **alpha.3 — placement presets and bootstrap profiles** (done). Saved presets per connection
    (datacenter, compute, pool, folder, storage, NIC networks, template) and
    bootstrap profiles (server, CA, mirror URL, agent major) for consoles that
    serve several compiler VIPs; the default profile stays the Agent Install values.

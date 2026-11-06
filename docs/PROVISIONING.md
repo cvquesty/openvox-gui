@@ -98,6 +98,24 @@ OPENVOX_GUI_VCENTER_VERIFY_SSL=true
 OPENVOX_GUI_VCENTER_CA_BUNDLE=/etc/pki/tls/certs/vcenter-ca.pem
 ```
 
+### Bootstrap profiles (admin)
+
+A bootstrap profile says where new agents point: compile server (compiler
+VIP), CA server, package mirror URL and agent major. The built-in
+**Agent Install defaults** profile always uses the Agent Install page's
+values. Add a profile when this console provisions nodes for another
+compiler VIP or mirror; the build form picks one per build (default: built in).
+Profiles are admin-only because they decide which servers a new node trusts.
+Stored in `provision_bootstrap_profiles`.
+
+### Placement presets (admin and operator)
+
+On the Build tab, **Save current choices as** stores the connection's
+placement, NIC networks, template, size and bootstrap profile under a name;
+**Preset** fills them back in. Identity (hostname, IPs) is never part of a
+preset, and every value is re-checked against live inventory when the build
+runs. Settings lists and deletes presets. Stored in `provision_presets`.
+
 ### Guest defaults (all providers)
 
 | Setting | Notes |

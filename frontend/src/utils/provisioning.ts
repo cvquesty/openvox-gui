@@ -58,6 +58,7 @@ export interface BuildFormState {
   datastore_cluster: string;
   annotation: string;
   bootstrap_agent: boolean;
+  bootstrap_profile: string;
   sign_certificate: boolean;
   enc_environment: string;
   enc_group_ids: number[];
@@ -88,6 +89,7 @@ export const EMPTY_BUILD_FORM: BuildFormState = {
   datastore_cluster: '',
   annotation: '',
   bootstrap_agent: true,
+  bootstrap_profile: '',
   sign_certificate: true,
   enc_environment: '',
   enc_group_ids: [],
@@ -274,10 +276,64 @@ export function buildPayload(form: BuildFormState) {
     disk_gb: form.disk_gb,
     annotation: form.annotation,
     bootstrap_agent: form.bootstrap_agent,
+    bootstrap_profile: form.bootstrap_agent ? form.bootstrap_profile : '',
     sign_certificate: form.bootstrap_agent && form.sign_certificate,
     enc_environment: form.bootstrap_agent ? form.enc_environment : '',
     enc_group_ids: form.bootstrap_agent ? form.enc_group_ids : [],
   };
+}
+
+export interface PresetShape {
+  placement: Record<string, string>;
+  networks: string[];
+  image: string;
+  cpus?: number;
+  memory_gb?: number;
+  disk_gb?: number;
+  bootstrap_profile: string;
+}
+
+/** Fill the form from a preset. Identity fields (hostname, IPs) are never touched. */
+export function applyPreset(form: BuildFormState, preset: PresetShape): BuildFormState {
+  const p = preset.placement || {};
+  const [first = '', ...rest] = preset.networks || [];
+  return {
+    ...form,
+    datacenter: p.datacenter ?? form.datacenter,
+    compute: p.compute ?? '',
+    resource_pool: p.resource_pool ?? '',
+    folder: p.folder ?? '',
+    storage_mode: p.datastore_cluster ? 'datastore_cluster' : 'datastore',
+    datastore: p.datastore ?? '',
+    datastore_cluster: p.datastore_cluster ?? '',
+    network: first,
+    extra_nics: rest.map((network, i) => ({ network, ip: form.extra_nics[i]?.ip || '', netmask: form.extra_nics[i]?.netmask || '' })),
+    image: preset.image || form.image,
+    cpus: preset.cpus ?? form.cpus,
+    memory_gb: preset.memory_gb ?? form.memory_gb,
+    disk_gb: preset.disk_gb ?? form.disk_gb,
+    bootstrap_profile: preset.bootstrap_profile || '',
+  };
+}
+
+/** Preset body from the current form (placement, networks, image, size, bootstrap profile). */
+export function presetFromForm(form: BuildFormState, name: string) {
+  const payload = buildPayload(form);
+  return {
+    name,
+    connection: form.connection,
+    placement: payload.placement,
+    networks: [form.network, ...form.extra_nics.map((n) => n.network)].filter(Boolean),
+    image: form.image,
+    cpus: form.cpus,
+    memory_gb: form.memory_gb,
+    disk_gb: form.disk_gb,
+    bootstrap_profile: form.bootstrap_profile,
+  };
+}
+
+export function slugify(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
 }
 
 export const STEP_LABELS: Record<string, string> = {

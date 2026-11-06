@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..dependencies import require_role
-from ..services.provisioning import config_store, csr, jobs
+from ..services.provisioning import config_store, csr, jobs, presets
 from ..services.provisioning.cloudinit import (
     BootstrapTarget,
     GuestOptions,
@@ -77,9 +77,30 @@ class BuildBody(BaseModel):
     disk_gb: int = 40
     annotation: str = Field("", max_length=1000)
     bootstrap_agent: bool = True
+    bootstrap_profile: str = Field("", max_length=64)
     sign_certificate: bool = False
     enc_environment: str = Field("", max_length=128)
     enc_group_ids: List[int] = Field(default_factory=list, max_length=50)
+
+
+class PresetBody(BaseModel):
+    name: str = Field("", max_length=128)
+    connection: str = Field("", max_length=64)
+    placement: Dict[str, str] = Field(default_factory=dict)
+    networks: List[str] = Field(default_factory=list, max_length=8)
+    image: str = Field("", max_length=64)
+    cpus: Optional[int] = None
+    memory_gb: Optional[int] = None
+    disk_gb: Optional[int] = None
+    bootstrap_profile: str = Field("", max_length=64)
+
+
+class ProfileBody(BaseModel):
+    name: str = Field("", max_length=128)
+    server: str = Field(..., max_length=255)
+    ca_server: str = Field("", max_length=255)
+    pkg_repo_url: str = Field(..., max_length=512)
+    agent_version: str = Field("", max_length=8)
 
 
 class SettingsBody(BaseModel):
@@ -131,13 +152,20 @@ def bootstrap_target(agent_version: str = "") -> BootstrapTarget:
     )
 
 
-async def _guest_options(cfg: config_store.ProvisioningSettings, with_bootstrap: bool) -> GuestOptions:
+async def _guest_options(
+    cfg: config_store.ProvisioningSettings, with_bootstrap: bool, profile: str = "",
+) -> GuestOptions:
+    target = None
+    if with_bootstrap:
+        target = await presets.resolve_profile(
+            profile, lambda: bootstrap_target(cfg.agent_version), cfg.agent_version,
+        )
     return GuestOptions(
         ssh_authorized_keys=tuple(cfg.ssh_authorized_keys),
         http_proxy=await config_store.load_http_proxy(),
         no_proxy=tuple(cfg.no_proxy),
         dnf_groups=tuple(cfg.dnf_groups),
-        bootstrap=bootstrap_target(cfg.agent_version) if with_bootstrap else None,
+        bootstrap=target,
     )
 
 
@@ -257,6 +285,56 @@ async def test_connection(connection_id: str, user: str = Depends(_ADMIN)) -> Di
     return {"ok": True, "scopes": [s.name for s in scopes]}
 
 
+# ─── Presets + bootstrap profiles ───────────────────────────
+
+@router.get("/presets")
+async def list_presets(connection: str = "", _user: str = Depends(_USE)) -> List[Dict[str, Any]]:
+    return await presets.list_presets(connection or None)
+
+
+@router.put("/presets/{preset_id}")
+async def put_preset(preset_id: str, body: PresetBody, user: str = Depends(_USE)) -> Dict[str, Any]:
+    try:
+        rec = await config_store.get_connection(body.connection)
+        saved = await presets.save_preset(preset_id, body.model_dump(), provider_kind=rec.info.provider,
+                                          connection_id=rec.info.id, user=user)
+    except (NetSpecError, ProviderError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    audit_event("provisioning_preset_update", user=user, targets=saved["id"], detail=f"connection={rec.info.id}")
+    return saved
+
+
+@router.delete("/presets/{preset_id}", status_code=204)
+async def delete_preset(preset_id: str, user: str = Depends(_USE)) -> None:
+    if not await presets.delete_preset(preset_id):
+        raise HTTPException(status_code=404, detail="Preset not found")
+    audit_event("provisioning_preset_delete", user=user, targets=preset_id)
+
+
+@router.get("/bootstrap-profiles")
+async def list_profiles(_user: str = Depends(_USE)) -> List[Dict[str, Any]]:
+    cfg = await config_store.load_settings()
+    return await presets.list_profiles(lambda: bootstrap_target(cfg.agent_version))
+
+
+@router.put("/bootstrap-profiles/{profile_id}")
+async def put_profile(profile_id: str, body: ProfileBody, user: str = Depends(_ADMIN)) -> Dict[str, Any]:
+    try:
+        saved = await presets.save_profile(profile_id, body.model_dump(), user=user)
+    except NetSpecError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    audit_event("provisioning_bootstrap_profile_update", user=user, targets=saved["id"],
+                detail=f"server={saved['server']} ca={saved['ca_server']}")
+    return saved
+
+
+@router.delete("/bootstrap-profiles/{profile_id}", status_code=204)
+async def delete_profile(profile_id: str, user: str = Depends(_ADMIN)) -> None:
+    if not await presets.delete_profile(profile_id):
+        raise HTTPException(status_code=404, detail="Bootstrap profile not found")
+    audit_event("provisioning_bootstrap_profile_delete", user=user, targets=profile_id)
+
+
 # ─── Inventory ──────────────────────────────────────────────
 
 @router.get("/connections/{connection_id}/scopes")
@@ -281,7 +359,10 @@ async def preview(body: BuildBody, _user: str = Depends(_USE)) -> Dict[str, Any]
     """Validate the form and show the cloud-init the machine would get (no provider call)."""
     cfg = await config_store.load_settings()
     validated, _rec = await _validated(body, cfg.default_domain)
-    options = await _guest_options(cfg, body.bootstrap_agent)
+    try:
+        options = await _guest_options(cfg, body.bootstrap_agent, body.bootstrap_profile)
+    except NetSpecError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     challenge = csr.PREVIEW_PLACEHOLDER if body.bootstrap_agent and body.sign_certificate else ""
     options = replace(options, http_proxy=redact_proxy_url(options.http_proxy), csr_challenge=challenge)
     try:
@@ -310,7 +391,7 @@ async def submit_build(body: BuildBody, user: str = Depends(_USE)) -> Dict[str, 
         raise HTTPException(status_code=409, detail=f"A build for {validated.certname} is already running")
     try:
         factory, rec = await config_store.session_factory(rec.info.id)
-        options = await _guest_options(cfg, body.bootstrap_agent)
+        options = await _guest_options(cfg, body.bootstrap_agent, body.bootstrap_profile)
         if options.bootstrap:
             options.bootstrap.validate()
     except NetSpecError as exc:
@@ -322,6 +403,7 @@ async def submit_build(body: BuildBody, user: str = Depends(_USE)) -> Dict[str, 
     audit_event(
         "provisioning_build_submit", user=user, targets=validated.certname,
         detail=f"job={job['id']} provider={rec.info.provider} connection={rec.info.id} image={body.image} "
+               f"bootstrap_profile={body.bootstrap_profile or presets.INSTALLER_PROFILE} "
                f"sign={body.sign_certificate} classify={bool(body.enc_environment)}",
     )
     return job

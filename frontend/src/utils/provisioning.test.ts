@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_BUILD_FORM,
+  applyPreset,
   buildPayload,
   certnameFor,
   errorCount,
@@ -9,6 +10,8 @@ import {
   parsePrefix,
   placementOptions,
   prefixToNetmask,
+  presetFromForm,
+  slugify,
   validateBuildForm,
   type BuildFormState,
   type VmwareDatacenterInventory,
@@ -143,5 +146,26 @@ describe('buildPayload', () => {
     expect(p.sign_certificate).toBe(false);
     expect(p.enc_environment).toBe('');
     expect(p.enc_group_ids).toEqual([]);
+  });
+});
+
+describe('presets', () => {
+  it('round-trips placement, NICs and size but never identity', () => {
+    const form: BuildFormState = {
+      ...VALID, storage_mode: 'datastore_cluster', datastore_cluster: 'pod-1', datastore: '',
+      extra_nics: [{ network: 'net-2', ip: '198.51.100.5', netmask: '24' }], cpus: 6, bootstrap_profile: 'site-b',
+    };
+    const preset = presetFromForm(form, 'Prod web');
+    expect(preset.networks).toEqual(['net-1', 'net-2']);
+    expect(preset.placement.datastore_cluster).toBe('pod-1');
+    const applied = applyPreset({ ...EMPTY_BUILD_FORM, hostname: 'new01', ip: '192.0.2.9' }, preset);
+    expect(applied.hostname).toBe('new01');
+    expect(applied.ip).toBe('192.0.2.9');
+    expect(applied.storage_mode).toBe('datastore_cluster');
+    expect(applied.network).toBe('net-1');
+    expect(applied.extra_nics).toEqual([{ network: 'net-2', ip: '', netmask: '' }]);
+    expect(applied.cpus).toBe(6);
+    expect(applied.bootstrap_profile).toBe('site-b');
+    expect(slugify('Prod Web / VLAN 120')).toBe('prod-web-vlan-120');
   });
 });

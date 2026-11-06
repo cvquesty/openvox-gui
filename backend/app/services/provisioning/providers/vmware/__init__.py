@@ -163,6 +163,7 @@ class VmwareSession:
 class VmwareProvider:
     kind = "vmware"
     label = "VMware vCenter"
+    placement_keys = PLACEMENT_KEYS
 
     def normalize_placement(self, placement: Dict[str, Any]) -> Dict[str, str]:
         out: Dict[str, str] = {}
