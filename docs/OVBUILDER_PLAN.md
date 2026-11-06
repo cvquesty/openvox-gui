@@ -117,7 +117,7 @@ Build / Builds / Settings (+ Machines for lifecycle).
 | Environment → datastore-cluster mapping | Done (alpha.3): placement presets |
 | Build caps, cancel | Done (alpha.4); notifications later |
 | VM lifecycle (`vmops.py`) | Done (alpha.5): Machines tab |
-| CLI | Increment 5: `ovox vm` |
+| CLI | Done (alpha.6): `ovox vm` |
 | ISO mode + media detach, SSH bootstrap | Increment 6 (separate PR on `feature/ovbuilder` if large) |
 | Packer golden builds | Out of scope; stays in ovbuilder |
 
@@ -141,7 +141,7 @@ lab validation is Jerald's (not possible from CI).
    snapshot (admin/operator); destroy (admin) that also cleans the CA cert,
    deactivates the node in OpenVoxDB and deletes the ENC node. Added to the
    provider interface.
-5. **`ovox vm` CLI.** Thin client over `/api/provisioning`: list connections,
+5. **alpha.6 — `ovox vm` CLI** (done). Thin client over `/api/provisioning`: list connections,
    inventory, build, status, power, destroy.
 6. **ISO mode + SSH bootstrap.** Datastore ISO browser, empty-disk create with
    CD attached, operator console install, media detach, then bootstrap over SSH

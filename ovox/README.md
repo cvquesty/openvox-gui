@@ -123,11 +123,34 @@ Environment variables (override config):
 | metrics   | compliance, performance, health               | Planned     |
 | infra     | health, settings show/set, recommend, tune    | Core        |
 | token     | generate (long-lived service tokens for Bolt/automation) | Core |
+| vm        | connections, inventory, images, presets, build, builds, status, cancel, machines, power, snapshot, destroy | Alpha (3.15.0) |
 | db-*      | db-backup, db-restore, db-reseed (ENC recovery)       | Core |
 | users     | list, create, role                            | Planned     |
 | tui       | Interactive full-screen modes                 | Future      |
 
 See `ovox <group> --help` for subcommand details.
+
+### Provisioning (`ovox vm`, 3.15.0 alpha)
+
+Thin client over `/api/provisioning` (see `docs/PROVISIONING.md`); same
+roles as the web page.
+
+```bash
+ovox vm connections
+ovox vm inventory --datacenter DC-East          # ids for --compute, --network, …
+ovox vm images
+ovox vm build web01.example.com --ip 192.0.2.50 --netmask 24 --gateway 192.0.2.1 \
+    --dns 192.0.2.10 --preset prod-web --wait
+ovox vm build web02 --ip 192.0.2.51 --netmask 24 --datacenter DC-East --compute domain-c10 \
+    --datastore datastore-11 --network network-20 --nic dvportgroup-21,198.51.100.51/24 \
+    --template vm-100 --preview
+ovox vm machines --live
+ovox vm power <job-id> off
+ovox vm destroy <job-id> --confirm web01.example.com
+```
+
+`--no-sign` leaves the CSR for an operator; by default the GUI signs it only
+after verifying the per-build challenge.
 
 ### DB recovery commands (db-backup / db-restore / db-reseed)
 

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [3.15.0-alpha.6] - 2026-11-06
+
+### Added
+- **`ovox vm`** — Provisioning from the terminal (thin client over
+  `/api/provisioning`): `connections`, `inventory`, `images`, `presets`,
+  `build` (flags or `--preset`, `--nic`, `--preview`, `--wait`), `builds`,
+  `status`, `cancel`, `machines`, `power`, `snapshot`, `destroy`.
+
 ## [3.15.0-alpha.5] - 2026-11-06
 
 ### Added

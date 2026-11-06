@@ -231,7 +231,8 @@ Create snapshot, Inventory → Remove.
 
 ## Limits in this release
 
-- No CLI, ISO installs or SSH bootstrap yet ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
+- CLI: `ovox vm …` (see `ovox/README.md`).
+- No ISO installs or SSH bootstrap yet ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
 - Step timeouts: guest IP 15 min, CSR 30 min, first report 30 min.
 
 ## Development and tests
