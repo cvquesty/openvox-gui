@@ -91,6 +91,10 @@ class ProvisionSpec:
     nics: List[NicSpec] = field(default_factory=list)
     annotation: str = ""
     power_on: bool = True
+    # "clone" (image = template) or "iso" (empty machine booting install_media)
+    mode: str = "clone"
+    install_media: str = ""
+    guest_os: str = ""
 
 
 @dataclass
@@ -127,6 +131,11 @@ class ProviderSession(Protocol):
 
     def scrub_payload(self, instance_id: str) -> None: ...
 
+    # ISO mode
+    def install_media(self, scope: str, store: str) -> List[InventoryItem]: ...
+
+    def detach_media(self, instance_id: str) -> str: ...
+
     # Lifecycle (machines this GUI built). ``action``: on, off, shutdown, reboot.
     def power(self, instance_id: str, action: str) -> InstanceState: ...
 
@@ -141,6 +150,7 @@ class Provider(Protocol):
     kind: str
     label: str
     placement_keys: Tuple[str, ...]
+    supports_iso: bool
 
     def normalize_placement(self, placement: Dict[str, Any]) -> Dict[str, str]:
         """Static checks only (required keys, shapes). Raises ``NetSpecError``."""

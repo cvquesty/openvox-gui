@@ -94,10 +94,14 @@ class FakeHooks:
         self.signed: list[str] = []
         self.rejected: list[str] = []
         self.mode = "match"
+        self.ssh_challenge: str | None = None
+        self.ssh_targets: list = []
 
     def _guest_challenge(self) -> str | None:
         import base64
 
+        if self.ssh_challenge:
+            return self.ssh_challenge
         clones = VmwareProvider._fake_client.clones
         ud = base64.b64decode(clones[-1].extra_config["guestinfo.userdata"]).decode()
         m = re.search(r"challengePassword=([0-9a-f]+)", ud)
@@ -124,8 +128,20 @@ class FakeHooks:
         async def classify(certname, env, groups):
             return None
 
+        def ssh_runner(target, scripts):
+            from app.services.provisioning.ssh import SshReport
+
+            self.ssh_targets.append(target)
+            agent = next((sc.body for sc in scripts if sc.label == "openvox-agent"), "")
+            m = re.search(r"challengePassword=([0-9a-f]+)", agent)
+            self.ssh_challenge = m.group(1) if m else None
+            return SshReport(host_key="ssh-ed25519 SHA256:test", lines=["openvox-agent: exit 0"])
+
         return BuildHooks(cert_state=cert_state, fetch_csr=fetch_csr, sign_certificate=sign,
-                          node_in_fleet=in_fleet, classify_node=classify, csr_rejected=rejected)
+                          node_in_fleet=in_fleet, classify_node=classify, csr_rejected=rejected,
+                          install_continue=lambda: jobs.load_install_continue(job_id),
+                          forget_continue=lambda: jobs.forget_install_continue(job_id),
+                          ssh_runner=ssh_runner)
 
 
 @pytest.fixture
@@ -137,6 +153,7 @@ def api(monkeypatch):
     VmwareProvider.reset_fake()
     monkeypatch.setattr(bootstrap, "bootstrap_target", lambda agent_version="": TARGET)
     monkeypatch.setattr(settings, "provisioning_runner", "inline")
+    monkeypatch.setattr(settings, "provisioning_poll_s", 0.05)
     hooks = FakeHooks()
     monkeypatch.setattr(jobs, "app_hooks", hooks.build)
     role = {"role": "admin"}
@@ -536,3 +553,51 @@ def test_destroy_when_vm_already_gone(api, monkeypatch):
     assert "already gone" in done["steps"]["vm"]["message"]
     assert done["steps"]["enc"]["message"] == "skipped"
     assert [c[0] for c in destroy_hooks.calls] == ["openvoxdb", "ca"]
+
+
+ISO = "[vsan-prod] isos/AlmaLinux-10.0-x86_64-dvd.iso"
+
+
+def test_iso_build_with_ssh_continue(api, caplog):
+    caplog.set_level(logging.DEBUG)
+    isos = api.get("/api/provisioning/connections/default/inventory/DC-East/isos?datastore=datastore-11").json()
+    assert ISO in [i["moid"] for i in isos]
+    body = {**BUILD, "mode": "iso", "image": "", "install_media": ISO, "guest_os": "rhel9_64Guest"}
+    preview = api.post("/api/provisioning/preview", json=body).json()
+    assert "over SSH: openvox-agent" in preview["userdata"] and "(detached)" in preview["userdata"]
+
+    _as(api, "operator")
+    job = api.post("/api/provisioning/builds", json=body).json()
+    deadline = time.monotonic() + 10
+    while not api.get(f"/api/provisioning/builds/{job['id']}").json()["awaiting_install"]:
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+    current = api.get(f"/api/provisioning/builds/{job['id']}").json()
+    assert current["mode"] == "iso" and [s["name"] for s in current["steps"]][2:5] == ["install", "media", "bootstrap"]
+
+    _as(api, "viewer")
+    assert api.post(f"/api/provisioning/builds/{job['id']}/continue", json={}).status_code == 403
+    _as(api, "operator")
+    assert api.post(f"/api/provisioning/builds/{job['id']}/continue", json={"username": "admin"}).status_code == 400
+    secret_pw = "Install-Time-Pw-42"
+    ok = api.post(f"/api/provisioning/builds/{job['id']}/continue",
+                  json={"username": "admin", "password": secret_pw})
+    assert ok.status_code == 200, ok.text
+    assert secret_pw not in ok.text
+
+    final = _wait_finished(api, job["id"])
+    assert final["status"] == "succeeded", final
+    assert api.hooks.ssh_targets[-1].host == "192.0.2.60" and api.hooks.ssh_targets[-1].username == "admin"
+    assert api.hooks.signed == ["app01.example.com"]
+    assert VmwareProvider._fake_client.vms["app01.example.com"]["media"] == ""
+
+    async def secrets_left():
+        async with async_session() as db:
+            rows = (await db.execute(select(ClusterSecret).where(ClusterSecret.name.like("provisioning_job_ssh:%")))).scalars().all()
+        return rows
+
+    assert asyncio.run(secrets_left()) == []
+    text = api.get(f"/api/provisioning/builds/{job['id']}").text
+    assert secret_pw not in text and api.hooks.ssh_challenge not in text
+    assert secret_pw not in caplog.text
+    assert api.post(f"/api/provisioning/builds/{job['id']}/continue", json={}).status_code == 409

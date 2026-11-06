@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Alert, Badge, Button, Card, Code, Grid, Group, ScrollArea, Stack, Table, Text, Timeline, Title,
+  Alert, Badge, Button, Card, Code, Grid, Group, NumberInput, PasswordInput, ScrollArea, Stack, Table, Text,
+  Textarea, TextInput, Timeline, Title,
 } from '@mantine/core';
 import { IconPlayerStop, IconRefresh } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
@@ -57,6 +58,21 @@ export function BuildJobs({
   }, [selectedId, loadList]);
 
   const activeStep = job ? job.steps.findIndex((s) => s.state === 'pending' || s.state === 'running') : -1;
+
+  const [ssh, setSsh] = useState({ ssh_host: '', ssh_port: 22, username: '', password: '', private_key: '' });
+  const [continuing, setContinuing] = useState(false);
+  const continueBuild = async () => {
+    if (!job) return;
+    setContinuing(true);
+    try {
+      const needsSsh = job.request.bootstrap_agent !== false;
+      setJob(await provisioning.continueBuild(job.id, needsSsh ? { ...ssh, ssh_host: ssh.ssh_host || job.request.ip } : {}));
+      setSsh({ ssh_host: '', ssh_port: 22, username: '', password: '', private_key: '' });
+    } catch (e: any) {
+      notifications.show({ color: 'red', title: 'Not continued', message: e.message });
+    }
+    setContinuing(false);
+  };
 
   const cancel = async () => {
     if (!job) return;
@@ -120,6 +136,47 @@ export function BuildJobs({
                 </Group>
               </Group>
               {job.error && <Alert color="red" title="Build failed">{job.error}</Alert>}
+              {job.awaiting_install && (
+                <Card withBorder padding="sm" bg="var(--mantine-color-body)">
+                  <Text size="sm" fw={600} mb={4}>Finish the OS install in the vCenter console</Text>
+                  <Text size="xs" c="dimmed" mb="sm">
+                    {job.request.bootstrap_agent === false
+                      ? 'Press Continue when the install is done; the GUI disconnects the ISO.'
+                      : 'Then give a login the GUI can use once over SSH (sudo, or root). It is encrypted, used for the bootstrap, and deleted.'}
+                  </Text>
+                  {job.request.bootstrap_agent !== false && (
+                    <Grid gap="xs">
+                      <Grid.Col span={{ base: 12, md: 6 }}>
+                        <TextInput label="SSH host" placeholder={job.request.ip} value={ssh.ssh_host}
+                          onChange={(e) => { const v = e.currentTarget.value; setSsh((s) => ({ ...s, ssh_host: v })); }} />
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 4, md: 2 }}>
+                        <NumberInput label="Port" min={1} max={65535} value={ssh.ssh_port}
+                          onChange={(v) => setSsh((s) => ({ ...s, ssh_port: Number(v) || 22 }))} />
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 8, md: 4 }}>
+                        <TextInput label="Username" value={ssh.username} autoComplete="off"
+                          onChange={(e) => { const v = e.currentTarget.value; setSsh((s) => ({ ...s, username: v })); }} />
+                      </Grid.Col>
+                      <Grid.Col span={12}>
+                        <PasswordInput label="Password (also used for sudo)" autoComplete="new-password" value={ssh.password}
+                          onChange={(e) => { const v = e.currentTarget.value; setSsh((s) => ({ ...s, password: v })); }} />
+                      </Grid.Col>
+                      <Grid.Col span={12}>
+                        <Textarea label="…or a private key (passwordless sudo)" autosize minRows={2} maxRows={6}
+                          placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" value={ssh.private_key}
+                          onChange={(e) => { const v = e.currentTarget.value; setSsh((s) => ({ ...s, private_key: v })); }} />
+                      </Grid.Col>
+                    </Grid>
+                  )}
+                  <Group justify="flex-end" mt="sm">
+                    <Button size="xs" onClick={continueBuild} loading={continuing}
+                      disabled={job.request.bootstrap_agent !== false && (!ssh.username.trim() || (!ssh.password && !ssh.private_key.trim()))}>
+                      Continue
+                    </Button>
+                  </Group>
+                </Card>
+              )}
               <Timeline active={activeStep === -1 ? job.steps.length : activeStep - 1} bulletSize={18} lineWidth={2}>
                 {job.steps.map((s) => (
                   <Timeline.Item key={s.name} color={statusColor(s.state)}

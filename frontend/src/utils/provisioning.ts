@@ -28,6 +28,17 @@ export interface VmwareDatacenterInventory {
 }
 
 export type StorageMode = 'datastore' | 'datastore_cluster';
+export type BuildMode = 'clone' | 'iso';
+
+/** vSphere guest OS ids offered for ISO installs (the agent bootstrap is Linux over SSH). */
+export const ISO_GUEST_OS: { value: string; label: string }[] = [
+  { value: 'rhel9_64Guest', label: 'RHEL / AlmaLinux / Rocky 9+' },
+  { value: 'rhel8_64Guest', label: 'RHEL / AlmaLinux / Rocky 8' },
+  { value: 'ubuntu64Guest', label: 'Ubuntu (64-bit)' },
+  { value: 'debian12_64Guest', label: 'Debian 12' },
+  { value: 'other5xLinux64Guest', label: 'Other Linux 5.x+ (64-bit)' },
+  { value: 'otherLinux64Guest', label: 'Other Linux (64-bit)' },
+];
 
 export interface ExtraNic {
   network: string;
@@ -36,6 +47,10 @@ export interface ExtraNic {
 }
 
 export interface BuildFormState {
+  mode: BuildMode;
+  install_media: string;
+  iso_datastore: string;
+  guest_os: string;
   connection: string;
   hostname: string;
   ip: string;
@@ -67,6 +82,10 @@ export interface BuildFormState {
 export const MAX_NICS = 8;
 
 export const EMPTY_BUILD_FORM: BuildFormState = {
+  mode: 'clone',
+  install_media: '',
+  iso_datastore: '',
+  guest_os: 'rhel9_64Guest',
   connection: '',
   hostname: '',
   ip: '',
@@ -203,7 +222,11 @@ export function validateBuildForm(form: BuildFormState, defaultDomain = ''): For
   if (form.storage_mode === 'datastore_cluster' && !form.datastore_cluster) {
     errors.datastore_cluster = 'Pick a datastore cluster';
   }
-  if (!form.image) errors.image = 'Pick a template';
+  if (form.mode === 'clone' && !form.image) errors.image = 'Pick a template';
+  if (form.mode === 'iso') {
+    if (!form.install_media) errors.install_media = 'Pick an ISO';
+    if (form.storage_mode !== 'datastore') errors.datastore_cluster = 'ISO installs need a single datastore';
+  }
   if (form.enc_group_ids.length && !form.enc_environment) errors.enc_environment = 'Pick an environment for the groups';
   return errors;
 }
@@ -262,7 +285,10 @@ export function buildPayload(form: BuildFormState) {
       ip: n.ip.trim(),
       netmask: n.ip.trim() ? n.netmask.trim() : '',
     })),
-    image: form.image,
+    mode: form.mode,
+    image: form.mode === 'clone' ? form.image : '',
+    install_media: form.mode === 'iso' ? form.install_media : '',
+    guest_os: form.mode === 'iso' ? form.guest_os : '',
     placement: {
       datacenter: form.datacenter,
       compute: form.compute,
@@ -339,6 +365,9 @@ export function slugify(name: string): string {
 export const STEP_LABELS: Record<string, string> = {
   validate: 'Validate',
   provision: 'Create + power on',
+  install: 'OS install (console)',
+  media: 'Install media',
+  bootstrap: 'SSH bootstrap',
   guest: 'Guest network',
   certificate: 'Certificate',
   classify: 'Classifier',

@@ -10,13 +10,13 @@ import { IconRefresh } from '@tabler/icons-react';
 import type {
   BuildFormState, FormErrors, InventoryItem, VmwareDatacenterInventory,
 } from '../../utils/provisioning';
-import { placementOptions } from '../../utils/provisioning';
+import { ISO_GUEST_OS, placementOptions } from '../../utils/provisioning';
 import { InventoryBrowser, type PickField } from './InventoryBrowser';
 
 export const inventoryOption = (i: InventoryItem, label?: string) => ({ value: i.moid, label: label || i.path || i.name });
 
 export function VmwarePlacement({
-  form, errors, scopes, inventory, images, templatePrefix, loading,
+  form, errors, scopes, inventory, images, isos, templatePrefix, loading,
   onReload, onDatacenter, onCompute, onImage, onPick, set,
 }: {
   form: BuildFormState;
@@ -24,6 +24,7 @@ export function VmwarePlacement({
   scopes: InventoryItem[];
   inventory: VmwareDatacenterInventory | null;
   images: InventoryItem[];
+  isos: InventoryItem[];
   templatePrefix: string;
   loading: boolean;
   onReload: () => void;
@@ -37,7 +38,15 @@ export function VmwarePlacement({
   return (
     <Card withBorder padding="md">
       <Group justify="space-between" mb="xs">
-        <Title order={4}>2. vCenter placement</Title>
+        <Group gap="sm">
+          <Title order={4}>2. vCenter placement</Title>
+          <SegmentedControl size="xs" value={form.mode}
+            onChange={(v) => {
+              set('mode', v as BuildFormState['mode']);
+              if (v === 'iso') set('storage_mode', 'datastore');
+            }}
+            data={[{ value: 'clone', label: 'Template clone' }, { value: 'iso', label: 'ISO install' }]} />
+        </Group>
         <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} onClick={onReload} loading={loading}>
           Reload inventory
         </Button>
@@ -70,7 +79,7 @@ export function VmwarePlacement({
           <Stack gap={4}>
             <Group justify="space-between">
               <Text size="sm" fw={500}>Storage <Text span c="red">*</Text></Text>
-              <SegmentedControl size="xs" value={form.storage_mode}
+              <SegmentedControl size="xs" value={form.storage_mode} disabled={form.mode === 'iso'}
                 onChange={(v) => set('storage_mode', v as BuildFormState['storage_mode'])}
                 data={[{ value: 'datastore', label: 'Datastore' }, { value: 'datastore_cluster', label: 'SDRS cluster' }]} />
             </Group>
@@ -86,6 +95,33 @@ export function VmwarePlacement({
             )}
           </Stack>
         </Grid.Col>
+        {form.mode === 'iso' ? (
+          <>
+            <Grid.Col span={{ base: 12, md: 4 }}>
+              <Select label="ISO library datastore" searchable disabled={!inventory}
+                data={(inventory?.datastores || []).map((d) => inventoryOption(d, d.name))}
+                value={form.iso_datastore || null}
+                onChange={(v) => { set('iso_datastore', v || ''); set('install_media', ''); }} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 5 }}>
+              <Select label="Install ISO" required searchable disabled={!form.iso_datastore}
+                placeholder={form.iso_datastore && !isos.length ? 'No ISOs found on this datastore' : undefined}
+                data={isos.map((i) => ({ value: i.moid, label: i.name }))}
+                value={form.install_media || null} onChange={(v) => set('install_media', v || '')}
+                error={errors.install_media} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 3 }}>
+              <Select label="Guest OS type" data={ISO_GUEST_OS} value={form.guest_os}
+                onChange={(v) => set('guest_os', v || 'otherLinux64Guest')} allowDeselect={false} />
+            </Grid.Col>
+            <Grid.Col span={12}>
+              <Text size="xs" c="dimmed">
+                Creates an empty VM booting the ISO. Install the OS from the vCenter console, then press Continue on
+                the Builds tab with a login the GUI can use over SSH; it detaches the ISO and bootstraps the agent.
+              </Text>
+            </Grid.Col>
+          </>
+        ) : (
         <Grid.Col span={12}>
           <Select label="Template" required searchable
             data={images.map((t) => inventoryOption(t, `${t.name}${t.details.guest_name ? ` — ${t.details.guest_name}` : ''}`))}
@@ -94,6 +130,7 @@ export function VmwarePlacement({
               ? `Only templates named ${templatePrefix}* are listed`
               : 'All vCenter templates visible to the service account are listed'} />
         </Grid.Col>
+        )}
       </Grid>
       <Card withBorder mt="md" padding="xs" bg="var(--mantine-color-body)">
         <Text size="sm" fw={600} mb={4}>Inventory browser {inventory ? `— ${inventory.datacenter.name}` : ''}</Text>

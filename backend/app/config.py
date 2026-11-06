@@ -191,6 +191,8 @@ class Settings(BaseSettings):
     provisioning_max_parallel: int = 2
     provisioning_max_active_per_user: int = 3
     provisioning_max_active_total: int = 10
+    # Seconds between provider / CA / OpenVoxDB polls while a build waits.
+    provisioning_poll_s: float = 10.0
 
     class Config:
         env_prefix = "OPENVOX_GUI_"

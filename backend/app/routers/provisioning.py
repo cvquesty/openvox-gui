@@ -37,7 +37,7 @@ from ..services.provisioning.cloudinit import (
     redact_proxy_url,
 )
 from ..services.provisioning.netspec import NetSpecError, prefix_to_netmask
-from ..services.provisioning.provision import STEPS, BuildError, ProvisionRequest, validate_request
+from ..services.provisioning.provision import STEPS, STEPS_ISO, BuildError, ProvisionRequest, validate_request
 from ..services.provisioning.providers import get_provider, provider_catalog
 from ..services.provisioning.providers.base import ProviderError
 from ..utils.audit import audit_event
@@ -80,6 +80,17 @@ class BuildBody(BaseModel):
     sign_certificate: bool = False
     enc_environment: str = Field("", max_length=128)
     enc_group_ids: List[int] = Field(default_factory=list, max_length=50)
+    mode: str = Field("clone", max_length=8)
+    install_media: str = Field("", max_length=1300)
+    guest_os: str = Field("", max_length=64)
+
+
+class ContinueBody(BaseModel):
+    ssh_host: str = Field("", max_length=253)
+    ssh_port: int = 22
+    username: str = Field("", max_length=32)
+    password: str = Field("", max_length=1024)
+    private_key: str = Field("", max_length=16384)
 
 
 class PresetBody(BaseModel):
@@ -215,6 +226,7 @@ async def status(_user: str = Depends(_USE)) -> Dict[str, Any]:
         "pyvmomi_installed": pyvmomi_available(),
         "bootstrap": target,
         "steps": list(STEPS),
+        "steps_iso": list(STEPS_ISO),
         "runner": _runner(),
         "worker": await _worker_view(),
         "limits": {
@@ -349,6 +361,12 @@ async def inventory_scope(connection_id: str, scope: str, _user: str = Depends(_
     return await _with_session(connection_id, lambda s: s.inventory(scope))
 
 
+@router.get("/connections/{connection_id}/inventory/{scope}/isos")
+async def inventory_isos(connection_id: str, scope: str, datastore: str,
+                         _user: str = Depends(_USE)) -> List[Dict[str, Any]]:
+    return [i.to_dict() for i in await _with_session(connection_id, lambda s: s.install_media(scope, datastore))]
+
+
 @router.get("/connections/{connection_id}/images")
 async def inventory_images(connection_id: str, _user: str = Depends(_USE)) -> List[Dict[str, Any]]:
     return [i.to_dict() for i in await _with_session(connection_id, lambda s: s.images())]
@@ -368,9 +386,18 @@ async def preview(body: BuildBody, _user: str = Depends(_USE)) -> Dict[str, Any]
     challenge = csr.PREVIEW_PLACEHOLDER if body.bootstrap_agent and body.sign_certificate else ""
     options = replace(options, http_proxy=redact_proxy_url(options.http_proxy), csr_challenge=challenge)
     try:
-        userdata = build_userdata(validated.identity, options)
         command = (agent_install_command(options.bootstrap, validated.certname, challenge)
                    if options.bootstrap else "")
+        if body.mode == "iso":
+            from ..services.provisioning.cloudinit import build_agent_script, build_network_script
+            from ..services.provisioning.ssh import bootstrap_scripts
+
+            agent = build_agent_script(options.bootstrap, validated.certname, challenge) if options.bootstrap else None
+            scripts = bootstrap_scripts(validated.certname, agent, "#!/bin/bash\n" + build_network_script(validated.identity))
+            userdata = "\n".join(
+                f"# ── over SSH: {sc.label}{' (detached)' if sc.detached else ''} ──\n{sc.body}" for sc in scripts)
+        else:
+            userdata = build_userdata(validated.identity, options)
     except NetSpecError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
@@ -430,6 +457,34 @@ async def cancel_build(job_id: str, user: str = Depends(_USE)) -> Dict[str, Any]
         raise HTTPException(status_code=404, detail="Build not found")
     audit_event("provisioning_build_cancel", user=user, targets=job["certname"], detail=f"job={job_id}")
     return job
+
+
+@router.post("/builds/{job_id}/continue")
+async def continue_build(job_id: str, body: ContinueBody, user: str = Depends(_USE)) -> Dict[str, Any]:
+    """ISO builds: the console install is done; hand over one-time SSH credentials."""
+    from ..services.provisioning.ssh import SshError, SshTarget
+
+    job = await jobs.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Build not found")
+    if job["mode"] != "iso" or not job["awaiting_install"]:
+        raise HTTPException(status_code=409, detail="This build is not waiting for an OS install")
+    ssh = None
+    if job["request"].get("bootstrap_agent", True):
+        target = SshTarget(
+            host=(body.ssh_host or job["request"].get("ip") or "").strip(), username=body.username.strip(),
+            port=body.ssh_port, password=body.password, private_key=body.private_key.strip(),
+        )
+        try:
+            target.validate()
+        except SshError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        ssh = {"host": target.host, "port": target.port, "username": target.username,
+               "password": target.password, "private_key": target.private_key}
+    await jobs.store_install_continue(job_id, ssh, user)
+    audit_event("provisioning_install_continue", user=user, targets=job["certname"],
+                detail=f"job={job_id} ssh_user={body.username.strip() or '-'}")
+    return await jobs.get_job(job_id)
 
 
 @router.get("/builds")

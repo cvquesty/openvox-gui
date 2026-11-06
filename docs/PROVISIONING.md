@@ -180,6 +180,44 @@ The clone reproduces ovbuilder's Terraform module without Terraform:
 
 **Preview cloud-init** on the form renders the user-data without calling vCenter.
 
+## ISO installs (no template) and SSH bootstrap
+
+For an OS that has no golden template, pick **ISO install** in the placement
+card (ovbuilder's legacy ISO mode):
+
+1. Pick the ISO library datastore, the ISO, and the guest OS type. The VM disk
+   goes on a single datastore (Storage DRS is clone-only).
+2. The GUI creates an empty VM (pvscsi, thin disk of the requested size,
+   vmxnet3 NICs, a SATA CD-ROM with the ISO attached) named after the FQDN and
+   powers it on. Step **OS install (console)** waits up to 24 hours.
+3. Install the OS from the vCenter console. Give the machine a reachable
+   address (the requested static IP, or DHCP) and an SSH login with sudo
+   (or root).
+4. On the Builds tab press **Continue** with that login (password, or a
+   private key with passwordless sudo). The credentials are stored
+   Fernet-encrypted for this build only (`cluster_secrets`
+   `provisioning_job_ssh:<job>`), never logged or returned, and deleted as soon
+   as the SSH step ends (and again when the build finishes).
+5. The GUI disconnects the ISO (**Install media**, ovbuilder's
+   `disconnect_install_media`: releases the datastore lock, disk boot first),
+   then over SSH (**SSH bootstrap**): sets the hostname, runs the same
+   `install.bash` line with `certname` and the per-build CSR challenge, and
+   applies the static network detached (it may move the address the session
+   is using). Scripts are uploaded as root-only temp files and delete
+   themselves; only the last lines of output reach the build log. The SSH
+   host key is trust-on-first-use and its fingerprint is logged.
+6. Certificate verification/signing and the classifier handoff are the same
+   as for clones.
+
+Without **Install the OpenVox agent**, Continue needs no credentials; the GUI
+only disconnects the ISO. Extra service-account privileges: Virtual machine →
+Inventory → Create new; Configuration → Add new disk; Datastore → Browse
+datastore. SSH uses the console's OpenSSH client (`ssh`, already present for
+Bolt): passwords go through an `SSH_ASKPASS` helper reading a 0600 file and
+keys through a 0600 file in a private temp directory, so neither appears on
+a command line; the directory is removed after the step. (paramiko was not
+used: every published release carries an open advisory, PYSEC-2026-2858.)
+
 ## Build queue and the provisioner service
 
 Submitting a build queues it. The **`openvox-gui-provisioner`** systemd
@@ -232,7 +270,8 @@ Create snapshot, Inventory → Remove.
 ## Limits in this release
 
 - CLI: `ovox vm …` (see `ovox/README.md`).
-- No ISO installs or SSH bootstrap yet ([OVBUILDER_PLAN.md](OVBUILDER_PLAN.md)).
+- ISO installs need a person at the console; there is no unattended
+  kickstart/autoinstall injection yet.
 - Step timeouts: guest IP 15 min, CSR 30 min, first report 30 min.
 
 ## Development and tests

@@ -26,7 +26,7 @@ from ..base import (
     ProvisionResult,
     ProvisionSpec,
 )
-from .client import CloneSpec, DatacenterInventory, VCenterClient, VCenterError
+from .client import CloneSpec, DatacenterInventory, IsoVmSpec, VCenterClient, VCenterError
 
 DEFAULT_TEMPLATE_PREFIX = "ovbuilder-"
 PLACEMENT_KEYS = ("datacenter", "compute", "resource_pool", "folder", "datastore", "datastore_cluster")
@@ -96,11 +96,17 @@ def check_against_inventory(
         net_names.append(net.name)
     names["networks"] = ", ".join(net_names)
 
+    if spec.mode == "iso":
+        names["image"] = spec.install_media
+        return names
     template = next((t for t in templates if t.moid == spec.image), None)
     if template is None:
         raise VCenterError(f"Template {spec.image} not found (or not allowed by the template prefix)")
     names["image"] = template.name
     return names
+
+
+_GUEST_ID = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 
 
 class VmwareSession:
@@ -120,7 +126,27 @@ class VmwareSession:
 
     def check_placement(self, spec: ProvisionSpec) -> Dict[str, str]:
         inv = self.client.datacenter_inventory(spec.placement["datacenter"])
-        return check_against_inventory(spec, inv, self.images())
+        if spec.mode != "iso":
+            return check_against_inventory(spec, inv, self.images())
+        if not spec.placement.get("datastore"):
+            raise VCenterError("ISO installs need a single datastore (Storage DRS is clone-only)")
+        if spec.guest_os and not _GUEST_ID.match(spec.guest_os):
+            raise VCenterError(f"Invalid guest OS id {spec.guest_os!r}")
+        names = check_against_inventory(spec, inv, [])
+        media = spec.install_media
+        ds_name = media[1:media.find("]")] if media.startswith("[") and "]" in media else ""
+        store = next((d for d in inv.datastores if d.name == ds_name), None)
+        if store is None:
+            raise VCenterError(f"ISO datastore {ds_name or media!r} is not in {inv.datacenter.name}")
+        if media not in {i.moid for i in self.client.list_isos(spec.placement["datacenter"], store.moid)}:
+            raise VCenterError(f"ISO {media} not found on {store.name}")
+        return names
+
+    def install_media(self, scope: str, store: str) -> List[InventoryItem]:
+        return self.client.list_isos(scope, store)
+
+    def detach_media(self, instance_id: str) -> str:
+        return self.client.disconnect_install_media(instance_id)
 
     def name_in_use(self, name: str) -> bool:
         return self.client.vm_exists(name)
@@ -129,6 +155,17 @@ class VmwareSession:
         if len(spec.name) > VM_NAME_MAX:
             raise VCenterError(f"vCenter VM names are limited to {VM_NAME_MAX} characters")
         p = spec.placement
+        if spec.mode == "iso":
+            created = self.client.create_vm_from_iso(IsoVmSpec(
+                vm_name=spec.name, datacenter=p["datacenter"], compute=p["compute"],
+                datastore=p["datastore"], iso_path=spec.install_media, guest_id=spec.guest_os,
+                networks=[n.network for n in spec.nics], cpus=spec.cpus, memory_mb=spec.memory_mb,
+                disk_gb=spec.disk_gb, resource_pool=p.get("resource_pool", ""), folder=p.get("folder", ""),
+                annotation=spec.annotation,
+            ))
+            return ProvisionResult(instance_id=created.vm_moid, name=created.vm_name,
+                                   detail=f"VM {created.vm_name} ({created.vm_moid}) created on {created.datastore}, "
+                                          f"booting {spec.install_media}")
         result = self.client.clone_vm(CloneSpec(
             vm_name=spec.name,
             datacenter=p["datacenter"],
@@ -176,6 +213,7 @@ class VmwareProvider:
     kind = "vmware"
     label = "VMware vCenter"
     placement_keys = PLACEMENT_KEYS
+    supports_iso = True
 
     def normalize_placement(self, placement: Dict[str, Any]) -> Dict[str, str]:
         out: Dict[str, str] = {}
