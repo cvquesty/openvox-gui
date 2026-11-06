@@ -18,6 +18,7 @@ on every push and pull request to `main`:
 | **shell** | bash + ShellCheck | `bash -n`, helper `--help`, error-level lint |
 | **bolt-plugin** | Ruby 3.2 | `openvox_enc` inventory plugin tests |
 | **quality** | python3 | VERSION lockstep, dev-version guard, README badge, leak scan |
+| **secret-scan** | gitleaks 8.21.2 | `.gitleaks.toml` over every tracked file, and on PRs every commit since the base |
 | **install-test** | systemd containers | `install.sh` Alma 9/10, Ubuntu 24.04, with `CONFIGURE_BOLT=true`. Asserts `openvox_enc` is installed `root:bolt` and discoverable on the Bolt modulepath (#102) |
 
 Dependency vulnerability scans stay in
@@ -53,6 +54,9 @@ npm run build
 # Shell + version lockstep
 ./tests/shell/run.sh
 ./scripts/ci-quality.sh
+
+# Secret scan (first run: ./scripts/secret-scan.sh --install)
+./scripts/secret-scan.sh --since origin/main
 
 # Bolt ENC plugin
 bolt-plugin/bin/run-tests
@@ -106,6 +110,12 @@ Lab validation still happens on the isolated lab console after a `/commit` deplo
    path.
 5. Never commit secrets or internal corporate hostnames. `scripts/ci-quality.sh`
    fails the build if they leak into application source.
+6. No passwords of any kind in the repo, fake test fixtures included. Generate
+   test credentials at runtime (`secrets.token_hex()`, `SecureRandom.hex`, a
+   key generated with `cryptography`) and assert on the variable. Docs use
+   `<angle-bracket>` placeholders or empty values. `scripts/secret-scan.sh`
+   (CI job **secret-scan**, and the `.pre-commit-config.yaml` hook) enforces
+   this with `.gitleaks.toml`.
 
 ## Version lockstep
 

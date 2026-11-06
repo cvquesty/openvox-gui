@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > As the OpenVox project evolves, these are being rebranded to OpenVox Server, OpenVoxDB, and
 > OpenBolt respectively. Historical entries are preserved as-is for accuracy.
 
+## [Unreleased]
+
+### Security
+- No password-shaped literals remain in the tree. Provisioning, cluster-deploy, conftest and bolt-plugin tests generate credentials, proxy URLs, SSH keys and Bearer tokens at runtime instead of using fixed fake values (GitGuardian "Generic Password" / "Username Password" findings on #172 and #174). Docs and example configs use `<placeholder>` or empty values.
+- `csr.CHALLENGE_ATTRIBUTE`, `csr.challenge_argument()` and `csr.extract_challenge()` replace hand-written `challengePassword=` strings and regexes.
+- New CI job **secret-scan** runs gitleaks 8.21.2 (pinned, checksum-verified, no API key) with `.gitleaks.toml`: default rules plus generic-password and URL-credential rules. It scans every tracked file, and on pull requests every commit since the base. `.pre-commit-config.yaml` adds the same check as a gitleaks hook. Local: `scripts/secret-scan.sh`.
+
 ## [3.15.0-alpha.7] - 2026-11-06
 
 Separate PR stacked on `feature/ovbuilder`.

@@ -51,7 +51,6 @@ jobs:
 
       - name: Pytest (backend + ovox)
         env:
-          OPENVOX_GUI_SECRET_KEY: ci-test-not-for-production
           OPENVOX_GUI_AUTH_BACKEND: none
         run: python -m pytest --cov --cov-report=term-missing
 
@@ -146,6 +145,7 @@ jobs:
             scripts/ci-quality.sh \
             scripts/ci-version-guard.sh \
             scripts/run-ci-local.sh \
+            scripts/secret-scan.sh \
             scripts/ci-install-test.sh \
             scripts/install-openvox-enc-plugin.sh \
             tests/shell/run.sh \
@@ -190,3 +190,29 @@ jobs:
         run: |
           chmod +x scripts/ci-quality.sh
           ./scripts/ci-quality.sh
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Pull requests also scan every commit since the base branch.
+          fetch-depth: 0
+
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          chmod +x scripts/secret-scan.sh
+          ./scripts/secret-scan.sh --install
+
+      - name: gitleaks (.gitleaks.toml)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            ./scripts/secret-scan.sh --since "$BASE_SHA"
+          else
+            ./scripts/secret-scan.sh
+          fi

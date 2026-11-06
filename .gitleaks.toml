@@ -1,0 +1,75 @@
+# Secret scanning for openvox-gui (gitleaks >= 8.21).
+#
+# Repository rule: no passwords of any kind are committed, including fake
+# test fixtures. Tests generate credentials at runtime (secrets.token_hex,
+# SecureRandom.hex, generated keys); docs use <angle-bracket> placeholders.
+#
+# The default gitleaks rules cover provider tokens and private keys. The two
+# extra rules below approximate GitGuardian's "Generic Password" and
+# "Username Password" detectors, which the defaults do not.
+#
+# Run locally:  scripts/secret-scan.sh
+
+title = "openvox-gui secret scan"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "openvox-generic-password"
+description = "Quoted literal assigned to a password, secret, token or key variable/field"
+regex = '''(?i)[\w.-]*(?:passw(?:or)?d|passwd|passphrase|pwd|_pw|secret|private[_-]?key|api[_-]?(?:key|token)|auth[_-]?token|access[_-]?token|bearer[_-]?token)[\w.-]*["']?\s*(?:=>|:=|[:=])\s*[fbr]?["']([^"'\s]{3,})["']'''
+secretGroup = 1
+keywords = ["pass", "pwd", "_pw", "secret", "key", "token"]
+
+  [[rules.allowlists]]
+  description = "Placeholders, variable references and identifiers, not credential values"
+  regexTarget = "secret"
+  regexes = [
+    '''^\$''',                                   # $VAR, ${VAR}, $(cmd)
+    '''^\{[\w.\[\]'"()]+\}$''',                  # f-string / template field
+    '''^\{\{.*\}\}$''',                          # Jinja / ERB-style
+    '''^<[^<>]+>$''',                            # <placeholder>
+    '''^\*+$''',                                 # redaction mask
+    '''^…$''',
+    '''^/''',                                    # file paths (token_file etc.)
+    '''^[a-z][a-z0-9]*(?:[_.][a-z0-9]+)+(?::[\w-]+)?$''', # snake_case store keys / names
+    '''^__[A-Z_]+__$''',                         # dunder sentinels
+    '''PLACEHOLDER''',
+  ]
+
+[[rules]]
+id = "openvox-url-credentials"
+description = "Credentials embedded in a URL (scheme://user:password@host)"
+regex = '''[a-z][a-z0-9+.-]{1,20}://[^/\s:@'"<>]+:([^/\s@'"]+)@[\w.-]'''
+secretGroup = 1
+keywords = ["://"]
+
+  [[rules.allowlists]]
+  description = "Placeholders and variable references in URL examples"
+  regexTarget = "secret"
+  regexes = [
+    '''^\$''',
+    '''^\{[\w.\[\]'"()]+\}$''',
+    '''^<[^<>]+>$''',
+    '''^\*+$''',
+    '''^…$''',
+  ]
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)(\.?venv|venv)/''',
+  '''(^|/)\.git/''',
+  '''(^|/)frontend/dist/''',
+  '''(^|/)__pycache__/''',
+  '''(^|/)\.pytest_cache/''',
+  '''(^|/)\.ruff_cache/''',
+  '''(^|/)package-lock\.json$''',
+]
+# UI help text that names PEM header lines (no key material follows).
+regexTarget = "match"
+regexes = [
+  '''PRIVATE KEY-----(?:</Code> or <Code>|' or ')-----BEGIN''',
+]

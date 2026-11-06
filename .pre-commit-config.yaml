@@ -1,0 +1,10 @@
+# pre-commit hooks — install once per clone:
+#   pip install pre-commit && pre-commit install
+#
+# gitleaks reads .gitleaks.toml from the repo root. CI runs the same rules
+# through scripts/secret-scan.sh.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
