@@ -19,11 +19,10 @@ Design
   - If the operator has set a strong ``OPENVOX_GUI_SECRET_KEY`` (which
     install.sh does by default with ``secrets.token_hex(32)``), the
     derived encryption key is also strong.
-  - If the operator is still running with the well-known default
-    secret key, the encryption is also using a well-known key -- which
-    is no worse than the plaintext we're replacing AND emits the same
-    "set OPENVOX_GUI_SECRET_KEY" startup warning that the JWT subsystem
-    already emits.
+  - If the key is unset (empty or the built-in sentinel), ``_fernet``
+    raises ``RuntimeError`` unless debug=True, so no process (GUI,
+    provisioner worker, scripts) encrypts under a key published in
+    source.
   - Rotating ``OPENVOX_GUI_SECRET_KEY`` invalidates all previously-
     encrypted values, just like it would invalidate all JWTs. This is
     the same operational tradeoff the JWT subsystem already accepts.
@@ -59,7 +58,7 @@ import logging
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from ..config import settings
+from ..config import refuse_unset_secret_key, settings
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +74,11 @@ def _fernet() -> Fernet:
     Recomputed on every call rather than cached because ``settings``
     can be reloaded in tests, and Fernet construction is cheap.
     """
+    if refuse_unset_secret_key(settings):
+        raise RuntimeError(
+            "OPENVOX_GUI_SECRET_KEY is unset; refusing to encrypt or decrypt "
+            "stored secrets. Set it in .env (all consoles use the same value)."
+        )
     digest = hashlib.sha256(settings.secret_key.encode("utf-8")).digest()
     key = base64.urlsafe_b64encode(digest)
     return Fernet(key)

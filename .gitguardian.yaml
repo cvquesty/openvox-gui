@@ -1,0 +1,18 @@
+# GitGuardian / ggshield configuration.
+#
+# Policy: ignore ONLY template files whose credential fields are empty
+# or a <placeholder>. Each one is copied and filled in on the server;
+# the repository copy never holds a value. Files with no credential
+# fields at all (etc/*.example, bolt-plugin/inventory.yaml.example,
+# bolt-plugin/spec/fixtures/*.json) are not listed: they need no
+# exception, and listing them would hide a real secret added later.
+#
+# Never add backend/tests/, other test paths, or the whole repository.
+# Tests generate credentials at runtime (see AGENTS.md, "Credentials in
+# Source"). Keep this list in sync with .github/secret_scanning.yml.
+version: 2
+
+secret:
+  ignored_paths:
+    - config/.env.example
+    - install.conf.example

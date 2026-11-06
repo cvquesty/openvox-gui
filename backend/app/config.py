@@ -7,11 +7,10 @@ located at /opt/openvox-gui/config/.env. The .env file is the
 recommended way to configure the application in production.
 
 Security-critical settings:
-  - secret_key: Used to sign JWT authentication tokens. If left at
-    the default value in production, an attacker who knows the default
-    can forge valid tokens and gain admin access. A loud warning is
-    emitted at startup if the default is still in use and authentication
-    is enabled.
+  - secret_key: Signs JWT authentication tokens and derives the key
+    that encrypts stored ``enc:v1:`` secrets. The built-in default is
+    an unset sentinel, not a key: the app and the encryption helpers
+    refuse to run on it (or on an empty value) unless debug=True.
   - auth_backend: Controls which authentication strategy is active.
     The "none" backend disables all authentication and should only be
     used during initial setup or development.
@@ -26,11 +25,10 @@ from typing import Optional
 
 _config_logger = logging.getLogger(__name__)
 
-# This is the well-known default value that ships in the codebase. We
-# compare against it at startup to detect whether the operator forgot to
-# set a real secret. It must never be used in production because anyone
-# who can read this source code could forge valid JWT tokens.
-_DEFAULT_SECRET_KEY = "OVOX-DEV-PLACEHOLDER--NEVER-USE-IN-PRODUCTION"
+# Sentinel meaning "OPENVOX_GUI_SECRET_KEY was never set". It is public, so
+# it must never sign tokens or encrypt secrets outside debug mode; see
+# secret_key_is_unset() and refuse_unset_secret_key().
+_DEFAULT_SECRET_KEY = "__OPENVOX_GUI_SECRET_KEY_UNSET__"
 
 
 class Settings(BaseSettings):
@@ -56,11 +54,9 @@ class Settings(BaseSettings):
     # deletes, user delete) always keep their confirms.
     skip_adhoc_confirm_dialogs: bool = False
 
-    # Secret key used for signing JWT authentication tokens. This MUST
-    # be changed to a unique, random value in production. The install
-    # script generates one automatically, but if the application is
-    # deployed manually, the operator must set OPENVOX_GUI_SECRET_KEY
-    # in the .env file.
+    # Signs JWTs and keys enc:v1: at-rest secrets. install.sh generates
+    # one; a hand-built install must set OPENVOX_GUI_SECRET_KEY in .env.
+    # Every console in a cluster uses the same value.
     secret_key: str = _DEFAULT_SECRET_KEY
 
     # ── PuppetServer connection settings ──────────────────────
@@ -205,17 +201,28 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+
+def secret_key_is_unset(key: Optional[str]) -> bool:
+    """True when ``key`` is empty or still the built-in sentinel."""
+    return not (key or "").strip() or key == _DEFAULT_SECRET_KEY
+
+
+def refuse_unset_secret_key(s: Optional[Settings] = None) -> bool:
+    """True when the process must not run on its secret key.
+
+    An unset key is allowed only with debug=True, in every auth backend:
+    auth=none still encrypts stored secrets with it.
+    """
+    s = s or settings
+    return secret_key_is_unset(s.secret_key) and not s.debug
+
+
 # ── Startup safety check ──────────────────────────────────────
-# Emit a loud warning if the operator has enabled authentication but
-# forgot to change the secret key from its well-known default value.
-# In that scenario, any attacker who can read this source code could
-# forge valid JWT tokens and authenticate as any user, including admin.
-if settings.secret_key == _DEFAULT_SECRET_KEY and settings.auth_backend != "none":
+if secret_key_is_unset(settings.secret_key):
     _config_logger.warning(
-        "╔══════════════════════════════════════════════════════════════╗\n"
-        "║  SECURITY WARNING: secret_key is still set to the default  ║\n"
-        "║  value. Anyone who knows the default can forge JWT tokens   ║\n"
-        "║  and gain admin access. Set OPENVOX_GUI_SECRET_KEY in your  ║\n"
-        "║  .env file to a unique, random value immediately.           ║\n"
-        "╚══════════════════════════════════════════════════════════════╝"
+        "SECURITY: OPENVOX_GUI_SECRET_KEY is not set. %s",
+        "Allowed only because debug=True."
+        if settings.debug
+        else "The GUI will refuse to start. Set a random value in .env "
+        "(python3 -c 'import secrets; print(secrets.token_hex(32))').",
     )
