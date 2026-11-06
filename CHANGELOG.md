@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Start of the 3.15.0 backup and restore train.** Opens
   `feature/backup_system` for `ovox backup`/`ovox restore` and the
-  Settings | Backup page. Design lives in `docs/BACKUP.md` (coming next).
+  Settings | Backup page. Design lives in `docs/BACKUP.md`.
 
 ## [3.14.3-dev.3] - 2026-10-27
 
