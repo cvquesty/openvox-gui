@@ -233,6 +233,7 @@ See [CLUSTERED_SHARED_DB.txt](CLUSTERED_SHARED_DB.txt).
 6. `/nodes` follows **catalogs**. Never `INSERT` fleet stubs; never `sub_resync_table` on `certnames`.
 7. Same `SECRET_KEY` on every console or LDAP decrypts on one site only.
 8. Package mirror follows `.mirror-selections.json`. Unchecked distros are deleted, including apt `pool/`.
+9. **`OPENVOX_GUI_SECRET_KEY` is required** (unreleased, on `main` after 3.15.0-alpha.7). The GUI refuses to start when it is unset or empty in every auth backend, unless `debug=true`, and `enc:v1:` encryption refuses an unset key. Upgrade: an install that never set it (hand-built, usually `auth=none`) must set a random key and then re-enter its stored secrets (LDAP bind, provisioning connections, cluster secrets). Those were encrypted under the old public default, which is not kept for decryption. See CHANGELOG `[Unreleased]`.
 
 ---
 

@@ -148,15 +148,13 @@ async def lifespan(app: FastAPI):
             import sys
             sys.exit(1)
 
-    from .config import _DEFAULT_SECRET_KEY
-    if (
-        settings.auth_backend != "none"
-        and not settings.debug
-        and (settings.secret_key or "") == _DEFAULT_SECRET_KEY
-    ):
+    from .config import refuse_unset_secret_key
+    if refuse_unset_secret_key(settings):
         logger.critical(
-            "SECURITY: Refusing to start with the placeholder SECRET_KEY. "
-            "Set OPENVOX_GUI_SECRET_KEY (installer generates one)."
+            "SECURITY: Refusing to start: OPENVOX_GUI_SECRET_KEY is unset or "
+            "the built-in sentinel. It signs sessions and encrypts stored "
+            "secrets. Set a random value in .env (installer generates one). "
+            "Only debug=true may run without it."
         )
         import sys
         sys.exit(1)

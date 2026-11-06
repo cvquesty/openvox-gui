@@ -37,6 +37,19 @@ When writing files with heredocs in shell scripts (`install.sh`, `update_local.s
 
 This rule was added after backticks in an unquoted sudoers heredoc caused installation failures on Ubuntu.
 
+## Credentials in Source (STRICT — standing order)
+- **Never commit a password, token, key, or credential-bearing URL — fake or real.** "It's only a test value" is not an exception: GitGuardian and GitHub secret scanning cannot tell the difference, and every incident on this repo so far was a fake test password.
+- **Tests generate values at runtime** and assert on the variable, never on a literal:
+ - Python: `secrets.token_urlsafe(16)` / `secrets.token_hex(32)` (the backend `conftest.py` already sets a random `OPENVOX_GUI_SECRET_KEY`).
+ - Ruby (bolt-plugin): `SecureRandom.hex(16)`.
+- **Docs and examples** use `<placeholder>` (e.g. `<app-password>`), `${ENV_VAR}`, or an empty string (`OPENVOX_GUI_DB_APP_PASSWORD=""`). Never a realistic-looking value, never `changeme`-style words in a credential field.
+- **Do not hand-write CSR `challengePassword` assignments or URLs with a user and password before the `@`.** Use the existing helpers (`csr.generate_challenge()`, `csr.challenge_argument()`) or build the string with an f-string from runtime variables.
+- **Run the secret scan before pushing:** `./scripts/secret-scan.sh --since origin/main` (`--install` fetches the pinned gitleaks). The pre-commit hook and the blocking CI job run the same `.gitleaks.toml` rules.
+- **Never widen the scanner ignore lists** (`.gitleaks.toml`, `.gitguardian.yaml`, `.github/secret_scanning.yml`) to cover tests, `backend/tests/`, or the whole repo. They list only template files whose credential fields are empty or `<placeholder>`. Fix the test instead.
+- The built-in `secret_key` default is an unset sentinel. The GUI and the at-rest encryption helpers refuse to run on it outside `debug=true`. Do not replace it with a real-looking key.
+
+This rule was added after cloud-agent commits put fake provisioning test passwords on `main` (PRs #172 and #174), which GitGuardian reported as leaked secrets.
+
 ## Version Discipline (STRICT — standing order)
 - **Use Semantic Versioning (SemVer) + pre-releases for all versioning.**
   - Format: `MAJOR.MINOR.PATCH` for stable releases (e.g. `3.9.0`).
