@@ -123,21 +123,21 @@ install.conf knobs.
 install.conf (preferred)
 
   OPENVOX_GUI_DB_BACKEND="postgresql"
-  OPENVOX_GUI_DB_ADMIN_DSN="postgresql://postgres:SECRET@ovdb1.site-a.example.com:5432/postgres"
-  OPENVOX_GUI_DB_APP_PASSWORD="choose-app-password"
+  OPENVOX_GUI_DB_ADMIN_DSN="postgresql://postgres:<superuser-password>@ovdb1.site-a.example.com:5432/postgres"
+  OPENVOX_GUI_DB_APP_PASSWORD="<app-password>"
   # Multi-node empty DB on each peer (primary first). CREATE DATABASE
   # does not follow PuppetDB Spock:
   OPENVOX_GUI_DB_HOSTS="ovdb1.site-a.example.com,ovdb2.site-a.example.com,ovdb3.site-b.example.com,ovdb4.site-b.example.com"
   # Optional: GUI-database Spock (site-loss ENC). Separate from puppetdb.
   #OPENVOX_GUI_DB_SPOCK="true"
   #OPENVOX_GUI_DB_REPL_USER="repl_user"
-  #OPENVOX_GUI_DB_REPL_PASSWORD="repl-secret"
+  #OPENVOX_GUI_DB_REPL_PASSWORD="<repl-password>"
 
 Or after install, on a host that can reach Postgres as superuser:
 
   sudo /opt/openvox-gui/scripts/bootstrap-openvox-gui-db.sh \
-    --admin-dsn 'postgresql://postgres:SECRET@ovdb1.site-a.example.com:5432/postgres' \
-    --app-password 'APP_SECRET' \
+    --admin-dsn 'postgresql://postgres:<superuser-password>@ovdb1.site-a.example.com:5432/postgres' \
+    --app-password '<app-password>' \
     --hosts 'ovdb1.site-a.example.com,ovdb2.site-a.example.com,ovdb3.site-b.example.com,ovdb4.site-b.example.com' \
     --write-env /opt/openvox-gui/config/.env
 
@@ -269,7 +269,7 @@ Verify on a peer:
 
 2. Site A .env — keep the existing SECRET_KEY; set:
 
-     OPENVOX_GUI_DATABASE_URL=postgresql+asyncpg://openvox_gui:PASSWORD@ovdb1.site-a.example.com:5432/openvox_gui
+     OPENVOX_GUI_DATABASE_URL=postgresql+asyncpg://openvox_gui:<app-password>@ovdb1.site-a.example.com:5432/openvox_gui
 
    If bootstrap --write-env already did this, just confirm.
 
