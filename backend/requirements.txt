@@ -34,7 +34,7 @@ ldap3==2.9.1
 pyvmomi>=8.0.3.0,<10
 
 # ovox CLI (shipped with the GUI; installed into the same venv)
-typer>=0.27.3
+typer>=0.28.0
 python-dotenv==1.2.4
 
 # For proper HOCON parsing in Puppet Server config files (used by ovox infra tune)
