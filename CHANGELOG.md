@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Upgrade note
 - An install that never set `OPENVOX_GUI_SECRET_KEY` (hand-built, typically `auth_backend=none`) will no longer start. Set a random key in `/opt/openvox-gui/config/.env` (`python3 -c 'import secrets; print(secrets.token_hex(32))'`), restart, then re-enter every stored secret: LDAP bind password, provisioning connection passwords, and cluster secrets. They were encrypted under the old public default, which is not kept for decryption, so they now read as empty. Clustered: put the same key on every console before re-entering them. Installs set up by `install.sh` already have a key and need no action.
 
+### Changed
+- **Mantine 9.7.5 group bump.** `@mantine/core`, `@mantine/dropzone`, `@mantine/hooks` and `@mantine/notifications` all move to `^9.7.5` (lockfile resolves 9.8.0). This supersedes the dropzone-only Dependabot bump in #183, which could not install because Mantine packages must share one version.
+
 ## [3.15.0-alpha.7] - 2026-11-06
 
 Separate PR stacked on `feature/ovbuilder`.
