@@ -32,7 +32,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.3.0",
-    "jsdom": "~31.0.0",
+    "jsdom": "~31.0.1",
     "postcss": "^8.5.33",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
