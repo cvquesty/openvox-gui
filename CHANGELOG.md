@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.0-beta.1] - 2026-11-17
+
+First beta of the **3.15.0** train on `main`. Promotes
+`3.15.0-alpha.1`–`alpha.7` (Infrastructure → Provisioning) plus the
+security and dependency work that landed after alpha.7. Per-increment
+detail stays in the alpha entries below.
+
+### Added
+- **Infrastructure → Provisioning.** Port of the openvox-ovbuilder
+  VMware provisioner. Clone from a template or boot a datastore ISO,
+  then finish over SSH. Multiple provider connections, NICs, placement
+  presets, and bootstrap profiles. Builds run in the
+  `openvox-gui-provisioner` service, with queue caps and cancel.
+  Machines tab: power, snapshot, and destroy with optional OpenVoxDB /
+  CA / ENC cleanup. A per-build CSR challenge is required before
+  auto-sign. CLI: `ovox vm`. Docs:
+  [docs/PROVISIONING.md](docs/PROVISIONING.md).
+
 ### Security
 - No password-shaped literals remain in the tree. Provisioning, cluster-deploy, conftest and bolt-plugin tests generate credentials, proxy URLs, SSH keys and Bearer tokens at runtime instead of using fixed fake values (GitGuardian "Generic Password" / "Username Password" findings on #172 and #174). Docs and example configs use `<placeholder>` or empty values.
 - `csr.CHALLENGE_ATTRIBUTE`, `csr.challenge_argument()` and `csr.extract_challenge()` replace hand-written `challengePassword=` strings and regexes.
@@ -23,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Mantine 9.7.5 group bump.** `@mantine/core`, `@mantine/dropzone`, `@mantine/hooks` and `@mantine/notifications` all move to `^9.7.5` (lockfile resolves 9.8.0). This supersedes the dropzone-only Dependabot bump in #183, which could not install because Mantine packages must share one version.
+- **Dependabot, 2026-11-10.** Backend: pydantic 2.14.3 (#179), cryptography 50.0.2 (#181), sqlalchemy 2.1.8 (#182), typer (#184). Frontend: vitest 5.1.0 (#186), `@vitejs/plugin-react` (#187), vite 8.3.6 (#185), jsdom 31.0.0 (#180).
+- **Dependabot, 2026-11-17.** Backend: fastapi 0.162.7 (#190), pyvmomi >=9.1.1 (#188), ruff >=0.17.5 (#192), pytest-asyncio >=1.5.0 (#194). Frontend: `@xyflow/react` 12.12.1 (#196), `@tabler/icons-react` 3.51.0 (#189), `@vitejs/plugin-react` 6.3.0 (#195), postcss 8.5.33 (#193), jsdom 31.0.1 (#191).
+- **ovox packaging.** PEP 639 SPDX license metadata (#176).
+
+Alpha train `3.15.0-alpha.1`–`alpha.7` is promoted to this beta.
 
 ## [3.15.0-alpha.7] - 2026-11-06
 
