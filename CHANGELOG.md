@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GET /api/auth/users/{username}/tokens` and prints token metadata
   (id, name, role, active, created, expires, last used). The raw
   secret is never shown.
+- **Fleet Compliance "Nodes by Category" lists could clip without a
+  scrollbar.** The expanded table used `ScrollArea h="100%"` inside a
+  `maxHeight` box (`overflow: hidden`), so the scrollport often had
+  no height. It now uses `ScrollArea.Autosize` with `mah={500}`.
 
 ## [3.15.0-beta.1] - 2026-11-17
 
