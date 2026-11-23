@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pages offer 5–15s). The TTL is now 15s, and the docstrings match
   the code.
 
+- **Fleet Compliance "Drifted" history was flat.** Trend buckets
+  started at 0 and only filled from corrective reports in that hour,
+  or on the last bucket from the current census. The series is now a
+  rolling census using the same rule as the stat cards (corrective
+  and not failed).
+
 ## [3.15.0-beta.1] - 2026-11-17
 
 First beta of the **3.15.0** train on `main`. Promotes

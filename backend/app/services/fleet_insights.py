@@ -179,6 +179,7 @@ def partition_display_nodes(nodes: List[Dict]) -> Dict[str, List[Dict]]:
 def compute_trends(nodes: List[Dict], reports: List[Any]) -> List[Dict]:
     """Rolling-state trend computation from pre-fetched nodes + reports."""
     node_state: Dict[str, str] = {}
+    node_corrective: Dict[str, bool] = {}
     for n in nodes:
         cn = n.get("certname", "")
         if not cn:
@@ -194,6 +195,7 @@ def compute_trends(nodes: List[Dict], reports: List[Any]) -> List[Dict]:
                 or ""
             )
             node_state[cn] = (raw or "unreported").strip().lower() or "unreported"
+        node_corrective[cn] = bool(n.get("latest_report_corrective_change", False))
 
     bucket_reports: Dict[str, list] = defaultdict(list)
     for report in reports:
@@ -202,12 +204,24 @@ def compute_trends(nodes: List[Dict], reports: List[Any]) -> List[Dict]:
             bucket_reports[ts].append(report)
 
     def _snapshot() -> Dict[str, int]:
+        # Status keys stay as before. drifted/compliant use the same rule as
+        # partition_display_nodes: corrective and not failed is drifted;
+        # unchanged/changed without corrective is compliant.
         counts = {"unchanged": 0, "changed": 0, "failed": 0, "noop": 0, "unreported": 0}
-        for status in node_state.values():
+        drifted = 0
+        compliant = 0
+        for cn, status in node_state.items():
             if status in counts:
                 counts[status] += 1
             else:
                 counts["unreported"] += 1
+            corrective = node_corrective.get(cn, False)
+            if corrective and status != "failed":
+                drifted += 1
+            elif status in ("unchanged", "changed"):
+                compliant += 1
+        counts["drifted"] = drifted
+        counts["compliant"] = compliant
         return counts
 
     now = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
@@ -223,6 +237,7 @@ def compute_trends(nodes: List[Dict], reports: List[Any]) -> List[Dict]:
                 node_state[cn] = "noop"
             else:
                 node_state[cn] = (report.get("status") or "unchanged").strip().lower()
+            node_corrective[cn] = bool(report.get("corrective_change"))
         counts = _snapshot()
         result.append({"timestamp": bucket, "hour": bucket, **counts})
     return result

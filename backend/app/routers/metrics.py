@@ -147,28 +147,26 @@ async def get_compliance(
         reports = filter_reports_by_scope(reports, scope_result)
         # compute_trends expects ascending apply order via bucket sort
         trend_raw = compute_trends(nodes, reports)
-        # Map node-status keys to compliance chart keys for the area chart
+        # Map node-status keys to compliance chart keys for the area chart.
+        # drifted/compliant come from the same partition rule as the census
+        # (corrective and not failed → drifted; unchanged/changed otherwise
+        # → compliant), not a last-bucket-only overlay.
         trend = []
         for row in trend_raw:
+            unchanged = row.get("unchanged") or 0
+            changed = row.get("changed") or 0
+            if row.get("compliant") is not None:
+                compliant = row.get("compliant") or 0
+            else:
+                compliant = unchanged + changed
             trend.append({
                 "timestamp": row.get("timestamp") or row.get("hour"),
-                "compliant": (row.get("unchanged") or 0) + (row.get("changed") or 0),
-                "drifted": 0,  # corrective not in report stream; keep key for chart
+                "compliant": compliant,
+                "drifted": row.get("drifted") or 0,
                 "failed": row.get("failed") or 0,
                 "noop": row.get("noop") or 0,
                 "unreported": row.get("unreported") or 0,
             })
-        # Overlay corrective "drifted" from report stream when present
-        hourly_drift: Dict[str, int] = {}
-        for r in reports:
-            if r.get("corrective_change"):
-                ts = (r.get("receive_time") or "")[:13]
-                if ts:
-                    hourly_drift[ts] = hourly_drift.get(ts, 0) + 1
-        for row in trend:
-            ts = (row.get("timestamp") or "")[:13]
-            if ts in hourly_drift:
-                row["drifted"] = hourly_drift[ts]
         # Last bucket is *now*: do not leave replayed yesterday-failed
         # as the wallboard's current Failed count.
         if trend:
