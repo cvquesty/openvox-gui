@@ -74,7 +74,7 @@ session cache (`openvox_node_detail_v1_*`). Host Health glance is deferred and c
 ## What we optimized in the product
 
 1. **Dashboard `/api/dashboard/data`** — lean report extract + ≈20s TTL (single-flight); UI SWR + session cache (see above).
-2. **Metrics / performance endpoint TTL cache** (≈45s) — shared warm responses for compliance, fact overview, JMX health, run performance.
+2. **Metrics / performance endpoint TTL cache** (Insights metrics 15s; run performance still ≈45s) — shared warm responses for compliance, fact overview, JMX health, run performance.
 3. **GZip middleware** — large JSON payloads compress over the wire.
 4. **PuppetDB httpx pool** — keep-alive connection limits so multi-chart pages reuse TLS sessions.
 5. **uvicorn multi-worker + concurrency limits** in the systemd unit (`--workers`, `--limit-concurrency`, `--backlog`, `LimitNOFILE`).

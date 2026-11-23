@@ -54,8 +54,9 @@ _AUTH = require_role(*READ_ROLES)
 # ─── Response cache (TTL-based) ──────────────────────────
 _cache: Dict[str, Any] = {}
 _cache_ts: Dict[str, float] = {}
-# Align with UI default poll (~30s) so refreshes usually hit warm cache
-_CACHE_TTL = 45  # seconds
+# 15s is at or below the common UI refresh options (5–30s, default ~30s)
+# so polls usually see a new snapshot instead of a frozen chart.
+_CACHE_TTL = 15  # seconds
 
 def _get_cached(key: str) -> Any:
     if key in _cache and (_time.time() - _cache_ts.get(key, 0)) < _CACHE_TTL:
@@ -1105,7 +1106,7 @@ async def get_node_health(_user: str = Depends(_AUTH)):
     CA-cleaned or deactivated/expired hosts do not appear.
 
     Facts (agent disabled / message) are applied only for certnames on that fleet.
-    Cached ~45s so Insights trickle polls stay cheap.
+    Cached 15s so Insights trickle polls stay cheap.
     """
     cached = _get_cached("node_health")
     if cached is not None:

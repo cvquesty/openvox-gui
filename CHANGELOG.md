@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Health Glance now use `MeasuredArea`, the same pattern Dashboard
   and Run Performance already used.
 
+- **Insights charts could look frozen between polls.** The metrics
+  API cache TTL was 45s while the UI default poll is ~30s (and some
+  pages offer 5–15s). The TTL is now 15s, and the docstrings match
+  the code.
+
 ## [3.15.0-beta.1] - 2026-11-17
 
 First beta of the **3.15.0** train on `main`. Promotes
