@@ -12,9 +12,10 @@ import {
   TextInput, Button, Table, Tooltip,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Cell,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import {
   IconChartPie, IconArrowsMaximize, IconArrowsMinimize,
   IconSearch, IconAlertTriangle,
@@ -58,8 +59,9 @@ function NumericDistribution({ data, height }: { data: Array<{ certname: string;
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={plotData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+    <MeasuredArea height={height}>
+      {(width) => (
+      <AreaChart width={width} height={height} data={plotData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="gFactNum" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#0D6EFD" stopOpacity={0.35} />
@@ -87,7 +89,9 @@ function NumericDistribution({ data, height }: { data: Array<{ certname: string;
           activeDot={{ r: height > 180 ? 4 : 2 }}
         />
       </AreaChart>
-    </ResponsiveContainer>
+    
+      )}
+    </MeasuredArea>
   );
 }
 
@@ -108,8 +112,9 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
 
   if (horizontal) {
     return (
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={barData} layout="vertical" margin={{ left: 5, right: 20, top: 5, bottom: 0 }}>
+      <MeasuredArea height={height}>
+        {(width) => (
+        <BarChart width={width} height={height} data={barData} layout="vertical" margin={{ left: 5, right: 20, top: 5, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
           <XAxis type="number" tick={{ fontSize: 9, fill: '#8899aa' }} />
           <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fill: '#8899aa' }} />
@@ -119,13 +124,16 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
             {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Bar>
         </BarChart>
-      </ResponsiveContainer>
+      
+      )}
+    </MeasuredArea>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={barData} margin={{ left: 10, right: 15, top: 5, bottom: 5 }}>
+    <MeasuredArea height={height}>
+      {(width) => (
+      <BarChart width={width} height={height} data={barData} margin={{ left: 10, right: 15, top: 5, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
         <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} angle={-25} textAnchor="end" height={55} />
         <YAxis tick={{ fontSize: 9, fill: '#8899aa' }} allowDecimals={false} />
@@ -135,7 +143,9 @@ function CategoricalBar({ distribution, total, height, horizontal = false }: {
           {barData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
         </Bar>
       </BarChart>
-    </ResponsiveContainer>
+    
+      )}
+    </MeasuredArea>
   );
 }
 

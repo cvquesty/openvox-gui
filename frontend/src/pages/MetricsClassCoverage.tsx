@@ -10,9 +10,10 @@ import {
   TextInput, ScrollArea, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import { IconShieldCheck, IconSearch } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 import { useApi } from '../hooks/useApi';
@@ -89,8 +90,9 @@ export function MetricsClassCoveragePage() {
       <Card withBorder shadow="sm" padding="lg">
         <Title order={4} mb="md">Top Classes by Deployment Count</Title>
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
+          <MeasuredArea height={400}>
+            {(width) => (
+            <AreaChart width={width} height={400} data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
               <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#8899aa' }} angle={-35} textAnchor="end" height={80} />
               <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
@@ -105,7 +107,8 @@ export function MetricsClassCoveragePage() {
               />
               <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey="nodes" stroke="#0D6EFD" fill="none" strokeWidth={2} dot={{ r: 3, fill: '#0D6EFD' }} name="Nodes" />
             </AreaChart>
-          </ResponsiveContainer>
+            )}
+          </MeasuredArea>
         ) : (
           <Center h={300}>
             <Text c="dimmed">No class data available</Text>

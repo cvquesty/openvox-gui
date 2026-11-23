@@ -14,15 +14,16 @@
  * Auto-refreshes. Recharts for graphs. Layout matches Run Performance page (thumbnail grid, click to expand).
  * Renamed to OpenVox Server Health for branding consistency.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, cloneElement, isValidElement } from 'react';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
   Grid, Button, Select, Paper,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import { IconServer, IconRefresh, IconTrash, IconArrowsMaximize, IconArrowsMinimize, IconChartLine } from '@tabler/icons-react';
 import { useApi } from '../hooks/useApi';
 import { metrics } from '../services/api';
@@ -129,9 +130,13 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
           ))}
         </Group>
       )}
-      <ResponsiveContainer width="100%" height={height}>
-        {children as any}
-      </ResponsiveContainer>
+      <MeasuredArea height={height}>
+        {(width) =>
+          isValidElement(children)
+            ? cloneElement(children as React.ReactElement<{ width?: number; height?: number }>, { width, height })
+            : children
+        }
+      </MeasuredArea>
     </Card>
   );
 }

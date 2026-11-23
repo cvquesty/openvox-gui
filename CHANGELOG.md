@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `maxHeight` box (`overflow: hidden`), so the scrollport often had
   no height. It now uses `ScrollArea.Autosize` with `mah={500}`.
 
+- **Insights and Monitoring charts could paint blank.** Recharts
+  `ResponsiveContainer` can first-measure a width of 0 and stay empty.
+  Fleet Compliance, OpenVoxDB Health, OpenVox Server Health, Host
+  Health, Fact Distribution, Environments, Class Coverage, and Node
+  Health Glance now use `MeasuredArea`, the same pattern Dashboard
+  and Run Performance already used.
+
 ## [3.15.0-beta.1] - 2026-11-17
 
 First beta of the **3.15.0** train on `main`. Promotes

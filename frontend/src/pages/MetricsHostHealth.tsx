@@ -13,9 +13,10 @@ import {
   Grid, Button, Select, Table, ThemeIcon, SimpleGrid,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import {
   IconServer2, IconRefresh, IconCpu, IconDatabase, IconShield,
   IconDeviceDesktop, IconAlertTriangle,
@@ -241,8 +242,9 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Card withBorder padding="sm">
                 <Text size="sm" fw={700} mb="xs">CPU &amp; load</Text>
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={history}>
+                <MeasuredArea height={220}>
+                  {(width) => (
+                  <AreaChart width={width} height={220} data={history}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                     <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} domain={[0, 'auto']} />
@@ -252,14 +254,16 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
                     <Area type="monotone" dataKey="cpu_iowait_pct" name="iowait %" stroke="#fd7e14" fill="#fd7e14" fillOpacity={0.15} />
                     <Line type="monotone" dataKey="load1" name="load1" stroke="#ae3ec9" dot={false} />
                   </AreaChart>
-                </ResponsiveContainer>
+                  )}
+                </MeasuredArea>
               </Card>
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Card withBorder padding="sm">
                 <Text size="sm" fw={700} mb="xs">Memory</Text>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={history}>
+                <MeasuredArea height={220}>
+                  {(width) => (
+                  <LineChart width={width} height={220} data={history}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                     <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
@@ -268,7 +272,8 @@ export function MetricsHostHealthPage({ embedded = false }: { embedded?: boolean
                     <Line type="monotone" dataKey="mem_used_pct" name="Mem %" stroke="#12b886" dot={false} />
                     <Line type="monotone" dataKey="swap_used_mb" name="Swap MiB" stroke="#fa5252" dot={false} />
                   </LineChart>
-                </ResponsiveContainer>
+                  )}
+                </MeasuredArea>
               </Card>
             </Grid.Col>
           </Grid>

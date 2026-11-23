@@ -15,9 +15,10 @@ import {
   IconShieldCheck, IconChevronDown, IconChevronRight,
 } from '@tabler/icons-react';
 import {
-  ResponsiveContainer, BarChart, Bar, Cell,
+  BarChart, Bar, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import { metrics } from '../services/api';
 import { useApi } from '../hooks/useApi';
 import { timeAgo } from '../utils/timeAgo';
@@ -257,8 +258,9 @@ export function MetricsCompliancePage({
                 {compliantPct}% Compliant
               </Badge>
             </Group>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={donutData.filter(d => d.value > 0)} layout="vertical" margin={{ left: 10, right: 20 }}>
+            <MeasuredArea height={300}>
+              {(width) => (
+              <BarChart width={width} height={300} data={donutData.filter(d => d.value > 0)} layout="vertical" margin={{ left: 10, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12, fill: '#8899aa' }} />
@@ -274,7 +276,8 @@ export function MetricsCompliancePage({
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+              )}
+            </MeasuredArea>
           </Card>
         </Grid.Col>
 
@@ -283,8 +286,9 @@ export function MetricsCompliancePage({
           <Card withBorder shadow="sm" padding="lg">
             <Title order={4} mb={4}>Compliance Trend</Title>
             <Text size="xs" c="dimmed" mb="md">3-hour moving average of hourly buckets</Text>
-            <ResponsiveContainer width="100%" height={400}>
-              <AreaChart data={trendData}>
+            <MeasuredArea height={400}>
+              {(width) => (
+              <AreaChart width={width} height={400} data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
                 <XAxis dataKey="timestamp" type="category" tick={{ fontSize: 10, fill: '#8899aa' }}
                   tickFormatter={(v) => {
@@ -303,7 +307,8 @@ export function MetricsCompliancePage({
                 <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="drifted" stroke={STATUS_COLORS.drifted} fill={STATUS_COLORS.drifted} fillOpacity={0.4} strokeWidth={2} name="Drifted" />
                 <Area isAnimationActive={false} animationDuration={0} type={CHART_LINE_TYPE} dataKey="failed" stroke={STATUS_COLORS.failed} fill={STATUS_COLORS.failed} fillOpacity={0.4} strokeWidth={2} name="Failed" />
               </AreaChart>
-            </ResponsiveContainer>
+              )}
+            </MeasuredArea>
           </Card>
         </Grid.Col>
       </Grid>

@@ -5,16 +5,17 @@
  * service status badge, command queue stats, active node count.
  * Auto-refreshes every 30 seconds, accumulating data points for the graph.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, cloneElement, isValidElement } from 'react';
 import { useApi } from '../hooks/useApi';
 import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert,
   Grid,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip as ReTooltip, Legend,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import { IconDatabase, IconRefresh, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 import { CHART_LINE_TYPE, mergeByTs, smoothTimeSeries } from '../utils/chartDefaults';
@@ -100,9 +101,13 @@ function ChartPanel({ title, expanded, onClick, children, stats }: ChartPanelPro
           ))}
         </Group>
       )}
-      <ResponsiveContainer width="100%" height={height}>
-        {children as any}
-      </ResponsiveContainer>
+      <MeasuredArea height={height}>
+        {(width) =>
+          isValidElement(children)
+            ? cloneElement(children as React.ReactElement<{ width?: number; height?: number }>, { width, height })
+            : children
+        }
+      </MeasuredArea>
     </Card>
   );
 }

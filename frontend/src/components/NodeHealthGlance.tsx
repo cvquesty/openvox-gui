@@ -15,8 +15,9 @@ import {
   IconClock, IconDeviceDesktop, IconAlertTriangle, IconServer2,
 } from '@tabler/icons-react';
 import {
-  ResponsiveContainer, AreaChart, Area, YAxis, Tooltip as ReTooltip,
+  AreaChart, Area, YAxis, Tooltip as ReTooltip,
 } from 'recharts';
+import { MeasuredArea } from './MeasuredChart';
 import { useApi } from '../hooks/useApi';
 import { nodes } from '../services/api';
 import { notifications } from '@mantine/notifications';
@@ -74,8 +75,9 @@ function MiniSpark({
       : pts;
   const showDot = pts.length < 4;
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={chartData} margin={{ top: 4, right: 2, left: 0, bottom: 0 }}>
+    <MeasuredArea height={height}>
+      {(width) => (
+      <AreaChart width={width} height={height} data={chartData} margin={{ top: 4, right: 2, left: 0, bottom: 0 }}>
         <YAxis hide domain={domain || [0, 'auto']} />
         <ReTooltip
           contentStyle={{
@@ -101,7 +103,8 @@ function MiniSpark({
           isAnimationActive={false}
         />
       </AreaChart>
-    </ResponsiveContainer>
+      )}
+    </MeasuredArea>
   );
 }
 

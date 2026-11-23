@@ -9,9 +9,10 @@ import {
   Title, Card, Stack, Group, Text, Badge, Loader, Center, Alert, Grid, Paper, Select, Button,
 } from '@mantine/core';
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as ReTooltip, Legend,
 } from 'recharts';
+import { MeasuredArea } from '../components/MeasuredChart';
 import { IconGitBranch, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { metrics } from '../services/api';
 import { useApi } from '../hooks/useApi';
@@ -171,8 +172,9 @@ export function MetricsEnvironmentsPage() {
             <Title order={4}>{envName} — Node Status Over Time</Title>
             <Text size="xs" c="dimmed">{history.length} data points</Text>
           </Group>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={history} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+          <MeasuredArea height={300}>
+            {(width) => (
+            <AreaChart width={width} height={300} data={history} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" strokeOpacity={0.5} />
               <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#8899aa' }} />
               <YAxis tick={{ fontSize: 11, fill: '#8899aa' }} allowDecimals={false} />
@@ -182,7 +184,8 @@ export function MetricsEnvironmentsPage() {
               <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey={`${envName}_changed`} stroke={STATUS_COLORS.changed} fill="none" strokeWidth={2} dot={false} connectNulls name="Changed" />
               <Area isAnimationActive={false} animationDuration={0} type="natural" dataKey={`${envName}_failed`} stroke={STATUS_COLORS.failed} fill="none" strokeWidth={2} dot={false} connectNulls name="Failed" />
             </AreaChart>
-          </ResponsiveContainer>
+            )}
+          </MeasuredArea>
           {history.length < 3 && (
             <Text size="xs" c="dimmed" ta="center" mt="xs">
               Chart populates as data is collected (one point every 30 seconds)
