@@ -117,17 +117,62 @@ def generate_token(
             console.print(f"[red]Failed to write token file:[/red] {e}")
 
 
+# Metadata fields only — never include raw secrets if a payload ever adds them.
+_TOKEN_SECRET_KEYS = ("token", "secret", "raw_token", "token_hash")
+
+
+def _token_metadata(row: dict) -> dict:
+    return {k: v for k, v in row.items() if k.lower() not in _TOKEN_SECRET_KEYS}
+
+
 @app.command("list")
-def list_tokens(ctx: typer.Context, username: str = typer.Argument(..., help="Username to list tokens for")):
-    """List active API tokens for a user (admin only)."""
+def list_tokens(
+    ctx: typer.Context,
+    username: str = typer.Argument(..., help="Username to list tokens for"),
+    json_output: bool = typer.Option(False, "--json", "-j"),
+):
+    """List API tokens for a user (admin only). Metadata only; the raw secret is never shown."""
     client = get_client(
         base_url=ctx.obj.get("url") if ctx.obj else None,
         token=ctx.obj.get("token") if ctx.obj else None,
+        verify_ssl=ctx.obj.get("verify_ssl", True) if ctx.obj else True,
     )
     try:
-        # This endpoint doesn't exist yet — placeholder for now
-        console.print("[yellow]Token listing endpoint not yet implemented in this build.[/yellow]")
-        console.print("For now, use the web UI under User Management.")
+        result = client.get(f"/api/auth/users/{username}/tokens")
     except OvoxAPIError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
+
+    raw = result.get("tokens") if isinstance(result, dict) else result
+    tokens = [_token_metadata(t) if isinstance(t, dict) else t for t in (raw or [])]
+
+    if json_output or (ctx.obj and ctx.obj.get("output") == "json"):
+        import json
+        console.print(JSON(json.dumps(tokens, indent=2)))
+        return
+
+    if not tokens:
+        console.print(f"[yellow]No tokens found for user '{username}'.[/yellow]")
+        return
+
+    table = Table(title=f"API tokens for {username} ({len(tokens)})", show_lines=False)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name")
+    table.add_column("Role", style="magenta")
+    table.add_column("Active")
+    table.add_column("Created", style="dim")
+    table.add_column("Expires", style="dim")
+    table.add_column("Last used", style="dim")
+    for t in tokens:
+        expires = t.get("expires_at") or "never"
+        expires_s = "never" if expires == "never" else str(expires)[:19]
+        table.add_row(
+            str(t.get("id", "")),
+            str(t.get("name") or ""),
+            str(t.get("role") or ""),
+            "yes" if t.get("active") else "no",
+            str(t.get("created_at") or "-")[:19],
+            expires_s,
+            str(t.get("last_used_at") or "-")[:19],
+        )
+    console.print(table)

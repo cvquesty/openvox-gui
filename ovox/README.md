@@ -196,13 +196,16 @@ ovox token generate --user bolt --name "Bolt service token - $(hostname)" --expi
 
 # Or with short flags
 ovox token generate -u bolt -n "Bolt service token" -e 0 -o /etc/puppetlabs/bolt/.bolt_token
+
+# List token metadata for a user (admin only; the raw secret is never shown)
+ovox token list bolt
 ```
 
 These tokens are used by:
 - The `openvox_enc` Bolt inventory plugin (via `token_file: /etc/puppetlabs/bolt/.bolt_token`)
 - Any scripts or CI that need to talk to the GUI without interactive login.
 
-Tokens appear in the web UI under User Management and can be revoked there (or via future `ovox token` subcommands).
+Tokens appear in the web UI under User Management and can be listed with `ovox token list <username>` (metadata only) or revoked in the UI.
 
 ## Output Formats
 

@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`ovox token list` was a stub.** The command now calls
+  `GET /api/auth/users/{username}/tokens` and prints token metadata
+  (id, name, role, active, created, expires, last used). The raw
+  secret is never shown.
+
 ## [3.15.0-beta.1] - 2026-11-17
 
 First beta of the **3.15.0** train on `main`. Promotes
