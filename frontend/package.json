@@ -16,7 +16,7 @@
     "@mantine/core": "^9.7.5",
     "@mantine/dropzone": "^9.7.5",
     "@mantine/hooks": "^9.7.5",
-    "@mantine/notifications": "^9.7.5",
+    "@mantine/notifications": "^9.8.2",
     "@tabler/icons-react": "^3.51.0",
     "@types/dagre": "^0.7.54",
     "@xyflow/react": "^12.12.1",
