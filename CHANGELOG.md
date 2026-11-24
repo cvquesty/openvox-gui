@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mantine 9.8.2 group bump.** `@mantine/core`, `@mantine/dropzone`, `@mantine/hooks` and `@mantine/notifications` all move from `^9.7.5` (lockfile 9.8.0) to `^9.8.2` (lockfile 9.8.2). This supersedes the notifications-only (#200) and dropzone-only (#201) Dependabot bumps, which conflict because Mantine packages must share one version.
+- **Dependabot, 2026-11-24.** Backend: fastapi 0.162.7 -> 0.165.0 (#198), pyyaml 6.0.3 -> 6.0.4 (#199), sqlalchemy 2.1.8 -> 2.1.9 (#202), certifi 2026.10.23 -> 2026.11.20 (#203). Frontend: `@tabler/icons-react` 3.51.0 -> 3.52.0 (#197), `@xyflow/react` 12.12.1 -> 13.0.2 (#204, major), recharts 3.10.1 -> 3.11.0 (#205).
+
 ## [3.15.0-beta.1] - 2026-11-17
 
 First beta of the **3.15.0** train on `main`. Promotes
